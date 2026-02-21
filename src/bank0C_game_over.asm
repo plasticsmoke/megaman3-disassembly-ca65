@@ -71,7 +71,7 @@ select_PRG_banks           := $FF6B             ; select PRG banks
         jsr     prepare_oam_buffer                   ; prepare OAM buffer (clear sprites)
         jsr     clear_entity_table                   ; clear entity table
         jsr     task_yield                   ; wait for NMI (yield one frame)
-        lda     #$F0
+        lda     #SNDCMD_INIT
         jsr     submit_sound_ID_D9                   ; submit sound command $F0 (silence all)
         lda     #$00
         sta     $B1                     ; clear music state variables
@@ -237,7 +237,7 @@ code_813F:  lda     ent_var1
         ldx     ent_timer               ; current RM index
         cpx     #$0C                    ; is this the first RM? ($0C = Needle Man)
         bne     code_8166
-        lda     #$12
+        lda     #MUSIC_GAME_OVER
         jsr     submit_sound_ID_D9                   ; submit sound $12 (game over jingle)
 code_8166:  jsr     LA006               ; start playing RM music track
         jmp     code_81AA
@@ -658,7 +658,7 @@ code_8466:  ldx     #$F0                ; hold for $F0 frames
         sta     LA000                   ; clear music init
         sta     ent_status              ; deactivate player entity
 ; --- play password screen music ---
-        lda     #$0F
+        lda     #MUSIC_CONTINUE
         jsr     submit_sound_ID_D9                   ; submit sound ID $0F (password screen music)
 ; --- load password/continue screen nametable ---
         lda     #$13

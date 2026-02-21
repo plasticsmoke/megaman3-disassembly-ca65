@@ -151,7 +151,7 @@ code_A058:  lda     ent_status,x
         sta     boss_active                     ; boss active flag
         lda     #$8E                    ; HP fill target (28 HP)
         sta     $B3
-        lda     #$0D                    ; SFX $0D = boss intro music
+        lda     #MUSIC_BOSS                    ; SFX $0D = boss intro music
         jsr     submit_sound_ID_D9
 LA082:  lda     boss_hp_display                     ; has HP bar filled to $9C?
         cmp     #$9C
@@ -807,7 +807,7 @@ code_A7BA:  lda     #$AB
         sta     boss_active
         lda     #$8E
         sta     $B3
-        lda     #$0D
+        lda     #MUSIC_BOSS
         jsr     submit_sound_ID_D9
         lda     #$00
         sta     $69
@@ -1280,7 +1280,7 @@ code_AC14:  sta     nametable_dirty
 code_AC19:  lda     ent_timer,x
         and     #$03
         bne     code_AC4B
-        lda     #$1C
+        lda     #SFX_HP_FILL
         jsr     submit_sound_ID
         inc     boss_hp_display
         lda     boss_hp_display
@@ -1442,7 +1442,7 @@ code_ADE0:  lda     ent_status,x             ; AI phase
         sta     boss_active                     ; boss active flag
         lda     #$8E                    ; HP fill target (28 HP)
         sta     $B3
-        lda     #$0D                    ; SFX $0D = boss intro music
+        lda     #MUSIC_BOSS                    ; SFX $0D = boss intro music
         jsr     submit_sound_ID_D9
         lda     #$30
         sta     ent_timer,x
@@ -2379,7 +2379,7 @@ code_B664:  lda     ent_status,x
         sta     boss_active
         lda     #$8E
         sta     $B3
-        lda     #$0D
+        lda     #MUSIC_BOSS
         jsr     submit_sound_ID_D9
 code_B682:  lda     boss_hp_display
         cmp     #$9C
@@ -2790,7 +2790,7 @@ code_BA2F:  lda     ent_status,x
         inc     ent_status,x
 code_BA4E:  jsr     check_sprite_weapon_collision
         bcs     code_BA62
-        lda     #$18
+        lda     #SFX_ENEMY_HIT
         jsr     submit_sound_ID
         ldy     $10
         lda     #$00
@@ -3042,7 +3042,7 @@ code_BC7D:  lda     ent_status,x
         sta     boss_hp_display
         lda     #$8E
         sta     $B3
-        lda     #$0D
+        lda     #MUSIC_BOSS
         jsr     submit_sound_ID_D9
 code_BC99:  lda     boss_hp_display
         cmp     #$9C

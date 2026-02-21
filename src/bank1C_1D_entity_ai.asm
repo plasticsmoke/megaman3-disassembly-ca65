@@ -217,7 +217,7 @@ check_player_hit:  lda     ent_anim_id        ; check player animation
         bcs     code_80F9               ; no collision → skip
         lda     #PSTATE_DAMAGE                    ; --- CONTACT HIT ---
         sta     player_state                     ; state → $06 (damage)
-        lda     #$16                    ; SFX $16 = damage sound
+        lda     #SFX_PLAYER_HIT                    ; SFX $16 = damage sound
         jsr     submit_sound_ID                   ; submit_sound_ID
         lda     player_hp                     ; player HP
         and     #$1F                    ; isolate HP value (0-28)
@@ -237,9 +237,9 @@ L80E7:  lda     #$80                    ; --- PLAYER KILLED ---
         sta     player_hp                     ; HP = 0 with dirty flag
         lda     #PSTATE_DEATH                    ; state → $0E (death)
         sta     player_state
-        lda     #$F2                    ; SFX $F2 = stop music
+        lda     #SNDCMD_STOP                    ; SFX $F2 = stop music
         jsr     submit_sound_ID                   ; submit_sound_ID
-        lda     #$17                    ; SFX $17 = death sound
+        lda     #SFX_DEATH                    ; SFX $17 = death sound
         jsr     submit_sound_ID                   ; submit_sound_ID
 code_80F9:  pla                         ; restore bank
         sta     prg_bank
@@ -460,7 +460,7 @@ L82AA:  lda     ent_hp,x                 ; boss health bits
 
 L82B8:  lda     #$F2                    ; SFX $F2 = stop music
         jsr     submit_sound_ID_D9                   ; submit_sound_ID_D9
-        lda     #$17                    ; SFX $17 = boss death sound
+        lda     #SFX_DEATH                    ; SFX $17 = boss death sound
         jsr     submit_sound_ID                   ; submit_sound_ID
         ldy     #$1F
 code_82C4:  lda     boss_active
@@ -3165,7 +3165,7 @@ code_990F:  jsr     find_enemy_freeslot_y               ; find free slot
         sta     ent_yvel,y
         lda     #$6F                    ; OAM $6F = cannon shell
         jsr     init_child_entity                   ; init_child_entity
-        lda     #$1E                    ; play shot sound
+        lda     #SFX_SHOT                    ; play shot sound
         jsr     submit_sound_ID                   ; submit_sound_ID
         lda     #$C0                    ; dmg: hurts player + hittable
         sta     ent_hitbox,y
@@ -3731,7 +3731,7 @@ code_9D51:  lda     ent_anim_state,x
         lda     #$00                        ; frame > 0 -> reset anim, play sound
         sta     ent_anim_state,x
         sta     ent_anim_frame,x
-        lda     #$20
+        lda     #SFX_STOMP
         jsr     submit_sound_ID                       ; submit_sound_ID (stomp)
         rts
 
@@ -5070,7 +5070,7 @@ LA83B:  .byte   $3C,$1E,$78,$3C
         sta     ent_var1,x
         jsr     find_enemy_freeslot_y                   ; find_enemy_freeslot_y
         bcs     code_A8BB
-        lda     #$27
+        lda     #SFX_PLATFORM
         jsr     submit_sound_ID                   ; submit_sound_ID
         lda     #$71
         jsr     init_child_entity                   ; init_child_entity
@@ -6554,7 +6554,7 @@ main_walking_bomb:
         bcs     code_B4EC               ; survived → continue walking
 
 ; --- weapon killed this enemy: explode ---
-        lda     #$18                    ; play explosion sound
+        lda     #SFX_ENEMY_HIT                    ; play explosion sound
         jsr     submit_sound_ID                   ; submit_sound_ID
         ldy     $10                     ; deactivate the weapon that hit us
         lda     #$00
@@ -6977,7 +6977,7 @@ init_boss_wait:  lda     #PSTATE_BOSS_WAIT           ; state → $09 (boss_wait)
         sta     boss_active                     ; $5A = boss active flag
         lda     #$8E                    ; $B3 = HP fill target
         sta     $B3                     ; ($8E = $80 + 14 ticks = 28 HP)
-        lda     #$0C                    ; SFX $0C = boss intro music
+        lda     #MUSIC_WILY_MAP                    ; SFX $0C = boss intro music
         jsr     submit_sound_ID_D9                   ; submit_sound_ID_D9
         rts
 
@@ -7170,7 +7170,7 @@ code_B9AE:  lda     ent_status,y
         bne     code_B9DF
 code_B9BE:  jsr     check_sprite_weapon_collision               ; check_sprite_weapon_collision
         bcs     code_B9DF
-        lda     #$18
+        lda     #SFX_ENEMY_HIT
         jsr     submit_sound_ID                   ; submit_sound_ID
         ldy     $10
         lda     #$00
@@ -7785,7 +7785,7 @@ code_BE72:  ldy     $0E                 ; check current energy level
         clc
         adc     #$01
         sta     player_hp,y
-        lda     #$1C                    ; play refill tick sound
+        lda     #SFX_HP_FILL                    ; play refill tick sound
         jsr     submit_sound_ID                   ; submit_sound_ID
         dec     $0F                     ; all ticks applied?
         beq     code_BE98               ; yes → done
@@ -7800,7 +7800,7 @@ code_BE98:  lda     #$00                ; clear refill-active flag
 
 ; --- pickup_etank: add 1 E-tank (max 9) ---
 
-        lda     #$14                    ; play 1-up/E-tank sound
+        lda     #SFX_1UP                    ; play 1-up/E-tank sound
         jsr     submit_sound_ID                   ; submit_sound_ID
         lda     etanks                     ; current E-tanks ($AF)
         cmp     #$09                    ; max 9?
@@ -7810,7 +7810,7 @@ code_BEAA:  rts
 
 ; --- pickup_1up: add 1 extra life (BCD, max 99) ---
 
-        lda     #$14                    ; play 1-up sound
+        lda     #SFX_1UP                    ; play 1-up sound
         jsr     submit_sound_ID                   ; submit_sound_ID
         lda     lives                     ; $AE ($AE, BCD format)
         cmp     #$99                    ; max 99?

@@ -122,3 +122,69 @@ TILE_DAMAGE      = $30   ; damage tile (lava/fire)
 TILE_LADDER_TOP  = $40   ; ladder top (grab point from above)
 TILE_SPIKES      = $50   ; instant kill spikes
 TILE_DISAPPEAR   = $70   ; disappearing block (Gemini stages)
+
+; =============================================================================
+; Music IDs (via submit_sound_ID_D9 — checks $D9 to avoid restart)
+; =============================================================================
+; Stage music is loaded from the LCD0C table indexed by stage_id.
+; Other music IDs are loaded directly.
+; =============================================================================
+MUSIC_SILENCE       = $00   ; silence
+MUSIC_NEEDLE        = $01   ; Needle Man stage
+MUSIC_MAGNET        = $02   ; Magnet Man stage
+MUSIC_GEMINI        = $03   ; Gemini Man stage
+MUSIC_HARD          = $04   ; Hard Man stage
+MUSIC_TOP           = $05   ; Top Man stage
+MUSIC_SNAKE         = $06   ; Snake Man stage
+MUSIC_SPARK         = $07   ; Spark Man stage
+MUSIC_SHADOW        = $08   ; Shadow Man stage
+MUSIC_WILY_1        = $09   ; Wily Fortress stages 1-2
+MUSIC_WILY_2        = $0A   ; Wily Fortress stages 3-4
+MUSIC_WILY_3        = $0B   ; Wily Fortress stages 5-6
+MUSIC_WILY_MAP      = $0C   ; Wily fortress gate / map
+MUSIC_BOSS          = $0D   ; Boss battle
+MUSIC_PASSWORD      = $0E   ; Password screen
+MUSIC_CONTINUE      = $0F   ; Continue screen (after game over)
+MUSIC_STAGE_SELECT  = $10   ; Stage select menu
+MUSIC_GAME_OVER     = $12   ; Game over
+MUSIC_STAGE_START   = $33   ; Stage intro fanfare
+MUSIC_BOSS_INTRO    = $35   ; Boss intro sequence
+MUSIC_DOC_ROBOT     = $36   ; Doc Robot / Proto Man theme
+MUSIC_WILY_VICTORY  = $37   ; Wily defeat victory
+MUSIC_VICTORY       = $38   ; Normal boss victory
+
+; =============================================================================
+; Sound Effect IDs (via submit_sound_ID — plays immediately)
+; =============================================================================
+SFX_LAND            = $13   ; Player landing
+SFX_1UP             = $14   ; 1-up / E-tank pickup
+SFX_BUSTER          = $15   ; Mega Buster fire (default weapon sound)
+SFX_PLAYER_HIT      = $16   ; Player takes damage
+SFX_DEATH           = $17   ; Player / boss death
+SFX_ENEMY_HIT       = $18   ; Weapon hits enemy
+SFX_TINK            = $19   ; Weapon bounces off (immune)
+SFX_PAUSE           = $1A   ; Pause menu open
+SFX_CURSOR          = $1B   ; Menu cursor move
+SFX_HP_FILL         = $1C   ; HP bar refill tick
+SFX_DOOR            = $1D   ; Stage door / shutter
+SFX_SHOT            = $1E   ; Projectile fired
+SFX_LAND_ALT        = $1F   ; Landing (alternate)
+SFX_STOMP           = $20   ; Heavy footstep
+SFX_DEBRIS          = $23   ; Debris / object break
+SFX_PLATFORM        = $27   ; Platform detach / item spawn
+SFX_WIND            = $28   ; Wind effect (intro)
+SFX_MAGNET_FIRE     = $2A   ; Magnet Missile fire
+SFX_GEMINI_FIRE     = $2B   ; Gemini Laser fire
+SFX_TOP_SPIN        = $2C   ; Top Spin fire
+SFX_SPARK_FIRE      = $2D   ; Spark Shock fire
+SFX_SHADOW_FIRE     = $2E   ; Shadow Blade fire
+SFX_HARD_STOMP      = $30   ; Hard Man stomp attack
+SFX_WEAPON_GET      = $31   ; Weapon acquired jingle
+SFX_EXPLOSION       = $32   ; Explosion burst
+SFX_TELEPORT        = $34   ; Teleport beam
+
+; =============================================================================
+; Sound Commands
+; =============================================================================
+SNDCMD_INIT         = $F0   ; Silence / reset all channels
+SNDCMD_STOP         = $F2   ; Stop current music

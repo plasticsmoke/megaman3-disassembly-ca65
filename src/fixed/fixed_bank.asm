@@ -1910,7 +1910,7 @@ main_game_entry:
         cli                             ; enable IRQ
         lda     #$01                    ; $9B = 1 (game active flag)
         sta     irq_enable
-        lda     #$00                    ; silence all sound channels
+        lda     #MUSIC_SILENCE                    ; silence all sound channels
         jsr     submit_sound_ID_D9
         lda     #$40                    ; $99 = $40 (initial $99,
         sta     gravity                     ; set to $55 once gameplay starts)
@@ -2185,9 +2185,9 @@ gameplay_no_pause:  lda     stage_id         ; switch to stage bank
         sta     player_state                     ; apply: set player state
         cmp     #$0E                    ; state $0E = spike/pit death?
         bne     code_CAD3
-        lda     #$F2                    ; play death jingle ($F2 = stop music)
+        lda     #SNDCMD_STOP                    ; play death jingle ($F2 = stop music)
         jsr     submit_sound_ID
-        lda     #$17                    ; play death sound $17
+        lda     #SFX_DEATH                    ; play death sound $17
         jsr     submit_sound_ID
 code_CAD3:  lda     #$00                ; clear pending state
         sta     hazard_pending
@@ -2489,9 +2489,12 @@ LCCFA:  .byte   $00
 LCCFB:  .byte   $6C,$80,$41,$00,$74,$80,$42,$00
         .byte   $7C,$80,$43,$00,$84,$80,$44,$00
         .byte   $8C
-LCD0C:  .byte   $01,$02,$03,$04,$05,$06,$07,$08
-        .byte   $01,$03,$07,$08,$09,$09,$0A,$0A
-        .byte   $0B,$0B
+LCD0C:                                  ; stage music IDs (indexed by stage_id)
+        .byte   MUSIC_NEEDLE,MUSIC_MAGNET,MUSIC_GEMINI,MUSIC_HARD
+        .byte   MUSIC_TOP,MUSIC_SNAKE,MUSIC_SPARK,MUSIC_SHADOW
+        .byte   MUSIC_NEEDLE,MUSIC_GEMINI,MUSIC_SPARK,MUSIC_SHADOW
+        .byte   MUSIC_WILY_1,MUSIC_WILY_1,MUSIC_WILY_2,MUSIC_WILY_2
+        .byte   MUSIC_WILY_3,MUSIC_WILY_3
 LCD1E:  .byte   $00,$00,$FF,$00,$FF,$00,$FF,$FF
         .byte   $00,$FF,$00,$FF,$FF,$FF,$FF,$FF
         .byte   $FF,$FF,$FF,$FF,$FF
@@ -2915,7 +2918,7 @@ code_D01D:  ldy     #$06                ; check horizontal tile collision
         lda     $BA                     ; $BA = dust spawned flag (one-shot)
         bne     code_D084               ; already spawned → skip
         inc     $BA                     ; mark dust as spawned
-        lda     #$1F                    ; play landing sound effect
+        lda     #SFX_LAND_ALT                    ; play landing sound effect
         jsr     submit_sound_ID
 
 ; spawn landing dust cloud in slot 4 (visual effect slot)
@@ -2953,7 +2956,7 @@ code_D084:  plp                         ; restore carry (landing status)
 ; --- player landed on ground → transition to on_ground ---
         lda     player_state                     ; if already state $00: skip transition
         beq     code_D0A6
-        lda     #$13                    ; play landing sound
+        lda     #SFX_LAND                    ; play landing sound
         jsr     submit_sound_ID
         lda     #$00                    ; $30 = 0 (state = on_ground)
         sta     player_state
@@ -3309,11 +3312,13 @@ LD33B:  .byte   $FE,$02
 weapon_max_shots:  .byte   $03,$01,$03,$01,$02,$00,$03,$03 ; Mega Buster
         .byte   $02,$03,$01,$03         ; Spark Shock
 
-; sound ID played on weapon fire
-weapon_fire_sound:  .byte   $15,$2B,$15,$15,$2A,$2C,$15,$15 ; Mega Buster
-        .byte   $2D,$15                 ; Spark Shock
-        .byte   $2E                     ; Shadow Blade
-        .byte   $15                     ; Rush Jet
+; sound ID played on weapon fire (indexed by current_weapon)
+weapon_fire_sound:
+        .byte   SFX_BUSTER,SFX_GEMINI_FIRE,SFX_BUSTER,SFX_BUSTER
+        .byte   SFX_MAGNET_FIRE,SFX_TOP_SPIN,SFX_BUSTER,SFX_BUSTER
+        .byte   SFX_SPARK_FIRE,SFX_BUSTER
+        .byte   SFX_SHADOW_FIRE
+        .byte   SFX_BUSTER
 
 ; --- shoot_timer_tick: decrement shoot timer, end shoot animation when done ---
 ; $32 = shoot animation timer. When it reaches 0, revert OAM to non-shoot variant.
@@ -3712,7 +3717,7 @@ code_D5EB:  lda     ent_anim_frame               ; if anim counter == 0: not lan
         lda     ent_anim_state                   ; if anim frame == 1: play landing sound $34
         cmp     #$01
         bne     code_D5FC
-        lda     #$34
+        lda     #SFX_TELEPORT
         jsr     submit_sound_ID
 
 ; --- check reappear animation complete ---
@@ -4318,7 +4323,7 @@ code_DA02:  rts
 
 ; --- phase 4 complete: award weapon and transition ---
 
-code_DA03:  lda     #$31                ; sound $31 = weapon get jingle
+code_DA03:  lda     #SFX_WEAPON_GET     ; weapon acquired jingle
         jsr     submit_sound_ID
         ldy     stage_id                     ; Y = stage index
         lda     victory_weapon_id_table,y ; $DD04 table = weapon ID per stage
@@ -4398,14 +4403,14 @@ code_DA82:  lda     stage_id                 ; Doc Robot stages ($08-$0B)?
 code_DA92:  lda     stage_id                 ; Wily5 ($11) → music $37 (special victory)
         cmp     #STAGE_WILY6
         bne     code_DAA6
-        lda     #$37                    ; already playing?
+        lda     #MUSIC_WILY_VICTORY                    ; already playing?
         cmp     $D9
         beq     code_DAB4               ; yes → skip
         lda     #$00                    ; reset nametable select (scroll to 0)
         sta     camera_x_hi
-        lda     #$37                    ; music $37
+        lda     #MUSIC_WILY_VICTORY
         bne     code_DAAC
-code_DAA6:  lda     #$38                ; normal victory music = $38
+code_DAA6:  lda     #MUSIC_VICTORY      ; normal boss victory music
         cmp     $D9                     ; already playing?
         beq     code_DAB4               ; yes → skip
 code_DAAC:  jsr     submit_sound_ID_D9  ; start music
@@ -4525,7 +4530,7 @@ code_DB42:  lda     #$5B                ; entity type $5B = victory explosion
         dey
         cpy     #$0F                    ; loop until Y = $0F (slot $10 done)
         bne     code_DB42
-        lda     #$32                    ; sound $32 = explosion burst
+        lda     #SFX_EXPLOSION                    ; sound $32 = explosion burst
         jsr     submit_sound_ID
         ldx     #$00                    ; restore X = player slot
 code_DB88:  rts
@@ -4630,7 +4635,7 @@ code_DC18:  lda     #$13                ; OAM $13 = teleport beam
         cmp     ent_anim_id                   ; already set?
         beq     code_DC2C               ; yes → skip init
         jsr     reset_sprite_anim       ; set beam animation
-        lda     #$34                    ; sound $34 = teleport beam
+        lda     #SFX_TELEPORT                    ; sound $34 = teleport beam
         jsr     submit_sound_ID
         lda     #$04                    ; ent_anim_state = $04 (beam startup frame)
         sta     ent_anim_state
@@ -4895,7 +4900,7 @@ code_DE1E:  pha                         ; save column counter
         lda     camera_screen                     ; screen $08 = special arena
         cmp     #$08                    ; play music $0A (boss intro)
         bne     code_DE40
-        lda     #$0A                    ; music $0A = boss intro
+        lda     #MUSIC_WILY_2                    ; Wily 3-4 stage music
         jsr     submit_sound_ID_D9
 code_DE40:  jsr     task_yield          ; yield for one more frame
         jsr     fade_palette_out        ; fade screen out (prepare for warp-in)
@@ -7534,9 +7539,9 @@ LF0AF:  lda     ent_flags,x
         cmp     player_state                     ; if already dead, skip
         beq     LF0D8
         sta     player_state                     ; store death state
-        lda     #$F2                    ; play death sound
+        lda     #SNDCMD_STOP                    ; play death sound
         jsr     submit_sound_ID
-        lda     #$17                    ; play death music
+        lda     #SFX_DEATH                    ; play death music
         jsr     submit_sound_ID
 LF0D8:  rts
 

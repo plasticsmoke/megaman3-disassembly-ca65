@@ -71,7 +71,7 @@ L8006:  lda     #$00
         jsr     prepare_oam_buffer                   ; prepare OAM buffer
         jsr     clear_entity_table                   ; clear entity table
         jsr     task_yield                   ; wait for NMI (task yield)
-        lda     #$F0
+        lda     #SNDCMD_INIT
         jsr     submit_sound_ID_D9                   ; submit sound $F0 (silence/init)
         lda     #$00
         sta     $B1                     ; clear music state vars
@@ -373,7 +373,7 @@ code_8269:  lda     $95
 code_827E:  lda     $95
         and     #$0F
         bne     code_8289
-        lda     #$28
+        lda     #SFX_WIND
         jsr     submit_sound_ID                   ; submit wind SFX $28
 code_8289:  inc     palette_dirty       ; mark palette for NMI upload
         jsr     process_frame_yield_full                   ; process frame + yield (full)
@@ -577,7 +577,7 @@ code_8422:  stx     oam_ptr
         lda     ent_var3
         and     #$0F                    ; every 16 frames
         bne     code_8430
-        lda     #$28
+        lda     #SFX_WIND
         jsr     submit_sound_ID                   ; wind SFX $28
 code_8430:  jsr     process_frame_yield               ; process frame + yield
         inc     ent_var3                ; increment wind timer
@@ -595,7 +595,7 @@ code_8430:  jsr     process_frame_yield               ; process frame + yield
 code_8439:  lda     #$00
         sta     nmi_skip                ; disable NMI
         jsr     fade_palette_in                   ; fade palette to black
-        lda     #$36
+        lda     #MUSIC_DOC_ROBOT
         jsr     submit_sound_ID_D9                   ; submit music $36 (Doc Robot theme)
         lda     #$04
         sta     oam_ptr
@@ -814,7 +814,7 @@ code_85A0:  lda     L8774,x             ; copy one sprite to OAM
         iny
         iny
         sty     $10
-        lda     #$1C
+        lda     #SFX_HP_FILL
         jsr     submit_sound_ID                   ; reveal SFX $1C
         jsr     code_8525               ; wait 4 frames (with Doc Robot anim)
         jsr     code_8525
