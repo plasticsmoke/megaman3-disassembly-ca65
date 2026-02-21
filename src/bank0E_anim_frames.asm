@@ -3,24 +3,53 @@
 ; =============================================================================
 ; Mapped to $A000-$BFFF via MMC3 bank swap.
 ;
-; This bank contains two functional areas:
+; This bank serves dual purposes: it contains nametable streaming code used
+; by the stage select and password screens, AND it doubles as the stage data
+; bank for Wily 6 (stage $16) via the stage_to_bank mapping table.
 ;
-;   1. Nametable streaming routines ($A000-$A0C0)
-;      - Entry at $A000: full-column nametable initialization (4 column pairs)
-;      - Entry at $A003: advance to next row in PPU update buffer
-;      - Entry at $A006: stream nametable data by index X from pointer table
-;      Streams data into the $0780 PPU update buffer, which the NMI handler
-;      (drain_ppu_buffer) writes to VRAM each frame.
+; ---- Nametable Streaming Code ($A000-$A09C) ----
 ;
-;   2. Nametable text data ($A0C1-$A32C)
-;      - Robot master name strings for the stage select screen
-;      - Password screen text strings
-;      Uses $FE as "set new PPU address" command, $FF as end-of-string.
+;   $A000:  JMP nametable_init_columns — clear 4 column pairs on nametable
+;   $A003:  JMP nametable_advance_row  — increment PPU low address by 1
+;   $A006:  nametable_stream_by_index  — stream text string X to PPU buffer
 ;
-;   3. Wily 6 stage data ($A32D-$BFFF)
-;      - Compressed RLE level layout, metatile definitions, attribute tables,
-;        palette data, and enemy/object placement for stage $16 (Wily 6).
-;      - This bank doubles as stage data via stage_to_bank mapping.
+;   Streams data into the $0780 PPU update buffer, which the NMI handler
+;   (drain_ppu_buffer) writes to VRAM each frame.
+;   Called via trampoline at fixed bank $FF21 (task_yield for NMI sync).
+;
+; ---- Nametable Address Tables ($A09D-$A0C0) ----
+;
+;   $A09D:  PPU address low/high bytes for column init (4 bytes each)
+;   $A0A5:  String pointer table — low bytes  (14 entries)
+;   $A0B3:  String pointer table — high bytes (14 entries)
+;
+; ---- Nametable Text Data ($A0C1-$A32C) ----
+;
+;   Strings 0-7:   Robot master name + designer credit (stage select screen)
+;   Strings 8-13:  Password screen text
+;   Format: $FE xx yy = set PPU address, $FF = end-of-string
+;
+; ---- Wily 6 Stage Data ($A32D-$BFFF) ----
+;
+;   $A32D-$A9FC:  2-bit encoded screen nametable column data
+;   $AA00-$AA5C:  Screen layout table (20 bytes/screen: 16 column IDs + 4 conn)
+;   $AA5D-$AA7F:  Room config / screen pointer table
+;   $AA80-$AA9F:  BG palette data (4 palettes x 4 NES colors)
+;   $AB00-$AB2C:  Enemy placement — screen numbers ($FF-terminated)
+;   $AB2D-$ABFF:  Enemy placement — continued / padding
+;   $AC00-$AC31:  Enemy placement — X pixel positions ($FF-terminated)
+;   $AD00-$AD24:  Enemy placement — Y pixel positions ($FF-terminated)
+;   $AE00-$AE22:  Enemy placement — global enemy type IDs ($FF-terminated)
+;   $AF05-$B6FF:  Metatile column definitions (8 metatile IDs per column)
+;   $B700-$B7B4:  Metatile CHR tile definitions (4 bytes/metatile: TL,TR,BL,BR)
+;   $B7B5-$B839:  Metatile attribute table (palette per metatile)
+;   $B83A-$B8C4:  Metatile collision/type table
+;   $B8C5-$BAFF:  Padding ($00)
+;   $BB00-$BBFF:  Screen data block A (room layout + palette + enemy config)
+;   $BC00-$BCFF:  Screen data block B
+;   $BD00-$BDFF:  Screen data block C
+;   $BE00-$BEFF:  Screen data block D
+;   $BF00-$BFFF:  Stage attribute assignment table + padding
 ;
 ; PPU buffer format ($0780):
 ;   $0780 = PPU address high byte
@@ -28,8 +57,6 @@
 ;   $0782 = byte count
 ;   $0783+ = tile data bytes
 ;   $07A3-$07C6 = second buffer for paired column/attribute writes
-;
-; Annotation: annotated
 ; =============================================================================
 
         .setcpu "6502"
@@ -284,21 +311,38 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $19,$00,$17,$0B,$18,$28,$FF  ; end of last text string
 
 ; =============================================================================
-; WILY 6 (STAGE $16) — COMPRESSED STAGE DATA
+; WILY 6 (STAGE $16) — STAGE DATA ($A32D-$BFFF)
 ; =============================================================================
-; This region contains the complete level data for Wily fortress stage 6:
-;   - RLE-compressed nametable/metatile layout data
-;   - Metatile definitions (16x16 pixel tile groups)
-;   - Attribute table data (palette assignments per 32x32 area)
-;   - Color palette entries
-;   - Enemy/object spawn lists with X/Y positions
+; Complete level data for Wily fortress stage 6 (the final Wily stage).
+; Loaded when stage_id = $16 via the stage_to_bank mapping table.
 ;
-; This data is loaded when stage_id = $16 via the stage_to_bank mapping,
-; which maps this bank ($0E) as the stage data source.
+; Standard stage data layout (see bank08.asm header for format details):
+;   $A32D-$A9FC:  2-bit encoded screen nametable column data
+;   $AA00-$AA5C:  Screen layout table (20 bytes/screen)
+;   $AA5D-$AA7F:  Room config / screen pointer table
+;   $AA80-$AA9F:  BG palette data (4 palettes x 4 NES colors)
+;   $AB00+:       Enemy placement — screen numbers ($FF-terminated)
+;   $AC00+:       Enemy placement — X positions ($FF-terminated)
+;   $AD00+:       Enemy placement — Y positions ($FF-terminated)
+;   $AE00+:       Enemy placement — global enemy type IDs ($FF-terminated)
+;   $AF05+:       Metatile column definitions (8 metatile IDs per column)
+;   $B700+:       Metatile CHR tile definitions (4 bytes/metatile: TL,TR,BL,BR)
+;   $B700+$195:   Metatile attribute table (palette assignment per metatile)
+;   $B700+$1A6:   Metatile collision/type table
+;   $BB00-$BEFF:  Screen data blocks (4 x $100 bytes: A, B, C, D)
+;   $BF00-$BFFF:  Stage attribute assignment table + padding
 ;
-; The data runs from $A32D through $BFFF, with large zero-filled regions
-; representing unused screen slots or padding.
+; Large zero-filled regions represent unused screen slots or padding to
+; align data tables to $100-byte boundaries expected by the engine.
 ; =============================================================================
+
+; ===========================================================================
+; 2-bit encoded screen nametable column data ($A32D-$A9FC)
+; ===========================================================================
+; Compressed nametable tile patterns for each screen column. Each pair
+; of bytes encodes 4 tiles via 2-bit indices into a metatile set.
+; Decompressed by the stage loading routine in the fixed bank.
+; ===========================================================================
         .byte   $B2
         .byte   $FF,$AA,$FF,$AF,$FF,$AB,$FF,$EF
         .byte   $BF,$EF,$FF,$FE,$FF,$AA,$DE,$A2
@@ -517,6 +561,13 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $B2,$32,$6E,$0A,$7A,$A0,$16,$A2
         .byte   $E7,$88,$F0,$AA,$8E,$38,$10,$2A
         .byte   $BE,$AA,$BF,$00,$20,$2A,$00,$20
+; ===========================================================================
+; Screen layout table + room config ($AA00-$AA7F)
+; ===========================================================================
+; $AA00: 20 bytes per screen (16 metatile column IDs + 4 connection bytes).
+; $AA5D: Room config / screen pointer table entries.
+; Terminated by $FF. Followed by BG palette data at $AA80.
+; ===========================================================================
         .byte   $20,$20,$04,$00,$00,$0B,$0C,$0D
         .byte   $0E,$0F,$10,$11,$12,$13,$14,$15
         .byte   $16,$17,$FF,$00,$40,$00,$00,$00
@@ -532,10 +583,11 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$06,$00,$06
         .byte   $00,$08,$00,$17,$00,$0B,$00,$00
         .byte   $00,$00,$00,$19,$00,$00,$00,$FF
+; --- BG palette data ($AA80): 4 palettes x 4 NES colors = 16 bytes ---
         .byte   $87,$00,$0B,$08,$BB,$00,$06,$02
-        .byte   $08,$00,$10,$00,$00,$64,$62,$0F
-        .byte   $37,$27,$17,$0F,$0A,$09,$01,$0F
-        .byte   $14,$04,$01,$0F,$30,$00,$07,$00
+        .byte   $08,$00,$10,$00,$00,$64,$62,$0F ; $AA7D...$AA8B
+        .byte   $37,$27,$17,$0F,$0A,$09,$01,$0F ; BG palette 0-1
+        .byte   $14,$04,$01,$0F,$30,$00,$07,$00 ; BG palette 2-3
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$BF,$28
         .byte   $A7,$00,$CD,$0A,$13,$8A,$99,$08
@@ -549,6 +601,16 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $DE,$98,$91,$9A,$B9,$8E,$BF,$A8
         .byte   $DD,$02,$97,$A2,$E8,$04,$09,$A8
         .byte   $E7,$0A,$DD,$88,$91,$07,$FF,$FF
+; ===========================================================================
+; Enemy placement tables ($AB00-$AEFF)
+; ===========================================================================
+; Four parallel arrays, each $FF-terminated, indexed together:
+;   $AB00: screen number for each enemy spawn
+;   $AC00: X pixel position within the screen
+;   $AD00: Y pixel position within the screen
+;   $AE00: global enemy type ID (indexes entity AI table)
+; ===========================================================================
+; --- enemy screen numbers ($AB00) ---
         .byte   $02,$20,$00,$00,$20,$00,$01,$01
         .byte   $01,$01,$01,$02,$03,$03,$03,$03
         .byte   $04,$04,$04,$05,$05,$05,$05,$05
@@ -582,6 +644,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $81,$0A,$6F,$28,$0F,$82,$0A,$02
         .byte   $46,$08,$FB,$28,$D4,$0A,$68,$20
         .byte   $51,$20,$00,$00,$80,$6C,$30,$A8
+; --- enemy X positions ($AC00) ---
         .byte   $A8,$B8,$B8,$B0,$70,$90,$D0,$F8
         .byte   $68,$70,$A8,$18,$28,$38,$48,$58
         .byte   $68,$70,$88,$48,$C8,$B8,$60,$E0
@@ -614,6 +677,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $01,$97,$11,$80,$00,$D1,$00,$10
         .byte   $00,$04,$40,$01,$00,$00,$40,$06
         .byte   $01,$0A,$00,$00,$00,$54,$64,$58
+; --- enemy Y positions ($AD00) ---
         .byte   $88,$50,$80,$B8,$B0,$74,$94,$48
         .byte   $B4,$30,$94,$54,$CC,$CC,$CC,$CC
         .byte   $A8,$70,$34,$50,$A8,$A8,$98,$98
@@ -646,6 +710,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$10,$41,$03,$00,$44,$01,$21
         .byte   $01,$88,$40,$E0,$04,$02,$11,$00
         .byte   $00,$00,$00,$10,$00,$02,$02,$52
+; --- enemy global type IDs ($AE00) ---
         .byte   $52,$5D,$5D,$54,$39,$37,$37,$55
         .byte   $37,$39,$37,$37,$51,$51,$51,$51
         .byte   $52,$39,$37,$03,$13,$13,$8B,$8B
@@ -678,6 +743,13 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $40,$00,$44,$25,$00,$48,$00,$15
         .byte   $04,$00,$01,$00,$00,$08,$00,$00
         .byte   $10,$00,$00,$40,$00,$00,$01,$00
+; ===========================================================================
+; Metatile column definitions ($AF00-$B6FF)
+; ===========================================================================
+; Each column is 8 bytes: one metatile index per row (8 rows per screen).
+; The metatile IDs reference the metatile CHR definition table at $B700.
+; Column IDs are referenced by the screen layout table at $AA00.
+; ===========================================================================
         .byte   $00,$00,$02,$00,$00,$03,$00,$04
         .byte   $05,$06,$07,$01,$08,$09,$0A,$0B
         .byte   $0C,$0D,$0E,$0F,$10,$11,$01,$12
@@ -700,6 +772,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $61,$51,$62,$51,$63,$64,$65,$66
         .byte   $61,$67,$51,$51,$68,$69,$6A,$6B
         .byte   $6C,$6D,$6E,$6F,$70,$00,$00,$00
+; --- zero padding: unused metatile column slots ($AFB3-$B6FF) ---
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
@@ -934,7 +1007,13 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- metatile definitions: 16x16 tile IDs (4 CHR tiles per metatile) ---
+; ===========================================================================
+; Metatile CHR tile definitions ($B700)
+; ===========================================================================
+; 4 bytes per metatile: top-left, top-right, bottom-left, bottom-right
+; CHR tile IDs. Each metatile is a 16x16 pixel block composed of four
+; 8x8 pattern table tiles.
+; ===========================================================================
         .byte   $00,$00,$00,$00,$A4,$A0,$00,$A0
         .byte   $00,$00,$A0,$A1,$00,$A3,$00,$00
         .byte   $A1,$A4,$00,$00,$09,$02,$03,$0A
@@ -958,7 +1037,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $3D,$36,$37,$3E,$3F,$70,$71,$78
         .byte   $79,$54,$55,$5C,$5D,$56,$57,$5E
         .byte   $5F,$08,$00,$22,$30,$00,$00,$00
-; --- metatile attribute table: palette assignment per metatile ---
+; --- metatile attribute table: palette assignment per metatile ($B7B5) ---
         .byte   $A7,$A0,$00,$A4,$A1,$00,$00,$A2
         .byte   $00,$00,$00,$A7,$A7,$A6,$A4,$00
         .byte   $A6,$00,$00,$A7,$00,$00,$A0,$00
@@ -976,7 +1055,8 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $A0,$00,$00,$00,$A1,$00,$00,$A5
         .byte   $A2,$A6,$A7,$00,$A6,$00,$A4,$00
         .byte   $9F,$00,$A4,$00,$00
-; --- metatile collision/type table ---
+; --- metatile collision/type table ($B83A) ---
+; Upper nybble encodes collision behavior (solid, ladder, spike, etc.).
         .byte   $6E,$6E,$65
         .byte   $6C,$6E,$6E,$6E,$6E,$6A,$6E,$6A
         .byte   $6E,$6E,$9B,$6E,$9B,$9A,$9A,$9A
@@ -995,6 +1075,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $63,$98,$99,$62,$63,$6E,$6E,$64
         .byte   $63,$6E,$6E,$62,$63,$9B,$9A,$64
         .byte   $63,$00,$00,$A4,$00,$00,$00,$38
+; --- zero padding ($B8C5-$BAFF) ---
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
@@ -1065,7 +1146,13 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- screen data block A: layout + attributes + palette + enemy spawns ---
+; ===========================================================================
+; Screen data blocks ($BB00-$BEFF) — 4 blocks x $100 bytes each
+; ===========================================================================
+; Each block contains per-screen configuration: metatile layout overrides,
+; palette/attribute settings, and enemy spawn parameters for one screen.
+; ===========================================================================
+; --- screen data block A ($BB00): layout + attributes + palette + enemies ---
         .byte   $00,$00,$00,$00,$00,$00,$40,$00
         .byte   $34,$5E,$60,$C1,$A1,$6E,$82,$84
         .byte   $85,$00,$03,$C1,$A9,$00,$A4,$C9
@@ -1098,7 +1185,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- screen data block B: layout + attributes + palette + enemy spawns ---
+; --- screen data block B ($BC00): layout + attributes + palette + enemies ---
         .byte   $00,$00,$00,$00,$00,$00,$41,$33
         .byte   $00,$5F,$61,$C1,$A2,$C0,$83,$84
         .byte   $86,$32,$04,$A8,$AA,$A1,$A4,$A6
@@ -1131,7 +1218,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- screen data block C: layout + attributes + palette + enemy spawns ---
+; --- screen data block C ($BD00): layout + attributes + palette + enemies ---
         .byte   $00,$00,$00,$00,$00,$00,$50,$00
         .byte   $6B,$6E,$70,$00,$B1,$1F,$92,$94
         .byte   $95,$00,$CA,$00,$B9,$B0,$B2,$B5
@@ -1164,7 +1251,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- screen data block D: layout + attributes + palette + enemy spawns ---
+; --- screen data block D ($BE00): layout + attributes + palette + enemies ---
         .byte   $00,$00,$00,$00,$00,$00,$51,$6A
         .byte   $00,$6F,$61,$B0,$B2,$6F,$93,$94
         .byte   $96,$C3,$14,$B8,$BA,$B1,$B4,$B6
@@ -1197,7 +1284,9 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- stage palette/attribute assignment table ---
+; --- stage attribute assignment table ($BF00-$BFFF) ---
+; NES nametable attribute data: 2-bit palette indices for each 32x32
+; pixel area. Padded with zeros to fill to end of bank.
         .byte   $00,$00,$00,$00,$00,$00,$00,$01
         .byte   $01,$03,$00,$00,$00,$03,$02,$02
         .byte   $02,$02,$02,$00,$00,$03,$03,$03

@@ -3,7 +3,7 @@
 ; =============================================================================
 ; Mapped to $A000-$BFFF. Contains two unrelated data sets sharing a bank:
 ;
-;   1. INTRO CUTSCENE SPRITE DATA ($A000-$A5A4)
+;   1. INTRO CUTSCENE SPRITE DATA ($A000-$A5AA)
 ;      - OAM sprite frame copier: copies pre-built OAM quads (Y, tile,
 ;        attribute, X) into the OAM buffer at $0200+ for the intro cutscene
 ;        robot master portraits.
@@ -13,16 +13,26 @@
 ;        weapon names, Doc Robot descriptions). Each credit block is a
 ;        series of PPU nametable write commands terminated by $FF.
 ;
-;   2. WILY FORTRESS STAGE DATA ($A5A5-$BFFF)
-;      - RLE-compressed stage layout data for Wily Fortress stages 2, 3,
-;        and 5. Shared by stage IDs $0D, $0E, $10 — all map to bank $0D
-;        via the stage_to_bank table.
-;      - Includes tile maps, attribute tables, screen layouts, enemy
-;        placement data, and stage-specific palette data.
-;      - Four complete stage data sets (facing-left and facing-right
-;        variants for Wily 2/3/5).
-;
-; Annotation: annotated — section headers and inline comments added
+;   2. WILY FORTRESS STAGE DATA ($A5AB-$BFFF)
+;      Standard stage data layout (see fixed bank $C816 for loader):
+;        $A5AB-$A9FF: RLE-compressed nametable tile maps
+;        $AA00-$AA5F: screen metatile grid (column IDs per screen)
+;        $AA60-$AA7F: screen pointer table (2 bytes/screen)
+;        $AA80-$AA81: CHR bank indices (BG pattern table pages)
+;        $AA82-$AA97: BG palette (4 sub-palettes, 16 bytes)
+;        $AA98-$AAFF: screen layout data (20 bytes/screen: 16 column
+;                     IDs + 4 bytes screen connection data)
+;        $AB00-$ABFF: enemy screen number table (per enemy slot)
+;        $AC00-$ACFF: enemy X position table
+;        $AD00-$ADFF: enemy Y position table
+;        $AE00-$AEFF: enemy global ID table (indexes bank $00 AI)
+;        $AF00-$B6FF: metatile column definitions (64 bytes/column)
+;        $B700-$BAFF: metatile CHR definitions (4 bytes/metatile: TL TR BL BR)
+;        $BB00-$BEFF: stage data sets — 4 x 256-byte blocks for
+;                     Wily 2/3 facing-right and facing-left variants
+;        $BF00-$BFFF: stage data set 5 — Wily Fortress 5
+;      Shared by stage IDs $0D (Wily 2), $0E (Wily 3), $10 (Wily 5)
+;      via the stage_to_bank lookup table at $C8B9.
 ; =============================================================================
 
         .setcpu "6502"
@@ -300,23 +310,43 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $23,$6D,$06,$17,$0F,$11,$0B,$17
         .byte   $0B,$18,$FF                     ; end of credit text
 ; =============================================================================
-; WILY FORTRESS STAGE DATA ($A5A8-$BFFF)
+; WILY FORTRESS STAGE DATA ($A5AB-$BFFF)
 ; =============================================================================
-; RLE-compressed stage layout data for Wily Fortress stages. This bank is
+; Standard stage data for Wily Fortress stages 2, 3, and 5. This bank is
 ; shared by stage IDs $0D (Wily 2), $0E (Wily 3), and $10 (Wily 5) — all
-; mapped to bank $0D via the stage_to_bank lookup table.
+; mapped to bank $0D via the stage_to_bank lookup table at $C8B9.
 ;
-; Data includes:
-;   - RLE-compressed nametable tile maps (background screens)
-;   - Attribute table data (palette assignments per 16x16 area)
-;   - Screen-to-screen connectivity / scroll data
-;   - Enemy placement tables
-;   - Stage-specific palette data ($AA80)
-;   - Four directional stage layout variants
+; The intro cutscene data above ($A000-$A5AA) occupies what is normally the
+; enemy flag/property table region ($A000-$A4FF) in other stage banks, so
+; this bank's RLE nametable data starts at $A5AB instead of $A500.
 ;
-; The compression format uses run-length encoding: a byte with bit 7 set
-; indicates a run (length in lower bits), followed by the repeated tile.
+; Sub-section layout (addresses match the standard stage data format used
+; by the fixed bank's load_stage routine at $C816):
+;   $A5AB: RLE-compressed nametable tile maps (decoded during screen load)
+;   $AA00: screen metatile grid — column IDs read during tile collision
+;   $AA60: screen pointer table — 2 bytes per screen (init param + index)
+;   $AA80: CHR bank indices ($AA80=BG page 0, $AA81=BG page 1)
+;   $AA82: BG palette — 4 sub-palettes of 4 NES colors (16 bytes)
+;   $AA98: screen layout data — 20 bytes per screen:
+;            bytes 0-15: metatile column IDs (one per 16px column)
+;            bytes 16-19: screen connection data (bit 7=flag, 0-6=target)
+;   $AB00: enemy screen number table ($AB00,y = screen assignment)
+;   $AC00: enemy X pixel position table ($AC00,y)
+;   $AD00: enemy Y pixel position table ($AD00,y)
+;   $AE00: enemy global ID table ($AE00,y — indexes bank $00 for AI/HP)
+;   $AF00: metatile column definitions (64 bytes per column ID)
+;   $B700: metatile CHR tile definitions (4 bytes per metatile: TL TR BL BR)
+;   $BB00: stage config data sets (256 bytes each, 4 sets for Wily 2/3)
+;   $BF00: stage config data set 5 (Wily Fortress 5)
 ; =============================================================================
+
+; ===========================================================================
+; RLE-COMPRESSED NAMETABLE TILE MAPS ($A5AB-$A9FF)
+; ===========================================================================
+; Decoded by the fixed bank's screen loading routine during stage transitions.
+; The compression format uses run-length encoding: a byte with bit 7 set
+; indicates a run (length in lower 7 bits), followed by the repeated tile.
+; ---------------------------------------------------------------------------
         .byte   $44,$D1,$04,$7E,$44
         .byte   $DA,$75,$32,$45,$F7,$55,$FF,$54
         .byte   $FF,$74,$FF,$55,$F7,$5D,$FC,$DD
@@ -456,6 +486,14 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $A2,$CD,$0A,$C4,$A8,$E7,$AA,$54
         .byte   $20,$F7,$AA,$E7,$B9,$69,$1A,$00
         .byte   $22,$22,$00,$48,$00,$8A,$00,$00
+; ===========================================================================
+; SCREEN DATA TABLES ($AA00-$AAFF)
+; ===========================================================================
+; Screen metatile grid, pointer table, palette, and layout data.
+; ---------------------------------------------------------------------------
+; --- screen metatile grid ($AA00, 96 bytes) ---
+; Column IDs used during tile collision checks for each screen.
+; Sequential screen entries terminated by $FF.
         .byte   $00,$01,$02,$03,$04,$05,$06,$07
         .byte   $08,$09,$0A,$FF,$00,$00,$00,$00
         .byte   $00,$02,$00,$00,$00,$00,$00,$00
@@ -468,15 +506,22 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $82,$07,$80,$01,$00,$02,$00,$00
         .byte   $00,$02,$00,$08,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- screen pointer table ($AA60, 32 bytes) ---
+; 2 bytes per screen: initialization parameter and layout index.
         .byte   $08,$00,$08,$00,$08,$00,$2F,$00
         .byte   $35,$00,$FF,$2C,$0A,$6F,$00,$7C
         .byte   $8A,$92,$08,$06,$80,$96,$00,$A8
         .byte   $02,$84,$00,$01,$20,$00,$00,$04
-; --- stage palette data ---
-; BG palette: 4 sub-palettes of 4 NES colors each (16 bytes total)
-        .byte   $64,$68,$0F,$30,$2B,$1B,$0F,$0C
-        .byte   $01,$04,$0F,$37,$27,$17,$0F,$30
-        .byte   $10,$04,$00,$00,$00,$00,$00,$00
+; --- CHR bank indices + BG palette ($AA80, 24 bytes) ---
+; $AA80 = $64 (BG CHR page 0), $AA81 = $68 (BG CHR page 1)
+; $AA82-$AA91: BG palette — 4 sub-palettes of 4 NES colors (16 bytes)
+; $AA92-$AA97: padding/unused (6 bytes of zero)
+        .byte   $64,$68,$0F,$30,$2B,$1B,$0F,$0C ; CHR banks + palette 0
+        .byte   $01,$04,$0F,$37,$27,$17,$0F,$30 ; palette 1-2
+        .byte   $10,$04,$00,$00,$00,$00,$00,$00 ; palette 3 + padding
+; --- screen layout data ($AA98, 104 bytes) ---
+; 20 bytes per screen: 16 column IDs + 4 screen connection bytes.
+; Bit 7 of connection byte = flag, bits 0-6 = target screen ID.
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $0C,$79,$08,$F4,$86,$EF,$3A,$51
         .byte   $0A,$7A,$A8,$97,$28,$0B,$00,$83
@@ -490,6 +535,16 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $2A,$4F,$AA,$BF,$22,$BB,$A8,$EC
         .byte   $05,$05,$A8,$6D,$82,$81,$08,$09
         .byte   $FF,$FF,$FF,$40,$00,$00,$00,$03
+; ===========================================================================
+; ENEMY PLACEMENT TABLES ($AB00-$AEFF)
+; ===========================================================================
+; Four 256-byte tables defining enemy spawn positions and types.
+; Each enemy slot y has: screen number, X pixel, Y pixel, global ID.
+; The fixed bank's enemy spawner reads these during screen transitions.
+; Tables are terminated by $FF in the screen number field.
+; ---------------------------------------------------------------------------
+; --- enemy screen number table ($AB00, 256 bytes) ---
+; $AB00,y = screen number where enemy slot y spawns.
         .byte   $00,$00,$00,$01,$01,$01,$01,$02
         .byte   $02,$03,$03,$03,$03,$04,$04,$04
         .byte   $04,$05,$05,$05,$05,$05,$06,$06
@@ -522,7 +577,8 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $8B,$AC,$82,$EF,$A8,$FB,$0A,$5B
         .byte   $28,$9A,$A2,$65,$8A,$0D,$00,$22
         .byte   $A0,$81,$02,$08,$0A,$A6,$08,$40
-; --- enemy spawn Y-position / placement data ---
+; --- enemy X pixel position table ($AC00, 256 bytes) ---
+; $AC00,y = X pixel coordinate for enemy slot y's spawn position.
         .byte   $80,$80,$80,$68,$80,$80,$98,$80
         .byte   $98,$90,$B0,$D0,$F0,$50,$90,$D0
         .byte   $E0,$10,$70,$88,$B0,$F0,$30,$70
@@ -555,6 +611,8 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $20,$41,$EC,$10,$00,$00,$0A,$00
         .byte   $24,$00,$00,$15,$08,$00,$11,$10
         .byte   $08,$41,$08,$00,$00,$01,$00,$44
+; --- enemy Y pixel position table ($AD00, 256 bytes) ---
+; $AD00,y = Y pixel coordinate for enemy slot y's spawn position.
         .byte   $90,$70,$50,$B8,$88,$C8,$B8,$98
         .byte   $78,$48,$48,$48,$48,$B8,$B8,$A8
         .byte   $28,$98,$88,$28,$78,$58,$78,$78
@@ -587,6 +645,10 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $C9,$11,$C1,$00,$20,$40,$54,$14
         .byte   $15,$00,$81,$00,$C8,$40,$41,$05
         .byte   $80,$00,$00,$00,$00,$00,$04,$00
+; --- enemy global ID table ($AE00, 256 bytes) ---
+; $AE00,y = global enemy type ID for enemy slot y. Indexes into the
+; enemy AI/shape/HP tables in bank $00 to determine behavior.
+; Terminated by $FF.
         .byte   $5A,$5A,$5A,$52,$5A,$5A,$52,$5A
         .byte   $55,$21,$21,$21,$21,$21,$21,$21
         .byte   $1F,$21,$21,$1F,$21,$21,$21,$21
@@ -619,10 +681,15 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $20,$51,$08,$04,$16,$40,$22,$00
         .byte   $00,$50,$62,$44,$4C,$01,$00,$04
         .byte   $00,$00,$00,$00,$00,$40,$21,$00
-; --- screen tile maps ---
-; 8-byte rows of metatile IDs defining each screen column.
-; Each screen is 8 columns wide x N rows tall. Screens are laid out
-; sequentially for all Wily Fortress stages sharing this bank.
+; ===========================================================================
+; METATILE COLUMN DEFINITIONS ($AF00-$B6FF)
+; ===========================================================================
+; 64 bytes per column ID, defining a vertical strip of metatile indices
+; for one 16px-wide column of a screen. Each byte is a metatile index
+; into the CHR definitions table at $B700. Referenced by screen layout
+; data at $AA98+ (16 column IDs per screen). Total: up to 32 columns
+; x 64 bytes = 2048 bytes. Read by fixed bank routine at $E425.
+; ---------------------------------------------------------------------------
         .byte   $00,$01,$02,$03,$04,$05,$06,$07
         .byte   $07,$08,$09,$0A,$0B,$08,$09,$00
         .byte   $00,$07,$00,$0A,$0B,$07,$00,$07
@@ -879,9 +946,14 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
-; --- metatile definitions ---
-; 4-byte metatile entries: top-left, top-right, bottom-left, bottom-right
-; tile IDs. Each 16x16 metatile is composed of four 8x8 CHR tiles.
+; ===========================================================================
+; METATILE CHR DEFINITIONS ($B700-$BAFF)
+; ===========================================================================
+; 4-byte entries defining the 8x8 CHR tile composition of each 16x16
+; metatile. Format per entry: top-left, top-right, bottom-left, bottom-right
+; CHR tile indices. Referenced by the metatile column data above.
+; Read by the fixed bank's metatile_to_chr routine at $E40B.
+; ---------------------------------------------------------------------------
         .byte   $01,$02,$09,$08,$0D,$15,$0D,$1D
         .byte   $26,$27,$1E,$1F,$24,$15,$1C,$1D
         .byte   $16,$27,$1E,$1F,$24,$25,$1C,$1D
@@ -1010,7 +1082,16 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- stage data set 1 (Wily 2 facing right) ---
+; ===========================================================================
+; STAGE CONFIG DATA SETS ($BB00-$BFFF)
+; ===========================================================================
+; Five 256-byte blocks containing screen/enemy/palette configuration for
+; Wily Fortress stages 2, 3, and 5. Each set defines starting screen IDs,
+; screen connectivity, enemy initial positions, scroll parameters, and
+; boss room configuration. The facing-right / facing-left variants handle
+; stages that can be entered from either direction.
+; ---------------------------------------------------------------------------
+; --- stage config data set 1: Wily Fortress 2 facing right ($BB00, 256 bytes) ---
         .byte   $00,$01,$03,$05,$07,$29,$39,$07
         .byte   $09,$21,$23,$25,$27,$29,$54,$68
         .byte   $64,$66,$05,$07,$45,$45,$57,$45
@@ -1043,7 +1124,7 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- stage data set 2 (Wily 2 facing left) ---
+; --- stage config data set 2: Wily Fortress 2 facing left ($BC00, 256 bytes) ---
         .byte   $00,$02,$04,$06,$08,$2A,$3A,$08
         .byte   $0A,$22,$24,$26,$28,$2A,$44,$69
         .byte   $65,$67,$06,$08,$58,$45,$56,$45
@@ -1076,7 +1157,7 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- stage data set 3 (Wily 3 facing right) ---
+; --- stage config data set 3: Wily Fortress 3 facing right ($BD00, 256 bytes) ---
         .byte   $00,$11,$13,$15,$17,$29,$39,$5E
         .byte   $19,$31,$33,$35,$37,$29,$44,$78
         .byte   $74,$76,$0B,$0C,$57,$48,$48,$46
@@ -1109,7 +1190,7 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- stage data set 4 (Wily 3 facing left) ---
+; --- stage config data set 4: Wily Fortress 3 facing left ($BE00, 256 bytes) ---
         .byte   $00,$12,$14,$16,$18,$2A,$3A,$5F
         .byte   $1A,$32,$34,$36,$38,$2A,$54,$79
         .byte   $75,$77,$0B,$0D,$55,$48,$48,$45
@@ -1142,7 +1223,8 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- stage data set 5 (Wily 5) ---
+; --- stage config data set 5: Wily Fortress 5 ($BF00, 256 bytes) ---
+; Stage $10 (Wily 5). Simpler layout — single set, no L/R variants.
         .byte   $00,$13,$13,$13,$13,$43,$13,$13
         .byte   $13,$13,$13,$13,$13,$23,$10,$50
         .byte   $10,$10,$13,$13,$01,$01,$01,$01
