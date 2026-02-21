@@ -53,18 +53,6 @@ src/
   bank1C_1D_entity_ai.asm    Sprite processing & entity AI (banks $1C-$1D)
   fixed/
     fixed_bank.asm            Fixed bank — main game logic (banks $1E-$1F)
-    camera.asm                Camera / scroll engine
-    collision_util.asm        Collision utility routines
-    entity_move.asm           Entity movement / physics
-    game_loop.asm             Main gameplay loop
-    nmi_irq.asm               NMI / IRQ handlers
-    player_states.asm         Player state machine (22 states)
-    ppu_util.asm              PPU utility routines
-    render_col.asm            Nametable column renderer
-    reset_bankswitch.asm      Reset vector + bank switching
-    sprite_anim.asm           Sprite animation engine
-    stage_load.asm            Stage loading / screen transitions
-    tile_collision.asm        Tile collision detection
   chr.asm                     CHR ROM (128KB pattern tables)
 include/
   zeropage.inc                Zero-page variable definitions
@@ -152,15 +140,15 @@ The disassembly is byte-perfect but annotation is ongoing. Each source file has 
 | **bank0F_entity_spawn.asm** | **~45%** — 31 labels, 222 inline comments |
 | **bank10_stage_setup.asm** | **~50%** — 21 labels, 211 inline comments |
 | **bank01_stage_magnet.asm** | **~45%** — 4 labels, 174 inline comments |
-| **bank1A_1B_oam_sequences.asm** | **~25%** — 30 labels, 273 inline comments |
 | **bank18_stage_select.asm** | **~41%** — 68 labels named, 331 inline comments |
-| **bank00_enemy_data.asm** | **~50%** — 8 data table labels named |
-| **bank0A_damage_tables.asm** | **~30%** — 9 damage table labels named |
-| Remaining banks (08, 11, 13, 14, 15, 17, 19) | Headers + auto-label renames (pure data) |
+| **bank00_enemy_data.asm** | **~55%** — 8 labels, 243 comments, 121 inline annotations |
+| **bank0A_damage_tables.asm** | **~60%** — 9 labels, 217 comments, 322 inline annotations |
+| **bank1A_1B_oam_sequences.asm** | **~28%** — 30 labels, 194 comments, 100 inline annotations |
+| Pure data banks (08, 11, 13, 14, 15, 17, 19) | Section headers + structural annotations |
 
-**Overall: all 30 bank files processed.** 23 of 30 banks have section headers and inline comments. The fixed bank and bank1C_1D have the richest annotations; pure data banks (08, 11, 13, 14, 15, 17, 19) have structural headers only.
+**Overall: all 30 bank files annotated.** Every bank has section headers and contextual comments. The fixed bank and bank1C_1D have the richest annotations; bank0A has full weapon damage tables with per-boss weakness notes. Pure data banks (08, 11, 13, 14, 15, 17, 19) have structural headers. 1,292 auto-labels renamed to descriptive function names across all bank files.
 
-The goal is 100% annotation across all banks — next steps are Mesen-verified label renaming and detailed comments on remaining unknowns.
+Next steps: Mesen-verified label renaming and detailed comments on remaining unknowns.
 
 ## Technical Notes
 

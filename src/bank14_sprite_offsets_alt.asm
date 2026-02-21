@@ -1,27 +1,21 @@
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $14 — SPRITE POSITION OFFSET DATA (ALTERNATE)
 ; =============================================================================
-; Alternate sprite position offset lookup tables.
-;
-; Annotation: 0% — unannotated da65 output (pure data)
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $14 — SPRITE POSITION OFFSET DATA (ALTERNATE)
-; =============================================================================
 ; Mapped to $A000-$BFFF. Contains sprite Y/X position offset tables used
-; by write_entity_oam in bank1E_1F when the sprite definition's count byte
-; has bit 7 set. Selected via `LDY #$14 / STY $F5` in the sprite renderer.
+; by write_entity_oam in the fixed bank when the sprite definition's count
+; byte has bit 7 set. Selected via `LDY #$14 / STY prg_bank` in the sprite
+; renderer.
 ;
 ; Data format: signed byte pairs (Y offset, X offset) per sprite tile,
 ; grouped by sprite definition. Values like $F4=-12, $FC=-4, $04=+4, etc.
-; Pointer table at $BE00/$BF00 indexes into this data per sprite def.
+;
+; Structure:
+;   $A000-$BDFF: sprite Y/X offset data (variable-length per sprite def)
+;   $BE00-$BEFF: pointer table low bytes (index into offset data above)
+;   $BF00-$BFFF: pointer table high bytes (companion to $BE00)
 ;
 ; Companion bank: $19 (default sprite offsets, used when bit 7 is clear).
 ; The two banks together cover all entity sprite position layouts.
-;
-; Annotation: none — pure offset data, header describes format
 ; =============================================================================
 
         .setcpu "6502"
@@ -31,6 +25,14 @@
 
 
 .segment "BANK14"
+
+; =============================================================================
+; SPRITE Y/X OFFSET DATA ($A000-$BDFF)
+; =============================================================================
+; Variable-length records of signed byte pairs (Y offset, X offset).
+; Each record describes the tile positions for one sprite definition.
+; Indexed via the pointer tables at $BE00/$BF00.
+; =============================================================================
 
         .byte   $F4,$F8,$F4,$00,$FC,$F0,$FC,$F8
         .byte   $FC,$00,$FC,$08,$04,$F0,$04,$F8
@@ -992,6 +994,15 @@
         .byte   $04,$11,$EF,$84,$60,$01,$B4,$78
         .byte   $1A,$00,$6F,$00,$28,$4C,$23,$10
         .byte   $46,$00,$18,$64,$63,$10,$43,$51
+
+; =============================================================================
+; SPRITE DEFINITION POINTER TABLE — LOW BYTES ($BE00-$BEFF)
+; =============================================================================
+; 256-byte table of low address bytes. Entry N = low byte of pointer to
+; sprite definition N's Y/X offset data in the block above.
+; Used by write_entity_oam: ptr = ($BE00,y) | ($BF00,y << 8).
+; =============================================================================
+
         .byte   $00,$16,$2C,$40,$54,$72,$90,$BA
         .byte   $E4,$0C,$34,$38,$3C,$52,$68,$8A
         .byte   $AC,$D0,$F4,$12,$30,$50,$70,$76
@@ -1024,6 +1035,14 @@
         .byte   $9C,$40,$4B,$45,$79,$54,$60,$04
         .byte   $90,$10,$30,$14,$0F,$10,$49,$00
         .byte   $1C,$30,$D8,$04,$22,$81,$08,$20
+
+; =============================================================================
+; SPRITE DEFINITION POINTER TABLE — HIGH BYTES ($BF00-$BFFF)
+; =============================================================================
+; 256-byte table of high address bytes. Companion to the low byte table
+; at $BE00. Values range from $A0-$BD, pointing into the offset data above.
+; =============================================================================
+
         .byte   $A0,$A0,$A0,$A0,$A0,$A0,$A0,$A0
         .byte   $A0,$A1,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $A1,$A1,$A1,$A2,$A2,$A2,$A2,$A2

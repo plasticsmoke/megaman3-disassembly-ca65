@@ -1,20 +1,23 @@
 ; =============================================================================
-; MEGA MAN 3 (U) — BANK $11 — SPECIAL/ENDING STAGE DATA
+; MEGA MAN 3 (U) — BANK $11 — WILY CASTLE 6 / ENDING STAGE DATA
 ; =============================================================================
-; Stage data for special and ending sequences.
+; Mapped to $A000-$BFFF. Stage data bank for STAGE_WILY6 ($11).
+; Referenced by stage_to_bank[$11] = $11.
 ;
-; Annotation: 0% — unannotated da65 output (pure data)
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $11 — SPECIAL/ENDING STAGE DATA
-; =============================================================================
-; Mapped to $A000-$BFFF. Stage data bank for stage $11 (special/ending
-; sequence). Referenced by stage_to_bank[$11] = $11.
-; Standard stage data layout (see bank08.asm header for format details).
-;
-; Annotation: none — pure stage data
+; Standard MM3 stage data layout:
+;   $A000-$A9FF: boss AI local data / compressed nametable graphics
+;   $AA00-$AA5F: screen metatile column grid + room/screen parameters
+;   $AA60-$AA7F: room pointer table (2 bytes/room)
+;   $AA80-$AA81: BG CHR bank indices
+;   $AA82-$AAFF: screen layout data (20 bytes/entry: 16 columns + 4 connections)
+;   $AB00-$ABFF: enemy spawn table — screen number (terminated by $FF)
+;   $AC00-$ACFF: enemy spawn table — X pixel position
+;   $AD00-$ADFF: enemy spawn table — Y pixel position
+;   $AE00-$AEFF: enemy spawn table — global enemy ID (→ bank $00 tables)
+;   $AF00-$B6FF: metatile column definitions (64 bytes per column ID)
+;   $B700-$BAFF: metatile CHR tile definitions (4 bytes per metatile: TL,TR,BL,BR)
+;   $BB00-$BEFF: nametable quadrant data (4 x 256-byte blocks)
+;   $BF00-$BFFF: tile collision attribute table (1 byte per metatile index)
 ; =============================================================================
 
         .setcpu "6502"
@@ -24,6 +27,14 @@
 
 
 .segment "BANK11"
+
+; =============================================================================
+; BOSS AI LOCAL DATA / COMPRESSED NAMETABLE DATA ($A000-$A9FF)
+; =============================================================================
+; First $A00 bytes. For standard Robot Master stages this contains boss AI
+; parameters read by the boss's bank. For ending/special stages this region
+; typically holds compressed nametable graphics or cutscene tile data.
+; =============================================================================
 
         .byte   $FE,$FF,$FF,$FF,$7A,$FF,$FE,$FF
         .byte   $FE,$FF,$FF,$FF,$FF,$FF,$BF,$FF
@@ -345,6 +356,15 @@
         .byte   $00,$00,$00,$40,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$80,$00
         .byte   $02,$00,$00,$00,$00,$00,$00,$00
+
+; =============================================================================
+; SCREEN METATILE GRID + ROOM PARAMETERS ($AA00-$AA5F)
+; =============================================================================
+; Screen metatile column grid: each byte is a column ID referencing the
+; metatile column definitions at $AF00. $FF = end-of-data marker.
+; Room/screen init parameters follow the grid data.
+; =============================================================================
+
         .byte   $00,$01,$03,$FF,$00,$00,$00,$00
         .byte   $00,$00,$00,$01,$00,$20,$00,$01
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
@@ -357,10 +377,18 @@
         .byte   $00,$00,$02,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$02,$00,$00,$00,$08
         .byte   $00,$00,$08,$00,$20,$40,$10,$00
+
+; --- room pointer table ($AA60): 2 bytes/room, indexes screen layout data ---
+
         .byte   $19,$00,$00,$00,$36,$00,$FF,$00
         .byte   $00,$20,$20,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$80,$00,$00
         .byte   $00,$00,$00,$01,$00,$40,$00,$00
+
+; --- BG CHR bank indices + screen layout data ($AA80): ---
+; $AA80-$AA81 = CHR bank pair ($64/$66), then screen layout entries
+; (20 bytes each: 16 metatile column IDs + 4 connection bytes)
+
         .byte   $64,$66,$0F,$30,$10,$00,$0F,$0F
         .byte   $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
         .byte   $0F,$0F,$00,$00,$00,$00,$00,$00
@@ -377,6 +405,19 @@
         .byte   $00,$08,$00,$20,$00,$00,$00,$80
         .byte   $03,$03,$00,$00,$00,$01,$00,$00
         .byte   $FF,$FF,$FF,$00,$00,$01,$00,$00
+
+; =============================================================================
+; ENEMY SPAWN TABLES ($AB00-$AEFF)
+; =============================================================================
+; Four parallel 256-byte arrays indexed by stage enemy ID:
+;   $AB00,y = screen number where enemy appears (terminated by $FF)
+;   $AC00,y = X pixel position on screen
+;   $AD00,y = Y pixel position on screen
+;   $AE00,y = global enemy ID (indexes bank $00 property tables)
+; =============================================================================
+
+; --- enemy spawn table: screen number ($AB00) ---
+
         .byte   $00,$00,$00,$00,$00,$00,$00,$02
         .byte   $02,$02,$02,$02,$02,$02,$02,$FF
         .byte   $20,$00,$08,$00,$00,$00,$00,$00
@@ -409,6 +450,9 @@
         .byte   $00,$00,$80,$00,$00,$00,$00,$01
         .byte   $22,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$02,$00,$02
+
+; --- enemy spawn table: X pixel position ($AC00) ---
+
         .byte   $48,$50,$50,$50,$58,$B0,$B0,$80
         .byte   $80,$80,$D0,$80,$10,$40,$80,$FF
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
@@ -441,6 +485,9 @@
         .byte   $00,$10,$21,$00,$00,$00,$08,$05
         .byte   $40,$10,$00,$00,$80,$50,$01,$00
         .byte   $04,$00,$00,$00,$00,$00,$00,$10
+
+; --- enemy spawn table: Y pixel position ($AD00) ---
+
         .byte   $28,$98,$B8,$68,$28,$98,$B8,$43
         .byte   $3F,$3F,$50,$8F,$D0,$C0,$C0,$FF
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
@@ -473,6 +520,9 @@
         .byte   $00,$40,$40,$40,$00,$01,$02,$00
         .byte   $6C,$00,$02,$40,$00,$00,$13,$00
         .byte   $00,$10,$00,$11,$10,$00,$40,$10
+
+; --- enemy spawn table: global enemy ID ($AE00) ---
+
         .byte   $54,$52,$56,$55,$50,$52,$56,$7A
         .byte   $7C,$7D,$7B,$79,$7E,$7F,$80,$FF
         .byte   $00,$00,$01,$00,$00,$00,$40,$00
@@ -505,6 +555,14 @@
         .byte   $81,$00,$00,$00,$02,$00,$41,$00
         .byte   $06,$40,$00,$04,$20,$04,$00,$00
         .byte   $00,$00,$09,$00,$00,$00,$0C,$00
+
+; =============================================================================
+; METATILE COLUMN DEFINITIONS ($AF00-$B6FF)
+; =============================================================================
+; 64 bytes per column ID. Each column is a vertical strip of metatile indices
+; for one 16px-wide column of a screen. Referenced by screen layout data.
+; =============================================================================
+
         .byte   $00,$01,$01,$02,$03,$01,$01,$04
         .byte   $04,$01,$05,$01,$01,$01,$01,$00
         .byte   $00,$01,$06,$01,$01,$01,$01,$04
@@ -761,6 +819,14 @@
         .byte   $01,$01,$01,$01,$01,$01,$01,$01
         .byte   $01,$01,$01,$01,$01,$01,$01,$01
         .byte   $01,$01,$01,$01,$01,$01,$01,$01
+
+; =============================================================================
+; METATILE CHR TILE DEFINITIONS ($B700-$BAFF)
+; =============================================================================
+; 4 bytes per metatile: top-left, top-right, bottom-left, bottom-right CHR
+; tile indices. Defines the 2x2 pattern for each 16x16 metatile.
+; =============================================================================
+
         .byte   $01,$02,$09,$07,$00,$00,$00,$00
         .byte   $00,$05,$00,$00,$06,$00,$00,$00
         .byte   $01,$02,$09,$0A,$00,$00,$03,$04
@@ -889,6 +955,16 @@
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+
+; =============================================================================
+; NAMETABLE QUADRANT DATA ($BB00-$BEFF)
+; =============================================================================
+; Four 256-byte blocks: nametable data read by stage setup code at
+; $BB00,x / $BC00,x / $BD00,x / $BE00,x for metatile rendering.
+; Each quadrant stores tile attribute/nametable bytes for one section of
+; the screen layout.
+; =============================================================================
+
         .byte   $00,$01,$03,$05,$07,$25,$27,$09
         .byte   $00,$21,$23,$39,$00,$00,$05,$07
         .byte   $6C,$6E,$6C,$0F,$00,$41,$00,$00
@@ -1017,6 +1093,17 @@
         .byte   $10,$10,$10,$B9,$10,$10,$10,$10
         .byte   $10,$10,$10,$B9,$10,$10,$10,$10
         .byte   $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+
+; =============================================================================
+; TILE COLLISION ATTRIBUTE TABLE ($BF00-$BFFF)
+; =============================================================================
+; 1 byte per metatile index (256 entries). Upper nibble = collision type:
+;   $00 = air (passthrough)      $10 = solid ground
+;   $20 = ladder (climbable)     $30 = damage tile (lava/fire)
+;   $40 = ladder top             $50 = spikes (instant kill)
+; Lower 2 bits = palette index for the metatile.
+; =============================================================================
+
         .byte   $00,$10,$10,$10,$10,$10,$10,$10
         .byte   $10,$10,$10,$00,$00,$00,$10,$10
         .byte   $10,$10,$10,$00,$00,$00,$01,$01

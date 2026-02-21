@@ -380,7 +380,7 @@ select_PRG_banks           := $FF6B
         .byte   $A3,$03,$6F,$03,$A4,$03,$A5,$03
         .byte   $A6,$03,$06,$9A,$A7,$03,$A8,$03
         .byte   $A9,$03,$A0,$83,$AA,$03,$AB,$03
-        .byte   $AC,$03,$04,$22,$E1,$02,$DF,$02
+        .byte   $AC,$03,$04,$22,$E1,$02,$DF,$02 ; Hammer Joe — throwing pose (sprite def at $888A)
         .byte   $E0,$02,$F0,$02,$F1,$02,$04,$22
         .byte   $E4,$02,$E2,$02,$E3,$02,$F2,$02
         .byte   $F3,$02,$06,$30,$F0,$02,$F1,$02
@@ -1317,6 +1317,7 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
 .segment "BANK1B"
 
 ; --- Animation sequence pointer table (low bytes) ---
+; (when bank $00 is loaded at $A000: enemy_flags_g — per-enemy-type flags)
 LA000:  .byte   $00,$13,$16,$1C,$22,$28,$2C,$2F
         .byte   $3B,$3F,$47,$4B,$4F,$55,$5B,$5F
         .byte   $62,$6E,$73,$77,$7B,$7E,$88,$8E
@@ -1355,6 +1356,7 @@ LA000:  .byte   $00,$13,$16,$1C,$22,$28,$2C,$2F
 ; is bank $1B's data when bank $1B is loaded, but also serves as the target
 ; for spawn_enemy's reads of bank $00 global enemy properties (after the
 ; PRG bank is switched to $00). The ca65 labels resolve to the same address.
+; (when bank $00: enemy_main_ID_g — AI routine ID for each enemy type)
 LA100:  .byte   $54,$54,$58,$5E,$66,$70,$7C,$88
         .byte   $94,$9A,$A8,$C2,$CC,$D6,$EA,$FE
         .byte   $16,$2E,$58,$82,$96,$A4,$AE,$B8
@@ -1423,6 +1425,7 @@ LA200:  .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $93,$93,$93,$93,$93,$93,$93,$93
 ; --- Animation sequence data ($8300+) ---
 ; Variable-length records for animation IDs $80-$FF (same format as bank $1A).
+; (when bank $00: enemy_OAM_ID_g — initial animation/sprite ID per enemy type)
 LA300:  .byte   $10,$03,$01,$02,$03,$04,$05,$06
         .byte   $07,$05,$06,$07,$05,$06,$04,$03
         .byte   $02,$01,$00,$00,$08,$1B,$03,$08
