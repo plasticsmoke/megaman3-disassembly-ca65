@@ -26,27 +26,28 @@
 .include "include/zeropage.inc"
 .include "include/constants.inc"
 
-LA000           := $A000
-LA003           := $A003
-LA006           := $A006
-rendering_off           := $C531
-rendering_on           := $C53B
-fill_nametable           := $C59D
-prepare_oam_buffer           := $C5E9
-clear_entity_table           := $C628
-fade_palette_out           := $C74C
-fade_palette_in           := $C752
-metatile_column_ptr_by_id           := $E8B4
-queue_metatile_update           := $EEAB
-fill_nametable_progressive           := $EF8C
-reset_sprite_anim           := $F835
-submit_sound_ID_D9           := $F898
-process_frame_yield_full           := $FD6E
-process_frame_yield           := $FD80
-task_yield_x           := $FF1A
-task_yield           := $FF21
-update_CHR_banks           := $FF3C
-select_PRG_banks           := $FF6B
+; --- External references (fixed bank + swappable bank $0E) ---
+LA000           := $A000                ; init music driver (bank $0E)
+LA003           := $A003                ; continue music playback (bank $0E)
+LA006           := $A006                ; start music track X (bank $0E)
+rendering_off           := $C531                ; disable PPU rendering
+rendering_on           := $C53B                ; enable PPU rendering
+fill_nametable           := $C59D                ; fill entire nametable from metatile data
+prepare_oam_buffer           := $C5E9                ; prepare OAM buffer
+clear_entity_table           := $C628                ; clear entity table
+fade_palette_out           := $C74C                ; fade palette out (reveal)
+fade_palette_in           := $C752                ; fade palette in (to black)
+metatile_column_ptr_by_id           := $E8B4    ; init metatile column pointers
+queue_metatile_update           := $EEAB        ; queue metatile column for PPU update
+fill_nametable_progressive           := $EF8C   ; fill one nametable column per call
+reset_sprite_anim           := $F835            ; reset sprite animation (A=anim, X=entity)
+submit_sound_ID_D9           := $F898           ; submit sound ID (with $D9 prefix)
+process_frame_yield_full           := $FD6E     ; process frame + yield (full entity update)
+process_frame_yield           := $FD80          ; process frame + yield (sprites only)
+task_yield_x           := $FF1A                 ; yield X frames
+task_yield           := $FF21                   ; yield 1 frame
+update_CHR_banks           := $FF3C             ; update CHR banks via MMC3
+select_PRG_banks           := $FF6B             ; select PRG banks
 
 .segment "BANK0C"
 

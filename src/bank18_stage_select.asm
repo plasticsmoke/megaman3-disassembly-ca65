@@ -826,7 +826,7 @@ LB126:  lda     $9C65,y                 ; load scroll params
         sta     $10
         lda     $9C67,y
         sta     $11
-        jsr     rendering_off                   ; enable PPU rendering
+        jsr     rendering_off                   ; disable PPU rendering
         ldx     $9C01,y                 ; X = offset into $9C03
         ldy     #$00
 LB138:  lda     $9C03,x                 ; load BG palette color
@@ -1273,8 +1273,7 @@ LB371:  lda     $9C53,y                 ; copy 16 bytes from $9C53
         jmp     LA000                   ; → bank03 stage_transition_entry
 
 ; --- Unused bank-call helper ($938B) ---
-; Appears to be dead code: calls bank01 $A000, then restores bank03.
-; May have been used during development for an alternate transition path.
+; Dead code (unreferenced): calls bank01 $A000, then restores bank03.
         pha
         lda     #$01
         sta     prg_bank
@@ -1477,8 +1476,8 @@ LB47F:  lda     $9D16,y                 ; 32 bytes: BG ($0620-$062F) + sprite ($
         ldx     #$00                    ; set animation to $B0
         lda     #$B0                    ; (boss intro drop animation)
         jsr     reset_sprite_anim
-        lda     ent_flags                   ; clear bit 6 of entity flags
-        and     #$BF                    ; (enable rendering?)
+        lda     ent_flags                   ; clear bit 6 = facing left
+        and     #$BF
         sta     ent_flags
         jsr     task_yield                   ; wait 1 frame
         jsr     fade_palette_out                   ; enable rendering

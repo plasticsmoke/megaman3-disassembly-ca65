@@ -398,7 +398,7 @@ code_A28D:  tya                             ; all bubbles spawned
         lda     #$1C                    ; set jumping anim
         jmp     reset_sprite_anim
 
-; --- check Y distance to player, maybe start attack ---
+; --- check Y distance to player, start attack if close ---
 code_A2B6:  jsr     entity_y_dist_to_player                   ; get Y distance to player
         cmp     LA35A,y                 ; close enough to attack?
         bcs     code_A2DC               ; no — too far
@@ -1101,10 +1101,9 @@ code_A879:  rts
 ; =============================================================================
 ; UNUSED ENTITY ROUTINE ($BA)
 ; =============================================================================
-; Appears to be a diagonal-bouncing entity (similar to tornado behavior).
+; Diagonal-bouncing entity (unused in final game).
 ; Phase 0: apply gravity, on landing set velocity and facing, advance.
 ; Phase 1: move diagonally, bounce off walls/floor/ceiling.
-; May have been an alternate tornado or test routine.
 ; =============================================================================
 
 code_A87D:  lda     ent_status,x            ; dispatch on status low nibble

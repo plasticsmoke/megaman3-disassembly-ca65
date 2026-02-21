@@ -48,7 +48,7 @@ task_yield           := $FF21
 update_CHR_banks           := $FF3C
 select_PRG_banks           := $FF6B
 
-.segment "BANK03"                       ; play stage intro music
+.segment "BANK03"
 
         lda     #$33                    ; play stage intro music
         jsr     submit_sound_ID_D9
