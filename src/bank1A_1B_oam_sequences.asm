@@ -1118,16 +1118,16 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         tya                             ; store new stage ID
         sta     ent_spawn_id,x
         pha
-        and     #$07                    ; stage ID & #$07
-        tay                             ; index into ??? bitmask
-        lda     $DEC2,y                 ; -> $04
+        and     #$07                    ; low 3 bits = bit position
+        tay                             ; index into bit mask table
+        lda     $DEC2,y                 ; bit mask (1,2,4,8,16,32,64,128)
         sta     $04
         pla
         lsr     a                       ; stage ID >> 3
-        lsr     a                       ; index into ???
-        lsr     a                       ; & $04 (bitmask)
+        lsr     a                       ; = byte index into
+        lsr     a                       ; spawn tracking array
         tay
-        lda     $0150,y                 ; if this bit is on, don't spawn
+        lda     $0150,y                 ; if this enemy's bit is set, don't spawn
         and     $04
         bne     L9C7F
 
