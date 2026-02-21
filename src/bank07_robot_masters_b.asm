@@ -163,13 +163,13 @@ code_A0DE:  ldy     #$26
         inc     ent_status,x                 ; advance Hard Man AI phase
 
 ; Hard Man ground slam — stun the player
-        lda     $30                     ; check player state
+        lda     player_state                     ; check player state
         cmp     #PSTATE_DEATH                    ; if dead, don't stun
         beq     code_A165
         cmp     #PSTATE_STUNNED                    ; if already stunned, skip
         beq     code_A165
         lda     #PSTATE_STUNNED                    ; state → $0F (stunned)
-        sta     $30                     ; player frozen in midair
+        sta     player_state                     ; player frozen in midair
         rts
 
 code_A106:  lda     #$00
@@ -208,13 +208,13 @@ code_A128:  lda     ent_anim_state,x
         inc     ent_status,x
 
 ; Hard Man body slam — stun the player (second attack variant)
-        lda     $30                     ; check player state
+        lda     player_state                     ; check player state
         cmp     #PSTATE_DEATH                    ; if dead, don't stun
         beq     code_A165
         cmp     #PSTATE_STUNNED                    ; if already stunned, skip
         beq     code_A165
         lda     #PSTATE_STUNNED                    ; state → $0F (stunned)
-        sta     $30                     ; player frozen in midair
+        sta     player_state                     ; player frozen in midair
 code_A165:  rts
 
         lda     ent_var3,x
@@ -234,16 +234,16 @@ code_A165:  rts
         lda     ent_var3,x
         and     #$01
         bne     code_A198
-        lda     $FA
+        lda     scroll_y
         clc
         adc     #$02
-        sta     $FA
+        sta     scroll_y
         rts
 
 code_A198:  lda     scroll_y
         sec
         sbc     #$02
-        sta     $FA
+        sta     scroll_y
         rts
 
 ; Hard Man landing — launches player into the air on impact
@@ -251,11 +251,11 @@ code_A198:  lda     scroll_y
 code_A1A0:  ldy     #$26                ; collision check
         jsr     LF67C                   ; is Hard Man near ground?
         bcc     code_A1BA               ; no → still falling
-        lda     $30                     ; if player dead ($0E),
+        lda     player_state                     ; if player dead ($0E),
         cmp     #PSTATE_DEATH                    ; don't launch
         beq     code_A1B1
         lda     #PSTATE_AIRBORNE                    ; state → $01 (airborne)
-        sta     $30                     ; player bounced into the air
+        sta     player_state                     ; player bounced into the air
 code_A1B1:  inc     ent_status,x
         lda     #$10
         sta     ent_var2,x

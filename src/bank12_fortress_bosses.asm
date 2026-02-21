@@ -142,12 +142,12 @@ code_A058:  lda     ent_status,x
 ; Yellow Devil init — freeze player for boss intro
 
         lda     #$09                    ; state → $09 (boss_wait)
-        cmp     $30                     ; already in boss_wait?
+        cmp     player_state                     ; already in boss_wait?
         beq     LA082                   ; skip to HP fill
-        sta     $30                     ; freeze player
+        sta     player_state                     ; freeze player
         lda     #$80                    ; init boss HP display
-        sta     $B0
-        sta     $5A                     ; boss active flag
+        sta     boss_hp_display
+        sta     boss_active                     ; boss active flag
         lda     #$8E                    ; HP fill target (28 HP)
         sta     $B3
         lda     #$0D                    ; SFX $0D = boss intro music
@@ -202,7 +202,7 @@ code_A0CF:  lda     #$80
         sta     ent_xvel_sub,y
         lda     #$04
         sta     ent_xvel,y
-        lda     $F9
+        lda     camera_screen
         sta     ent_x_scr,y
         lda     #$E1
         sta     ent_routine,y
@@ -319,7 +319,7 @@ code_A201:  sta     $0608,y
         sta     $0628,y
         dey
         bpl     code_A201
-        sty     $18
+        sty     palette_dirty
 code_A20C:  rts
 
         lda     ent_timer,x
@@ -329,7 +329,7 @@ code_A20C:  rts
         sta     ent_flags,x
         lda     #$38
         sta     ent_x_px,x
-        lda     $19
+        lda     nametable_dirty
         beq     code_A228
         inc     ent_timer,x
         bne     code_A25C
@@ -351,7 +351,7 @@ code_A228:  ldy     ent_var1,x
         sta     $0789
         lda     #$FF
         sta     $078A
-        sta     $19
+        sta     nametable_dirty
 code_A25C:  lda     ent_anim_state,x
         bne     code_A264
         sta     ent_anim_frame,x
@@ -388,7 +388,7 @@ code_A2A7:  sta     $0783,x
         dex
         bpl     code_A2A7
         stx     $079A
-        stx     $1A
+        stx     nt_column_dirty
         lda     #$98
         sta     $01
         lda     LA6FB,y
@@ -416,7 +416,7 @@ code_A2C4:  jsr     LFC53
         sta     ent_routine,y
         lda     $03
         sta     ent_timer,y
-        lda     $F9
+        lda     camera_screen
         sta     ent_x_scr,y
         lda     $02
         sta     ent_x_px,y
@@ -496,7 +496,7 @@ code_A39D:  lda     LA5B5,y
 code_A3AD:  lda     ent_anim_state,x
         cmp     #$03
         bne     code_A423
-        lda     $19
+        lda     nametable_dirty
         bne     code_A41E
         lda     #$00
         sta     ent_status,x
@@ -524,7 +524,7 @@ code_A3AD:  lda     ent_anim_state,x
         sta     $0789
         lda     #$FF
         sta     $078A
-        sta     $19
+        sta     nametable_dirty
         lda     ent_timer,x
         cmp     #$17
         bne     code_A41E
@@ -560,7 +560,7 @@ code_A43E:  lda     #$3C
         lda     ent_anim_state,x
         cmp     #$03
         bne     code_A423
-        lda     $19
+        lda     nametable_dirty
         bne     code_A4B5
         ldy     ent_timer,x
         lda     LA70F,y
@@ -590,7 +590,7 @@ code_A43E:  lda     #$3C
         sta     $0789
         lda     #$FF
         sta     $078A
-        sta     $19
+        sta     nametable_dirty
         lda     ent_timer,x
         cmp     #$14
         bne     code_A4AF
@@ -798,12 +798,12 @@ code_A7BA:  lda     #$AB
         jmp     (L0000)
 
         lda     #$09
-        cmp     $30
+        cmp     player_state
         beq     code_A7FD
-        sta     $30
+        sta     player_state
         lda     #$80
-        sta     $B0
-        sta     $5A
+        sta     boss_hp_display
+        sta     boss_active
         lda     #$8E
         sta     $B3
         lda     #$0D
@@ -822,7 +822,7 @@ code_A7FD:  lda     boss_hp_display
         bne     code_A81C
         inc     ent_status,x
         lda     #$0D
-        sta     $F8
+        sta     game_mode
         lda     #$3A
         sta     $5E
         lda     #$40
@@ -1065,7 +1065,7 @@ code_AA0A:  lda     $031E
         jsr     LF846
         lda     ent_x_px,x
         sta     ent_x_px,y
-        lda     $F9
+        lda     camera_screen
         sta     ent_x_scr,y
         lda     #$A8
         sta     ent_y_px,y
@@ -1120,7 +1120,7 @@ code_AA91:  lda     #$58
         clc
         adc     #$0C
         sta     ent_y_px,y
-        lda     $F9
+        lda     camera_screen
         sta     ent_x_scr,y
         sty     $0F
         ldy     $051E
@@ -1243,12 +1243,12 @@ code_ABCA:  sta     $0604,y
         sta     $0624,y
         dey
         bpl     code_ABCA
-        sty     $18
+        sty     palette_dirty
 code_ABD5:  rts
 
 code_ABD6:  lda     $B3
         bpl     code_ABD5
-        lda     $30
+        lda     player_state
         cmp     #PSTATE_BOSS_WAIT
         beq     code_ABD5
         lda     ent_hp,x
@@ -1256,7 +1256,7 @@ code_ABD6:  lda     $B3
         jsr     L8003
         lda     ent_hp,x
         ora     #$80
-        sta     $B0
+        sta     boss_hp_display
         and     #$1F
         bne     code_AC4E
         lda     #$E5
@@ -1281,8 +1281,8 @@ code_AC19:  lda     ent_timer,x
         bne     code_AC4B
         lda     #$1C
         jsr     LF89A
-        inc     $B0
-        lda     $B0
+        inc     boss_hp_display
+        lda     boss_hp_display
         cmp     #$9C
         bne     code_AC4B
         lda     $059F
@@ -1435,10 +1435,10 @@ code_ADE0:  lda     ent_status,x             ; AI phase
         sta     $95
         inc     ent_status,x                 ; advance to phase 1
         lda     #PSTATE_BOSS_WAIT                    ; state → $09 (boss_wait)
-        sta     $30                     ; freeze player for HP fill
+        sta     player_state                     ; freeze player for HP fill
         lda     #$80                    ; init boss HP display
-        sta     $B0
-        sta     $5A                     ; boss active flag
+        sta     boss_hp_display
+        sta     boss_active                     ; boss active flag
         lda     #$8E                    ; HP fill target (28 HP)
         sta     $B3
         lda     #$0D                    ; SFX $0D = boss intro music
@@ -1480,20 +1480,20 @@ code_AE47:  sta     $0618,y
         sta     $0638,y
         dey
         bpl     code_AE3C
-        sty     $18
+        sty     palette_dirty
         lda     ent_timer,x
         sec
         sbc     #$10
         sta     ent_timer,x
 code_AE5B:  lda     #$80
-        sta     $B0
+        sta     boss_hp_display
 
 ; Wait for boss HP bar to fill, then release player
 code_AE5F:  lda     boss_hp_display                 ; HP bar position
         cmp     #$9C                    ; filled to max?
         bne     code_AE7B               ; no → keep filling
         lda     #$00                    ; state → $00 (on_ground)
-        sta     $30                     ; release player, fight begins
+        sta     player_state                     ; release player, fight begins
         sta     ent_timer,x
         lda     #$C0
         sta     ent_status,x
@@ -1577,7 +1577,7 @@ code_AEF7:  jsr     LF846
 
 ; Gamma phase transition — scroll screen vertically
         lda     #PSTATE_SCREEN_SCROLL                    ; state → $10 (screen_scroll)
-        sta     $30                     ; player frozen during scroll
+        sta     player_state                     ; player frozen during scroll
         lda     #$C0
         sta     ent_status,x
         lda     #$00
@@ -1782,7 +1782,7 @@ code_B11B:  sta     $0604,y
         sta     $0624,y
         dey
         bpl     code_B11B
-        sty     $18
+        sty     palette_dirty
         ldy     #$00
 code_B128:  lda     LB167,y
         sta     $0780,y
@@ -1818,7 +1818,7 @@ LB167:  .byte   $23,$C0,$0F,$55,$55,$55,$55,$55
 code_B17B:  lda     ent_flags,x
         and     #$04
         bne     code_B1BF
-        lda     $30
+        lda     player_state
         cmp     #PSTATE_DAMAGE
         beq     code_B1BF
         cmp     #PSTATE_DEATH
@@ -1841,12 +1841,12 @@ code_B1A7:  pla
         lda     ent_spawn_id,x                 ; entity sub-type
         cmp     #$0D                    ; $0D = ??? skip
         beq     code_B1BF
-        lda     $39                     ; i-frames active?
+        lda     invincibility_timer                     ; i-frames active?
         bne     code_B1BF               ; skip
         jsr     LFAE2                   ; AABB collision test
         bcs     code_B1BF               ; no collision → skip
         lda     #PSTATE_DEATH                    ; state → $0E (death)
-        sta     $30                     ; instant kill, no damage calc
+        sta     player_state                     ; instant kill, no damage calc
 code_B1BF:  lda     ent_flags,x
         .byte   $09
 LB1C3:  .byte   $04
@@ -1880,9 +1880,9 @@ code_B1DE:  jsr     LFAE2               ; is player touching teleporter?
         sbc     #$0E                    ; destination index
         cmp     #$01
         beq     code_B20F               ; destination 1 = invalid? skip
-        sta     $6C                     ; $6C = warp destination
+        sta     warp_dest                     ; $6C = warp destination
         lda     #PSTATE_WARP_INIT                    ; state → $11 (warp_init)
-        sta     $30                     ; begin teleporter sequence
+        sta     player_state                     ; begin teleporter sequence
         lda     #$13                    ; player OAM $13 = teleport beam
         sta     ent_anim_id
         lda     #$00
@@ -2047,7 +2047,7 @@ code_B36B:  lda     LB46C,y
         sta     $0630,y
         dey
         bpl     code_B36B
-        sty     $18
+        sty     palette_dirty
 code_B379:  rts
 
 LB37A:  .byte   $A8,$A8,$B8,$B8
@@ -2085,7 +2085,7 @@ code_B3A7:  jsr     LF797
         sta     ent_status,y
         sta     ent_timer                   ; clear player timer
         lda     #PSTATE_TELEPORT                    ; state → $0D (teleport)
-        sta     $30                     ; player teleports away (end stage)
+        sta     player_state                     ; player teleports away (end stage)
         lda     ent_flags
         and     #$FB
         sta     ent_flags
@@ -2134,7 +2134,7 @@ code_B42A:  inc     ent_timer,x
         bne     code_B44A
         dec     ent_timer,x
         lda     #$11
-        sta     $F8
+        sta     game_mode
         lda     #$D0
         sta     $5E
         lda     #$0A
@@ -2169,7 +2169,7 @@ code_B474:  lda     ent_hitbox,x
         bcs     code_B4E5
         lda     ent_hp,x
         bne     code_B4E5
-        sta     $F8
+        sta     game_mode
         sta     ent_hitbox,x
         lda     #$02
         sta     $01
@@ -2206,7 +2206,7 @@ code_B4D9:  lda     LB654,y
         sta     $0600,y
         dey
         bpl     code_B4D9
-        sty     $18
+        sty     palette_dirty
 code_B4E4:  rts
 
 code_B4E5:  lda     game_mode
@@ -2251,7 +2251,7 @@ code_B526:  lda     ent_timer,x
         lda     LB63E,y
         sta     ent_timer,x
         lda     #$00
-        sta     $FC
+        sta     camera_x_lo
 code_B548:  lda     ent_facing,x
         and     #$04
         bne     code_B55E
@@ -2370,12 +2370,12 @@ code_B664:  lda     ent_status,x
         and     #$0F
         bne     code_B68E
         lda     #$09
-        cmp     $30
+        cmp     player_state
         beq     code_B682
-        sta     $30
+        sta     player_state
         lda     #$80
-        sta     $B0
-        sta     $5A
+        sta     boss_hp_display
+        sta     boss_active
         lda     #$8E
         sta     $B3
         lda     #$0D
@@ -2443,10 +2443,10 @@ code_B6FC:  dey
         sta     ent_var1,x
         lda     ent_var2,x
         tay
-        lda     $B0
+        lda     boss_hp_display
         sec
         sbc     LB750,y
-        sta     $B0
+        sta     boss_hp_display
         and     #$1F
         bne     code_B71D
         jmp     L8006
@@ -3034,11 +3034,11 @@ code_BC7D:  lda     ent_status,x
         and     #$0F
         bne     code_BCC2
         lda     #$09
-        cmp     $30
+        cmp     player_state
         beq     code_BC99
-        sta     $30
+        sta     player_state
         lda     #$80
-        sta     $B0
+        sta     boss_hp_display
         lda     #$8E
         sta     $B3
         lda     #$0D

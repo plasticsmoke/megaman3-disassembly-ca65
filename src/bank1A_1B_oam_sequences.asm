@@ -957,11 +957,11 @@ LFF6B           := $FF6B
 ; left and right side based on travel direction
 check_new_enemies:
         clc
-        lda     $FC                     ; camera X left edge
+        lda     camera_x_lo                     ; camera X left edge
         sta     $00                     ; -> $00
         adc     #$FF                    ; camera X + 255 -> $02
         sta     $02                     ; (right edge)
-        lda     $F9                     ; camera screen left edge
+        lda     camera_screen                     ; camera screen left edge
         sta     $01                     ; -> $01
         adc     #$00                    ; camera screen right edge
         sta     $03                     ; -> $03
@@ -1079,7 +1079,7 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         pha
         stx     $05                     ; preserve X
         lda     #$00                    ; switch to bank $00
-        sta     $F5                     ; for global enemy data
+        sta     prg_bank                     ; for global enemy data
         jsr     LFF6B                   ; at $A000-$BFFF
         ldx     $05                     ; restore X
         pla                             ; Y = global enemy ID
@@ -1112,8 +1112,8 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         sta     ent_var1,x                 ; and all 4 wildcards
         sta     ent_var2,x
         sta     ent_var3,x
-        lda     $22
-        sta     $F5                     ; switch $A000-$BFFF bank
+        lda     stage_id
+        sta     prg_bank                     ; switch $A000-$BFFF bank
         jmp     LFF6B                   ; back to stage's bank, return
 
         .byte   $00,$00,$00,$04,$00,$00,$00,$00

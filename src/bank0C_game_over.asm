@@ -47,12 +47,12 @@ LFF6B           := $FF6B
 .segment "BANK0C"
 
         lda     #$00
-        sta     $EE
+        sta     nmi_skip
         ldx     #$B4
         jsr     LFF1A
         jsr     LC752
         lda     #$04
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9
         jsr     LC628
         jsr     LFF21
@@ -63,9 +63,9 @@ LFF6B           := $FF6B
         sta     $B2
         sta     $B3
         sta     $70
-        sta     $FD
-        sta     $FC
-        sta     $F8
+        sta     camera_x_hi
+        sta     camera_x_lo
+        sta     game_mode
         jsr     LC531
         lda     #$20
         ldx     #$00
@@ -87,7 +87,7 @@ code_804A:  lda     L8626,y
         jsr     LFF3C
         jsr     LFF21
         lda     #$0D
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         ldx     #$12
         lda     #$00
@@ -99,7 +99,7 @@ code_804A:  lda     L8626,y
         jsr     LFF1A
         jsr     LC752
         lda     #$16
-        sta     $22
+        sta     stage_id
         lda     #$02
         jsr     LE8B4
 code_8084:  lda     #$00
@@ -137,7 +137,7 @@ code_80D0:  lda     L869E,y
         dey
         bpl     code_80D0
         lda     #$11
-        sta     $F8
+        sta     game_mode
         lda     #$C0
         sta     $5E
         jsr     LFF21
@@ -183,7 +183,7 @@ code_813F:  lda     ent_var1
         lda     #$0E
         cmp     ent_timer
         beq     code_8193
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         lda     $95
         and     #$03
@@ -211,7 +211,7 @@ code_817F:  lda     #$00
         dec     ent_var1
         bne     code_81AA
         sta     $B8
-        sta     $EE
+        sta     nmi_skip
         jsr     LA000
         jmp     code_81AA
 
@@ -238,7 +238,7 @@ code_81BA:  lda     L86D6,y
         inx
         cpx     #$08
         bne     code_81BA
-        stx     $18
+        stx     palette_dirty
         inc     $0104
         lda     $0104
         cmp     #$06
@@ -246,15 +246,15 @@ code_81BA:  lda     L86D6,y
         lda     #$00
         sta     $0104
 code_81D7:  lda     #$08
-        sta     $97
+        sta     oam_ptr
         jsr     LFD80
         jmp     code_80F6
 
 code_81E1:  lda     #$00
-        sta     $EE
+        sta     nmi_skip
         jsr     LC752
         lda     #$04
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9
         jsr     LC628
         jsr     LFF21
@@ -268,7 +268,7 @@ code_81FC:  lda     L865E,y
         lda     #$22
         sta     $0630
         lda     #$14
-        sta     $22
+        sta     stage_id
         lda     #$00
         jsr     LE8B4
 code_8213:  lda     #$04
@@ -301,14 +301,14 @@ code_8236:  lda     L862C,y
         lda     #$04
         jsr     LF835
         lda     #$05
-        sta     $FD
+        sta     camera_x_hi
         lda     #$01
         sta     $29
         sta     $6B
         lda     #$1F
         sta     $28
         lda     #$0D
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         lda     #$04
         sta     $10
@@ -327,7 +327,7 @@ code_8236:  lda     L862C,y
         ldx     #$06
         jsr     code_85F3
         lda     #$0F
-        sta     $F8
+        sta     game_mode
         lda     #$40
         sta     $5E
         lda     #$00
@@ -349,7 +349,7 @@ code_82B6:  lda     ent_x_px
 code_82C6:  jmp     code_8354
 
 code_82C9:  lda     camera_x_lo
-        ora     $FD
+        ora     camera_x_hi
         bne     code_82D9
         ldx     #$00
         lda     #$64
@@ -360,14 +360,14 @@ code_82D9:  dec     $69
         lda     $95
         and     #$01
         bne     code_82F9
-        lda     $FC
+        lda     camera_x_lo
         sec
         sbc     #$01
-        sta     $FC
+        sta     camera_x_lo
         pha
-        lda     $FD
+        lda     camera_x_hi
         sbc     #$00
-        sta     $FD
+        sta     camera_x_hi
         pla
         and     #$03
         cmp     #$03
@@ -389,7 +389,7 @@ code_82F9:  lda     ent_timer
         lda     #$A1
         sta     ent_timer
         lda     #$0D
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         jsr     LA000
         lda     #$00
@@ -419,16 +419,16 @@ code_833B:  lda     nametable_dirty
 code_8354:  lda     ent_timer
         bne     code_8362
         lda     #$04
-        sta     $97
+        sta     oam_ptr
         sta     ent_var3
         bne     code_8367
 code_8362:  lda     ent_var3
-        sta     $97
+        sta     oam_ptr
 code_8367:  jsr     LFD80
         jmp     code_82B6
 
 code_836D:  lda     ent_var3
-        sta     $97
+        sta     oam_ptr
         jsr     LFD80
         lda     ent_anim_state
         beq     code_836D
@@ -437,7 +437,7 @@ code_836D:  lda     ent_var3
         ldx     #$78
         jsr     LFF1A
         lda     #$10
-        sta     $F8
+        sta     game_mode
         lda     #$88
         sta     $5E
 code_838C:  inc     $5E
@@ -452,8 +452,8 @@ code_838C:  inc     $5E
 code_839F:  lda     #$01
         sta     LA000
         lda     #$00
-        sta     $EE
-        sta     $F8
+        sta     nmi_skip
+        sta     game_mode
         lda     #$06
         jsr     LE8B4
 code_83AF:  lda     #$08
@@ -463,12 +463,12 @@ code_83AF:  lda     #$08
         lda     $70
         bne     code_83AF
         lda     #$02
-        sta     $FD
+        sta     camera_x_hi
         lda     #$EF
-        sta     $FA
+        sta     scroll_y
 code_83C5:  inc     ent_y_px
-        dec     $FA
-        lda     $FA
+        dec     scroll_y
+        lda     scroll_y
         cmp     #$70
         beq     code_83DB
         lda     #$00
@@ -508,7 +508,7 @@ code_8422:  lda     L86B0,y
         sta     $0638,y
         dey
         bpl     code_8422
-        sty     $18
+        sty     palette_dirty
 code_8430:  lda     $95
         and     #$01
         bne     code_8460
@@ -535,10 +535,10 @@ code_8460:  jsr     LFD6E
 code_8466:  ldx     #$F0
         jsr     LFF1A
         lda     #$00
-        sta     $EE
+        sta     nmi_skip
         jsr     LC752
         lda     #$04
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9
         jsr     LC628
         jsr     LFF21
@@ -548,8 +548,8 @@ code_8466:  ldx     #$F0
         lda     #$0F
         jsr     LF898
         lda     #$13
-        sta     $F5
-        sta     $22
+        sta     prg_bank
+        sta     stage_id
         jsr     LFF6B
         lda     #$03
         jsr     LE8B4
@@ -582,9 +582,9 @@ code_84CE:  lda     L866E,y
         lda     #$0F
         sta     $0630
         lda     #$00
-        sta     $FC
-        sta     $FD
-        sta     $FA
+        sta     camera_x_lo
+        sta     camera_x_hi
+        sta     scroll_y
         sta     $10
         ldx     #$13
         jsr     code_85F3
@@ -597,7 +597,7 @@ code_84CE:  lda     L866E,y
         lda     #$80
         sta     $0310
         sta     $0590
-        sta     $5A
+        sta     boss_active
         lda     #$70
         sta     $03D0
         lda     #$58
@@ -609,7 +609,7 @@ code_850F:  lda     #$00
         jsr     code_85F3
         jsr     LFF21
         lda     #$01
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         ldx     ent_timer
         lda     L86B8,x
@@ -628,9 +628,9 @@ code_8544:  jsr     LFD6E
         cmp     $05B0
         bne     code_8544
         lda     #$00
-        sta     $EE
+        sta     nmi_skip
         lda     #$0E
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         ldx     ent_timer
         jsr     LA006
@@ -656,7 +656,7 @@ code_858B:  lda     L867E,y
         sta     $0600,y
         dey
         bpl     code_858B
-        sty     $18
+        sty     palette_dirty
         ldy     #$05
 code_8598:  lda     L8638,y
         sta     $E8,y
@@ -664,14 +664,14 @@ code_8598:  lda     L8638,y
         bpl     code_8598
         jsr     LFF3C
         lda     #$04
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9
         lda     #$00
         sta     $B8
         lda     #$01
-        sta     $FD
+        sta     camera_x_hi
         lda     #$0F
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         jmp     LA000
 

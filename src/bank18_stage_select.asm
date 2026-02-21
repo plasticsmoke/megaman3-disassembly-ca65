@@ -660,7 +660,7 @@ code_905E:  lda     $9BF7,y
         bpl     code_905E
         jsr     LFF45
         lda     #$13
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         lda     #$00
         sta     $28
@@ -686,16 +686,16 @@ code_909D:  lda     $9C69,x
         dex
         bpl     code_909D
         lda     #$00
-        sta     $EE
+        sta     nmi_skip
         lda     #$13
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         jsr     LC74C
 code_90B4:
-        lda     $14
+        lda     joy1_press
         and     #BTN_START
         bne     stage_select_init
-        lda     $14
+        lda     joy1_press
         and     #$0C
         beq     code_90CA
         lsr     a
@@ -741,7 +741,7 @@ LB0DD:  lda     $9C23,y                 ; load sprite palette color
         sta     $0610,y                 ; store to sprite palette buffer
         dey
         bpl     LB0DD                   ; loop Y=$0F down to $00
-        sty     $18                     ; Y=$FF, trigger palette update
+        sty     palette_dirty                     ; Y=$FF, trigger palette update
 
 ; Determine fresh start vs return: check if OAM is initialized
         ldy     #$00                    ; assume fresh start (Y=0)
@@ -757,7 +757,7 @@ LB0F2:  sty     $0F                     ; $0F = 0 (fresh) or 1 (return)
         lda     $9C63,y                 ; load screen scroll/setup param
         jsr     LE8B4
         lda     #$04
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9                   ; clear unused OAM sprites
 LB10B:  lda     #$04
         sta     $10
@@ -787,7 +787,7 @@ LB138:  lda     $9C03,x                 ; load BG palette color
         iny
         cpy     #$10                    ; 16 bytes = 4 palettes × 4 colors
         bne     LB138
-        sty     $18                     ; Y=$10, trigger palette update
+        sty     palette_dirty                     ; Y=$10, trigger palette update
         lda     #$20
         ldx     #$24
         ldy     #$00
@@ -796,29 +796,29 @@ LB138:  lda     $9C03,x                 ; load BG palette color
 code_9155:
         lda     #$F8
         sta     $0200
-        inc     $EE
+        inc     nmi_skip
         lda     #$58
         sta     $5E
         lda     #$07
-        sta     $F8
+        sta     game_mode
 code_9164:  lda     camera_x_lo
         clc
         adc     $10
-        sta     $FC
-        lda     $FD
+        sta     camera_x_lo
+        lda     camera_x_hi
         adc     $11
         and     #$01
-        sta     $FD
+        sta     camera_x_hi
         lda     #$00
-        sta     $EE
+        sta     nmi_skip
         jsr     LFF21
-        inc     $EE
-        lda     $FC
+        inc     nmi_skip
+        lda     camera_x_lo
         bne     code_9164
         ldy     #$10
         lda     $11
         bmi     code_91C8
-        lda     $FD
+        lda     camera_x_hi
         eor     #$01
         asl     a
         asl     a
@@ -827,7 +827,7 @@ code_9164:  lda     camera_x_lo
         jsr     LE8B4
         lda     #$00
         sta     $70
-        sta     $EE
+        sta     nmi_skip
 code_9199:  lda     $10
         pha
         jsr     LEF8C
@@ -842,9 +842,9 @@ code_9199:  lda     $10
         jsr     LFF21
         ldx     #$04
         jsr     L939E
-        lda     $FD
+        lda     camera_x_hi
         eor     #$01
-        sta     $FD
+        sta     camera_x_hi
         ldy     #$00
         lda     #$7E
         sta     $E9
@@ -857,7 +857,7 @@ code_91CA:  lda     $9C33,y
         cpx     #$10
         bne     code_91CA
         lda     #$FF
-        sta     $18
+        sta     palette_dirty
         lda     #$01
         sta     $12
         lda     #$03
@@ -870,17 +870,17 @@ code_91CA:  lda     $9C33,y
 code_91EC:  jsr     L93E9
 code_91EF:  jsr     L93FE
         lda     #$00
-        sta     $EE
+        sta     nmi_skip
         jsr     LFF21
-        inc     $EE
-        lda     $14
+        inc     nmi_skip
+        lda     joy1_press
         and     #BTN_START
         beq     code_91EF
         lda     $0200
         cmp     #$B7
         beq     code_9212
         lda     #$03
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         jmp     LA593
 
@@ -893,7 +893,7 @@ code_9216:  sta     $0200,y
         iny
         bne     code_9216
         lda     #$13
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         lda     #$10
         jsr     LF898
@@ -903,7 +903,7 @@ code_9216:  sta     $0200,y
         lda     #$04
         jsr     LE8B4
 code_9236:  lda     #$00
-        sta     $EE
+        sta     nmi_skip
         sta     $10
         jsr     LEF8C
         jsr     LFF21
@@ -919,7 +919,7 @@ code_9236:  lda     #$00
         jmp     L9155
 code_9258:
 
-        lda     $14
+        lda     joy1_press
         and     #$90
         beq     code_9261
         jmp     L9300
@@ -1072,9 +1072,9 @@ LB2D4:  lda     L0000                   ; Y base
         dex
         bpl     LB2D4
 code_92F2:  lda     #$00
-        sta     $EE
+        sta     nmi_skip
         jsr     LFF21
-        inc     $EE
+        inc     nmi_skip
         inc     $95
         jmp     L9258
 
@@ -1105,7 +1105,7 @@ stage_select_confirm:
         tay                             ; Y = grid index (0-8)
         cpy     #$04                    ; index 4 = center position
         bne     LB316                   ; not center → try select
-        lda     $60                     ; center only selectable when
+        lda     stage_select_page                     ; center only selectable when
         cmp     #$12                    ; $60 == $12 (all Doc Robots beaten)
         bne     LB316
         jmp     L9ABC                   ; → Wily fortress entrance
@@ -1113,12 +1113,12 @@ stage_select_confirm:
 LB316:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
         and     $9DED,y                 ; check if this boss already beaten
         bne     code_92F2               ; already beaten → back to select loop
-        lda     $60                     ; $60 = game progression page
+        lda     stage_select_page                     ; $60 = game progression page
         cmp     #$0A                    ; >= $0A = invalid state
         bcs     code_92F2               ; → back to select loop
         tya                             ; Y = grid index (0-8)
         clc
-        adc     $60                     ; + page offset (0=Robot Masters, $0A=Doc Robot)
+        adc     stage_select_page                     ; + page offset (0=Robot Masters, $0A=Doc Robot)
         tay                             ; Y = adjusted grid index for table lookup
 
 ; Stage select lookup table at $9CE1 (9 entries per page):
@@ -1128,15 +1128,15 @@ LB316:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
 ;   Grid:  TL    TM    TR    ML    CTR   MR    BL    BM    BR
         lda     $9CE1,y                 ; look up stage number
         bmi     code_92F2               ; $FF = center (not selectable)
-        sta     $22                     ; $22 = current stage number
+        sta     stage_id                     ; $22 = current stage number
         sty     $0F                     ; $0F = save adjusted grid index
 
 ; --- Set up PRG/CHR banks for the boss intro layout ---
         lda     #$13                    ; select PRG bank $13
-        sta     $F5                     ; (contains boss intro metatile data
+        sta     prg_bank                     ; (contains boss intro metatile data
         jsr     LFF6B                   ; at $AF00+, referenced by fill routine)
         lda     #$04                    ; set rendering mode
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9                   ; clear unused OAM sprites
         lda     #$76                    ; set CHR bank $76
         sta     $E9                     ; (boss intro screen tileset)
@@ -1146,10 +1146,10 @@ LB316:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
 ; $FD bit 0 = currently displayed nametable. Toggle it so the NEW
 ; nametable becomes visible, then compute $10 = old nametable's
 ; PPU address bit (0 or 4) to write the intro layout into it first.
-        lda     $FD                     ; toggle displayed nametable
+        lda     camera_x_hi                     ; toggle displayed nametable
         pha
         eor     #$01
-        sta     $FD
+        sta     camera_x_hi
         pla                             ; $10 = OLD nametable select bit
         and     #$01                    ; bit 0 → shifted left 2 = 0 or 4
         asl     a                       ; 0 = nametable $2000, 4 = nametable $2400
@@ -1163,7 +1163,7 @@ LB316:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
         jsr     LE8B4                   ; ($20/$21) → $AFC0 in bank $13
         lda     #$00                    ; $70 = nametable fill progress (0-63)
         sta     $70                     ; starts at 0
-        sta     $EE                     ; $EE = NMI skip flag (0=allow NMI)
+        sta     nmi_skip                     ; $EE = NMI skip flag (0=allow NMI)
 
 ; Fill the offscreen nametable progressively.
 ; fill_nametable_progressive writes 4 tile rows per call.
@@ -1187,26 +1187,26 @@ LB371:  lda     $9C53,y                 ; copy 16 bytes from $9C53
         sta     $0620,y                 ; and working copy
         dey
         bpl     LB371
-        sty     $18                     ; $18 = $FF → flag palette upload
+        sty     palette_dirty                     ; $18 = $FF → flag palette upload
 
 ; Jump to bank03 entry point.
 ; Y = adjusted grid index (used by bank03 to index stage parameter tables).
 ; This is a JMP (not JSR) — bank03's RTS returns to whoever called the
 ; stage select, not back here.
         lda     #$03                    ; select PRG bank $03
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         ldy     $0F                     ; Y = adjusted grid index
         jmp     LA000                   ; → bank03 stage_transition_entry
 
         pha
         lda     #$01
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         pla
         jsr     LA000
         lda     #$03
-        sta     $F5
+        sta     prg_bank
         jmp     LFF6B
 
 ; ---------------------------------------------------------------------------
@@ -1227,10 +1227,10 @@ write_ppu_data_from_bank03:
 
         sty     $04                     ; save Y
         stx     $05                     ; save table index
-        lda     $F5                     ; save current PRG bank
+        lda     prg_bank                     ; save current PRG bank
         pha
         lda     #$03                    ; switch to bank 03
-        sta     $F5                     ; (contains PPU data tables)
+        sta     prg_bank                     ; (contains PPU data tables)
         jsr     LFF6B
         ldx     $05                     ; X = table index
         lda     LA56D,x                 ; ($02/$03) = pointer to PPU data
@@ -1258,7 +1258,7 @@ LB3D2:  lda     ($02),y                 ; tile data byte
         bmi     LB3BA                   ; next PPU entry (always branches)
 LB3DE:  sta     nametable_dirty                     ; $19 = $FF → flag PPU write pending
         pla                             ; restore original PRG bank
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         ldy     $04                     ; restore Y
         rts
@@ -1275,7 +1275,7 @@ code_93E9:
         rts
 code_93FE:
 
-        lda     $14
+        lda     joy1_press
         and     #$0C
         beq     code_940F
         ldy     #$B7
@@ -1312,10 +1312,10 @@ robot_master_intro:
 LB412:  lda     player_hp,y                   ; $A2-$AD = weapon ammo
         bpl     LB41C                   ; if negative (depleted), set to full
         lda     #$9C                    ; $9C = full energy (28 units)
-        sta     $A2,y
+        sta     player_hp,y
 LB41C:  dey
         bpl     LB412
-        lda     $22                     ; stage < $08 = Robot Master
+        lda     stage_id                     ; stage < $08 = Robot Master
         cmp     #STAGE_DOC_NEEDLE                    ; stage >= $08 = Doc Robot/Wily
         bcc     LB428
         jmp     L9581                   ; → skip to stage loading for Doc/Wily
@@ -1324,7 +1324,7 @@ LB41C:  dey
 
 LB428:  jsr     LC752                   ; disable sprites/rendering
         lda     #$04                    ; set rendering mode
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9                   ; configure PPU
         jsr     LFF21                   ; wait 1 frame
         lda     #$35                    ; play sound $35
@@ -1335,10 +1335,10 @@ LB428:  jsr     LC752                   ; disable sprites/rendering
 ; Temporarily set $22 = $14 so metatile pointer references the correct
 ; level section in bank $13 (stage $14 = the boss intro screen layout).
 ; metatile_column_ptr_by_id with A=$07 → metatile column 7 → pointer $B0C0.
-        lda     $22                     ; save real stage number
+        lda     stage_id                     ; save real stage number
         pha
         lda     #$14                    ; $22 = $14 (boss intro layout ID)
-        sta     $22
+        sta     stage_id
         lda     #$07                    ; metatile column 7
         jsr     LE8B4                   ; pointer → $B0C0 in bank $13
 LB449:  lda     #$00                    ; $10 = 0 → write to nametable $2000
@@ -1348,7 +1348,7 @@ LB449:  lda     #$00                    ; $10 = 0 → write to nametable $2000
         lda     $70                     ; $70 = 0 when complete
         bne     LB449
         pla                             ; restore real stage number
-        sta     $22
+        sta     stage_id
 
 ; Write stage-specific nametable data (boss face, decorations).
 ; Two calls to write_ppu_data_from_bank03:
@@ -1359,7 +1359,7 @@ LB449:  lda     #$00                    ; $10 = 0 → write to nametable $2000
         sta     $10
         jsr     L939E                   ; write common intro nametable data
         jsr     LFF21                   ; wait for NMI
-        lda     $22                     ; X = stage + 6
+        lda     stage_id                     ; X = stage + 6
         clc                             ; (per-boss face data table index)
         adc     #$06
         tax
@@ -1441,7 +1441,7 @@ LB4C7:  jsr     LFD6E                   ; process sprites + wait for NMI
 LB4E9:  ldx     #$3C                    ; wait $3C (60) frames
         jsr     LFF1A
         lda     #$00                    ; clear NMI skip flag
-        sta     $EE
+        sta     nmi_skip
         ldy     #$03                    ; fade BG palette 0 (bytes $00-$03)
         jsr     L954A
         ldy     #$07                    ; fade BG palette 1 (bytes $04-$07)
@@ -1471,7 +1471,7 @@ LB50D:  ldy     #$03                    ; process 4 palette colors (Y=3..0)
 ; Even frames: load boss face colors from $9BB7 table.
 ; $9BB7 + stage*8 = 8-byte palette (bright + dark variant).
 ; Colors 0-3 from $9BB7 → SP 0 ($0610), colors 4-7 from $9BBB → SP 1 ($0618).
-        lda     $22                     ; X = stage * 8 + 3
+        lda     stage_id                     ; X = stage * 8 + 3
         asl     a
         asl     a
         asl     a
@@ -1526,7 +1526,7 @@ LB55E:  sta     $0604,y                 ; store to working palette
         dey
         dex
         bpl     LB554
-        sty     $18                     ; flag palette upload
+        sty     palette_dirty                     ; flag palette upload
         ldx     #$04                    ; wait 4 frames per step
         jsr     LFF1A
         lda     $10                     ; $10 -= $10 (next darker step)
@@ -1542,21 +1542,21 @@ LB55E:  sta     $0604,y                 ; store to working palette
         rts
 code_9581:
 
-        lda     $61
+        lda     bosses_beaten
         cmp     #$FF
         beq     code_958A
         jmp     L968C
 
 code_958A:  jsr     LC752
         lda     #$04
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9
         jsr     LFF21
         jsr     L9936
         lda     #$10
         jsr     LF898
         lda     #$13
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         lda     #$01
         jsr     LE8B4
@@ -1611,18 +1611,18 @@ code_960F:  lda     $9C23,y
         jsr     LFF21
         jsr     L99FA
         lda     #$00
-        sta     $18
+        sta     palette_dirty
         jsr     LFF21
         lda     #$58
         sta     $5E
         lda     #$07
-        sta     $F8
+        sta     game_mode
         jsr     LFF21
         jsr     LC74C
-        lda     $60
+        lda     stage_select_page
         beq     code_964D
         lda     #$12
-        sta     $60
+        sta     stage_select_page
         ldy     #$00
         sty     $10
         ldx     #$19
@@ -1634,9 +1634,9 @@ code_960F:  lda     $9C23,y
 code_964D:  ldx     #$F0
         jsr     LFF1A
         lda     #$3A
-        sta     $61
+        sta     bosses_beaten
         lda     #$09
-        sta     $60
+        sta     stage_select_page
         lda     #$74
         sta     $E9
         jsr     LFF3C
@@ -1646,7 +1646,7 @@ code_9663:  lda     $9D36,y
         sta     $0620,y
         dey
         bpl     code_9663
-        sty     $18
+        sty     palette_dirty
         lda     #$00
         sta     $10
         ldy     #$01
@@ -1664,15 +1664,15 @@ code_968C:
 
         jsr     LC752
         lda     #$04
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9
         jsr     LFF21
         jsr     L9936
         lda     #$13
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         lda     #$01
-        sta     $FD
+        sta     camera_x_hi
         lda     #$02
         jsr     LE8B4
 code_96AC:  lda     #$04
@@ -1706,12 +1706,12 @@ code_96DA:  lda     $9C23,y
         jsr     L939E
         jsr     LFF21
         lda     #$03
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         jsr     LA8DD
         jsr     LC74C
 code_96FC:
-        lda     $14
+        lda     joy1_press
         and     #$90
         bne     code_9708
         jsr     LFF21
@@ -1761,7 +1761,7 @@ LB73C:  lda     $9D5E,x                 ; tile ID
         bpl     LB73C
         bmi     LB71B
 LB749:  sta     $0780,x                 ; $FF end marker
-        sta     $19
+        sta     nametable_dirty
         tya
         pha
         ldx     $0F
@@ -1839,7 +1839,7 @@ LB783:  lda     $9DC9,y                 ; PPU addr high ($20/$21/$22)
         sta     $079F
         lda     #$FF                    ; end marker
         sta     $07A0
-        sta     $19
+        sta     nametable_dirty
         tya
         pha
         ldx     $0F
@@ -1894,7 +1894,7 @@ code_983E:  lda     $9DC4,x
         ora     $10
         sta     $079C
         stx     $07A1
-        stx     $19
+        stx     nametable_dirty
         jsr     LFF21
         ldx     #$0E
         jsr     L939E
@@ -1903,16 +1903,16 @@ code_985D:
 
         jsr     LC752
         lda     #$04
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9
         jsr     LFF21
         lda     #$0E
         jsr     LF898
         jsr     L9936
         lda     #$01
-        sta     $FD
+        sta     camera_x_hi
         lda     #$00
-        sta     $FA
+        sta     scroll_y
         lda     #$02
         jsr     LE8B4
 code_987F:  lda     #$04
@@ -1948,9 +1948,9 @@ code_98AD:  lda     $9C23,y
         lda     #$58
         sta     $5E
         lda     #$07
-        sta     $F8
+        sta     game_mode
         lda     #$03
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         jsr     LA8DD
         jsr     LFF21
@@ -1969,7 +1969,7 @@ code_98DC:  pha
         jsr     L93E9
 code_98F2:
         jsr     L93FE
-        lda     $14
+        lda     joy1_press
         and     #BTN_START
         bne     code_9901
         jsr     LFF21
@@ -1979,19 +1979,19 @@ code_9901:  ldx     #$0B
 code_9903:  lda     player_hp,x
         bpl     code_990B
         lda     #$9C
-        sta     $A2,x
+        sta     player_hp,x
 code_990B:  dex
         bpl     code_9903
         lda     $0200
         cmp     #$C7
         beq     code_991E
-        lda     $22
+        lda     stage_id
         cmp     #STAGE_WILY1
         bcs     code_992C
         jsr     L9212
 code_991E:  lda     #$02
-        sta     $AE
-        lda     $60
+        sta     lives
+        lda     stage_select_page
         cmp     #$12
         bne     code_992B
         jmp     L9ABC
@@ -1999,7 +1999,7 @@ code_991E:  lda     #$02
 code_992B:  rts
 
 code_992C:  lda     #$03
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         jmp     LA879
 
@@ -2014,17 +2014,17 @@ reset_stage_state:
         lda     #$00
         sta     LA000                   ; reset something in mapped bank
         sta     $59                     ; game sub-state
-        sta     $F9                     ; camera/scroll page
+        sta     camera_screen                     ; camera/scroll page
         sta     ent_x_scr                   ; entity 0 screen page (Y high)
         sta     ent_y_scr                   ; entity 0 screen page (X high)
         sta     $B1                     ; scroll-related
         sta     $B2
         sta     $B3
-        sta     $FD                     ; horizontal scroll (nametable select)
-        sta     $FC                     ; horizontal scroll (sub-tile)
-        sta     $A1                     ; menu cursor
+        sta     camera_x_hi                     ; horizontal scroll (nametable select)
+        sta     camera_x_lo                     ; horizontal scroll (sub-tile)
+        sta     weapon_cursor                     ; menu cursor
         sta     $B4
-        sta     $A0                     ; weapon ID (0 = Mega Buster)
+        sta     current_weapon                     ; weapon ID (0 = Mega Buster)
         sta     $9E
         sta     $9F
         sta     $70                     ; nametable fill progress counter
@@ -2035,7 +2035,7 @@ code_995C:
         ldx     #$08
 code_9961:  lda     $9DED,x
         beq     code_99CC
-        and     $61
+        and     bosses_beaten
         beq     code_99BA
 code_996A:  lda     $9DC9,x
         ora     $10
@@ -2066,11 +2066,11 @@ code_99A3:  sta     $0783,y
         dey
         bpl     code_99A3
         sty     $079C
-        sty     $19
+        sty     nametable_dirty
         jsr     LFF21
 code_99BA:  dex
         bpl     code_9961
-        lda     $60
+        lda     stage_select_page
         beq     code_99CB
         cmp     #$12
         bne     code_99CB
@@ -2082,17 +2082,17 @@ code_99CC:  lda     stage_select_page
         beq     code_99BA
         cmp     #$12
         beq     code_996A
-        lda     $61
+        lda     bosses_beaten
         cmp     #$FF
         bne     code_99BA
         beq     code_996A
 code_99DC:
-        lda     $60
+        lda     stage_select_page
         beq     code_99F9
         ldy     #$01
         ldx     #$01
         jsr     L970B
-        lda     $60
+        lda     stage_select_page
         cmp     #$12
         bne     code_99F4
         ldy     #$00
@@ -2104,7 +2104,7 @@ code_99F9:  rts
 code_99FA:
 
         ldx     #$00
-        lda     $60
+        lda     stage_select_page
         beq     code_9A19
         lda     #$74
         sta     $E9
@@ -2115,13 +2115,13 @@ code_9A09:  lda     $9D36,y
         sta     $0620,y
         dey
         bpl     code_9A09
-        sty     $18
+        sty     palette_dirty
         ldx     #$98
 code_9A19:  stx     L0000
-        lda     $F5
+        lda     prg_bank
         pha
         lda     #$03
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         ldx     L0000
 code_9A27:  lda     LA231,x
@@ -2139,12 +2139,12 @@ code_9A27:  lda     LA231,x
         cpx     #$CC
         bne     code_9A27
         pla
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         ldx     #$08
 code_9A4F:  lda     $9DED,x
         beq     code_9A71
-        and     $61
+        and     bosses_beaten
         beq     code_9A6D
 code_9A58:  ldy     $9DDB,x
         lda     $9DE4,x
@@ -2165,7 +2165,7 @@ code_9A71:  lda     stage_select_page
         beq     code_9A6D
         cmp     #$12
         beq     code_9A81
-        lda     $61
+        lda     bosses_beaten
         cmp     #$FF
         bne     code_9A6D
         beq     code_9A58
@@ -2194,7 +2194,7 @@ code_9AAB:  lda     $9E1A,y
         sta     $0630,y
         dey
         bpl     code_9AAB
-        sty     $18
+        sty     palette_dirty
         ldy     L0000
         rts
 code_9ABC:
@@ -2205,17 +2205,17 @@ code_9ABE:
         jsr     LC752
         jsr     L9936
         lda     #$04
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9
         jsr     LFF21
         jsr     LC628
         lda     #$01
         sta     LA000
         lda     #$00
-        sta     $F8
+        sta     game_mode
         sta     $9E
         sta     $9F
-        sta     $EE
+        sta     nmi_skip
         sta     ent_y_scr
         sta     ent_y_px
         lda     #$17
@@ -2225,14 +2225,14 @@ code_9ABE:
         lda     #$30
         sta     ent_x_px
         lda     #$01
-        sta     $31
+        sta     player_facing
         sta     $23
         sta     $2E
         lda     #$0D
         sta     $2B
         lda     #STAGE_HARD
-        sta     $22
-        sta     $F5
+        sta     stage_id
+        sta     prg_bank
         jsr     LFF6B
         lda     #$1F
         sta     $24
@@ -2281,7 +2281,7 @@ code_9B38:  lda     $9E2A,y
         lda     #$99
         jsr     LF835
         lda     #$18
-        sta     $F9
+        sta     camera_screen
         sta     ent_x_scr
         sta     $039F
         lda     #$C0
@@ -2321,7 +2321,7 @@ code_9B38:  lda     $9E2A,y
         asl     $0F,x
         bmi     LBBFA
         and     ($0F,x)
-        ora     ($30),y
+        ora     (player_state),y
         and     ($0F,x)
         bmi     LBBE2
 LBBD2:  ora     ($0F,x)
@@ -2341,7 +2341,7 @@ LBBE2:  ora     $090F,y
         .byte   $0F
         bmi     LBC1A
 LBBEA:  rol     $0F
-        asl     $30,x
+        asl     player_state,x
         rol     $0F
         bmi     LBC26
         .byte   $14
@@ -2382,7 +2382,7 @@ LBC26:  ora     ($0F),y
         and     ($10,x)
         .byte   $0F
         .byte   $37
-        rol     $15
+        rol     joy1_press_alt
         .byte   $0F
         .byte   $37
         rol     $0F
@@ -2450,7 +2450,7 @@ LBC7A:  .byte   $03
         inc     $03,x
         .byte   $F7
         .byte   $03
-        inc     $43,x
+        inc     tile_at_feet_lo,x
         sed
         .byte   $03
         sbc     $F803,y
@@ -2459,9 +2459,9 @@ LBC7A:  .byte   $03
 ; Position 2 (Needle Man, top-right): eyes look upper-right (pos 0 H-flipped)
         .byte   $F2
         .byte   $43
-        sbc     ($43),y
+        sbc     (tile_at_feet_lo),y
         beq     LBCD6
-        sbc     $43,x
+        sbc     tile_at_feet_lo,x
         .byte   $F4
         .byte   $43
         .byte   $F3
@@ -2471,7 +2471,7 @@ LBC7A:  .byte   $03
         inc     $03
         .byte   $6F
         .byte   $03
-        inc     $43
+        inc     tile_at_feet_lo
         .byte   $FA
         .byte   $03
         .byte   $FB
@@ -2483,7 +2483,7 @@ LBC7A:  .byte   $03
         inc     $03
         .byte   $6F
         .byte   $03
-        inc     $43
+        inc     tile_at_feet_lo
         .byte   $E7
         .byte   $03
         inx
@@ -2495,7 +2495,7 @@ LBC7A:  .byte   $03
         inc     $03
         .byte   $6F
         .byte   $03
-        inc     $43
+        inc     tile_at_feet_lo
         .byte   $FC
         .byte   $43
         .byte   $FB
@@ -2507,7 +2507,7 @@ LBC7A:  .byte   $03
         inc     $03
         .byte   $6F
         .byte   $03
-        inc     $43
+        inc     tile_at_feet_lo
         sbc     $FE03,x
         .byte   $03
         .byte   $FF
@@ -2517,7 +2517,7 @@ LBC7A:  .byte   $03
         inc     $03
         .byte   $6F
         .byte   $03
-        inc     $43
+        inc     tile_at_feet_lo
         .byte   $80
         .byte   $03
         sta     ($03,x)
@@ -2529,7 +2529,7 @@ LBC7A:  .byte   $03
 LBCD6:  .byte   $03
         .byte   $6F
         .byte   $03
-        inc     $43
+        inc     tile_at_feet_lo
         .byte   $FF                     ; (end: $189CDF = $FD, $43)
         .byte   $43
         inc     $FD43,x
@@ -2604,7 +2604,7 @@ LBCD6:  .byte   $03
 ; --- cursor_direction_offsets ($9D0D) ---
 ; Indexed by button bits: $01=Right, $02=Left, $04=Down, $08=Up
         brk
-        ora     ($FF,x)
+        ora     (ppu_ctrl_shadow,x)
         brk
         .byte   $03
         brk
@@ -2709,7 +2709,7 @@ LBD6C:  cmp     $24,x
         bit     $F6
         brk                             ; row 5: bottom border
         ldy     #$07
-        eor     $F0,x
+        eor     mmc3_shadow,x
         sbc     ($F2),y
         .byte   $F2
         .byte   $F3
@@ -2758,7 +2758,7 @@ LBD6C:  cmp     $24,x
 ; PPU addr high bytes for face tile writes (9 entries). Same as $9D55.
         jsr     L2020                   ; rows 0/1/2
         and     ($21,x)
-        and     ($22,x)
+        and     (stage_id,x)
         .byte   $22
         .byte   $22
 

@@ -55,7 +55,7 @@ code_A023:  jsr     code_A398
 
 code_A02C:  and     #$40
         bne     code_A038
-        lda     $A1
+        lda     weapon_cursor
         bpl     code_A0A0
         cmp     #$FF
         beq     code_A05C
@@ -73,42 +73,42 @@ code_A04B:  lda     $B4
         eor     #$06
         sta     $B4
         lda     #$00
-        sta     $50
+        sta     scroll_lock
         lda     #$80
-        sta     $A1
+        sta     weapon_cursor
         jmp     code_A01A
 
 code_A05C:  lda     $B4
         bne     code_A09D
         sta     $95
-        lda     $AF
+        lda     etanks
         beq     code_A09D
         sec
         sbc     #$01
-        sta     $AF
+        sta     etanks
         and     #$0F
         cmp     #$0F
         bne     code_A078
-        lda     $AF
+        lda     etanks
         sec
         sbc     #$06
-        sta     $AF
+        sta     etanks
 code_A078:  lda     #$00
-        sta     $A1
-        lda     $A2
+        sta     weapon_cursor
+        lda     player_hp
         cmp     #$9C
         beq     code_A09D
         lda     $95
         and     #$03
         bne     code_A097
-        inc     $A2
-        lda     $A1
+        inc     player_hp
+        lda     weapon_cursor
         pha
         ldx     #$00
-        stx     $A1
+        stx     weapon_cursor
         jsr     code_A50D
         pla
-        sta     $A1
+        sta     weapon_cursor
 code_A097:  jsr     code_A2EA
         jmp     code_A078
 
@@ -117,12 +117,12 @@ code_A09D:  jmp     code_A023
 code_A0A0:  lda     weapon_cursor
         clc
         adc     $B4
-        cmp     $A0
+        cmp     current_weapon
         beq     code_A0AD
         ldy     #$00
         sty     $B5
 code_A0AD:  sta     current_weapon
-        lda     $A0
+        lda     current_weapon
         bne     code_A0B7
         sta     $B1
         beq     code_A0E6
@@ -130,14 +130,14 @@ code_A0B7:  ora     #$80
         sta     $B1
         lda     $B4
         beq     code_A0E6
-        lda     $A1
+        lda     weapon_cursor
         and     #$01
         beq     code_A0E6
-        lda     $A1
+        lda     weapon_cursor
         lsr     a
         clc
         adc     #$06
-        sta     $A1
+        sta     weapon_cursor
         lda     #$00
         sta     $95
 code_A0D1:  jsr     code_A2EA
@@ -168,7 +168,7 @@ code_A0FB:  lda     weapon_cursor
         sbc     #$06
         asl     a
         ora     #$01
-        sta     $A1
+        sta     weapon_cursor
 code_A108:  pla
         sta     $ED
         pla
@@ -177,21 +177,21 @@ code_A108:  pla
         sta     $EB
         pla
         sta     $EA
-        ldy     $A0
+        ldy     current_weapon
         lda     LA634,y
         sta     $EB
         lda     #$00
-        sta     $50
-        ldy     $F8
+        sta     scroll_lock
+        ldy     game_mode
         cpy     #$01
         bne     code_A127
-        sta     $F8
+        sta     game_mode
 code_A127:  ldx     #$0F
 code_A129:  lda     $0630,x
         sta     $0610,x
         dex
         bne     code_A129
-        lda     $A0
+        lda     current_weapon
         asl     a
         asl     a
         tay
@@ -203,9 +203,9 @@ code_A139:  lda     LA641,y
         inx
         cpx     #$03
         bne     code_A139
-        stx     $18
+        stx     palette_dirty
         lda     #PSTATE_REAPPEAR
-        sta     $30
+        sta     player_state
         ldx     #$00
         lda     #$13
         jsr     LF835
@@ -226,14 +226,14 @@ code_A15B:  lda     $EA
 code_A16E:  lda     $95
         and     #$03
         bne     code_A185
-        lda     $A1
+        lda     weapon_cursor
         clc
         adc     $B4
         tax
-        lda     $A2,x
+        lda     player_hp,x
         cmp     #$9C
         beq     code_A18B
-        inc     $A2,x
+        inc     player_hp,x
         jsr     code_A50D
 code_A185:  jsr     code_A2EA
         jmp     code_A16E
@@ -242,18 +242,18 @@ code_A18B:  jmp     code_A0E6
 
 code_A18E:  lda     #$1A
         jsr     LF89A
-        lda     $50
+        lda     scroll_lock
         pha
-        inc     $50
+        inc     scroll_lock
         lda     #$04
-        sta     $97
+        sta     oam_ptr
         jsr     LC5E9
         pla
-        sta     $50
-        lda     $F8
+        sta     scroll_lock
+        lda     game_mode
         bne     code_A1AA
         lda     #$01
-        sta     $F8
+        sta     game_mode
 code_A1AA:  ldy     scroll_lock
         cpy     #$08
         beq     code_A217
@@ -293,7 +293,7 @@ code_A1E0:  sta     $0783,y
         iny
         bne     code_A1B5
 code_A1F7:  jsr     code_A251
-        lda     $F8
+        lda     game_mode
         cmp     #$0B
         bne     code_A213
         lda     #$20
@@ -305,7 +305,7 @@ code_A1F7:  jsr     code_A251
         lda     #$FF
         sta     $07A3
 code_A213:  inc     nametable_dirty
-        inc     $50
+        inc     scroll_lock
 code_A217:  lda     #$74
         cmp     $EA
         beq     code_A23D
@@ -322,7 +322,7 @@ code_A22D:  lda     LA624,x
         dex
         bne     code_A22D
         lda     #$FF
-        sta     $18
+        sta     palette_dirty
         jsr     LFF3C
 code_A23D:  jsr     code_A2EA
         lda     $51
@@ -341,7 +341,7 @@ code_A251:  lda     scroll_lock
         bcs     code_A2A9
         and     #$01
         beq     code_A2A9
-        lda     $50
+        lda     scroll_lock
         clc
         adc     $B4
         and     #$FE
@@ -350,7 +350,7 @@ code_A251:  lda     scroll_lock
 code_A266:  lda     #$07
         sta     $01
         ldy     $00
-        lda     $A2,y
+        lda     player_hp,y
         bpl     code_A29D
         and     #$7F
         sta     $02
@@ -384,10 +384,10 @@ code_A2A9:  lda     scroll_lock
         bne     code_A2C3
         lda     $B4
         bne     code_A2DE
-        lda     $AE
+        lda     lives
         and     #$0F
         sta     $07A1
-        lda     $AE
+        lda     lives
         lsr     a
         lsr     a
         lsr     a
@@ -398,10 +398,10 @@ code_A2C3:  lda     scroll_lock
         bne     code_A2E9
         lda     $B4
         bne     code_A2DE
-        lda     $AF
+        lda     etanks
         and     #$0F
         sta     $07A1
-        lda     $AF
+        lda     etanks
         lsr     a
         lsr     a
         lsr     a
@@ -422,20 +422,20 @@ code_A2EA:  lda     game_mode
         cmp     $51
         bcc     code_A2F8
 code_A2F6:  lda     $51
-code_A2F8:  sta     $7B
+code_A2F8:  sta     irq_scanline
         jsr     LC5E9
         jsr     code_A30C
         lda     #$00
-        sta     $EE
+        sta     nmi_skip
         jsr     LFF21
-        inc     $EE
+        inc     nmi_skip
         inc     $95
         rts
 
 code_A30C:  lda     $B4
         bne     code_A347
         ldx     #$1C
-        lda     $A1
+        lda     weapon_cursor
         cmp     #$FF
         bne     code_A320
         lda     $95
@@ -511,7 +511,7 @@ code_A397:  rts
 
 code_A398:  lda     weapon_cursor
         pha
-        lda     $16
+        lda     joy1_held
         and     #$0F
         bne     code_A3A8
         lda     #$F0
@@ -523,7 +523,7 @@ code_A3A8:  lda     $1F
         adc     #$10
         sta     $1F
         bne     code_A3A5
-        lda     $16
+        lda     joy1_held
         and     #BTN_RIGHT
         beq     code_A3EC
 code_A3B7:  lda     weapon_cursor
@@ -531,26 +531,26 @@ code_A3B7:  lda     weapon_cursor
         cmp     #$FF
         beq     code_A3A5
         lda     #$00
-        sta     $A1
+        sta     weapon_cursor
         beq     code_A3DE
 code_A3C5:  lda     $B4
         beq     code_A3CF
-        lda     $A1
+        lda     weapon_cursor
         and     #$01
         bne     code_A3A5
 code_A3CF:  inc     weapon_cursor
-        lda     $A1
+        lda     weapon_cursor
         and     #$01
         bne     code_A3DE
         lda     #$FF
-        sta     $A1
+        sta     weapon_cursor
         jmp     code_A477
 
 code_A3DE:  lda     weapon_cursor
         clc
         adc     $B4
         tay
-        lda     $A2,y
+        lda     player_hp,y
         bpl     code_A3B7
         jmp     code_A477
 
@@ -562,46 +562,46 @@ code_A3F2:  lda     weapon_cursor
         cmp     #$80
         beq     code_A3A5
         lda     #$01
-        sta     $A1
+        sta     weapon_cursor
         bne     code_A40F
 code_A400:  dec     weapon_cursor
-        lda     $A1
+        lda     weapon_cursor
         and     #$01
         beq     code_A40F
         lda     #$80
-        sta     $A1
+        sta     weapon_cursor
         jmp     code_A3A5
 
 code_A40F:  lda     weapon_cursor
         clc
         adc     $B4
         tay
-        lda     $A2,y
+        lda     player_hp,y
         bpl     code_A3F2
         jmp     code_A477
 
 code_A41D:  lda     weapon_cursor
         bmi     code_A477
-        lda     $16
+        lda     joy1_held
         and     #BTN_UP
         beq     code_A44C
 code_A427:  lda     weapon_cursor
         bne     code_A431
         lda     #$05
-        sta     $A1
+        sta     weapon_cursor
         bne     code_A46C
 code_A431:  cmp     #$01
         bne     code_A43B
         lda     #$04
-        sta     $A1
+        sta     weapon_cursor
         bne     code_A43F
 code_A43B:  dec     weapon_cursor
-        dec     $A1
+        dec     weapon_cursor
 code_A43F:  lda     weapon_cursor
         clc
         adc     $B4
         tay
-        lda     $A2,y
+        lda     player_hp,y
         bpl     code_A427
         bmi     code_A477
 code_A44C:  lda     joy1_held
@@ -611,23 +611,23 @@ code_A452:  lda     weapon_cursor
         cmp     #$04
         bne     code_A45E
         lda     #$01
-        sta     $A1
+        sta     weapon_cursor
         bne     code_A46C
 code_A45E:  cmp     #$05
         bne     code_A468
         lda     #$00
-        sta     $A1
+        sta     weapon_cursor
         beq     code_A46C
 code_A468:  inc     weapon_cursor
-        inc     $A1
+        inc     weapon_cursor
 code_A46C:  lda     weapon_cursor
         clc
         adc     $B4
         tay
-        lda     $A2,y
+        lda     player_hp,y
         bpl     code_A452
 code_A477:  pla
-        cmp     $A1
+        cmp     weapon_cursor
         beq     code_A481
         lda     #$1B
         jsr     LF89A
@@ -666,7 +666,7 @@ code_A4B8:  inx
         lda     $95
         and     #$08
         beq     code_A4EB
-        ldx     $A1
+        ldx     weapon_cursor
         bpl     code_A4E0
         cpx     #$FF
         beq     code_A4EB
@@ -702,7 +702,7 @@ code_A50A:  inc     nametable_dirty
 
 code_A50D:  lda     #$1C
         jsr     LF89A
-        lda     $A1
+        lda     weapon_cursor
         asl     a
         tay
         lda     $52
@@ -713,7 +713,7 @@ code_A50D:  lda     #$1C
         sta     $0781
         lda     #$06
         sta     $0782
-        lda     $A2,x
+        lda     player_hp,x
         and     #$1F
         sta     $00
         ldy     #$00
@@ -730,7 +730,7 @@ code_A540:  sta     $00
         iny
         cpy     #$07
         bne     code_A533
-        lda     $F8
+        lda     game_mode
         cmp     #$0B
         bne     code_A561
         lda     #$20

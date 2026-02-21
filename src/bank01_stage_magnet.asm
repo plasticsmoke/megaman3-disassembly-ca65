@@ -66,7 +66,7 @@ LA01D:  lda     ($00),y                 ; copy 8 palette bytes (SP2 + SP3):
         cpx     #$08
         bne     LA01D
         ldx     #$FF                    ; $18 = $FF → trigger palette DMA
-        stx     $18                     ; (NMI will copy to PPU)
+        stx     palette_dirty                     ; (NMI will copy to PPU)
         rts
 
         .byte   $0F,$0F,$30,$27,$0F,$0F,$30,$15

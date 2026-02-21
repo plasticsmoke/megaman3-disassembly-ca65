@@ -106,14 +106,14 @@ code_8003:  jmp     L8109
         jmp     check_player_hit
 
 process_sprites:  lda     #$55          ; $99 = $00.55 (0.332 px/frame²)
-        sta     $99                     ; set each frame for gameplay physics
+        sta     gravity                     ; set each frame for gameplay physics
         ldx     #$01                    ; start at weapons
-        stx     $EF                     ; (skip mega man)
+        stx     sprite_slot                     ; (skip mega man)
 L8014:  ldy     #$01
-        cpx     $5B
+        cpx     spark_freeze_a
         beq     L8060                   ; if this sprite slot
         iny                             ; is spark frozen,
-        cpx     $5C                     ; skip regular processing
+        cpx     spark_freeze_b                     ; skip regular processing
         beq     L8060
         lda     ent_status,x                 ; if sprite inactive,
         bpl     L808B                   ; continue loop
@@ -134,7 +134,7 @@ L8031:  lsr     a
         tay
 L803D:  cpy     prg_bank
         beq     L804A                   ; if not already selected,
-        sty     $F5
+        sty     prg_bank
         txa                             ; preserve X
         pha                             ; select new $A000~$BFFF bank
         jsr     LFF6B                   ; restore X
@@ -154,12 +154,12 @@ L804A:  ldy     ent_routine,x
 ; if spark freeze effect active
 
 L8060:  lda     #$00                    ; clear spark freeze slot
-        sta     $5A,y                   ; recheck weapon collision
+        sta     boss_active,y                   ; recheck weapon collision
         jsr     LFB7B                   ; if none, spark cleared
         bcs     L8083
         txa                             ; if so, reapply
         ldy     $10                     ; spark freeze slot
-        sta     $5A,y
+        sta     boss_active,y
         lda     #$00                    ; constantly reset
         sta     ent_anim_frame,x                 ; animation counter
         beq     L8083                   ; to keep sprite from animating
@@ -172,7 +172,7 @@ L8083:  lda     ent_hitbox,x                 ; if this sprite can
         bpl     L808B                   ; cause player damage,
         jsr     check_player_hit        ; check for that
 L808B:  inc     sprite_slot
-        ldx     $EF                     ; go to next sprite
+        ldx     sprite_slot                     ; go to next sprite
         cpx     #$20                    ; in X as well as $EF
         beq     L8096                   ; stop at $20
         jmp     L8014
@@ -198,15 +198,15 @@ check_player_hit:  lda     ent_anim_id        ; check player animation
         cmp     #$A4                    ; $A4 = death/invincible anim (skip)
         beq     L8096
         stx     $0F                     ; save entity slot
-        lda     $F5                     ; save current bank
+        lda     prg_bank                     ; save current bank
         pha
         lda     #$0A                    ; switch to bank $0A
-        sta     $F5                     ; (damage tables at $A000)
+        sta     prg_bank                     ; (damage tables at $A000)
         jsr     LFF6B
         ldx     $0F                     ; restore entity slot
-        lda     $39                     ; i-frames timer
+        lda     invincibility_timer                     ; i-frames timer
         bne     code_80F9               ; skip if invincible
-        lda     $30                     ; check player state
+        lda     player_state                     ; check player state
         cmp     #PSTATE_DAMAGE                    ; already taking damage?
         beq     code_80F9               ; skip
         cmp     #PSTATE_DEATH                    ; already dead?
@@ -216,33 +216,33 @@ check_player_hit:  lda     ent_anim_id        ; check player animation
         jsr     LFAE2                   ; AABB overlap test
         bcs     code_80F9               ; no collision → skip
         lda     #PSTATE_DAMAGE                    ; --- CONTACT HIT ---
-        sta     $30                     ; state → $06 (damage)
+        sta     player_state                     ; state → $06 (damage)
         lda     #$16                    ; SFX $16 = damage sound
         jsr     LF89A
-        lda     $A2                     ; player HP
+        lda     player_hp                     ; player HP
         and     #$1F                    ; isolate HP value (0-28)
         beq     code_80F9               ; already 0 → skip damage calc
         ldy     ent_routine,x                 ; entity routine index
-        lda     $A2                     ; current HP
+        lda     player_hp                     ; current HP
         and     #$1F
         sec
         sbc     LA000,y                 ; subtract damage from table
         php                             ; save carry (underflow = dead)
         ora     #$80                    ; set bit 7 (HP dirty flag)
-        sta     $A2
+        sta     player_hp
         plp
         beq     L80E7                   ; HP == 0 → dead
         bcs     code_80F9               ; HP > 0 → survived, done
 L80E7:  lda     #$80                    ; --- PLAYER KILLED ---
-        sta     $A2                     ; HP = 0 with dirty flag
+        sta     player_hp                     ; HP = 0 with dirty flag
         lda     #PSTATE_DEATH                    ; state → $0E (death)
-        sta     $30
+        sta     player_state
         lda     #$F2                    ; SFX $F2 = stop music
         jsr     LF89A
         lda     #$17                    ; SFX $17 = death sound
         jsr     LF89A
 code_80F9:  pla                         ; restore bank
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         ldx     $0F                     ; restore entity slot
         rts
@@ -284,14 +284,14 @@ L8142:  sec                             ; return carry on
 
 L8144:  lda     #$18                    ; play damage sound
         jsr     LF89A
-        lda     $F5
+        lda     prg_bank
         pha                             ; preserve and select
         stx     $0F                     ; $0A as $A000~$BFFF bank
         lda     #$0A
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         ldx     $0F                     ; restore X (sprite slot)
-        ldy     $A0
+        ldy     current_weapon
         lda     weapon_damage_ptr_lo,y  ; grab damage table pointer for
         sta     L0000                   ; currently equipped weapon
         lda     weapon_damage_ptr_hi,y
@@ -313,7 +313,7 @@ L8170:  lda     current_weapon                     ; if weapon is
 ; apply spark freeze effect
         txa                             ; Y = spark slot
         ldy     $10                     ; set shot sprite slot
-        sta     $5A,y                   ; for this weapon slot
+        sta     boss_active,y                   ; for this weapon slot
         lda     ent_status,y
         ora     #$01                    ; turn on freeze state for
         sta     ent_status,y                 ; spark shot
@@ -355,7 +355,7 @@ L81CD:  sta     ent_hp,x                 ; store new health value
         beq     L8207                   ; don't do normal death —
         cmp     #$53                    ; Proto Man has his own
         beq     L8207                   ; fly-away exit in main_proto_man
-        lda     $5A
+        lda     boss_active
         bpl     L81E5                   ; $5A<0: boss active → OAM $71
         lda     #$59                    ; $5A>=0: normal → OAM $59
         bne     L81E7
@@ -398,7 +398,7 @@ L822F:  lda     current_weapon
         ldy     $10
         lda     #$00                    ; despawn the shot
         sta     ent_status,y
-        lda     $A0
+        lda     current_weapon
         cmp     #WPN_GEMINI
         bne     L824D                   ; if weapon is gemini laser,
         lda     #$00                    ; despawn all three shots
@@ -406,7 +406,7 @@ L822F:  lda     current_weapon
         sta     $0302
         sta     $0303
 L824D:  pla
-        sta     $F5                     ; restore bank
+        sta     prg_bank                     ; restore bank
         jsr     LFF6B                   ; and sprite slot
         ldx     $0F
         clc
@@ -421,10 +421,10 @@ L825E:  lda     ent_hitbox,x                 ; shot tink flag also
         jsr     LFAE2                   ; check if enemy collidiog with
         bcs     L825D                   ; player, if not return
         stx     $0F                     ; preserve X
-        lda     $F5
+        lda     prg_bank
         pha                             ; preserve $A000-$BFFF bank
         lda     #$0A                    ; select $0A as new bank
-        sta     $F5
+        sta     prg_bank
         jsr     LFF6B
         ldx     $0F                     ; restore X
         ldy     ent_routine,x                 ; y = main ID
@@ -441,7 +441,7 @@ L825E:  lda     ent_hitbox,x                 ; shot tink flag also
 L8290:  ora     #$80                    ; set dirty flag
         sta     $A7
         lda     #PSTATE_TOP_SPIN                    ; state → $0A (Top Spin recoil)
-        sta     $30                     ; player bounces back from contact
+        sta     player_state                     ; player bounces back from contact
         lda     #$08                    ; recoil timer = 8 frames
         sta     ent_timer
         lda     L83B4
@@ -453,7 +453,7 @@ L8290:  ora     #$80                    ; set dirty flag
 L82AA:  lda     ent_hp,x                 ; boss health bits
         and     #$1F                    ; mask to HP (low 5 bits)
         ora     #$80                    ; set bit 7 = "boss was hit" flag
-        sta     $B0                     ; store to boss HP mirror
+        sta     boss_hp_display                     ; store to boss HP mirror
         and     #$7F                    ; did boss die?
         beq     L82B8
         rts                             ; if not, return
@@ -494,26 +494,26 @@ code_82CE:  jsr     LF846
         dey
         cpy     #$0F
         bne     code_82C4
-        lda     $22
+        lda     stage_id
         cmp     #STAGE_HARD
         bne     code_831E
         lda     #$00
-        sta     $FA
+        sta     scroll_y
 code_831E:  lda     #$00
         sta     $0301
         sta     $0302
         sta     $0303
         sta     ent_var1
-        lda     $22                     ; current stage
+        lda     stage_id                     ; current stage
         cmp     #STAGE_WILY4                    ; stage $0F = Wily 4 (refights)
         beq     L8360                   ; special handling for refights
-        lda     $30                     ; check player state
+        lda     player_state                     ; check player state
         cmp     #PSTATE_DEATH                    ; if player is dead ($0E),
         beq     code_83AD               ; don't start victory cutscene
         lda     #PSTATE_VICTORY                    ; state → $0C (victory)
-        sta     $30                     ; begin boss defeated cutscene
+        sta     player_state                     ; begin boss defeated cutscene
         lda     #$00
-        sta     $32                     ; clear sub-state
+        sta     walk_flag                     ; clear sub-state
         sta     ent_timer                   ; clear player timer
         sta     $0301                   ; despawn weapon slots 1-3
         sta     $0302
@@ -535,7 +535,7 @@ L8360:  lda     player_state
         cmp     #PSTATE_STUNNED                    ; if player was stunned ($0F),
         bne     code_836A
         lda     #$00                    ; release to on_ground ($00)
-        sta     $30
+        sta     player_state
 code_836A:  lda     #$80
         sta     $030F
         lda     #$90
@@ -665,12 +665,12 @@ code_85D9:  cpx     #$10                ; only weapon/player slots break blocks
         bcs     code_8627               ; enemy slots ($10+) → return
         ldy     #$06                    ; check tile at foot height ahead
         jsr     LE8D6
-        lda     $41                     ; tile type = breakable block ($70)?
+        lda     tile_at_feet_max                     ; tile type = breakable block ($70)?
         cmp     #TILE_DISAPPEAR
         bne     code_8627               ; no → return
         lda     ent_x_px,x                 ; entity X - camera X
         sec                             ; = screen-relative position
-        sbc     $FC
+        sbc     camera_x_lo
         cmp     #$10                    ; < $10 → off left edge
         bcc     code_8627
         cmp     #$F0                    ; >= $F0 → off right edge
@@ -819,13 +819,13 @@ code_86E4:  inc     ent_status,x             ; advance state (wall blocked)
 code_86F0:  lda     current_weapon                 ; current weapon = Rush Marine ($09)?
         cmp     #WPN_RUSH_MARINE
         bne     code_86FC               ; no → set weapon OAM
-        lda     $41                     ; tile type = water ($80)?
+        lda     tile_at_feet_max                     ; tile type = water ($80)?
         cmp     #$80
         bne     code_86E4               ; not water → wall-blocked path
 code_86FC:  lda     ent_flags,x             ; set sprite flag bit 0
         ora     #$01                    ; (direction/visibility)
         sta     ent_flags,x
-        lda     $A0                     ; weapon_id - 6, >> 1 = table index
+        lda     current_weapon                     ; weapon_id - 6, >> 1 = table index
         sec                             ; $06→0, $08→1, $0A→2,
         sbc     #$06                    ; $07→0, $09→1, $0B→2
         lsr     a
@@ -901,7 +901,7 @@ code_876B:  lda     ent_anim_state,x             ; wait for anim frame 2
         sta     ent_anim_frame,x
         lda     ent_yvel_sub,x                 ; Y speed += $99 ($99)
         clc                             ; accelerate upward
-        adc     $99
+        adc     gravity
         sta     ent_yvel_sub,x
         lda     ent_yvel,x
         adc     #$00
@@ -2141,7 +2141,7 @@ code_90EF:  lda     ent_anim_id,x             ; check current OAM ID
         ldy     #$08                    ; $99 strength index
         jsr     LF67C                   ; apply $99 + move (C=1 if landed)
         ror     L0000                   ; save carry (landed flag) into $00 bit 7
-        lda     $41                     ; tile ID at feet (below entity)
+        lda     tile_at_feet_max                     ; tile ID at feet (below entity)
         cmp     #TILE_LADDER_TOP                    ; special trigger tile?
         beq     code_9107               ; yes -> check horizontal tiles
         lda     L0000                   ; no special tile: check if landed
@@ -2149,7 +2149,7 @@ code_90EF:  lda     ent_anim_id,x             ; check current OAM ID
 code_9107:  lda     ent_facing,x             ; check facing direction
         and     #$01                    ; bit 0 = facing right
         beq     code_9116               ; facing left -> check left tile
-        lda     $43                     ; facing right: check tile to right
+        lda     tile_at_feet_lo                     ; facing right: check tile to right
         cmp     #TILE_LADDER_TOP                    ; is it the trigger tile?
         bne     code_9142               ; no -> walk horizontally
         beq     code_911C               ; yes -> transition to rising
@@ -2568,7 +2568,7 @@ L94B5:  clc
         ldy     #$08
         jsr     LF67C
         ldy     ent_facing,x
-        lda     $41,y
+        lda     tile_at_feet_max,y
         bne     code_94D4
         lda     ent_facing,x
         eor     #$03
@@ -2607,7 +2607,7 @@ code_9509:  pla
         .byte   $20,$97,$80
 code_9526:  .byte   $60,$D8,$C8,$50,$70
         cmp     $E1
-        asl     $14,x
+        asl     joy1_press,x
 main_junk_block:
         lda     ent_status,x
         and     #$0F
@@ -2728,7 +2728,7 @@ code_962E:  jsr     LF835
 code_9639:  lda     #$78
         .byte   $9D
 L963C:  brk
-        ora     $60
+        ora     stage_select_page
 code_963F:  dec     ent_timer,x
         rts
 
@@ -3332,18 +3332,18 @@ L9ACB:  jsr     LF8B3                   ; check player proximity
         jsr     LF8C2                   ; detailed collision check
         cmp     #$10                    ; too far away?
         bcs     L9B2B
-        lda     $30                     ; only mount if state < $02
+        lda     player_state                     ; only mount if state < $02
         cmp     #PSTATE_SLIDE                    ; (on_ground or airborne)
         bcs     L9B08
         lda     #PSTATE_ENTITY_RIDE                    ; state → $05 (entity_ride)
-        sta     $30
-        stx     $34                     ; $34 = ridden entity slot
+        sta     player_state
+        stx     entity_ride_slot                     ; $34 = ridden entity slot
         lda     #$07                    ; player OAM $07 (riding anim)
         sta     ent_anim_id
         lda     #$00
         sta     ent_anim_frame                   ; reset animation counter
         sta     ent_anim_state                   ; reset animation frame
-        sta     $32                     ; clear sub-state
+        sta     walk_flag                     ; clear sub-state
         lda     ent_y_px                   ; save player Y as reference
         sta     ent_timer,x
         lda     ent_yvel                   ; player Y velocity (high byte)
@@ -3357,7 +3357,7 @@ L9ACB:  jsr     LF8B3                   ; check player proximity
 L9B08:  lda     player_state
         cmp     #PSTATE_ENTITY_RIDE                    ; if not in entity_ride, skip
         bne     code_9B43
-        cpx     $34                     ; if riding different entity, skip
+        cpx     entity_ride_slot                     ; if riding different entity, skip
         bne     code_9B43
         lda     ent_timer,x                 ; check Y distance from mount point
         sec
@@ -3368,20 +3368,20 @@ L9B08:  lda     player_state
         sta     ent_yvel_sub
         sta     ent_yvel
         lda     ent_facing,x                 ; $35 = Mag Fly's direction
-        sta     $35                     ; (player inherits movement dir)
+        sta     facing_sub                     ; (player inherits movement dir)
         rts
 
 L9B2B:  lda     player_state                     ; if player is riding ($05)
         cmp     #PSTATE_ENTITY_RIDE
         bne     code_9B43               ; and it's THIS entity
-        cpx     $34
+        cpx     entity_ride_slot
         bne     code_9B43
         lda     #$AB                    ; set fall velocity
         sta     ent_yvel_sub
         lda     #$FF
         sta     ent_yvel
         lda     #$00                    ; state → $00 (on_ground)
-        sta     $30                     ; dismount complete
+        sta     player_state                     ; dismount complete
 code_9B43:  rts
 
 ; ===========================================================================
@@ -3811,7 +3811,7 @@ code_9E46:  jsr     LFC53
 code_9EA4:  .byte   $60
 L9EA5:  .byte   $0F
 L9EA6:  brk
-        sbc     ($FF),y
+        sbc     (ppu_ctrl_shadow),y
 code_9EA9:  jsr     LFC53
         bcs     code_9EA4
         lda     #$00
@@ -4171,7 +4171,7 @@ code_A1A2:  lda     ent_anim_state,x
         sta     ent_anim_frame,x
         lda     ent_yvel_sub,x
         clc
-        adc     $99
+        adc     gravity
         sta     ent_yvel_sub,x
         lda     ent_yvel,x
         adc     #$00
@@ -4189,11 +4189,11 @@ code_A1C4:  jsr     LF779
         cmp     #$53                    ; $53 = Hard Man stage Proto Man
         bne     code_A1DD               ; $52 = normal → skip, set $68
         lda     #PSTATE_TELEPORT_BEAM                    ; state → $13 (teleport_beam)
-        sta     $30                     ; Proto Man defeated → player beams out
+        sta     player_state                     ; Proto Man defeated → player beams out
         rts
 
 code_A1DD:  lda     #$80                ; $68 = cutscene-complete flag
-        sta     $68
+        sta     proto_man_flag
 code_A1E1:  rts
 
 ; ---------------------------------------------------------------------------
@@ -4209,7 +4209,7 @@ main_proto_man_gemini_cutscene:
         lda     ent_var3,x                 ; phase flag
         beq     code_A1E1               ; not started yet → return
         lda     #PSTATE_STUNNED                    ; state → $0F (stunned)
-        sta     $30                     ; freeze player during cutscene
+        sta     player_state                     ; freeze player during cutscene
         lda     ent_status,x
         and     #$0F
         bne     code_A216
@@ -4237,10 +4237,10 @@ code_A216:  lda     ent_timer,x
         sta     ent_yvel_sub,x
         sta     ent_yvel,x
 code_A230:  jsr     code_A1A2
-        lda     $68                     ; cutscene-complete flag
+        lda     proto_man_flag                     ; cutscene-complete flag
         beq     code_A248               ; not done yet → return
         lda     #$00                    ; state → $00 (on_ground)
-        sta     $30                     ; release player from stun
+        sta     player_state                     ; release player from stun
         ldy     #$0F                    ; clear all weapon slots
 code_A23D:  sta     $0310,y
         dey
@@ -4253,13 +4253,13 @@ code_A248:  rts
 
 cutscene_init:  lda     ent_var3,x         ; if phase already started,
         bne     code_A292               ; skip init
-        lda     $30                     ; if player already stunned,
+        lda     player_state                     ; if player already stunned,
         bne     code_A25D               ; skip to whistle
         lda     ent_anim_id                   ; player OAM ID
         cmp     #$13                    ; $13 = teleporting? skip
         beq     code_A292
         lda     #PSTATE_STUNNED                    ; state → $0F (stunned)
-        sta     $30                     ; freeze player for cutscene
+        sta     player_state                     ; freeze player for cutscene
 code_A25D:  lda     #$11
         cmp     $D9
         beq     code_A26B
@@ -4269,7 +4269,7 @@ code_A25D:  lda     #$11
 code_A26B:  dec     ent_timer,x
         bne     code_A292
         lda     #$00                    ; state → $00 (on_ground)
-        sta     $30                     ; whistle done, release player
+        sta     player_state                     ; whistle done, release player
         inc     ent_var3,x                 ; advance to next cutscene phase
         lda     ent_flags,x
         and     #$FB                    ; clear bit 2 (disabled flag)
@@ -4898,7 +4898,7 @@ code_A7D4:  lda     LA8BD,y
         sta     $062D,y
         dey
         bpl     code_A7D4
-        sty     $18
+        sty     palette_dirty
         inc     ent_status,x
         jsr     code_A82E
         sta     ent_timer,x
@@ -4988,7 +4988,7 @@ code_A894:  lda     LA8BC,x
         cpy     #$04
         bne     code_A894
         lda     #$FF
-        sta     $18
+        sta     palette_dirty
         ldx     L0000
         inc     ent_var2,x
         lda     ent_var2,x
@@ -5312,11 +5312,11 @@ code_AB65:  lda     ent_status,x             ; check state
         sta     ent_routine,y                 ; (Nutton return-flight handler)
         lda     ent_y_px,x                 ; copy Bolton Y to child
         sta     ent_y_px,y
-        lda     $FC                     ; child X = camera left edge + 4
+        lda     camera_x_lo                     ; child X = camera left edge + 4
         clc                             ; (spawn at left side of screen)
         adc     #$04
         sta     ent_x_px,y
-        lda     $F9                     ; child X screen
+        lda     camera_screen                     ; child X screen
         adc     #$00
         sta     ent_x_scr,y
         lda     #$00                    ; child X speed = $04.00 px/frame
@@ -5341,7 +5341,7 @@ code_ABC9:  lda     ent_flags,x
         bne     code_ABE9
         lda     #$00
         sta     ent_anim_frame,x
-        lda     $92
+        lda     frame_counter
         and     #$04
         beq     code_ABE9
         lda     ent_flags,x
@@ -5382,10 +5382,10 @@ code_AC27:  jsr     LF8C2
         bcs     code_AC7E
         lda     ent_x_px,x
         sec
-        sbc     $FC
+        sbc     camera_x_lo
         sta     L0000
         lda     ent_x_scr,x
-        sbc     $F9
+        sbc     camera_screen
         bcc     code_AC79
         lda     L0000
         cmp     #$80
@@ -6671,7 +6671,7 @@ main_doc_robot_intro:
         lda     ent_status,x
         and     #$0F
         beq     code_B752
-        lda     $B0
+        lda     boss_hp_display
         cmp     #$9C
         bne     code_B751
         lda     ent_status,x
@@ -6710,7 +6710,7 @@ code_B73C:  lda     LB823,y
         cpx     #$04
         bne     code_B73C
         lda     #$FF
-        sta     $18
+        sta     palette_dirty
         ldx     L0000
 code_B751:  rts
 
@@ -6759,7 +6759,7 @@ code_B752:  jsr     init_boss_wait
         sta     $061F
         sta     $063F
         lda     #$FF
-        sta     $18
+        sta     palette_dirty
         jmp     LFF3C
 
         jsr     LF759
@@ -6767,7 +6767,7 @@ code_B752:  jsr     init_boss_wait
         cmp     ent_var1,x
         beq     code_B7D9
         lda     #$80
-        sta     $B0
+        sta     boss_hp_display
         rts
 
 code_B7D9:  lda     #$00
@@ -6783,10 +6783,10 @@ code_B7D9:  lda     #$00
 ; ---------------------------------------------------------------------------
 
 init_boss_wait:  lda     #PSTATE_BOSS_WAIT           ; state → $09 (boss_wait)
-        sta     $30                     ; freeze player
+        sta     player_state                     ; freeze player
         lda     #$80                    ; init boss HP display
-        sta     $B0                     ; $B0 = HP bar position
-        sta     $5A                     ; $5A = boss active flag
+        sta     boss_hp_display                     ; $B0 = HP bar position
+        sta     boss_active                     ; $5A = boss active flag
         lda     #$8E                    ; $B3 = HP fill target
         sta     $B3                     ; ($8E = $80 + 14 ticks = 28 HP)
         lda     #$0C                    ; SFX $0C = boss intro music
@@ -6838,7 +6838,7 @@ code_B86D:  lda     ent_routine,x
         bne     code_B8C2
         lda     #$00
         sta     ent_anim_frame,x
-        lda     $B0
+        lda     boss_hp_display
         cmp     #$9C
         bne     code_B8C6
         lda     #$C0
@@ -6860,7 +6860,7 @@ code_B86D:  lda     ent_routine,x
 code_B8BD:  lda     #$00
         sta     ent_anim_frame,x
 code_B8C2:  lda     #$80
-        sta     $B0
+        sta     boss_hp_display
 code_B8C6:  rts
 
 robot_master_main_indices:  .byte   $C0,$C1,$D6,$D0,$C2,$D4,$D2,$C3
@@ -6906,7 +6906,7 @@ main_trap_platform:
         jsr     LF8B3
         cmp     #$15
         bcs     code_B963
-        lda     $30
+        lda     player_state
         bne     code_B963
         lda     ent_y_px,x
         cmp     ent_y_px
@@ -7166,7 +7166,7 @@ code_BB69:  lda     LBBBC,y
         lda     #$17
         sta     $060F
         sta     $062F
-        sta     $18
+        sta     palette_dirty
         lda     #$00
         sta     ent_anim_id,x
         ldy     #$1F
@@ -7520,13 +7520,13 @@ code_BE6C:  inc     $58                 ; flag: energy refill active
         sta     $0F                     ; remaining ticks to add
         sty     $0E                     ; target weapon/HP slot
 code_BE72:  ldy     $0E                 ; check current energy level
-        lda     $A2,y                   ; ($A2+Y: $A2=HP, $A3+=weapon ammo)
+        lda     player_hp,y                   ; ($A2+Y: $A2=HP, $A3+=weapon ammo)
         cmp     #$9C                    ; $9C = max energy (28 units)
         beq     code_BE98               ; already full → done
-        lda     $A2,y                   ; add 1 tick of energy
+        lda     player_hp,y                   ; add 1 tick of energy
         clc
         adc     #$01
-        sta     $A2,y
+        sta     player_hp,y
         lda     #$1C                    ; play refill tick sound
         jsr     LF89A
         dec     $0F                     ; all ticks applied?
@@ -7544,33 +7544,33 @@ code_BE98:  lda     #$00                ; clear refill-active flag
 
         lda     #$14                    ; play 1-up/E-tank sound
         jsr     LF89A
-        lda     $AF                     ; current E-tanks ($AF)
+        lda     etanks                     ; current E-tanks ($AF)
         cmp     #$09                    ; max 9?
         beq     code_BEAA               ; yes → don't add more
-        inc     $AF                     ; E-tanks += 1
+        inc     etanks                     ; E-tanks += 1
 code_BEAA:  rts
 
 ; --- pickup_1up: add 1 extra life (BCD, max 99) ---
 
         lda     #$14                    ; play 1-up sound
         jsr     LF89A
-        lda     $AE                     ; $AE ($AE, BCD format)
+        lda     lives                     ; $AE ($AE, BCD format)
         cmp     #$99                    ; max 99?
         beq     code_BED1               ; yes → done
-        inc     $AE                     ; $AE += 1
-        lda     $AE                     ; BCD fixup: if low nibble >= $A
+        inc     lives                     ; $AE += 1
+        lda     lives                     ; BCD fixup: if low nibble >= $A
         and     #$0F                    ; carry into high nibble
         cmp     #$0A
         bne     code_BED1
-        lda     $AE                     ; add $10 (next tens digit)
+        lda     lives                     ; add $10 (next tens digit)
         and     #$F0                    ; clear low nibble
         clc
         adc     #$10
-        sta     $AE
+        sta     lives
         cmp     #$A0                    ; overflow past 99? clamp to 99
         bne     code_BED1
         lda     #$99
-        sta     $AE
+        sta     lives
 code_BED1:  rts
 main_surprise_box:
 
@@ -7633,7 +7633,7 @@ LBF4B:  .byte   $66,$64,$65
         lda     ent_anim_state,x
         cmp     #$04
         bne     code_BF96
-        lda     $5A
+        lda     boss_active
         bmi     code_BF77
         lda     $E6
         adc     $E7
