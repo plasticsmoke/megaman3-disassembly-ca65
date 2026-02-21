@@ -1,20 +1,21 @@
 ; =============================================================================
-; MEGA MAN 3 (U) — BANK $0F — ENTITY SPAWNING / PROJECTILE DISPATCH + WILY 4
+; MEGA MAN 3 (U) — BANK $0F — WILY FORTRESS 4 CREDITS + STAGE DATA
 ; =============================================================================
-; Entity spawn routing, projectile dispatch tables, and Wily Castle stage 4 data.
+; Mapped to $A000-$BFFF via MMC3.
 ;
-; Annotation: 0% — unannotated da65 output
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $0F — ENTITY SPAWNING / PROJECTILE DISPATCH + WILY 4
-; =============================================================================
-; Mapped to $A000-$BFFF. Contains entity spawn initialization for slots
-; $10+, collision flag setup, and projectile behavior routing.
-; Also serves as Wily Fortress 4 stage data ($22=$0F).
+; This bank is dual-purpose:
+;   1. Wily Fortress 4 ending credits sequence ($A000-$A2C5)
+;      - Initialization, scrolling nametable text, staff roll animation
+;      - OAM sprite placement for the credits "book" sequence
+;   2. Wily Fortress 4 stage data ($A2C6-$BFFF)
+;      - Compressed nametable tile maps
+;      - Palette data
+;      - Enemy/object spawn lists
+;      - Attribute tables
 ;
-; Annotation: light — all labels auto-generated, entity spawn routing bare
+; Despite the file name referencing entity spawning, this bank contains
+; no entity spawn dispatch code. The stage_id mapping $22 -> bank $0F
+; causes this bank to be loaded for Wily 4 stage data.
 ; =============================================================================
 
         .setcpu "6502"
@@ -22,12 +23,23 @@
 .include "include/zeropage.inc"
 .include "include/constants.inc"
 
-LF797           := $F797
-LFD80           := $FD80
+; --- fixed bank subroutines ---
+LF797           := $F797                ; apply_y_speed — apply Y velocity to entity
+LFD80           := $FD80                ; process_frame_yield — render frame + yield to NMI
 
+; =============================================================================
+; WILY 4 CREDITS — INITIALIZATION
+; =============================================================================
+; Entry point for the Wily Fortress 4 ending credits sequence.
+; Clears frame counter ($95), NMI flag, entity slots 0-1, and timers.
+;
+; NOTE: da65 mis-disassembled the STA $A006 as separate bytes because $A006
+; is an in-bank address. The original code is a chain of STA instructions
+; zeroing out variables. The bytes assemble correctly regardless.
+; =============================================================================
 .segment "BANK0F"
 
-        lda     #$00
+        lda     #$00                    ; clear all credits state
         sta     $95
         .byte   $8D
         .byte   $06
@@ -44,225 +56,258 @@ LA006:  ldy     #$85
         brk
         .byte   $03
         sta     $0310
-code_A01B:  lda     ent_status
-        bmi     code_A077
-        lda     $95
-        and     #$01
+; ===========================================================================
+; CREDITS MAIN LOOP — NAMETABLE TEXT SCROLL
+; ===========================================================================
+; Scrolls the credits text upward one pixel at a time. Every 8 pixels,
+; writes a new row of nametable tiles from the credits text data.
+; Uses $B8 as the text data index, scroll_y as the Y scroll position.
+; The text data pointers are stored in LA24E (low) / LA289 (high).
+; ===========================================================================
+code_A01B:  lda     ent_status              ; check if credits entity active
+        bmi     code_A077               ; if active (bit 7 set), skip scroll
+        lda     $95                     ; frame counter
+        and     #$01                    ; only process on even frames
         bne     code_A077
         lda     scroll_y
-        and     #$07
-        bne     code_A077
-        lda     scroll_y
+        and     #$07                    ; check if on 8-pixel boundary
+        bne     code_A077               ; not aligned, skip nametable update
+        lda     scroll_y                ; convert scroll to tile row
+        lsr     a                       ; divide by 8
         lsr     a
         lsr     a
-        lsr     a
-        sta     $02
-        ldx     $B8
-        lda     LA24E,x
+        sta     $02                     ; $02 = current tile row
+        ldx     $B8                     ; text data index
+        lda     LA24E,x                 ; load text data pointer (low byte)
         sta     $00
-        lda     LA289,x
+        lda     LA289,x                 ; load text data pointer (high byte)
         sta     $01
         ldy     #$00
-        sty     $03
+        sty     $03                     ; $03/$04 = PPU nametable address
         lda     scroll_y
-        and     #$F8
-        asl     a
-        rol     $03
+        and     #$F8                    ; align to 8-pixel row
+        asl     a                       ; multiply by 4 to get nametable offset
+        rol     $03                     ; (each row = 32 tiles)
         asl     a
         rol     $03
         sta     $04
-        cpx     #$3B
-        bcs     code_A059
-        lda     ($00),y
-        cmp     $02
-        beq     code_A07A
+        cpx     #$3B                    ; past end of text data?
+        bcs     code_A059               ; yes: fill with blank tiles
+        lda     ($00),y                 ; read expected row from text data
+        cmp     $02                     ; matches current scroll row?
+        beq     code_A07A               ; yes: copy text row to nametable buffer
+; --- fill nametable row with blank tiles ($24 = space) ---
 code_A059:  lda     $03
-        ora     #$24
-        sta     $0780
+        ora     #$24                    ; set nametable base ($24xx)
+        sta     $0780                   ; PPU address high byte
         lda     $04
-        sta     $0781
-        ldy     #$1F
-        sty     $0782
-        lda     #$24
-code_A06C:  sta     $0783,y
+        sta     $0781                   ; PPU address low byte
+        ldy     #$1F                    ; 32 tiles per row
+        sty     $0782                   ; tile count
+        lda     #$24                    ; blank tile
+code_A06C:  sta     $0783,y             ; fill row buffer with blanks
         dey
         bpl     code_A06C
-        sty     $07A3
-        sty     nametable_dirty
+        sty     $07A3                   ; terminator
+        sty     nametable_dirty         ; signal NMI to upload
 code_A077:  jmp     code_A0C0
 
+; --- copy text row from credits data to nametable buffer ---
+; Format: [row#] [left_pad] [text_len] [tile, tile, ...] (padded with blanks)
 code_A07A:  iny
-        lda     ($00),y
+        lda     ($00),y                 ; read left padding (spaces before text)
         sta     $05
         ldx     #$00
-        lda     #$24
-code_A083:  sta     $0783,x
+        lda     #$24                    ; blank tile
+code_A083:  sta     $0783,x             ; fill left padding
         inx
         dec     $05
         bpl     code_A083
         lda     $04
-        sta     $0781
+        sta     $0781                   ; PPU address low byte
         lda     $03
-        ora     #$24
-        sta     $0780
+        ora     #$24                    ; nametable base
+        sta     $0780                   ; PPU address high byte
         iny
-        lda     #$1F
-        sta     $0782
-        lda     ($00),y
+        lda     #$1F                    ; 32 tiles total
+        sta     $0782                   ; tile count
+        lda     ($00),y                 ; read text length
         sta     $02
         iny
-code_A0A2:  lda     ($00),y
+code_A0A2:  lda     ($00),y             ; copy text tiles to buffer
         sta     $0783,x
         iny
         inx
         dec     $02
         bpl     code_A0A2
-        lda     #$24
+        lda     #$24                    ; pad remainder with blanks
 code_A0AF:  sta     $0783,x
         inx
-        cpx     #$20
+        cpx     #$20                    ; filled all 32 tiles?
         bne     code_A0AF
         lda     #$FF
-        sta     $07A3
-        sta     nametable_dirty
-        inc     $B8
+        sta     $07A3                   ; terminator
+        sta     nametable_dirty         ; signal NMI to upload
+        inc     $B8                     ; advance to next text data entry
+; --- check if credits text finished scrolling ---
 code_A0C0:  lda     scroll_y
-        bne     code_A0D4
+        bne     code_A0D4               ; still scrolling
         lda     $B8
-        cmp     #$3B
+        cmp     #$3B                    ; all 59 text entries displayed?
         bne     code_A0D4
-        lda     ent_var2
-        cmp     #$02
+        lda     ent_var2                ; screen-wrap counter
+        cmp     #$02                    ; wrapped twice (full scroll)?
         bne     code_A0D4
-        jmp     code_A137
+        jmp     code_A137               ; start "PRESENTED BY CAPCOM" animation
 
+; --- advance Y scroll by 1 pixel (every other frame) ---
 code_A0D4:  lda     $95
-        and     #$01
+        and     #$01                    ; even frames only
         bne     code_A0EF
         inc     scroll_y
         lda     scroll_y
-        cmp     #$F0
+        cmp     #$F0                    ; past 240 pixels? (nametable wrap)
         bne     code_A0EF
         lda     #$00
-        sta     scroll_y
+        sta     scroll_y                ; wrap back to 0
         lda     $B8
-        cmp     #$3B
+        cmp     #$3B                    ; past end of text data?
         bne     code_A0EF
-        inc     ent_var2
-code_A0EF:  ldy     #$00
-        ldx     #$00
-code_A0F3:  lda     LA202,y
+        inc     ent_var2                ; count nametable wraps
+; --- render star sprites for credits background ---
+; Copies 12 OAM entries from LA202 (6 per entity slot), with Y offset from ent_timer.
+; Two sets of 6 sprites: first set uses slot 0 timer, second uses slot $20 (1).
+code_A0EF:  ldy     #$00                    ; OAM buffer index
+        ldx     #$00                    ; entity slot offset
+code_A0F3:  lda     LA202,y                 ; sprite Y position (base)
         clc
-        adc     ent_timer,x
-        sta     $0200,y
-        lda     LA203,y
-        sta     $0201,y
-        lda     LA204,y
-        sta     $0202
-        lda     LA205,y
-        sta     $0203,y
+        adc     ent_timer,x             ; add vertical scroll offset
+        sta     $0200,y                 ; write to OAM Y
+        lda     LA203,y                 ; tile ID
+        sta     $0201,y                 ; write to OAM tile
+        lda     LA204,y                 ; sprite attributes
+        sta     $0202                   ; write to OAM attr
+        lda     LA205,y                 ; sprite X position
+        sta     $0203,y                 ; write to OAM X
         iny
         iny
         iny
-        iny
-        cpy     #$18
+        iny                             ; advance to next OAM entry (4 bytes each)
+        cpy     #$18                    ; first 6 sprites done?
         bcc     code_A0F3
-        ldx     #$20
-        cpy     #$30
+        ldx     #$20                    ; switch to entity slot 1 offset
+        cpy     #$30                    ; all 12 sprites done?
         bcc     code_A0F3
-        sty     oam_ptr
-        lda     ent_timer
+        sty     oam_ptr                 ; mark end of OAM data
+        lda     ent_timer               ; advance slot 0 Y offset
         clc
-        adc     #$02
+        adc     #$02                    ; move stars downward 2px/frame
         sta     ent_timer
-        lda     ent_var1
+        lda     ent_var1                ; advance slot 1 Y offset
         clc
-        adc     #$03
+        adc     #$03                    ; move stars downward 3px/frame
         sta     ent_var1
-        jsr     LFD80
-        jmp     code_A01B
+        jsr     LFD80                   ; yield frame (process_frame_yield)
+        jmp     code_A01B               ; loop back to credits main
 
+; ===========================================================================
+; "PRESENTED BY CAPCOM" — MEGA MAN WALK-ON ANIMATION
+; ===========================================================================
+; After credits text finishes scrolling, spawns Mega Man (and Proto Man?)
+; entities that walk across the screen. Two nametable rows are cleared
+; to make space, then characters scroll in from the right.
+; ===========================================================================
 code_A137:  lda     ent_status
-        bmi     code_A181
-        ldx     #$01
+        bmi     code_A181               ; already initialized, skip setup
+        ldx     #$01                    ; set up entity slots 0 and 1
 code_A13E:  lda     #$80
-        sta     ent_status,x
-        sta     ent_flags,x
-        lda     LA232,x
+        sta     ent_status,x            ; mark entity active
+        sta     ent_flags,x             ; set active flag
+        lda     LA232,x                 ; animation ID from table
         sta     ent_anim_id,x
-        lda     LA234,x
+        lda     LA234,x                 ; initial Y position from table
         sta     ent_y_px,x
-        lda     #$F8
+        lda     #$F8                    ; start off-screen right
         sta     ent_x_px,x
         lda     #$00
-        sta     ent_anim_frame,x
+        sta     ent_anim_frame,x        ; reset animation
         sta     ent_anim_state,x
         dex
-        bpl     code_A13E
-        lda     #$25
-        sta     $0780
+        bpl     code_A13E               ; loop for both slots
+        lda     #$25                    ; set up two nametable row clears
+        sta     $0780                   ; PPU addr high (row 1)
         lda     #$D6
-        sta     $0781
+        sta     $0781                   ; PPU addr low (row 1)
         lda     #$26
-        sta     $0784
+        sta     $0784                   ; PPU addr high (row 2)
         lda     #$16
-        sta     $0785
+        sta     $0785                   ; PPU addr low (row 2)
         lda     #$00
-        sta     $0782
+        sta     $0782                   ; tile count = 0 (clear)
         sta     $0786
-        sta     ent_timer
-code_A181:  dec     $0361
+        sta     ent_timer               ; reset animation timer
+; --- character walk + text reveal animation ---
+code_A181:  dec     $0361                   ; decrement slot 1 X timer
         bne     code_A18B
         lda     #$00
-        sta     $0301
-code_A18B:  lda     ent_anim_id
-        cmp     #$07
-        beq     code_A1E8
-        dec     ent_x_px
+        sta     $0301                   ; deactivate slot 1
+code_A18B:  lda     ent_anim_id             ; slot 0 animation state
+        cmp     #$07                    ; falling animation?
+        beq     code_A1E8               ; yes: handle falling
+        dec     ent_x_px                ; move character left 1px
         lda     ent_x_px
-        and     #$07
-        bne     code_A1CA
-        lda     ent_x_px
-        cmp     #$B1
+        and     #$07                    ; on 8-pixel boundary?
+        bne     code_A1CA               ; no: skip text reveal
+        lda     ent_x_px                ; check X position range
+        cmp     #$B1                    ; past right boundary?
         bcs     code_A1CA
-        cmp     #$50
+        cmp     #$50                    ; past left boundary?
         bcc     code_A1CA
-        dec     $0781
+; --- reveal "CAPCOM" letters one at a time ---
+        dec     $0781                   ; shift nametable column left
         dec     $0785
-        ldx     ent_var3
-        cpx     #$0C
+        ldx     ent_var3                ; current letter index
+        cpx     #$0C                    ; all 12 chars placed?
         beq     code_A1CA
-        lda     LA236,x
+        lda     LA236,x                 ; top row tile for this letter
         sta     $0783
-        lda     LA242,x
+        lda     LA242,x                 ; bottom row tile for this letter
         sta     $0787
         lda     #$FF
-        sta     $0788
-        sta     nametable_dirty
-        inc     ent_var3
+        sta     $0788                   ; terminator
+        sta     nametable_dirty         ; trigger NMI upload
+        inc     ent_var3                ; advance to next letter
+; --- trigger fall when character reaches X=$20 ---
 code_A1CA:  lda     ent_x_px
-        cmp     #$20
+        cmp     #$20                    ; reached left target position?
         bne     code_A1FF
-        lda     #$44
+        lda     #$44                    ; set Y velocity sub-pixel
         sta     ent_yvel_sub
-        lda     #$03
+        lda     #$03                    ; set Y velocity (falling speed)
         sta     ent_yvel
-        lda     #$07
+        lda     #$07                    ; switch to falling animation
         sta     ent_anim_id
         lda     #$00
-        sta     ent_anim_state
+        sta     ent_anim_state          ; reset animation state
         sta     ent_anim_frame
-code_A1E8:  lda     #$7C
-        cmp     ent_y_px
-        bcs     code_A1F7
-        sta     ent_y_px
-        inc     ent_y_px
-        bcc     code_A1FF
-code_A1F7:  ldx     #$00
-        jsr     LF797
-        inc     ent_x_px
-code_A1FF:  jmp     code_A0EF
+; --- handle falling animation ---
+code_A1E8:  lda     #$7C                    ; ground level Y position
+        cmp     ent_y_px                ; reached ground?
+        bcs     code_A1F7               ; not yet: keep falling
+        sta     ent_y_px                ; clamp to ground
+        inc     ent_y_px                ; nudge below ground (trigger landing)
+        bcc     code_A1FF               ; continue to sprite render
+code_A1F7:  ldx     #$00                    ; entity slot 0
+        jsr     LF797                   ; apply_y_speed (gravity)
+        inc     ent_x_px               ; drift right slightly while falling
+code_A1FF:  jmp     code_A0EF               ; back to star sprite render loop
 
+; ===========================================================================
+; CREDITS STAR SPRITE DATA
+; ===========================================================================
+; OAM entries for 12 star sprites (two groups of 6).
+; Format: Y-pos, tile, attr, X-pos (4 bytes per sprite).
+; ===========================================================================
 LA202:  .byte   $28
 LA203:  .byte   $F1
 LA204:  .byte   $02
@@ -272,12 +317,23 @@ LA205:  .byte   $28,$90,$F1,$02,$50,$D0,$F1,$02
         .byte   $18,$E0,$F2,$02,$40,$40,$F2,$02
         .byte   $68,$80,$F2,$02,$A0,$20,$F2,$02
         .byte   $D0,$D0,$F2,$02,$F0
-LA232:  .byte   $01,$D7
-LA234:  .byte   $74,$82
+; --- entity animation IDs for credits characters ---
+LA232:  .byte   $01,$D7                 ; anim IDs for slots 0, 1
+; --- initial Y positions for credits characters ---
+LA234:  .byte   $74,$82                 ; Y positions for slots 0, 1
+; --- "PRESENTED BY CAPCOM" letter tiles (top row) ---
 LA236:  .byte   $22,$0B,$24,$0D,$0E,$1D,$17,$0E
         .byte   $1C,$0E,$1B,$19
+; --- "PRESENTED BY CAPCOM" letter tiles (bottom row) ---
 LA242:  .byte   $24,$24,$24,$16,$18,$0C,$19,$0A
         .byte   $0C,$24,$24,$24
+; ===========================================================================
+; CREDITS TEXT DATA POINTERS
+; ===========================================================================
+; 59 entries ($3B) indexing into the credits text data.
+; LA24E = low bytes, LA289 = high bytes of text data pointers.
+; Each entry points to a row: [expected_row, left_pad, text_len, tiles...]
+; ===========================================================================
 LA24E:  .byte   $C4,$D9,$E4,$F0,$FC,$03,$0D,$1D
         .byte   $26,$33,$39,$3F,$4B,$55,$60,$6F
         .byte   $7D,$86,$91,$A2,$B5,$C7,$D5,$E7
@@ -286,6 +342,7 @@ LA24E:  .byte   $C4,$D9,$E4,$F0,$FC,$03,$0D,$1D
         .byte   $17,$29,$37,$44,$54,$68,$78,$89
         .byte   $A0,$B5,$C7,$D6,$E3,$EC,$F7,$02
         .byte   $0D,$16,$22
+; --- text data pointer high bytes ---
 LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $A3,$A3,$A3,$A3,$A3,$A3,$A3,$A3
         .byte   $A3,$A3,$A3,$A3,$A3,$A3,$A3,$A3
@@ -293,6 +350,16 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $A4,$A4,$A4,$A4,$A4,$A4,$A4,$A5
         .byte   $A5,$A5,$A5,$A5,$A5,$A5,$A5,$A5
         .byte   $A5,$A5,$A5,$A5,$A5,$A5,$A5,$A6
+; ===========================================================================
+; CREDITS TEXT DATA — STAFF ROLL
+; ===========================================================================
+; Encoded staff names and role titles for the credits scroll.
+; Tile values map to the credits CHR font: $00=A, $01=B, ..., $24=space.
+; Each row entry: [tile_row, left_padding, text_length, tile, tile, ...]
+;
+; Staff listed: Character Designer, Inafking, Object Designer, Tokimichi,
+; Sound Composer, Programmer, Planner, and many more Capcom staff.
+; ===========================================================================
         .byte   $A6,$A6,$A6,$00,$06,$11,$0C,$11
         .byte   $0A,$1B,$0A,$0C,$1D,$0E,$1B,$24
         .byte   $0D,$0E,$1C,$12,$10,$17,$0E,$1B
@@ -402,6 +469,16 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $1B,$12,$0B,$18,$17,$05,$0B,$08
         .byte   $22,$0A,$0C,$0C,$11,$0A,$17,$24
         .byte   $23,$07,$0D,$04,$12,$1B,$12,$14
+; =============================================================================
+; WILY FORTRESS 4 — STAGE DATA
+; =============================================================================
+; Compressed nametable tile maps, palette tables, enemy/object spawn lists,
+; and attribute data for Wily Fortress stage 4. The stage_id $22 maps to
+; bank $0F, loading this data for the level layout engine.
+;
+; Data format uses the game's standard 2-bit RLE compression for nametable
+; tiles, followed by raw palette data and spawn coordinate tables.
+; =============================================================================
         .byte   $18,$22,$15,$2F,$10,$4E,$75,$57
         .byte   $55,$AD,$55,$FD,$15,$FF,$51,$FF
         .byte   $F5,$FB,$55,$FF,$5D,$7F,$55,$70

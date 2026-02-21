@@ -97,6 +97,37 @@ chr/
 
 Mapper 4 (MMC3). 256KB PRG + 128KB CHR. Fixed bank at $C000-$FFFF; swappable banks at $8000-$9FFF and $A000-$BFFF.
 
+## Stage Data Map
+
+Most bank files are **dual-purpose**: executable code *plus* stage layout data packed into the same $A000-$BFFF region. The engine selects the stage data bank via `stage_to_bank[$22]` (table at `$C8B9` in the fixed bank). Stage layout data lives at `$AA00+`; enemy spawn tables at `$A000-$A4FF`.
+
+| Stage | ID | Bank | Source File | Code in Same Bank |
+|-------|----|------|-------------|-------------------|
+| Needle Man | $00 | $00 | `bank00_enemy_data.asm` | Global enemy data tables |
+| Magnet Man | $01 | $01 | `bank01_stage_magnet.asm` | CHR/palette init |
+| Gemini Man | $02 | $02 | `bank02_stage_gemini.asm` | Title screen |
+| Hard Man | $03 | $03 | `bank03_stage_hard.asm` | Stage transition, password system |
+| Top Man | $04 | $04 | `bank04_doc_robot_a.asm` | Doc Robot AI (Flash/Wood/Crash/Metal) |
+| Snake Man | $05 | $05 | `bank05_doc_robot_b.asm` | Doc Robot AI (Bubble/Heat/Quick/Air) |
+| Spark Man | $06 | $06 | `bank06_robot_masters_a.asm` | Robot Master AI (Needle/Magnet/Top/Shadow) |
+| Shadow Man | $07 | $07 | `bank07_robot_masters_b.asm` | Robot Master AI (Hard/Spark/Snake/Gemini) |
+| Doc Robot Needle | $08 | $08 | `bank08_stage_doc_needle.asm` | *(pure data)* |
+| Doc Robot Gemini | $09 | $09 | `bank09_per_frame.asm` | Per-frame entity subsystems |
+| Doc Robot Spark | $0A | $0A | `bank0A_damage_tables.asm` | Weapon damage tables |
+| Doc Robot Shadow | $0B | $0B | `bank0B_intro.asm` | Intro cinematic |
+| Wily Fortress 1 | $0C | $0C | `bank0C_game_over.asm` | Game over / results screen |
+| Wily Fortress 2 | $0D | $0D | `bank0D_oam_sprites.asm` | OAM sprite animation |
+| Wily Fortress 3 | $0E | $0D | `bank0D_oam_sprites.asm` | *(shared with Wily 2)* |
+| Wily Fortress 4 | $0F | $0F | `bank0F_entity_spawn.asm` | Entity spawning / projectile dispatch |
+| Wily Fortress 5 | $10 | $0D | `bank0D_oam_sprites.asm` | *(shared with Wily 2)* |
+| Wily Fortress 6 | $11 | $11 | `bank11_ending_data.asm` | *(pure data)* |
+| Special $12 | $12 | $12 | `bank12_fortress_bosses.asm` | Fortress boss AI |
+| Special $13 | $13 | $13 | `bank13_ending_data2.asm` | *(pure data)* |
+| Special $14 | $14 | $10 | `bank10_stage_setup.asm` | Stage setup / boss post-defeat |
+| Special $16 | $16 | $0E | `bank0E_anim_frames.asm` | Animation frame management |
+
+Note: Wily Fortress stages 2, 3, and 5 all share bank $0D for stage data.
+
 ## Annotation Progress
 
 The disassembly is byte-perfect but annotation is ongoing. Each source file has an `; Annotation:` header showing its status.

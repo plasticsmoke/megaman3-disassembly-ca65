@@ -1,22 +1,38 @@
 ; =============================================================================
-; MEGA MAN 3 (U) — BANK $10 — STAGE SETUP / BOSS POST-DEFEAT
+; MEGA MAN 3 (U) — BANK $10 — BOSS DOOR ANIMATIONS + STAGE $14 DATA
 ; =============================================================================
-; Stage initialization routines and boss post-defeat handling.
+; Mapped to $8000-$9FFF. Called via trampolines in the fixed bank.
 ;
-; Annotation: 0% — unannotated da65 output
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $10 — STAGE SETUP / BOSS POST-DEFEAT
-; =============================================================================
-; Mapped to $8000-$9FFF. Called via trampolines at $1FEE31/$1FEE44 in
-; bank1E_1F. Contains stage initialization (nametable pointers, collision
-; table setup, music selection) and boss post-defeat sequencing.
-; Entry points: $8000 (stage setup), $8003 (post-defeat).
-; Also serves as stage data for stage $14 via stage_to_bank.
+; This bank serves a dual purpose:
+;   1. Boss door close/open animation routines ($8000-$82A9)
+;      - Entry at $8000: close boss door (tiles written top-to-bottom)
+;      - Entry at $8003: open boss door (tiles written bottom-to-top)
+;      Both routines write 4 tile columns to the PPU nametable buffer
+;      ($0780) and update the attribute table RAM ($0640), animating
+;      the boss room shutter one column at a time with a 4-frame delay
+;      between columns. A sound effect ($1D) plays during the animation.
 ;
-; Annotation: light — all labels auto-generated, stage setup logic bare
+;   2. Stage data for stage $14 ($83D0-$9FFF)
+;      Collision bitmask table, metatile map, nametable layout, palette
+;      data, and entity spawn tables. This region is accessed as normal
+;      stage data by the fixed bank's stage loader.
+;
+; PPU buffer format at $0780 (consumed by NMI's drain_ppu_buffer):
+;   $0780/$0784: PPU address high byte (nametable 0 / nametable 1)
+;   $0781/$0785: PPU address low byte (| $20 for second copy)
+;   $0782/$0786: byte count (1 = single tile per entry)
+;   $0783/$0787: tile data byte
+;   $0788-$078C: third entry (attribute table write at $23xx)
+;   $078D:       attribute byte value
+;   $078E:       $FF terminator
+;
+; Key RAM regions:
+;   $0640,x — nametable attribute table mirror (2-bit palette selectors)
+;   $BB00-$BE00 — metatile CHR tile tables (TL, TR, BL, BR) in stage bank
+;   $95 — frame counter (animation timing, writes every 4 frames)
+;   $02 — column counter (4 columns per door animation)
+;   $03 — attribute table offset within $0640
+;   $04 — sub-index into attribute mask table
 ; =============================================================================
 
         .setcpu "6502"
@@ -24,105 +40,140 @@
 .include "include/zeropage.inc"
 .include "include/constants.inc"
 
-LC8A0           := $C8A0
-LF89A           := $F89A
-LFF21           := $FF21
-LFF6B           := $FF6B
+LC8A0           := $C8A0            ; ensure_stage_bank
+LF89A           := $F89A            ; submit_sound_ID
+LFF21           := $FF21            ; task_yield (wait for NMI)
+LFF6B           := $FF6B            ; select_PRG_banks
 
 .segment "BANK10"
 
-        jmp     code_8006
+; =============================================================================
+; ENTRY POINT JUMP TABLE
+; =============================================================================
+        jmp     code_8006           ; $8000: close boss door
+                                    ;   (called before boss fight)
+        jmp     code_81F3           ; $8003: open boss door
+                                    ;   (called after boss defeat)
 
-        jmp     code_81F3
-
-code_8006:  jsr     LC8A0
+; =============================================================================
+; CLOSE BOSS DOOR — animate shutter tiles top-to-bottom
+; =============================================================================
+; Writes 4 columns of shutter tiles into the nametable, working from
+; the bottom row upward in PPU address space (high addresses first,
+; subtracting $40 per column = 2 tile rows). Each column is written
+; to both nametable 0 and nametable 1 via the PPU buffer, with
+; attribute table bits updated in the $0640 mirror.
+; ---------------------------------------------------------------------------
+code_8006:  jsr     LC8A0           ; ensure stage PRG bank is selected
         lda     #$00
-        sta     $95
-        lda     L80D3,y
+        sta     $95                 ; reset frame counter
+        ; --- Set up PPU buffer entry 1 (nametable 0 tile) ---
+        lda     L80D3,y             ; PPU address high byte from table
         sta     $0780
-        sta     $0785
-        lda     L80D4,y
+        sta     $0785               ; same high byte for entry 2 (NT1)
+        lda     L80D4,y             ; PPU address low byte from table
         sta     $0781
-        ora     #$20
+        ora     #$20                ; offset $20 for nametable 1 copy
         sta     $0786
-        lda     #$01
+        lda     #$01                ; 1 byte per PPU write
         sta     $0782
         sta     $0787
-        lda     #$23
+        ; --- Set up PPU buffer entry 3 (attribute table) ---
+        lda     #$23                ; $23xx = attribute table region
         sta     $078A
-        lda     L8163,y
+        lda     L8163,y             ; attribute offset within $0640
         sta     $03
-        ora     #$C0
+        ora     #$C0                ; $23C0+ = PPU attribute table addr
         sta     $078B
-        lda     L8164,y
+        lda     L8164,y             ; attribute sub-index for mask table
         sta     $04
         lda     #$00
-        sta     $078C
-        lda     #$1D
+        sta     $078C               ; 0 extra bytes for attr write
+        ; --- Play door close sound effect ---
+        lda     #$1D                ; sound ID $1D = door/shutter SFX
         jsr     LF89A
-        lda     #$04
+        lda     #$04                ; 4 columns to animate
         sta     $02
-code_804B:  ldx     L80D5,y
-        lda     $BB00,x
-        sta     $0783
-        lda     $BC00,x
-        sta     $0784
-        lda     $BD00,x
-        sta     $0788
-        lda     $BE00,x
-        sta     $0789
-        ldx     $04
-        lda     L83D0,x
+; --- Write one column of door tiles ---
+code_804B:  ldx     L80D5,y         ; metatile sub-index for this column
+        lda     $BB00,x             ; top-left CHR tile
+        sta     $0783               ; → PPU buffer entry 1 data (NT0)
+        lda     $BC00,x             ; top-right CHR tile
+        sta     $0784               ; → PPU buffer entry 2 data (NT0 second)
+        lda     $BD00,x             ; bottom-left CHR tile
+        sta     $0788               ; → PPU buffer entry 3 (NT1 tile 1)
+        lda     $BE00,x             ; bottom-right CHR tile
+        sta     $0789               ; → PPU buffer entry 4 (NT1 tile 2)
+        ; --- Update attribute table ---
+        ldx     $04                 ; attribute sub-index
+        lda     L83D0,x             ; attribute bitmask (clear bits)
         sta     $05
-        ldx     $03
-        lda     $0640,x
-        and     $05
-        ora     L8165,y
-        sta     $078D
-        sta     $0640,x
-        lda     #$FF
+        ldx     $03                 ; attribute offset in $0640 mirror
+        lda     $0640,x             ; read current attribute byte
+        and     $05                 ; mask off old palette bits
+        ora     L8165,y             ; OR in new palette bits from table
+        sta     $078D               ; write to PPU buffer
+        sta     $0640,x             ; update RAM mirror
+        lda     #$FF                ; $FF = PPU buffer terminator
         sta     $078E
-        sta     nametable_dirty
+        sta     nametable_dirty     ; signal NMI to flush PPU buffer
+; --- Wait 4 frames between columns (animation delay) ---
 code_8084:  lda     #$00
-        sta     nmi_skip
-        jsr     LFF21
-        inc     nmi_skip
-        inc     $95
+        sta     nmi_skip            ; allow NMI processing
+        jsr     LFF21               ; task_yield — wait for next frame
+        inc     nmi_skip            ; re-lock NMI
+        inc     $95                 ; increment frame counter
         lda     $95
-        and     #$03
+        and     #$03                ; wait until counter is multiple of 4
         bne     code_8084
-        iny
-        dec     $02
-        beq     code_80CC
+        iny                         ; advance Y to next table entry
+        dec     $02                 ; decrement column counter
+        beq     code_80CC           ; all 4 columns done → exit
+        ; --- Move PPU address up by 2 tile rows ($40 bytes) ---
         lda     $0781
         sec
-        sbc     #$40
+        sbc     #$40                ; move up 2 rows in nametable
         sta     $0781
         ora     #$20
-        sta     $0786
+        sta     $0786               ; NT1 copy offset by $20
         lda     $0780
-        sbc     #$00
+        sbc     #$00                ; propagate borrow to high byte
         sta     $0780
         sta     $0785
+        ; --- Toggle attribute sub-index (alternates 0/2 or 1/3) ---
         lda     $04
-        eor     #$02
+        eor     #$02                ; flip between upper/lower attr half
         sta     $04
         cmp     #$03
-        bne     code_804B
+        bne     code_804B           ; if not wrapped, continue
+        ; --- Crossed attribute boundary: move attr offset back ---
         lda     $03
         sec
-        sbc     #$08
+        sbc     #$08                ; previous attribute row
         sta     $03
-        ora     #$C0
+        ora     #$C0                ; rebuild PPU attribute address
         sta     $078B
         jmp     code_804B
 
+; --- Door close complete: restore stage bank and return ---
 code_80CC:  lda     stage_id
         sta     prg_bank
-        jmp     LFF6B
+        jmp     LFF6B               ; select_PRG_banks and return
 
-L80D3:  .byte   $21
-L80D4:  .byte   $5E
+; ===========================================================================
+; DOOR CLOSE DATA TABLES
+; ===========================================================================
+; Indexed by Y (set by ensure_stage_bank based on stage_id * 6).
+; Each stage has 4 groups of 6 bytes for the 4 door columns.
+;
+; L80D3/L80D4: starting PPU nametable address (high/low)
+; L80D5: metatile sub-indices into $BB00-$BE00 CHR tile tables
+;        (4 entries per column + 2 bytes for next PPU address)
+; L8163/L8164: starting attribute table offset / sub-index
+; L8165: attribute palette bits to OR in per column
+; ===========================================================================
+L80D3:  .byte   $21                 ; PPU address high byte
+L80D4:  .byte   $5E                 ; PPU address low byte
 L80D5:  .byte   $6D,$6D,$6D,$6C,$22,$DE,$6B,$6A
         .byte   $69,$68,$21,$5E,$7A,$7A,$7A,$72
         .byte   $22,$DE,$00,$00,$00,$00,$21,$DE
@@ -141,8 +192,8 @@ L80D5:  .byte   $6D,$6D,$6D,$6C,$22,$DE,$6B,$6A
         .byte   $15,$1D,$15,$2D,$22,$DE,$00,$00
         .byte   $00,$00,$22,$DE,$00,$00,$00,$00
         .byte   $22,$DE,$00,$00,$00,$00
-L8163:  .byte   $17
-L8164:  .byte   $03
+L8163:  .byte   $17                 ; attribute offset in $0640
+L8164:  .byte   $03                 ; attribute sub-index for mask table
 L8165:  .byte   $40,$04,$40,$04,$2F,$03,$40,$04
         .byte   $40,$04,$17,$03,$80,$08,$80,$08
         .byte   $2F,$03,$00,$00,$00,$00,$1F,$03
@@ -161,88 +212,114 @@ L8165:  .byte   $40,$04,$40,$04,$2F,$03,$40,$04
         .byte   $04,$40,$04,$40,$2F,$03,$00,$00
         .byte   $00,$00,$2F,$03,$00,$00,$00,$00
         .byte   $2F,$03,$00,$00,$00,$00
-code_81F3:  jsr     LC8A0
-        lda     L82B0,y
+; =============================================================================
+; OPEN BOSS DOOR — animate shutter tiles bottom-to-top
+; =============================================================================
+; Mirror of the close routine but works in reverse: starts from the
+; top of the door and adds $40 per column (moving downward in PPU
+; address space), revealing the passage behind the shutter.
+; Uses its own set of data tables (L82B0-L8342).
+; ---------------------------------------------------------------------------
+code_81F3:  jsr     LC8A0           ; ensure stage PRG bank is selected
+        lda     L82B0,y             ; PPU address high byte from table
         sta     $0780
         sta     $0784
-        lda     L82B1,y
+        lda     L82B1,y             ; PPU address low byte from table
         sta     $0781
-        ora     #$20
+        ora     #$20                ; offset for second nametable
         sta     $0785
         lda     #$00
-        sta     $0782
+        sta     $0782               ; 0 extra bytes per PPU entry
         sta     $0786
-        sta     $95
-        lda     #$23
+        sta     $95                 ; reset frame counter
+        ; --- Attribute table entry setup ---
+        lda     #$23                ; $23xx = attribute table region
         sta     $0788
-        lda     L8340,y
+        lda     L8340,y             ; attribute offset within $0640
         sta     $03
-        ora     #$C0
+        ora     #$C0                ; $23C0+ = PPU attribute table addr
         sta     $0789
-        lda     L8341,y
+        lda     L8341,y             ; attribute sub-index for mask table
         sta     $04
         lda     #$00
-        sta     $078A
-        lda     #$1D
+        sta     $078A               ; 0 extra bytes for attr write
+        ; --- Play door open sound effect ---
+        lda     #$1D                ; sound ID $1D = door/shutter SFX
         jsr     LF89A
-        lda     #$04
+        lda     #$04                ; 4 columns to animate
         sta     $02
-code_8236:  ldx     L82B2,y
-        lda     $BC00,x
-        sta     $0783
-        lda     $BE00,x
-        sta     $0787
-        ldx     $04
-        lda     L83D0,x
+; --- Write one column of open-door tiles ---
+code_8236:  ldx     L82B2,y         ; metatile sub-index for this column
+        lda     $BC00,x             ; top-right CHR tile
+        sta     $0783               ; → PPU buffer tile data (NT0)
+        lda     $BE00,x             ; bottom-right CHR tile
+        sta     $0787               ; → PPU buffer tile data (NT1)
+        ; --- Update attribute table ---
+        ldx     $04                 ; attribute sub-index
+        lda     L83D0,x             ; attribute bitmask (clear bits)
         sta     $05
-        ldx     $03
-        lda     $0640,x
-        and     $05
-        ora     L8342,y
-        sta     $078B
-        sta     $0640,x
-        lda     #$FF
+        ldx     $03                 ; attribute offset in $0640 mirror
+        lda     $0640,x             ; read current attribute byte
+        and     $05                 ; mask off old palette bits
+        ora     L8342,y             ; OR in new palette bits from table
+        sta     $078B               ; write to PPU buffer
+        sta     $0640,x             ; update RAM mirror
+        lda     #$FF                ; $FF = PPU buffer terminator
         sta     $078C
-        sta     nametable_dirty
+        sta     nametable_dirty     ; signal NMI to flush PPU buffer
+; --- Wait 4 frames between columns (animation delay) ---
 code_8263:  lda     #$00
-        sta     nmi_skip
-        jsr     LFF21
-        inc     nmi_skip
-        inc     $95
+        sta     nmi_skip            ; allow NMI processing
+        jsr     LFF21               ; task_yield — wait for next frame
+        inc     nmi_skip            ; re-lock NMI
+        inc     $95                 ; increment frame counter
         lda     $95
-        and     #$03
+        and     #$03                ; wait until counter is multiple of 4
         bne     code_8263
-        iny
-        dec     $02
-        beq     code_82A9
+        iny                         ; advance Y to next table entry
+        dec     $02                 ; decrement column counter
+        beq     code_82A9           ; all 4 columns done → exit
+        ; --- Move PPU address down by 2 tile rows ($40 bytes) ---
         lda     $0781
         clc
-        adc     #$40
+        adc     #$40                ; move down 2 rows in nametable
         sta     $0781
         ora     #$20
-        sta     $0785
+        sta     $0785               ; NT1 copy offset by $20
         lda     $0780
-        adc     #$00
+        adc     #$00                ; propagate carry to high byte
         sta     $0780
         sta     $0784
+        ; --- Toggle attribute sub-index ---
         lda     $04
-        eor     #$02
+        eor     #$02                ; flip between upper/lower attr half
         sta     $04
-        bne     code_8236
+        bne     code_8236           ; if nonzero, continue
+        ; --- Crossed attribute boundary: advance attr offset ---
         lda     $03
         clc
-        adc     #$08
+        adc     #$08                ; next attribute row
         sta     $03
-        ora     #$C0
+        ora     #$C0                ; rebuild PPU attribute address
         sta     $0789
         jmp     code_8236
 
+; --- Door open complete: restore stage bank and return ---
 code_82A9:  lda     stage_id
         sta     prg_bank
-        jmp     LFF6B
+        jmp     LFF6B               ; select_PRG_banks and return
 
-L82B0:  .byte   $20
-L82B1:  .byte   $81
+; ===========================================================================
+; DOOR OPEN DATA TABLES
+; ===========================================================================
+; Same structure as door close tables but with reversed PPU direction.
+; L82B0/L82B1: starting PPU nametable address (high/low)
+; L82B2: metatile sub-indices (4 per column + 2 bytes PPU address)
+; L8340/L8341: attribute table offset / sub-index
+; L8342: attribute palette bits to OR in per column
+; ===========================================================================
+L82B0:  .byte   $20                 ; PPU address high byte
+L82B1:  .byte   $81                 ; PPU address low byte
 L82B2:  .byte   $16,$16,$16,$16,$22,$01,$2F,$2F
         .byte   $2F,$2F,$20,$81,$27,$27,$27,$27
         .byte   $22,$01,$06,$06,$06,$06,$21,$01
@@ -261,8 +338,8 @@ L82B2:  .byte   $16,$16,$16,$16,$22,$01,$2F,$2F
         .byte   $06,$06,$06,$06,$22,$01,$0E,$0E
         .byte   $0E,$0E,$22,$01,$0B,$0B,$0B,$0B
         .byte   $22,$01,$00,$00,$00,$00
-L8340:  .byte   $08
-L8341:  .byte   $00
+L8340:  .byte   $08                 ; attribute offset in $0640
+L8341:  .byte   $00                 ; attribute sub-index for mask table
 L8342:  .byte   $03,$30,$03,$30,$20,$00,$00,$00
         .byte   $00,$00,$08,$00,$03,$30,$03,$30
         .byte   $20,$00,$00,$00,$00,$00,$10,$00
@@ -281,6 +358,17 @@ L8342:  .byte   $03,$30,$03,$30,$20,$00,$00,$00
         .byte   $30,$03,$30,$03,$20,$00,$00,$00
         .byte   $00,$00,$20,$00,$00,$00,$00,$00
         .byte   $20,$00,$00,$00,$00,$00
+; =============================================================================
+; STAGE $14 DATA — collision bitmask table + stage layout
+; =============================================================================
+; From $83D0 onward this bank serves as stage data for stage $14.
+; The collision bitmask table at L83D0 is also referenced by the door
+; animation routines above as an attribute mask lookup. The remainder
+; of this bank contains metatile maps, nametable tile layouts, palette
+; data, entity spawn tables, and padding — all in the standard stage
+; bank format expected by the fixed bank's stage loader.
+; =============================================================================
+; --- Collision/attribute bitmask table ($83D0) ---
 L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $FD,$FF,$FF,$FF,$BE,$FF,$FF,$FF
         .byte   $BF,$FF,$AD,$FF,$FB,$FF,$BB,$DF

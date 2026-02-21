@@ -1,21 +1,28 @@
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $0D — OAM/SPRITE ANIMATION + WILY 2/3/5 STAGE
 ; =============================================================================
-; OAM sprite animation dispatch and Wily Castle stages 2, 3, 5 data.
+; Mapped to $A000-$BFFF. Contains two unrelated data sets sharing a bank:
 ;
-; Annotation: 0% — unannotated da65 output
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $0D — OAM/SPRITE ANIMATION + WILY 2/3/5 STAGE
-; =============================================================================
-; Mapped to $A000-$BFFF. Contains sprite/OAM animation routines: pointer
-; table lookups, animation frame data transfer to OAM buffer ($0200+).
-; Also serves as Wily Fortress 2/3/5 stage data — shared by stages $0D,
-; $0E, $10 via stage_to_bank table (all map to bank $0D).
+;   1. INTRO CUTSCENE SPRITE DATA ($A000-$A5A4)
+;      - OAM sprite frame copier: copies pre-built OAM quads (Y, tile,
+;        attribute, X) into the OAM buffer at $0200+ for the intro cutscene
+;        robot master portraits.
+;      - 9 sprite frame groups (one per robot master), indexed by ent_var2.
+;      - Palette data for each robot master portrait (8 bytes each).
+;      - Encoded text strings for the intro credits (robot master names,
+;        weapon names, Doc Robot descriptions). Each credit block is a
+;        series of PPU nametable write commands terminated by $FF.
 ;
-; Annotation: light — all labels auto-generated, animation dispatch bare
+;   2. WILY FORTRESS STAGE DATA ($A5A5-$BFFF)
+;      - RLE-compressed stage layout data for Wily Fortress stages 2, 3,
+;        and 5. Shared by stage IDs $0D, $0E, $10 — all map to bank $0D
+;        via the stage_to_bank table.
+;      - Includes tile maps, attribute tables, screen layouts, enemy
+;        placement data, and stage-specific palette data.
+;      - Four complete stage data sets (facing-left and facing-right
+;        variants for Wily 2/3/5).
+;
+; Annotation: annotated — section headers and inline comments added
 ; =============================================================================
 
         .setcpu "6502"
@@ -26,49 +33,79 @@
 
 .segment "BANK0D"
 
-        ldy     ent_var2
-        lda     LA04D,y
-        sta     $00
-        lda     LA056,y
-        sta     $01
-        ldy     #$00
-code_A00F:  lda     ($00),y
-        cmp     #$FF
-        beq     code_A02D
-        sta     $0200,y
+; ===========================================================================
+; INTRO CUTSCENE SPRITE FRAME COPIER ($A000)
+; ===========================================================================
+; Called during the intro cutscene to display robot master portraits.
+; Copies a pre-built OAM sprite frame (selected by ent_var2 index) into
+; the OAM shadow buffer at $0200. Each frame consists of 4-byte OAM quads
+; (Y position, tile index, attributes, X position), terminated by $FF.
+; After copying sprites, loads the corresponding 8-byte palette block
+; into the palette staging area at $0618, then advances ent_var2 to the
+; next frame for the following call.
+; ===========================================================================
+        ldy     ent_var2            ; current portrait index
+        lda     LA04D,y             ; load pointer low byte from table
+        sta     $00                 ; store in ZP pointer ($00)
+        lda     LA056,y             ; load pointer high byte from table
+        sta     $01                 ; (high bytes overlap with sprite data start)
+        ldy     #$00                ; start at beginning of OAM buffer
+; --- copy OAM quads until $FF terminator ---
+code_A00F:  lda     ($00),y         ; read Y position (or terminator)
+        cmp     #$FF                ; end of sprite frame?
+        beq     code_A02D           ; yes -- done copying
+        sta     $0200,y             ; write Y position to OAM buffer
         iny
-        lda     ($00),y
-        sta     $0200,y
+        lda     ($00),y             ; read tile index
+        sta     $0200,y             ; write tile index
         iny
-        lda     ($00),y
-        sta     $0200,y
+        lda     ($00),y             ; read attribute byte (palette, flip)
+        sta     $0200,y             ; write attributes
         iny
-        lda     ($00),y
-        sta     $0200,y
+        lda     ($00),y             ; read X position
+        sta     $0200,y             ; write X position
         iny
-        bne     code_A00F
-code_A02D:  sty     oam_ptr
-        sty     ent_var3
-        lda     ent_var2
+        bne     code_A00F           ; loop (max 64 sprites)
+; --- copy palette for this portrait ---
+code_A02D:  sty     oam_ptr         ; save OAM write position
+        sty     ent_var3            ; also store in entity var3
+        lda     ent_var2            ; current portrait index
+        asl     a                   ; * 8 (each palette is 8 bytes)
         asl     a
         asl     a
-        asl     a
-        tay
+        tay                         ; Y = palette offset
         ldx     #$00
-code_A03B:  lda     LA360,y
-        sta     $0618,x
+code_A03B:  lda     LA360,y         ; read palette byte
+        sta     $0618,x             ; write to palette staging buffer
         iny
         inx
-        cpx     #$08
+        cpx     #$08                ; 8 bytes per palette block
         bne     code_A03B
-        stx     palette_dirty
-        inc     ent_var2
+        stx     palette_dirty       ; flag palette as needing PPU update
+        inc     ent_var2            ; advance to next portrait for next call
         rts
 
-LA04D:  .byte   $5F,$BC,$01,$56,$A3,$04,$55,$A2
-        .byte   $FB
-LA056:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2
-        .byte   $A2,$A8,$80,$03,$40,$A8,$81,$03
+; ===========================================================================
+; SPRITE FRAME POINTER TABLE ($A04D)
+; ===========================================================================
+; LA04D: 9-entry pointer low bytes  (high bytes in LA056)
+; Together they form 16-bit pointers to the OAM sprite data for each of
+; the 9 intro cutscene robot master portraits. Each portrait frame is a
+; list of 4-byte OAM quads (Y, tile, attr, X), terminated by $FF.
+; ---------------------------------------------------------------------------
+LA04D:  .byte   $5F,$BC,$01,$56,$A3,$04,$55,$A2 ; pointer low bytes [0-7]
+        .byte   $FB                              ; pointer low byte  [8]
+LA056:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; pointer high bytes [0-7]
+        .byte   $A2                              ; pointer high byte  [8]
+; ===========================================================================
+; OAM SPRITE FRAME DATA ($A05F)
+; ===========================================================================
+; Pre-built OAM quad lists for each robot master portrait shown during
+; the intro cutscene. Format per quad: Y, tile, attribute, X.
+; Each frame is terminated by $FF. Frames are indexed 0-8 via the
+; pointer table above.
+; ---------------------------------------------------------------------------
+        .byte   $A8,$80,$03,$40,$A8,$81,$03
         .byte   $48,$A8,$82,$03,$50,$A8,$83,$03
         .byte   $58,$B0,$84,$03,$40,$B0,$85,$03
         .byte   $48,$B0,$86,$03,$50,$B0,$84,$43
@@ -165,15 +202,38 @@ LA056:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2
         .byte   $54,$B8,$62,$01,$48,$B8,$62,$41
         .byte   $50,$C0,$63,$01,$48,$C0,$64,$01
         .byte   $50,$FF
-LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01
-        .byte   $0F,$00,$00,$00,$0F,$30,$26,$10
-        .byte   $0F,$15,$05,$10,$0F,$30,$27,$26
-        .byte   $0F,$30,$11,$29,$0F,$30,$37,$26
-        .byte   $0F,$30,$27,$15,$0F,$37,$26,$10
-        .byte   $0F,$30,$00,$10,$0F,$30,$15,$05
-        .byte   $0F,$30,$37,$26,$0F,$29,$27,$26
-        .byte   $0F,$30,$37,$26,$0F,$30,$2C,$11
-        .byte   $0F,$26,$27,$10,$0F,$30,$15,$05
+; ===========================================================================
+; INTRO PORTRAIT PALETTE DATA ($A360)
+; ===========================================================================
+; 9 palette blocks, 8 bytes each (2 sub-palettes of 4 colors).
+; Copied into $0618 (sprite palette staging) for each robot master portrait.
+; Index 0 = Needle Man, 1 = unused/blank, 2 = Magnet Man, 3 = Hard Man,
+; 4 = Top Man, 5 = Snake Man, 6 = Spark Man, 7 = Gemini Man, 8 = Shadow Man
+; ---------------------------------------------------------------------------
+LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
+        .byte   $0F,$00,$00,$00,$0F,$30,$26,$10 ; palette 1
+        .byte   $0F,$15,$05,$10,$0F,$30,$27,$26 ; palette 2 (Magnet Man)
+        .byte   $0F,$30,$11,$29,$0F,$30,$37,$26 ; palette 3 (Hard Man)
+        .byte   $0F,$30,$27,$15,$0F,$37,$26,$10 ; palette 4 (Top Man)
+        .byte   $0F,$30,$00,$10,$0F,$30,$15,$05 ; palette 5 (Snake Man)
+        .byte   $0F,$30,$37,$26,$0F,$29,$27,$26 ; palette 6 (Spark Man)
+        .byte   $0F,$30,$37,$26,$0F,$30,$2C,$11 ; palette 7 (Gemini Man)
+        .byte   $0F,$26,$27,$10,$0F,$30,$15,$05 ; palette 8 (Shadow Man)
+; ===========================================================================
+; INTRO CREDITS TEXT DATA ($A3A5)
+; ===========================================================================
+; PPU nametable write commands for the robot master intro credits.
+; Format: [PPU addr hi] [PPU addr lo] [length] [tile data...] $FF
+; Each block writes text strings to the nametable to display the robot
+; master's number, name, weapon name, and Doc Robot assignment.
+; The tile encoding maps: $00=space, $01-$1A=A-Z, $23='.', $25=copyright,
+; $26='!', $2D='-', etc.
+;
+; Credit blocks in order:
+;   Copyright notice, then for each robot master (#009 down to #001):
+;   Elec Man, Fire Man, Bomb Man, Ice Man, Guts Man, Cut Man, Roll,
+;   Mega Man, Proto Man
+; ---------------------------------------------------------------------------
         .byte   $21,$8C,$07,$0F,$1A,$13,$16,$19
         .byte   $11,$1F,$0F,$FF,$22,$89,$0A,$18
         .byte   $1F,$17,$0C,$0F,$1C,$00,$16,$13
@@ -238,7 +298,26 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01
         .byte   $1A,$0F,$2B,$23,$2D,$09,$0C,$1C
         .byte   $19,$1E,$12,$0F,$1C,$00,$19,$10
         .byte   $23,$6D,$06,$17,$0F,$11,$0B,$17
-        .byte   $0B,$18,$FF,$44,$D1,$04,$7E,$44
+        .byte   $0B,$18,$FF                     ; end of credit text
+; =============================================================================
+; WILY FORTRESS STAGE DATA ($A5A8-$BFFF)
+; =============================================================================
+; RLE-compressed stage layout data for Wily Fortress stages. This bank is
+; shared by stage IDs $0D (Wily 2), $0E (Wily 3), and $10 (Wily 5) — all
+; mapped to bank $0D via the stage_to_bank lookup table.
+;
+; Data includes:
+;   - RLE-compressed nametable tile maps (background screens)
+;   - Attribute table data (palette assignments per 16x16 area)
+;   - Screen-to-screen connectivity / scroll data
+;   - Enemy placement tables
+;   - Stage-specific palette data ($AA80)
+;   - Four directional stage layout variants
+;
+; The compression format uses run-length encoding: a byte with bit 7 set
+; indicates a run (length in lower bits), followed by the repeated tile.
+; =============================================================================
+        .byte   $44,$D1,$04,$7E,$44
         .byte   $DA,$75,$32,$45,$F7,$55,$FF,$54
         .byte   $FF,$74,$FF,$55,$F7,$5D,$FC,$DD
         .byte   $10,$01,$0B,$00,$1D,$40,$80,$55
@@ -393,6 +472,8 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01
         .byte   $35,$00,$FF,$2C,$0A,$6F,$00,$7C
         .byte   $8A,$92,$08,$06,$80,$96,$00,$A8
         .byte   $02,$84,$00,$01,$20,$00,$00,$04
+; --- stage palette data ---
+; BG palette: 4 sub-palettes of 4 NES colors each (16 bytes total)
         .byte   $64,$68,$0F,$30,$2B,$1B,$0F,$0C
         .byte   $01,$04,$0F,$37,$27,$17,$0F,$30
         .byte   $10,$04,$00,$00,$00,$00,$00,$00
@@ -441,6 +522,7 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01
         .byte   $8B,$AC,$82,$EF,$A8,$FB,$0A,$5B
         .byte   $28,$9A,$A2,$65,$8A,$0D,$00,$22
         .byte   $A0,$81,$02,$08,$0A,$A6,$08,$40
+; --- enemy spawn Y-position / placement data ---
         .byte   $80,$80,$80,$68,$80,$80,$98,$80
         .byte   $98,$90,$B0,$D0,$F0,$50,$90,$D0
         .byte   $E0,$10,$70,$88,$B0,$F0,$30,$70
@@ -537,6 +619,10 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01
         .byte   $20,$51,$08,$04,$16,$40,$22,$00
         .byte   $00,$50,$62,$44,$4C,$01,$00,$04
         .byte   $00,$00,$00,$00,$00,$40,$21,$00
+; --- screen tile maps ---
+; 8-byte rows of metatile IDs defining each screen column.
+; Each screen is 8 columns wide x N rows tall. Screens are laid out
+; sequentially for all Wily Fortress stages sharing this bank.
         .byte   $00,$01,$02,$03,$04,$05,$06,$07
         .byte   $07,$08,$09,$0A,$0B,$08,$09,$00
         .byte   $00,$07,$00,$0A,$0B,$07,$00,$07
@@ -793,6 +879,9 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
+; --- metatile definitions ---
+; 4-byte metatile entries: top-left, top-right, bottom-left, bottom-right
+; tile IDs. Each 16x16 metatile is composed of four 8x8 CHR tiles.
         .byte   $01,$02,$09,$08,$0D,$15,$0D,$1D
         .byte   $26,$27,$1E,$1F,$24,$15,$1C,$1D
         .byte   $16,$27,$1E,$1F,$24,$25,$1C,$1D
@@ -921,6 +1010,7 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- stage data set 1 (Wily 2 facing right) ---
         .byte   $00,$01,$03,$05,$07,$29,$39,$07
         .byte   $09,$21,$23,$25,$27,$29,$54,$68
         .byte   $64,$66,$05,$07,$45,$45,$57,$45
@@ -953,6 +1043,7 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- stage data set 2 (Wily 2 facing left) ---
         .byte   $00,$02,$04,$06,$08,$2A,$3A,$08
         .byte   $0A,$22,$24,$26,$28,$2A,$44,$69
         .byte   $65,$67,$06,$08,$58,$45,$56,$45
@@ -985,6 +1076,7 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- stage data set 3 (Wily 3 facing right) ---
         .byte   $00,$11,$13,$15,$17,$29,$39,$5E
         .byte   $19,$31,$33,$35,$37,$29,$44,$78
         .byte   $74,$76,$0B,$0C,$57,$48,$48,$46
@@ -1017,6 +1109,7 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- stage data set 4 (Wily 3 facing left) ---
         .byte   $00,$12,$14,$16,$18,$2A,$3A,$5F
         .byte   $1A,$32,$34,$36,$38,$2A,$54,$79
         .byte   $75,$77,$0B,$0D,$55,$48,$48,$45
@@ -1049,6 +1142,7 @@ LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- stage data set 5 (Wily 5) ---
         .byte   $00,$13,$13,$13,$13,$43,$13,$13
         .byte   $13,$13,$13,$13,$13,$23,$10,$50
         .byte   $10,$10,$13,$13,$01,$01,$01,$01
