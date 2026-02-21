@@ -1,7 +1,8 @@
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $10 — BOSS DOOR ANIMATIONS + STAGE $14 DATA
 ; =============================================================================
-; Mapped to $8000-$9FFF. Called via trampolines in the fixed bank.
+; Mapped to $8000-$9FFF. Called via trampolines in the fixed bank
+; ($1FEE31 = close door, $1FEE44 = open door).
 ;
 ; This bank serves a dual purpose:
 ;   1. Boss door close/open animation routines ($8000-$82A9)
@@ -13,9 +14,26 @@
 ;      between columns. A sound effect ($1D) plays during the animation.
 ;
 ;   2. Stage data for stage $14 ($83D0-$9FFF)
-;      Collision bitmask table, metatile map, nametable layout, palette
-;      data, and entity spawn tables. This region is accessed as normal
-;      stage data by the fixed bank's stage loader.
+;      Also referenced by stage_to_bank in the fixed bank.
+;      Standard stage data layout (shifted from $A000 base to $8000):
+;        $83D0: Collision bitmask table (also used as attr masks by door code)
+;        $8800: Tile property / solid flag map
+;        $8A00: Screen index / room header data
+;        $8A60: Room CHR/palette config
+;        $8A80: BG palette data (4 palettes x 4 colors x 2 phases)
+;        $8B00: Enemy placement — screen numbers ($FF-terminated)
+;        $8C00: Enemy placement — X pixel positions ($FF-terminated)
+;        $8D00: Enemy placement — Y pixel positions ($FF-terminated)
+;        $8E00: Enemy placement — global enemy IDs ($FF-terminated)
+;        $8F00: Nametable screen map (metatile column indices per screen)
+;        $9700: Metatile column definitions (8 rows per column)
+;        $98A4: Zero padding
+;        $9B00: Metatile CHR tiles — top-left quadrant
+;        $9C00: Metatile CHR tiles — top-right quadrant
+;        $9D00: Metatile CHR tiles — bottom-left quadrant
+;        $9E00: Metatile CHR tiles — bottom-right quadrant
+;        $9F00: Collision / palette attribute table
+;        $9F80: Zero padding to bank end
 ;
 ; PPU buffer format at $0780 (consumed by NMI's drain_ppu_buffer):
 ;   $0780/$0784: PPU address high byte (nametable 0 / nametable 1)
@@ -359,16 +377,28 @@ L8342:  .byte   $03,$30,$03,$30,$20,$00,$00,$00
         .byte   $00,$00,$20,$00,$00,$00,$00,$00
         .byte   $20,$00,$00,$00,$00,$00
 ; =============================================================================
-; STAGE $14 DATA — collision bitmask table + stage layout
+; STAGE $14 DATA — Wily Stage 2 (Doc Robot: Gemini + Spark)
 ; =============================================================================
 ; From $83D0 onward this bank serves as stage data for stage $14.
-; The collision bitmask table at L83D0 is also referenced by the door
-; animation routines above as an attribute mask lookup. The remainder
-; of this bank contains metatile maps, nametable tile layouts, palette
-; data, entity spawn tables, and padding — all in the standard stage
-; bank format expected by the fixed bank's stage loader.
+; Referenced by stage_to_bank in the fixed bank. This is a Doc Robot
+; remixed stage combining Gemini Man and Spark Man environments.
+;
+; The collision bitmask table at L83D0 doubles as the attribute mask
+; lookup used by the door animation routines above (first 4 bytes
+; $FC/$F3/$CF/$3F mask the four 2-bit fields of a PPU attribute byte).
+;
+; All data follows the standard stage bank layout, shifted from the
+; normal $A000 base to $8000 (offsets are identical, base differs).
 ; =============================================================================
-; --- Collision/attribute bitmask table ($83D0) ---
+
+; ===========================================================================
+; Collision bitmask table ($83D0, equiv $A3D0)
+; ===========================================================================
+; Each byte encodes passability for 8 horizontal pixels of a metatile row.
+; Bit = 1 means passable, bit = 0 means solid. Indexed by metatile ID.
+; The first 4 bytes ($FC,$F3,$CF,$3F) also serve as attribute masks for
+; the door animation routines above.
+; ---------------------------------------------------------------------------
 L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $FD,$FF,$FF,$FF,$BE,$FF,$FF,$FF
         .byte   $BF,$FF,$AD,$FF,$FB,$FF,$BB,$DF
@@ -503,6 +533,12 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $FF,$D7,$3F,$D5,$FF,$F7,$FF,$5D
         .byte   $FF,$5F,$FF,$D7,$FF,$FF,$FF,$DD
         .byte   $F7,$7D,$FF,$5D,$FF,$BF,$FF,$FF
+; ===========================================================================
+; Tile property / solid flag map ($8800, equiv $A800)
+; ===========================================================================
+; One byte per metatile. Encodes tile-level collision properties such as
+; solid, ladder, spike, or water. Mostly zero (passable background).
+; ---------------------------------------------------------------------------
         .byte   $00,$00,$80,$00,$00,$00,$00,$10
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$01,$00,$00,$00,$00
@@ -567,6 +603,12 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $00,$01,$00,$00,$08,$00,$00,$00
         .byte   $00,$00,$00,$01,$00,$04,$00,$00
         .byte   $00,$00,$00,$00,$08,$00,$00,$20
+; ===========================================================================
+; Screen index / room header data ($8A00, equiv $AA00)
+; ===========================================================================
+; Screen index table listing the order of screens in the stage.
+; Terminated by $FF. Followed by room scroll config / direction data.
+; ---------------------------------------------------------------------------
         .byte   $18,$19,$FF,$00,$20,$00,$00,$00
         .byte   $00,$00,$00,$00,$08,$00,$00,$00
         .byte   $00,$A0,$00,$00,$00,$00,$00,$42
@@ -578,11 +620,13 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $40,$40,$FF,$00,$00,$00,$20,$00
         .byte   $00,$00,$00,$40,$00,$00,$00,$00
         .byte   $00,$01,$00,$00,$00,$00,$00,$02
+; --- Room CHR/palette config ($8A60, equiv $AA60) ---
         .byte   $00,$00,$00,$A0,$00,$18,$00,$00
         .byte   $19,$00,$34,$01,$FF,$00,$00,$00
         .byte   $00,$02,$08,$00,$00,$10,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$02
         .byte   $02,$00,$00,$00,$00,$00,$00,$00
+; --- BG palette data ($8A80, equiv $AA80) ---
         .byte   $64,$6A,$0F,$30,$22,$0F,$0F,$0A
         .byte   $09,$01,$0F,$30,$25,$15,$0F,$37
         .byte   $17,$05,$00,$00,$00,$00,$0F,$30
@@ -599,6 +643,7 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $00,$00,$80,$00,$40,$00,$00,$00
         .byte   $02,$02,$00,$00,$00,$00,$00,$04
         .byte   $FF,$FF,$FF,$00,$00,$04,$00,$00
+; --- Enemy placement: screen numbers ($8B00, equiv $AB00, $FF-terminated) ---
         .byte   $00,$00,$00,$00,$01,$01,$01,$01
         .byte   $01,$01,$01,$01,$01,$FF,$00,$00
         .byte   $00,$00,$80,$00,$00,$00,$00,$01
@@ -631,6 +676,7 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $00,$00,$00,$21,$00,$00,$00,$04
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$80,$00,$02
+; --- Enemy placement: X pixel positions ($8C00, equiv $AC00, $FF-terminated) ---
         .byte   $28,$58,$A8,$D8,$80,$80,$48,$B8
         .byte   $48,$B8,$48,$B8,$80,$FF,$00,$00
         .byte   $00,$11,$00,$00,$01,$00,$00,$00
@@ -663,6 +709,7 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $00,$00,$02,$10,$10,$00,$02,$00
         .byte   $02,$00,$02,$10,$00,$02,$00,$00
         .byte   $08,$00,$40,$14,$00,$00,$00,$00
+; --- Enemy placement: Y pixel positions ($8D00, equiv $AD00, $FF-terminated) ---
         .byte   $58,$78,$78,$58,$4F,$98,$7B,$7B
         .byte   $A0,$A0,$7B,$7B,$4F,$FF,$20,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
@@ -695,6 +742,7 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $C2,$00,$A0,$01,$22,$04,$80,$00
         .byte   $0E,$00,$20,$01,$70,$00,$08,$01
         .byte   $00,$00,$20,$40,$40,$00,$00,$00
+; --- Enemy placement: global enemy IDs ($8E00, equiv $AE00, $FF-terminated) ---
         .byte   $56,$52,$52,$56,$82,$83,$88,$89
         .byte   $84,$84,$85,$86,$87,$FF,$00,$00
         .byte   $00,$00,$00,$00,$10,$00,$00,$00
@@ -727,6 +775,14 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $20,$10,$00,$00,$00,$00,$09,$00
         .byte   $90,$00,$00,$40,$00,$00,$10,$00
         .byte   $00,$00,$00,$41,$80,$10,$00,$04
+; ===========================================================================
+; Nametable screen map ($8F00, equiv $AF00)
+; ===========================================================================
+; Each screen is 8 columns x 8 rows of metatile column indices.
+; Columns index into the metatile column definition table at $9700.
+; Screens appear in the order defined by the screen index table.
+; Repeated $69 entries are empty fill (unused screen slots).
+; ---------------------------------------------------------------------------
         .byte   $00,$01,$01,$02,$03,$04,$01,$05
         .byte   $06,$07,$08,$09,$0A,$0B,$0C,$06
         .byte   $0D,$0E,$0F,$10,$0E,$0E,$0F,$10
@@ -983,6 +1039,14 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $69,$69,$69,$69,$69,$69,$69,$69
         .byte   $69,$69,$69,$69,$69,$69,$69,$69
         .byte   $69,$69,$69,$69,$69,$69,$69,$69
+; ===========================================================================
+; Metatile column definitions ($9700, equiv $B700)
+; ===========================================================================
+; Each column is 8 bytes defining 8 rows of metatile IDs (top to bottom).
+; These are the building blocks for screen layouts, indexed by the
+; nametable screen map above. Metatile IDs reference the CHR tile
+; tables at $9B00-$9EFF and the collision/palette table at $9F00.
+; ---------------------------------------------------------------------------
         .byte   $02,$02,$60,$06,$02,$02,$02,$02
         .byte   $02,$02,$0B,$02,$03,$04,$02,$02
         .byte   $60,$06,$02,$02,$02,$02,$02,$03
@@ -1036,6 +1100,7 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $71,$71,$72,$72,$72,$72,$73,$73
         .byte   $73,$73,$65,$65,$6D,$6D,$6F,$6F
         .byte   $66,$66,$66,$66,$00,$00,$00,$00
+; --- Zero padding ($98A4-$9AFF) ---
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
@@ -1111,6 +1176,17 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; ===========================================================================
+; Metatile CHR tile tables ($9B00-$9EFF, equiv $BB00-$BEFF)
+; ===========================================================================
+; Four 256-byte tables defining the 2x2 tile pattern for each metatile.
+; Each metatile ID indexes into all four tables to get its CHR tile IDs:
+;   $9B00 = top-left tile      $9C00 = top-right tile
+;   $9D00 = bottom-left tile   $9E00 = bottom-right tile
+; These are the PPU pattern table tile numbers rendered for each metatile.
+; Values $00-$FF index CHR bank patterns loaded for this stage.
+; ---------------------------------------------------------------------------
+; --- Top-left CHR tile ($9B00, equiv $BB00) ---
         .byte   $00,$E8,$10,$A2,$A4,$C2,$10,$10
         .byte   $A0,$B1,$B0,$10,$10,$10,$A8,$10
         .byte   $C0,$B0,$B1,$10,$AC,$10,$B7,$A9
@@ -1143,6 +1219,7 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- Top-right CHR tile ($9C00, equiv $BC00) ---
         .byte   $00,$E8,$10,$A3,$A5,$C3,$10,$10
         .byte   $A1,$B0,$B1,$10,$10,$A7,$10,$10
         .byte   $C1,$B1,$B0,$AB,$AD,$A6,$B8,$10
@@ -1175,6 +1252,7 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- Bottom-left CHR tile ($9D00, equiv $BD00) ---
         .byte   $00,$E8,$10,$9A,$9C,$10,$C2,$10
         .byte   $B0,$A0,$C0,$A7,$CB,$B6,$B8,$CA
         .byte   $D0,$C0,$D0,$BA,$BC,$B6,$01,$01
@@ -1207,6 +1285,7 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- Bottom-right CHR tile ($9E00, equiv $BE00) ---
         .byte   $00,$E8,$10,$9B,$8F,$10,$C3,$10
         .byte   $B1,$A1,$C1,$A8,$CC,$B7,$B9,$CB
         .byte   $D1,$C1,$D1,$BB,$BD,$01,$01,$B9
@@ -1239,6 +1318,15 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; ===========================================================================
+; Collision / palette attribute table ($9F00, equiv $BF00)
+; ===========================================================================
+; One byte per metatile. Upper nybble encodes collision type (solid,
+; ladder, spike, water, etc.), lower nybble selects the BG palette
+; (0-3) for the metatile's attribute table entry.
+; Values: $00 = passable/pal0, $01 = solid/pal0, $03 = solid/pal1,
+;         $12 = ladder/pal0 (verify in Mesen)
+; ---------------------------------------------------------------------------
         .byte   $00,$00,$01,$01,$01,$01,$01,$00
         .byte   $12,$12,$12,$01,$01,$01,$01,$01
         .byte   $12,$12,$12,$00,$00,$01,$01,$01
@@ -1254,6 +1342,7 @@ L83D0:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
         .byte   $01,$01,$01,$01,$00,$00,$00,$00
         .byte   $01,$01,$01,$01,$00,$00,$00,$00
         .byte   $00,$01,$02,$03,$00,$00,$00,$00
+; --- Zero padding ($9F78-$9FFF) ---
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
