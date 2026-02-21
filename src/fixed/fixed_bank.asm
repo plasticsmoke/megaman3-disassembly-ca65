@@ -2803,9 +2803,9 @@ code_CF59:  jsr     code_D355           ; slide/crouch/ladder input check
 code_CF65:  rts
 
 ; --- DEAD CODE: unreachable block at $1ECF66 ---
-; No references to this address exist in any bank. Appears to be a vestigial
-; Rush Marine ground-mode handler (slot 1 management, walk, climb, jump, shoot)
-; that was superseded by the current player_rush_marine implementation.
+; No references to this address exist in any bank — unreachable dead code.
+; Contains a Rush Marine ground-mode handler (slot 1 management, walk, climb,
+; jump, shoot), superseded by the current player_rush_marine implementation.
 
         jsr     decrease_ammo_tick                   ; decrease Rush ammo
         lda     #$82                    ; set slot 1 (Rush) main routine = $82
@@ -3880,12 +3880,12 @@ code_D701:  lda     $3E                 ; check saved OAM for special cases:
         pha
         lda     ent_flags                   ; bit 6 = facing direction
         and     #$40                    ; knockback goes OPPOSITE to facing
-        bne     code_D72D               ; facing left → knock right
-        ldy     #$00                    ; facing right → knock left (move right
-        jsr     move_right_collide      ; because knockback reverses facing)
+        bne     code_D72D               ; facing right → knock left
+        ldy     #$00                    ; facing left → knock right
+        jsr     move_right_collide
         jmp     code_D732
 
-code_D72D:  ldy     #$01                ; facing left → knock right
+code_D72D:  ldy     #$01                ; facing right → knock left
         jsr     move_left_collide
 code_D732:  lda     ent_x_px               ; sync slot 4 (hit flash) position with player
         sta     $0364
@@ -4375,7 +4375,7 @@ code_DA6C:  rol     $0F                 ; $0F bit 0 = grounded this frame
 ; --- wait for boss explosion entities (slots $10-$1F) to finish ---
         ldy     #$0F
 code_DA70:  lda     stage_id                 ; Wily5 ($22=$11): skip checking slot $10
-        cmp     #STAGE_WILY6                    ; (slot $10 may be reused)
+        cmp     #STAGE_WILY6                    ; Wily 6: skip slot $10 check
         bne     code_DA7A
         cpy     #$00                    ; at Y=0 (slot $10) → skip to next phase
         beq     code_DA82
@@ -5687,7 +5687,7 @@ check_room_link:  lda     $2D           ; scroll progress at room boundary?
 ; --- navigate $AA40 room table to find adjacent room in direction $10 ---
 
 LE3D1:  lda     camera_screen                     ; $00 = target screen position
-        sta     L0000                   ; (may be adjusted ±1)
+        sta     L0000                   ; $00 = current screen position
         ldy     $2B                     ; Y = current room index
         lda     $2A                     ; check current room's vertical bits
         and     #$C0                    ; bits 6-7 of $2A
@@ -6865,7 +6865,7 @@ LEB42:  lda     $13                     ; compute array index (same as
         beq     LEB68                   ; not destroyed → keep tile type
         lda     #$00                    ; destroyed → override to passthrough
         sta     $06
-LEB68:  lda     $06                     ; return tile type (maybe overridden)
+LEB68:  lda     $06                     ; return tile type ($00 if block destroyed)
         ldx     $05                     ; restore X
         rts
 
@@ -7970,7 +7970,7 @@ bar_x_positions:  .byte   $10,$18,$28,$A0,$FB,$2A,$EC,$88
 ; Sets H-flip flag (facing right), saves pre-move X for player,
 ; moves right, checks screen boundary (player only), checks tile collision.
 ; Returns: C=1 if hit solid tile, C=0 if clear
-move_right_collide:  lda     ent_flags,x    ; set bit 6 = facing right (no H-flip)
+move_right_collide:  lda     ent_flags,x    ; set bit 6 = facing right (H-flip)
         ora     #$40
         sta     ent_flags,x
 move_right_collide_no_face:
@@ -8009,7 +8009,7 @@ LF5C3:  rts
 ; move_left_collide — move left + set facing + tile collision
 ; -----------------------------------------------
 
-move_left_collide:  lda     ent_flags,x     ; clear bit 6 = facing left (H-flip)
+move_left_collide:  lda     ent_flags,x     ; clear bit 6 = facing left (no H-flip)
         and     #$BF
         sta     ent_flags,x
 move_left_collide_no_face:

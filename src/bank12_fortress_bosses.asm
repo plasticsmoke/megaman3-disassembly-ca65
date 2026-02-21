@@ -26,10 +26,11 @@ main_yellow_devil:
 .include "include/zeropage.inc"
 .include "include/constants.inc"
 
+; --- External references (fixed bank + $8000 entry points, bank $1C) ---
 L0000           := $0000
-L8003           := $8003
-L8006           := $8006
-L8009           := $8009
+L8003           := $8003                ; entity AI dispatch
+L8006           := $8006                ; entity AI dispatch (alt)
+L8009           := $8009                ; check player hit
 move_right_collide           := $F580
 move_left_collide           := $F5C4
 move_down_collide           := $F606
