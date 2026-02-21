@@ -6,6 +6,23 @@
 ; Annotation: 0% — unannotated da65 output (pure data)
 ; =============================================================================
 
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $19 — SPRITE POSITION OFFSET DATA (DEFAULT)
+; =============================================================================
+; Mapped to $A000-$BFFF. Contains sprite Y/X position offset tables used
+; by write_entity_oam in bank1E_1F. This is the DEFAULT sprite offset bank,
+; selected via `LDY #$19 / STY $F5` when the sprite definition's count byte
+; has bit 7 clear.
+;
+; Data format: signed byte pairs (Y offset, X offset) per sprite tile.
+; Pointer table at $BE00/$BF00 indexes into this data per sprite def.
+;
+; Companion bank: $14 (alternate sprite offsets, used when bit 7 is set).
+;
+; Annotation: none — pure offset data, header describes format
+; =============================================================================
+
         .setcpu "6502"
 
 

@@ -1,9 +1,22 @@
+main_hard_man_j:
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $07 — ROBOT MASTER AI (HARD/SPARK/SNAKE/GEMINI)
 ; =============================================================================
 ; AI state machines for Hard Man, Spark Man, Snake Man, and Gemini Man.
 ;
 ; Annotation: 0% — unannotated da65 output
+; =============================================================================
+
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $07 — ROBOT MASTER AI (HARD/SPARK/SNAKE/GEMINI)
+; =============================================================================
+; Mapped to $A000-$BFFF. Contains boss AI routines dispatched from bank1C_1D
+; for routine indices $D0-$DF. Entry points: main_hard_man_j, main_spark_man_j,
+; main_snake_man_j, main_gemini_man_j. Also doubles as Shadow Man stage
+; data ($22=$07).
+;
+; Annotation: light — entry trampolines named, AI internals mostly bare
 ; =============================================================================
 
         .setcpu "6502"
@@ -29,27 +42,30 @@ LFC63           := $FC63
 
 .segment "BANK07"
 
-        jmp     LA019
+        jmp     code_A019
 
-        jmp     LA277
+        jmp     code_A277
+main_spark_man_j:
 
-        jmp     LA319
-
-        nop
-        nop
-        nop
-        jmp     LA51B
+        jmp     code_A319
 
         nop
         nop
         nop
-        jmp     LA6B2
+main_snake_man_j:
+        jmp     code_A51B
 
-        jmp     LA972
+        nop
+        nop
+        nop
+main_gemini_man_j:
+        jmp     main_gemini_man
+
+        jmp     code_A972
 
         rts
 
-LA019:  lda     $0300,x
+code_A019:  lda     $0300,x
         and     #$0F
         tay
         lda     LA02C,y
@@ -77,32 +93,32 @@ LA031:  .byte   $A0,$A0,$A0,$A1,$A1
         jsr     LF869
         pla
         cmp     $04A0,x
-        beq     LA067
+        beq     code_A067
         lda     $0580,x
         eor     #$40
         sta     $0580,x
-LA067:  lda     $0500,x
-        bne     LA079
+code_A067:  lda     $0500,x
+        bne     code_A079
         lda     $05A0,x
         cmp     #$05
-        bne     LA08B
-        jsr     LA22E
+        bne     code_A08B
+        jsr     code_A22E
         inc     $0500,x
-LA079:  lda     $0520,x
-        bne     LA08B
+code_A079:  lda     $0520,x
+        bne     code_A08B
         lda     $05A0,x
         cmp     #$08
-        bne     LA08B
-        jsr     LA22E
+        bne     code_A08B
+        jsr     code_A22E
         inc     $0520,x
-LA08B:  lda     $05A0,x
+code_A08B:  lda     $05A0,x
         cmp     #$0B
-        bne     LA0B1
+        bne     code_A0B1
         lda     #$2F
         jsr     LF835
         lda     #$00
         sta     $0500,x
-        jsr     LA1FF
+        jsr     code_A1FF
         lda     #$68
         sta     $0440,x
         lda     #$08
@@ -110,10 +126,10 @@ LA08B:  lda     $05A0,x
         inc     $0300,x
         lda     #$1E
         sta     $0520,x
-LA0B1:  rts
+code_A0B1:  rts
 
         lda     $0520,x
-        beq     LA0C5
+        beq     code_A0C5
         dec     $0520,x
         lda     #$00
         sta     $05E0,x
@@ -121,42 +137,44 @@ LA0B1:  rts
         sta     $05A0,x
         rts
 
-LA0C5:  lda     $0500,x
-        bne     LA128
+code_A0C5:  lda     $0500,x
+        bne     code_A128
         lda     $04A0,x
         and     #$01
-        beq     LA0D9
+        beq     code_A0D9
         ldy     #$22
         jsr     LF580
-        jmp     LA0DE
+        jmp     code_A0DE
 
-LA0D9:  ldy     #$23
+code_A0D9:  ldy     #$23
         jsr     LF5C4
-LA0DE:  ldy     #$26
+code_A0DE:  ldy     #$26
         jsr     LF67C
-        bcc     LA106
+        bcc     code_A106
         lda     #$30
         jsr     LF835
         lda     #$04
         sta     $05A0,x
         lda     #$00
         sta     $05E0,x
-        inc     $0300,x
-        lda     $30
-        cmp     #$0E
-        beq     LA165
-        cmp     #$0F
-        beq     LA165
-        lda     #$0F
-        sta     $30
+        inc     $0300,x                 ; advance Hard Man AI phase
+
+; Hard Man ground slam — stun the player
+        lda     $30                     ; check player state
+        cmp     #$0E                    ; if dead, don't stun
+        beq     code_A165
+        cmp     #$0F                    ; if already stunned, skip
+        beq     code_A165
+        lda     #$0F                    ; state → $0F (stunned)
+        sta     $30                     ; player frozen in midair
         rts
 
-LA106:  lda     #$00
+code_A106:  lda     #$00
         sta     $05E0,x
         sta     $05A0,x
         jsr     LF8C2
         cmp     #$08
-        bcs     LA127
+        bcs     code_A127
         lda     #$30
         jsr     LF835
         inc     $0500,x
@@ -164,11 +182,11 @@ LA106:  lda     #$00
         sta     $0440,x
         lda     #$05
         sta     $0460,x
-LA127:  rts
+code_A127:  rts
 
-LA128:  lda     $05A0,x
+code_A128:  lda     $05A0,x
         cmp     #$03
-        bne     LA127
+        bne     code_A127
         lda     #$03
         sta     $05A0,x
         lda     #$00
@@ -177,7 +195,7 @@ LA128:  lda     $05A0,x
         jsr     LF89A
         ldy     #$26
         jsr     LF606
-        bcc     LA127
+        bcc     code_A127
         lda     #$30
         jsr     LF835
         lda     #$04
@@ -185,19 +203,21 @@ LA128:  lda     $05A0,x
         lda     #$00
         sta     $05E0,x
         inc     $0300,x
-        lda     $30
-        cmp     #$0E
-        beq     LA165
-        cmp     #$0F
-        beq     LA165
-        lda     #$0F
-        sta     $30
-LA165:  rts
+
+; Hard Man body slam — stun the player (second attack variant)
+        lda     $30                     ; check player state
+        cmp     #$0E                    ; if dead, don't stun
+        beq     code_A165
+        cmp     #$0F                    ; if already stunned, skip
+        beq     code_A165
+        lda     #$0F                    ; state → $0F (stunned)
+        sta     $30                     ; player frozen in midair
+code_A165:  rts
 
         lda     $0560,x
-        beq     LA1A0
+        beq     code_A1A0
         dec     $0560,x
-        beq     LA1A0
+        beq     code_A1A0
         lda     #$CA
         sta     $0480,x
         lda     #$04
@@ -210,44 +230,46 @@ LA165:  rts
         sta     $0460,x
         lda     $0560,x
         and     #$01
-        bne     LA198
+        bne     code_A198
         lda     $FA
         clc
         adc     #$02
         sta     $FA
         rts
 
-LA198:  lda     $FA
+code_A198:  lda     $FA
         sec
         sbc     #$02
         sta     $FA
         rts
 
-LA1A0:  ldy     #$26
-        jsr     LF67C
-        bcc     LA1BA
-        lda     $30
-        cmp     #$0E
-        beq     LA1B1
-        lda     #$01
-        sta     $30
-LA1B1:  inc     $0300,x
+; Hard Man landing — launches player into the air on impact
+
+code_A1A0:  ldy     #$26                ; collision check
+        jsr     LF67C                   ; is Hard Man near ground?
+        bcc     code_A1BA               ; no → still falling
+        lda     $30                     ; if player dead ($0E),
+        cmp     #$0E                    ; don't launch
+        beq     code_A1B1
+        lda     #$01                    ; state → $01 (airborne)
+        sta     $30                     ; player bounced into the air
+code_A1B1:  inc     $0300,x
         lda     #$10
         sta     $0540,x
         rts
 
-LA1BA:  lda     #$D0
+code_A1BA:  lda     #$D0
         sta     $0480,x
         lda     $05A0,x
         cmp     #$04
-        bne     LA1CE
+        bne     code_A1CE
         lda     #$00
         sta     $05E0,x
         inc     $05A0,x
-LA1CE:  rts
+code_A1CE:  rts
 
         dec     $0540,x
-        bne     LA1EF
+        bne     code_A1EF
         lda     #$C1
         sta     $0300,x
         lda     #$00
@@ -260,7 +282,7 @@ LA1CE:  rts
         jsr     LF835
         rts
 
-LA1EF:  lda     #$2F
+code_A1EF:  lda     #$2F
         jsr     LF835
         lda     #$00
         sta     $05E0,x
@@ -268,13 +290,13 @@ LA1EF:  lda     #$2F
         sta     $05A0,x
         rts
 
-LA1FF:  jsr     LF8C2
+code_A1FF:  jsr     LF8C2
         ldy     #$06
-LA204:  cmp     LA219,y
-        bcc     LA20C
+code_A204:  cmp     LA219,y
+        bcc     code_A20C
         dey
-        bne     LA204
-LA20C:  lda     LA220,y
+        bne     code_A204
+code_A20C:  lda     LA220,y
         sta     $0400,x
         lda     LA227,y
         sta     $0420,x
@@ -283,8 +305,8 @@ LA20C:  lda     LA220,y
 LA219:  .byte   $79,$6A,$5B,$4C,$3D,$2E,$1F
 LA220:  .byte   $80,$00,$80,$00,$80,$00,$80
 LA227:  .byte   $03,$03,$02,$02,$01,$01,$00
-LA22E:  jsr     LFC53
-        bcs     LA272
+code_A22E:  jsr     LFC53
+        bcs     code_A272
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -312,53 +334,53 @@ LA22E:  jsr     LFC53
         sta     $0480,y
         lda     #$D1
         sta     $0320,y
-LA272:  rts
+code_A272:  rts
 
 LA273:  .byte   $04
 LA274:  .byte   $00,$FC,$FF
-LA277:  lda     $0300,x
+code_A277:  lda     $0300,x
         and     #$0F
-        bne     LA28F
+        bne     code_A28F
         sta     $0500,x
         sta     $0520,x
         lda     #$0C
         sta     $0540,x
-        jsr     LA308
+        jsr     code_A308
         inc     $0300,x
-LA28F:  lda     $0300,x
+code_A28F:  lda     $0300,x
         and     #$02
-        bne     LA2EE
+        bne     code_A2EE
         lda     $04A0,x
         and     #$08
-        beq     LA2A8
+        beq     code_A2A8
         jsr     LF779
         lda     $03E0,x
-        bne     LA302
-        jmp     LA2B0
+        bne     code_A302
+        jmp     code_A2B0
 
-LA2A8:  jsr     LF759
+code_A2A8:  jsr     LF759
         lda     $03E0,x
-        bne     LA302
-LA2B0:  jsr     LF883
+        bne     code_A302
+code_A2B0:  jsr     LF883
         lda     $04A0,x
         and     #$01
-        beq     LA2C0
+        beq     code_A2C0
         jsr     LF71D
-        jmp     LA2C3
+        jmp     code_A2C3
 
-LA2C0:  jsr     LF73B
-LA2C3:  lda     $0500,x
-        bne     LA2D3
+code_A2C0:  jsr     LF73B
+code_A2C3:  lda     $0500,x
+        bne     code_A2D3
         jsr     LF8C2
         cmp     #$0C
-        bcs     LA2D2
+        bcs     code_A2D2
         inc     $0500,x
-LA2D2:  rts
+code_A2D2:  rts
 
-LA2D3:  lda     $0520,x
-        bne     LA2D2
+code_A2D3:  lda     $0520,x
+        bne     code_A2D2
         dec     $0540,x
-        bne     LA2D2
+        bne     code_A2D2
         lda     #$0C
         sta     $0540,x
         inc     $0520,x
@@ -367,20 +389,20 @@ LA2D3:  lda     $0520,x
         inc     $0300,x
         rts
 
-LA2EE:  lda     $05E0,x
+code_A2EE:  lda     $05E0,x
         ora     $05A0,x
-        bne     LA301
+        bne     code_A301
         lda     #$2D
         jsr     LF835
-        jsr     LA308
+        jsr     code_A308
         dec     $0300,x
-LA301:  rts
+code_A301:  rts
 
-LA302:  lda     #$00
+code_A302:  lda     #$00
         sta     $0300,x
         rts
 
-LA308:  lda     #$4C
+code_A308:  lda     #$4C
         sta     $02
         lda     #$03
         sta     $03
@@ -389,38 +411,38 @@ LA308:  lda     #$4C
         sta     $04A0,x
         rts
 
-LA319:  lda     $0300,x
+code_A319:  lda     $0300,x
         and     #$0F
-        beq     LA323
-        jmp     LA3E7
+        beq     code_A323
+        jmp     code_A3E7
 
-LA323:  lda     $0500,x
-        beq     LA339
+code_A323:  lda     $0500,x
+        beq     code_A339
         dec     $0500,x
-        bne     LA330
+        bne     code_A330
         dec     $05A0,x
-LA330:  jsr     LA35D
-LA333:  lda     #$00
+code_A330:  jsr     code_A35D
+code_A333:  lda     #$00
         sta     $05E0,x
         rts
 
-LA339:  lda     $05A0,x
-        beq     LA36C
+code_A339:  lda     $05A0,x
+        beq     code_A36C
         lda     $05E0,x
         cmp     #$08
-        bne     LA301
+        bne     code_A301
         dec     $0540,x
-        beq     LA355
-LA34A:  lda     #$88
+        beq     code_A355
+code_A34A:  lda     #$88
         sta     $0440,x
         lda     #$06
         sta     $0460,x
         rts
 
-LA355:  lda     #$38
+code_A355:  lda     #$38
         jsr     LF835
         inc     $0300,x
-LA35D:  lda     $04A0,x
+code_A35D:  lda     $04A0,x
         pha
         jsr     LF869
         jsr     LF883
@@ -428,12 +450,12 @@ LA35D:  lda     $04A0,x
         sta     $04A0,x
         rts
 
-LA36C:  lda     $0540,x
-        bne     LA38A
+code_A36C:  lda     $0540,x
+        bne     code_A38A
         lda     #$37
         jsr     LF835
         jsr     LF883
-        jsr     LA34A
+        jsr     code_A34A
         lda     $E4
         adc     $E6
         sta     $E7
@@ -441,10 +463,10 @@ LA36C:  lda     $0540,x
         clc
         adc     #$01
         sta     $0540,x
-LA38A:  ldy     #$1E
+code_A38A:  ldy     #$1E
         jsr     LF67C
-        bcs     LA3B7
-        jsr     LA333
+        bcs     code_A3B7
+        jsr     code_A333
         lda     $0520,x
         and     #$03
         tay
@@ -454,43 +476,43 @@ LA38A:  ldy     #$1E
         sta     $0420,x
         lda     $04A0,x
         and     #$02
-        beq     LA3B2
+        beq     code_A3B2
         ldy     #$21
         jmp     LF5C4
 
-LA3B2:  ldy     #$20
+code_A3B2:  ldy     #$20
         jmp     LF580
 
-LA3B7:  lda     $0520,x
+code_A3B7:  lda     $0520,x
         tay
         lda     LA4DF,y
         sta     $0360,x
         inc     $05A0,x
-        jsr     LA333
+        jsr     code_A333
         inc     $0520,x
         lda     $0520,x
         and     #$07
         sta     $0520,x
         and     #$03
-        bne     LA3E6
-LA3D6:  lda     $04A0,x
+        bne     code_A3E6
+code_A3D6:  lda     $04A0,x
         eor     #$03
         sta     $04A0,x
         lda     $0580,x
         eor     #$40
         sta     $0580,x
-LA3E6:  rts
+code_A3E6:  rts
 
-LA3E7:  jsr     LA35D
+code_A3E7:  jsr     code_A35D
         lda     $05A0,x
         ora     $05E0,x
-        bne     LA40D
+        bne     code_A40D
         lda     #$39
         cmp     $05C0,x
-        beq     LA3FC
+        beq     code_A3FC
         jmp     LF835
 
-LA3FC:  lda     #$37
+code_A3FC:  lda     #$37
         jsr     LF835
         inc     $05A0,x
         lda     #$64
@@ -498,26 +520,26 @@ LA3FC:  lda     #$37
         dec     $0300,x
         rts
 
-LA40D:  lda     $05E0,x
-        bne     LA3E6
+code_A40D:  lda     $05E0,x
+        bne     code_A3E6
         lda     #$39
         cmp     $05C0,x
-        beq     LA423
+        beq     code_A423
         lda     $05A0,x
         cmp     #$03
-        bne     LA3E6
-        jmp     LA42D
+        bne     code_A3E6
+        jmp     code_A42D
 
-LA423:  lda     $05A0,x
+code_A423:  lda     $05A0,x
         cmp     #$0A
-        bne     LA3E6
-        jmp     LA485
+        bne     code_A3E6
+        jmp     code_A485
 
-LA42D:  stx     L0000
+code_A42D:  stx     L0000
         lda     #$07
         sta     $01
-LA433:  jsr     LFC53
-        bcs     LA482
+code_A433:  jsr     LFC53
+        bcs     code_A482
         ldx     $01
         lda     LA4F3,x
         sta     $0400,y
@@ -545,13 +567,13 @@ LA433:  jsr     LFC53
         sbc     #$08
         sta     $03C0,y
         dec     $01
-        bpl     LA433
-LA482:  ldx     L0000
+        bpl     code_A433
+code_A482:  ldx     L0000
         rts
 
-LA485:  stx     $0E
+code_A485:  stx     $0E
         jsr     LFC53
-        bcs     LA4DC
+        bcs     code_A4DC
         lda     $03C0,x
         clc
         adc     #$05
@@ -586,7 +608,7 @@ LA485:  stx     $0E
         lda     $0380,y
         adc     LA4F0,x
         sta     $0380,y
-LA4DC:  ldx     $0E
+code_A4DC:  ldx     $0E
         rts
 
 LA4DF:  .byte   $A8,$80,$58,$20,$58,$80,$A8,$E0
@@ -599,87 +621,87 @@ LA4FB:  .byte   $00,$01,$02,$01,$00,$01,$02,$01
 LA503:  .byte   $00,$96,$00,$6A,$00,$6A,$00,$96
 LA50B:  .byte   $FE,$FE,$00,$01,$02,$01,$00,$FE
 LA513:  .byte   $02,$02,$02,$02,$01,$01,$01,$01
-LA51B:  lda     $0300,x
+code_A51B:  lda     $0300,x
         and     #$0F
-        beq     LA525
-        jmp     LA5D8
+        beq     code_A525
+        jmp     code_A5D8
 
-LA525:  ldy     #$00
+code_A525:  ldy     #$00
         jsr     LF67C
-        bcs     LA535
-LA52C:  lda     #$23
+        bcs     code_A535
+code_A52C:  lda     #$23
         jsr     LF835
         inc     $05A0,x
         rts
 
-LA535:  lda     #$23
+code_A535:  lda     #$23
         cmp     $05C0,x
-        bne     LA561
+        bne     code_A561
         lda     $05A0,x
         cmp     #$01
-        bne     LA54B
+        bne     code_A54B
         lda     #$02
         sta     $05A0,x
-        jmp     LA612
+        jmp     code_A612
 
-LA54B:  lda     $0540,x
-        beq     LA559
+code_A54B:  lda     $0540,x
+        beq     code_A559
         dec     $0540,x
         lda     #$00
         sta     $05E0,x
         rts
 
-LA559:  lda     $05E0,x
+code_A559:  lda     $05E0,x
         cmp     #$04
-        beq     LA561
+        beq     code_A561
         rts
 
-LA561:  jsr     LF883
+code_A561:  jsr     LF883
         lda     #$25
         cmp     $05C0,x
-        beq     LA56E
+        beq     code_A56E
         jsr     LF835
-LA56E:  jsr     LA745
-        bcc     LA577
+code_A56E:  jsr     code_A745
+        bcc     code_A577
         ldy     #$00
-        beq     LA5C2
-LA577:  lda     $0500,x
+        beq     code_A5C2
+code_A577:  lda     $0500,x
         tay
         lda     $04A0,x
         and     #$02
-        beq     LA58B
+        beq     code_A58B
         lda     LA6A4,y
         cmp     $0360,x
-        bcs     LA594
+        bcs     code_A594
         rts
 
-LA58B:  lda     LA6A4,y
+code_A58B:  lda     LA6A4,y
         cmp     $0360,x
-        bcc     LA594
+        bcc     code_A594
         rts
 
-LA594:  inc     $0500,x
+code_A594:  inc     $0500,x
         lda     $0500,x
         and     #$03
         sta     $0500,x
         and     #$01
-        bne     LA5A6
-        jsr     LA3D6
-LA5A6:  ldy     #$0F
-LA5A8:  lda     $0310,y
-        bpl     LA5B8
+        bne     code_A5A6
+        jsr     code_A3D6
+code_A5A6:  ldy     #$0F
+code_A5A8:  lda     $0310,y
+        bpl     code_A5B8
         lda     $0330,y
         cmp     #$BA
-        bne     LA5B8
+        bne     code_A5B8
         ldy     #$00
-        beq     LA5C2
-LA5B8:  dey
-        bne     LA5A8
+        beq     code_A5C2
+code_A5B8:  dey
+        bne     code_A5A8
         lda     $E4
         adc     $E6
         and     #$01
         tay
-LA5C2:  lda     LA6A8,y
+code_A5C2:  lda     LA6A8,y
         jsr     LF835
         lda     LA6AA,y
         sta     $0440,x
@@ -688,54 +710,54 @@ LA5C2:  lda     LA6A8,y
         inc     $0300,x
         rts
 
-LA5D8:  ldy     #$00
+code_A5D8:  ldy     #$00
         jsr     LF67C
-        bcs     LA5F8
+        bcs     code_A5F8
         lda     $05C0,x
         cmp     #$24
-        beq     LA5E9
-        jsr     LA745
-LA5E9:  lda     $0460,x
-        bpl     LA612
+        beq     code_A5E9
+        jsr     code_A745
+code_A5E9:  lda     $0460,x
+        bpl     code_A612
         lda     #$24
         cmp     $05C0,x
-        beq     LA618
-        jmp     LA52C
+        beq     code_A618
+        jmp     code_A52C
 
-LA5F8:  lda     $05C0,x
+code_A5F8:  lda     $05C0,x
         cmp     #$24
-        bne     LA604
+        bne     code_A604
         lda     #$1A
         sta     $0540,x
-LA604:  lda     #$00
+code_A604:  lda     #$00
         sta     $0520,x
         dec     $0300,x
-        jsr     LA52C
+        jsr     code_A52C
         inc     $05A0,x
-LA612:  lda     #$00
+code_A612:  lda     #$00
         sta     $05E0,x
-LA617:  rts
+code_A617:  rts
 
-LA618:  lda     $0520,x
-        beq     LA633
+code_A618:  lda     $0520,x
+        beq     code_A633
         dec     $0520,x
         lda     $05A0,x
         cmp     #$02
-        bne     LA612
+        bne     code_A612
         lda     $05E0,x
         cmp     #$08
-        bne     LA617
+        bne     code_A617
         dec     $05A0,x
-        bne     LA612
-LA633:  lda     #$02
+        bne     code_A612
+code_A633:  lda     #$02
         sta     $05A0,x
-        jsr     LA612
-        jsr     LA35D
+        jsr     code_A612
+        jsr     code_A35D
         lda     #$14
         sta     $0520,x
         stx     L0000
         jsr     LFC53
-        bcs     LA6A1
+        bcs     code_A6A1
         lda     #$52
         jsr     LF846
         lda     #$CB
@@ -771,7 +793,7 @@ LA633:  lda     #$02
         ldx     L0000
         pla
         sta     $04A0,x
-LA6A1:  ldx     L0000
+code_A6A1:  ldx     L0000
         rts
 
 LA6A4:  .byte   $80,$28,$80,$D8
@@ -780,14 +802,14 @@ LA6AA:  .byte   $A8,$00
 LA6AC:  .byte   $05,$08
 LA6AE:  .byte   $1E
 LA6AF:  .byte   $00,$E2,$FF
-LA6B2:  lda     $0300,x
-        and     #$0F
-        cmp     #$02
-        bne     LA6BE
-        jmp     LA7F1
+main_gemini_man:  lda     $0300,x
+        and     #$0F                    ; if state == $02
+        cmp     #$02                    ; goto ???
+        bne     code_A6BE
+        jmp     code_A7F1
 
-LA6BE:  cmp     #$01
-        beq     LA6E1
+code_A6BE:  cmp     #$01                ; if state == $01
+        beq     code_A6E1               ; skip a little bit
         lda     #$3D
         sta     $0440,x
         lda     #$09
@@ -796,23 +818,23 @@ LA6BE:  cmp     #$01
         lda     #$33
         jsr     LF835
         lda     $0500,x
-        bne     LA6E1
-        jsr     LA880
+        bne     code_A6E1
+        jsr     code_A880
         lda     #$01
         sta     $0500,x
-LA6E1:  lda     $0500,x
-        bmi     LA715
+code_A6E1:  lda     $0500,x
+        bmi     code_A715
         ldy     $0520,x
         lda     $0300,y
-        bpl     LA715
+        bpl     code_A715
         jsr     L8003
-        bcs     LA715
+        bcs     code_A715
         ldy     $0520,x
         lda     $04E0,x
         and     #$1F
         sta     $04E0,y
         cmp     #$0F
-        bcs     LA715
+        bcs     code_A715
         lda     $0480,y
         ora     #$40
         sta     $0480,y
@@ -822,58 +844,58 @@ LA6E1:  lda     $0500,x
         sta     $0500,y
         rts
 
-LA715:  lda     $05C0,x
+code_A715:  lda     $05C0,x
         cmp     #$35
-        beq     LA795
+        beq     code_A795
         cmp     #$34
-        bne     LA723
-        jmp     LA7C7
+        bne     code_A723
+        jmp     code_A7C7
 
-LA723:  lda     $0500,x
-        bmi     LA739
+code_A723:  lda     $0500,x
+        bmi     code_A739
         lda     $0520,x
         tay
         lda     $05C0,y
         cmp     #$34
-        bne     LA739
+        bne     code_A739
         lda     #$00
         sta     $05E0,x
-LA738:  rts
+code_A738:  rts
 
-LA739:  ldy     #$00
+code_A739:  ldy     #$00
         jsr     LF67C
-        bcs     LA756
+        bcs     code_A756
         lda     #$00
         sta     $05E0,x
-LA745:  lda     $04A0,x
+code_A745:  lda     $04A0,x
         and     #$02
-        beq     LA751
+        beq     code_A751
         ldy     #$01
         jmp     LF5C4
 
-LA751:  ldy     #$00
+code_A751:  ldy     #$00
         jmp     LF580
 
-LA756:  lda     $05A0,x
-        beq     LA738
+code_A756:  lda     $05A0,x
+        beq     code_A738
         lda     $05E0,x
         cmp     #$04
-        bne     LA738
+        bne     code_A738
         lda     #$35
         jsr     LF835
-        jsr     LA3D6
+        jsr     code_A3D6
         lda     #$28
         sta     $0360,x
         lda     $0500,x
-        bpl     LA795
-LA774:  lda     #$4C
+        bpl     code_A795
+code_A774:  lda     #$4C
         sta     $0400,x
         lda     #$01
         sta     $0420,x
         inc     $0300,x
         jsr     LF869
         jsr     LF883
-LA787:  lda     $E6
+code_A787:  lda     $E6
         adc     $E7
         and     #$01
         tay
@@ -881,85 +903,85 @@ LA787:  lda     $E6
         sta     $0500,x
         rts
 
-LA795:  lda     $14
+code_A795:  lda     $14
         and     #$40
-        beq     LA7A6
+        beq     code_A7A6
         jsr     LF869
         jsr     LF883
         lda     #$34
         jmp     LF835
 
-LA7A6:  jsr     LA745
+code_A7A6:  jsr     code_A745
         lda     #$D8
         cmp     $0360,x
-        bcs     LA7C6
+        bcs     code_A7C6
         sta     $0360,x
         lda     $0500,x
-        bpl     LA7BB
-        jmp     LA774
+        bpl     code_A7BB
+        jmp     code_A774
 
-LA7BB:  dec     $0300,x
-        jsr     LA3D6
+code_A7BB:  dec     $0300,x
+        jsr     code_A3D6
         lda     #$33
         jmp     LF835
 
-LA7C6:  rts
+code_A7C6:  rts
 
-LA7C7:  lda     $05E0,x
-        bne     LA7D6
+code_A7C7:  lda     $05E0,x
+        bne     code_A7D6
         lda     $05A0,x
         cmp     #$01
-        bne     LA7D6
-        jmp     LA8D3
+        bne     code_A7D6
+        jmp     code_A8D3
 
-LA7D6:  lda     $05E0,x
+code_A7D6:  lda     $05E0,x
         cmp     #$04
-        bne     LA7C6
+        bne     code_A7C6
         lda     $05A0,x
         cmp     #$02
-        bne     LA7C6
+        bne     code_A7C6
         lda     #$01
         sta     $04A0,x
         jsr     LF883
         lda     #$35
         jmp     LF835
 
-LA7F1:  ldy     #$00
+code_A7F1:  ldy     #$00
         jsr     LF67C
-        bcs     LA800
+        bcs     code_A800
         lda     #$00
         sta     $05E0,x
-        jmp     LA745
+        jmp     code_A745
 
-LA800:  lda     $05C0,x
+code_A800:  lda     $05C0,x
         cmp     #$34
-        beq     LA854
+        beq     code_A854
         lda     $0500,x
-        bne     LA81C
+        bne     code_A81C
         lda     $0310
-        bmi     LA81F
+        bmi     code_A81F
         jsr     LF869
         jsr     LF883
         lda     #$34
         jmp     LF835
 
-LA81C:  dec     $0500,x
-LA81F:  lda     $05C0,x
+code_A81C:  dec     $0500,x
+code_A81F:  lda     $05C0,x
         cmp     #$35
-        beq     LA837
+        beq     code_A837
         lda     $05A0,x
-        beq     LA87F
+        beq     code_A87F
         lda     $05E0,x
         cmp     #$04
-        bne     LA87F
+        bne     code_A87F
         lda     #$35
         jsr     LF835
-LA837:  jsr     LA745
-        bcc     LA83F
-        jsr     LA3D6
-LA83F:  lda     $14
+code_A837:  jsr     code_A745
+        bcc     code_A83F
+        jsr     code_A3D6
+code_A83F:  lda     $14
         and     #$40
-        beq     LA87F
+        beq     code_A87F
         lda     #$AB
         sta     $0440,x
         lda     #$05
@@ -967,30 +989,30 @@ LA83F:  lda     $14
         lda     #$33
         jmp     LF835
 
-LA854:  lda     $05E0,x
-        bne     LA863
+code_A854:  lda     $05E0,x
+        bne     code_A863
         lda     $05A0,x
         cmp     #$01
-        bne     LA863
-        jmp     LA92A
+        bne     code_A863
+        jmp     code_A92A
 
-LA863:  lda     $05E0,x
+code_A863:  lda     $05E0,x
         cmp     #$04
-        bne     LA87F
+        bne     code_A87F
         lda     $05A0,x
         cmp     #$02
-        bne     LA87F
+        bne     code_A87F
         jsr     LF869
         jsr     LF883
-        jsr     LA787
+        jsr     code_A787
         lda     #$35
         jmp     LF835
 
-LA87F:  rts
+code_A87F:  rts
 
-LA880:  stx     L0000
+code_A880:  stx     L0000
         jsr     LFC53
-        bcs     LA8D0
+        bcs     code_A8D0
         tya
         sta     $0520,x
         txa
@@ -1019,12 +1041,12 @@ LA880:  stx     L0000
         sta     $0320,y
         lda     $04A0,x
         sta     $04A0,y
-LA8D0:  ldx     L0000
+code_A8D0:  ldx     L0000
         rts
 
-LA8D3:  stx     L0000
+code_A8D3:  stx     L0000
         jsr     LFC53
-        bcs     LA927
+        bcs     code_A927
         lda     #$40
         sta     $0320,y
         lda     #$00
@@ -1033,7 +1055,7 @@ LA8D3:  stx     L0000
         sta     $0420,y
         lda     #$50
         jsr     LF846
-LA8EE:  lda     #$8B
+code_A8EE:  lda     #$8B
         sta     $0480,y
         lda     $0360,x
         sta     $0360,y
@@ -1054,13 +1076,13 @@ LA8EE:  lda     #$8B
         lda     $0380,y
         adc     LA96F,x
         sta     $0380,y
-LA927:  ldx     L0000
+code_A927:  ldx     L0000
         rts
 
-LA92A:  stx     L0000
+code_A92A:  stx     L0000
         ldy     #$10
-LA92E:  lda     $0300,y
-        bmi     LA969
+code_A92E:  lda     $0300,y
+        bmi     code_A969
         lda     #$B9
         sta     $0320,y
         lda     #$00
@@ -1076,39 +1098,39 @@ LA92E:  lda     $0300,y
         ldx     L0000
         lda     #$4A
         jsr     LF846
-        jsr     LA8EE
+        jsr     code_A8EE
         lda     $0360,y
         and     #$FC
         sta     $0360,y
         iny
         cpy     #$13
-        bcc     LA92E
-LA969:  ldx     L0000
+        bcc     code_A92E
+code_A969:  ldx     L0000
         rts
 
 LA96C:  .byte   $B4,$FF
 LA96E:  .byte   $0D
 LA96F:  .byte   $00,$F3,$FF
-LA972:  lda     $0300,x
+code_A972:  lda     $0300,x
         and     #$0F
-        bne     LA99C
+        bne     code_A99C
         lda     $0500,x
-        bne     LA98F
+        bne     code_A98F
         lda     $0520,x
         tay
         lda     $0360,y
         cmp     #$30
-        bcc     LA98F
+        bcc     code_A98F
         lda     #$00
         sta     $05E0,x
         rts
 
-LA98F:  lda     #$2D
+code_A98F:  lda     #$2D
         sta     $0400,x
         lda     #$03
         sta     $0420,x
         sta     $0500,x
-LA99C:  jmp     LA6B2
+code_A99C:  jmp     main_gemini_man
 
         .byte   $2E,$2A,$AA,$EA,$5F,$A0,$11,$2A
         .byte   $88,$A0,$1F,$AA,$F7,$A2,$57,$A6

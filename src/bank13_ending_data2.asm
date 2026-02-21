@@ -6,6 +6,20 @@
 ; Annotation: 0% — unannotated da65 output (pure data)
 ; =============================================================================
 
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $13 — SPECIAL/ENDING STAGE DATA
+; =============================================================================
+; Mapped to $A000-$BFFF. Stage data bank for stage $13 (special/ending
+; sequence). Referenced by stage_to_bank[$13] = $13.
+; Also loaded for game over screen (bank18 sets $F5=$13 for game over layout).
+; Note: ensure_stage_bank skips bank switch when $F5 is already $13,
+; suggesting this bank may remain mapped as a default in some contexts.
+; Standard stage data layout (see bank08.asm header for format details).
+;
+; Annotation: none — pure stage data
+; =============================================================================
+
         .setcpu "6502"
 
 

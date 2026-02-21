@@ -6,6 +6,18 @@
 ; Annotation: 0% — unannotated da65 output
 ; =============================================================================
 
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $0D — OAM/SPRITE ANIMATION + WILY 2/3/5 STAGE
+; =============================================================================
+; Mapped to $A000-$BFFF. Contains sprite/OAM animation routines: pointer
+; table lookups, animation frame data transfer to OAM buffer ($0200+).
+; Also serves as Wily Fortress 2/3/5 stage data — shared by stages $0D,
+; $0E, $10 via stage_to_bank table (all map to bank $0D).
+;
+; Annotation: light — all labels auto-generated, animation dispatch bare
+; =============================================================================
+
         .setcpu "6502"
 
 
@@ -17,9 +29,9 @@
         lda     LA056,y
         sta     $01
         ldy     #$00
-LA00F:  lda     ($00),y
+code_A00F:  lda     ($00),y
         cmp     #$FF
-        beq     LA02D
+        beq     code_A02D
         sta     $0200,y
         iny
         lda     ($00),y
@@ -31,8 +43,8 @@ LA00F:  lda     ($00),y
         lda     ($00),y
         sta     $0200,y
         iny
-        bne     LA00F
-LA02D:  sty     $97
+        bne     code_A00F
+code_A02D:  sty     $97
         sty     $0560
         lda     $0540
         asl     a
@@ -40,12 +52,12 @@ LA02D:  sty     $97
         asl     a
         tay
         ldx     #$00
-LA03B:  lda     LA360,y
+code_A03B:  lda     LA360,y
         sta     $0618,x
         iny
         inx
         cpx     #$08
-        bne     LA03B
+        bne     code_A03B
         stx     $18
         inc     $0540
         rts

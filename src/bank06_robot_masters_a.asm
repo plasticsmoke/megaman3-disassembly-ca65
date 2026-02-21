@@ -1,9 +1,23 @@
+main_needle_man_j:
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $06 — ROBOT MASTER AI (NEEDLE/MAGNET/TOP/SHADOW)
 ; =============================================================================
 ; AI state machines for Needle Man, Magnet Man, Top Man, and Shadow Man.
 ;
 ; Annotation: 0% — unannotated da65 output
+; =============================================================================
+
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $06 — ROBOT MASTER AI (NEEDLE/MAGNET/TOP/SHADOW)
+; =============================================================================
+; Mapped to $A000-$BFFF. Contains boss AI routines dispatched from bank1C_1D
+; for routine indices $C0-$CF. Entry points: main_needle_man, main_magnet_man_j,
+; main_top_man_j, main_shadow_man_j. Each boss has a multi-state AI with
+; attack patterns, movement, and vulnerability windows.
+; Also doubles as Spark Man stage data ($22=$06).
+;
+; Annotation: partial — AI state labels named for all 4 bosses, 81 auto labels remain
 ; =============================================================================
 
         .setcpu "6502"
@@ -28,223 +42,251 @@ LFC63           := $FC63
 
 .segment "BANK06"
 
-        jmp     LA01C
+        jmp     main_needle_man
+main_magnet_man_j:
 
-        jmp     LA24E
+        jmp     code_A24E
+main_top_man_j:
 
-        jmp     LA4B3
+        jmp     code_A4B3
+main_shadow_man_j:
 
-        jmp     LA698
+        jmp     code_A698
 
-        jmp     LA472
+        jmp     code_A472
 
-        jmp     LA62B
+        jmp     code_A62B
 
-        jmp     LA8E0
+        jmp     code_A8E0
 
-        jmp     LA01C
+        jmp     main_needle_man
 
-        jmp     LA698
+        jmp     code_A698
 
         rts
 
-LA01C:  lda     $0300,x
+main_needle_man:  lda     $0300,x
         and     #$0F
-        tay
-        lda     LA02F,y
-        sta     L0000
-        lda     LA034,y
+        tay                             ; load Needle Man's
+        lda     needle_man_state_ptr_lo,y ; AI pointer based on state
+        sta     L0000                   ; jump to it
+        lda     needle_man_state_ptr_hi,y
         sta     $01
         jmp     (L0000)
 
-LA02F:  .byte   $39,$4D,$68,$F4,$50
-LA034:  .byte   $A0,$A0,$A0,$A0,$A1
-        lda     #$78
-        sta     $0500,x
-        jsr     LA188
+needle_man_state_ptr_lo:  .byte   $39,$4D,$68,$F4,$50 ; state $00: init
+needle_man_state_ptr_hi:  .byte   $A0,$A0,$A0,$A0,$A1 ; state $00: init
+
+; state $00: one-frame state for init
+needle_man_init:
+        lda     #$78                    ; timer: 120 frames
+        sta     $0500,x                 ; to wait before acting
+        jsr     needle_man_setup_throw
         lda     $0300,x
-        ora     #$40
+        ora     #$40                    ; set boss flag
         sta     $0300,x
-        inc     $0300,x
+        inc     $0300,x                 ; next state
         rts
 
+; state $01: waiting for B press at beginning of battle
+needle_man_wait_B:
+
         lda     #$00
-        sta     $05E0,x
+        sta     $05E0,x                 ; clear animation
         sta     $05A0,x
         dec     $0500,x
-        bne     LA05E
-        inc     $0300,x
+        bne     LA05E                   ; if timer expires,
+        inc     $0300,x                 ; go to next state
         rts
 
 LA05E:  lda     $14
-        and     #$40
-        beq     LA067
+        and     #$40                    ; if player presses B,
+        beq     LA067                   ; go to next state
         inc     $0300,x
 LA067:  rts
 
-        lda     $05C0,x
-        cmp     #$28
-        beq     LA0AD
-        ldy     #$1E
-        jsr     LF67C
-        bcc     LA093
-        lda     #$29
-        jsr     LF835
-        lda     #$02
-        sta     $05A0,x
-        lda     #$00
-        sta     $05E0,x
-        lda     #$08
-        sta     $0540,x
-        inc     $0300,x
-        jsr     LF869
-        jmp     LA1A2
+; state $02: jumping & throwing needles
+needle_man_throw:
 
-LA093:  lda     $0460,x
+        lda     $05C0,x
+        cmp     #$28                    ; if his animation is throwing
+        beq     LA0AD                   ; needle, skip some stuff
+        ldy     #$1E
+        jsr     LF67C                   ; I believe this checks for his
+        bcc     LA093                   ; Y value to be back on ground?
+        lda     #$29                    ; start animation sequence
+        jsr     LF835                   ; for jumping before needle throw
+        lda     #$02
+        sta     $05A0,x                 ; set up animation frame
+        lda     #$00                    ; for ???
+        sta     $05E0,x
+        lda     #$08                    ; 8 frame timer for a brief pause
+        sta     $0540,x
+        inc     $0300,x                 ; next state
+        jsr     LF869                   ; face toward player
+        jmp     needle_man_setup_jump   ; setup jump values
+
+LA093:  lda     $0460,x                 ; if he is moving down
         bmi     LA0A3
         lda     #$01
-        sta     $05A0,x
-        lda     #$00
+        sta     $05A0,x                 ; if not, set up animation
+        lda     #$00                    ; frame for ???
         sta     $05E0,x
         rts
 
-LA0A3:  lda     $0540,x
-        bne     LA0EE
-        lda     #$28
-        jsr     LF835
-LA0AD:  jsr     LA836
-        lda     $0500,x
-        bne     LA0C2
+LA0A3:  lda     $0540,x                 ; if timer hasn't expired
+        bne     LA0EE                   ; for moving down
+        lda     #$28                    ; if it has, set up animation
+        jsr     LF835                   ; for throwing needle
+LA0AD:  jsr     test_facing_change      ; handle facing change
+        lda     $0500,x                 ; if first needle has
+        bne     LA0C2                   ; been thrown, skip
         lda     $05A0,x
-        cmp     #$01
+        cmp     #$01                    ; if animation frame is not ???
         bne     LA0D4
-        jsr     LA1E0
-        inc     $0500,x
-LA0C2:  lda     $0520,x
-        bne     LA0D4
+        jsr     spawn_needle            ; else spawn a needle and set
+        inc     $0500,x                 ; "first needle thrown" flag
+LA0C2:  lda     $0520,x                 ; if second needle has
+        bne     LA0D4                   ; been thrown, skip
         lda     $05A0,x
-        cmp     #$03
+        cmp     #$03                    ; if animation frame is not ???
         bne     LA0D4
-        jsr     LA1E0
-        inc     $0520,x
+        jsr     spawn_needle            ; else spawn a needle and set
+        inc     $0520,x                 ; "second needle thrown" flag
 LA0D4:  lda     $05A0,x
-        cmp     #$03
+        cmp     #$03                    ; if animation frame is not ???
         bne     LA0F3
         lda     #$00
-        sta     $0500,x
+        sta     $0500,x                 ; clear needle thrown flags
         sta     $0520,x
-        lda     #$29
-        jsr     LF835
-        lda     #$10
-        sta     $0540,x
+        lda     #$29                    ; start animation sequence
+        jsr     LF835                   ; for jumping between needle throws
+        lda     #$10                    ; give 16 frames between throws
+        sta     $0540,x                 ; timer
         rts
 
-LA0EE:  dec     $0540,x
-        bne     LA0F3
+LA0EE:  dec     $0540,x                 ; tick timer down
+        bne     LA0F3                   ; useless branch
 LA0F3:  rts
 
-        lda     $05A0,x
-        cmp     #$02
-        beq     LA132
+; state $03: jump toward player (or pause)
+needle_man_jump_player:
+
+        lda     $05A0,x                 ; if animation frame is ???
+        cmp     #$02                    ; this is to skip movement
+        beq     LA132                   ; if this is just a pause state
         lda     #$01
-        sta     $05A0,x
-        lda     #$00
+        sta     $05A0,x                 ; set up animation frame
+        lda     #$00                    ; for ???
         sta     $05E0,x
         lda     $04A0,x
-        and     #$01
+        and     #$01                    ; if he's not facing right
         beq     LA114
-        ldy     #$20
+        ldy     #$20                    ; move right
         jsr     LF580
         jmp     LA119
 
-LA114:  ldy     #$21
+LA114:  ldy     #$21                    ; move left
         jsr     LF5C4
 LA119:  ldy     #$1E
-        jsr     LF67C
-        bcc     LA14F
+        jsr     LF67C                   ; I believe this checks for his
+        bcc     LA14F                   ; Y value to be back on ground?
         lda     #$02
-        sta     $05A0,x
-        lda     #$00
+        sta     $05A0,x                 ; set up animation frame
+        lda     #$00                    ; for ???
         sta     $05E0,x
-        jsr     LA836
-        lda     #$08
-        sta     $0540,x
-LA132:  dec     $0540,x
-        bne     LA14F
-        lda     $0560,x
-        bne     LA145
-        lda     #$C2
-        sta     $0300,x
-        jsr     LA188
+        jsr     test_facing_change
+        lda     #$08                    ; 8-frame timer
+        sta     $0540,x                 ; for extra pause when ground reached
+LA132:  dec     $0540,x                 ; tick timer down
+        bne     LA14F                   ; check if done
+        lda     $0560,x                 ; test if state value from table
+        bne     LA145                   ; was $FF
+        lda     #$C2                    ; if it was $00 instead
+        sta     $0300,x                 ; go to throw needles state
+        jsr     needle_man_setup_throw  ; and setup values for it
         rts
 
-LA145:  lda     #$2A
-        jsr     LF835
-        lda     #$C4
+LA145:  lda     #$2A                    ; set up headbutt
+        jsr     LF835                   ; animation
+        lda     #$C4                    ; go to headbutt state
         sta     $0300,x
 LA14F:  rts
 
+; state $04: head butt
+needle_man_headbutt:
+
         lda     $05A0,x
         cmp     #$04
-        bne     LA176
+        bne     code_A176
         lda     $05E0,x
         and     #$08
-        beq     LA176
+        beq     code_A176
         lda     #$C0
         sta     $0320,x
         lda     #$29
         jsr     LF835
         lda     #$C3
         sta     $0300,x
-        jsr     LA1A2
-LA170:  lda     #$CA
+        jsr     needle_man_setup_jump
+code_A170:  lda     #$CA
         sta     $0480,x
         rts
 
-LA176:  lda     $05A0,x
+code_A176:  lda     $05A0,x
         cmp     #$02
-        bne     LA170
+        bne     code_A170
         lda     #$D2
         sta     $0480,x
         lda     #$C7
         sta     $0320,x
         rts
 
-LA188:  lda     $E4
-        adc     $E5
-        sta     $E5
-        and     #$01
-        tay
-        lda     LA19E,y
-        sta     $0440,x
-        lda     LA1A0,y
-        sta     $0460,x
+needle_man_setup_throw:  lda     $E4
+        adc     $E5                     ; grab RNG value
+        sta     $E5                     ; and update it as well
+        and     #$01                    ; y = random index from 0 to 1
+        tay                             ; 50/50
+        lda     needle_man_throw_vel_y_sub,y
+        sta     $0440,x                 ; Y velocity = either
+        lda     needle_man_throw_vel_y,y ; $093C or $0688
+        sta     $0460,x                 ; 50/50 chance
         rts
 
-LA19E:  .byte   $88,$3C
-LA1A0:  .byte   $06,$09
-LA1A2:  lda     #$88
-        sta     $0440,x
+; values for needle man's throwing of needles
+; indexed randomly 0 through 1 (50/50 chance each one)
+; contains Y speed (both subpixel and pixel)
+; so, jump heights
+
+needle_man_throw_vel_y_sub:  .byte   $88,$3C
+needle_man_throw_vel_y:  .byte   $06,$09
+needle_man_setup_jump:  lda     #$88
+        sta     $0440,x                 ; Y velocity = $0688
         lda     #$06
         sta     $0460,x
         lda     $E4
-        adc     $E5
-        sta     $E5
-        and     #$07
+        adc     $E5                     ; grab RNG value
+        sta     $E5                     ; and update it as well
+        and     #$07                    ; y = random index from 0 to 7
         tay
-        lda     LA1C8,y
-        sta     $0400,x
-        lda     LA1D0,y
+        lda     needle_man_jump_vel_x_sub,y
+        sta     $0400,x                 ; one of 8 random X velocity
+        lda     needle_man_jump_vel_x,y ; values
         sta     $0420,x
-        lda     LA1D8,y
-        sta     $0560,x
+        lda     needle_man_jump_states,y ; one of 8 random state values
+        sta     $0560,x                 ; to go onto after jump
         rts
 
-LA1C8:  .byte   $00,$80,$80,$00,$00,$80,$80,$80
-LA1D0:  .byte   $00,$01,$02,$00,$00,$01,$03,$02
-LA1D8:  .byte   $FF,$00,$FF,$FF,$00,$FF,$00,$FF
-LA1E0:  jsr     LFC53
-        bcs     LA245
+; values for needle man's jump toward player
+; indexed randomly 0 through 7 (8 possible values)
+; contains X speed (both subpixel and pixel) and states
+; to move onto after the jump is completed
+
+needle_man_jump_vel_x_sub:  .byte   $00,$80,$80,$00,$00,$80,$80,$80
+needle_man_jump_vel_x:  .byte   $00,$01,$02,$00,$00,$01,$03,$02
+needle_man_jump_states:  .byte   $FF,$00,$FF,$FF,$00,$FF,$00,$FF
+spawn_needle:  jsr     LFC53
+        bcs     code_A245
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -252,7 +294,7 @@ LA1E0:  jsr     LFC53
         tay
         lda     $05A0,x
         cmp     #$01
-        bne     LA211
+        bne     code_A211
         lda     $0360,x
         clc
         adc     LA246,y
@@ -263,9 +305,9 @@ LA1E0:  jsr     LFC53
         sta     $0380,y
         pla
         sta     $0360,y
-        jmp     LA228
+        jmp     code_A228
 
-LA211:  lda     $0360,x
+code_A211:  lda     $0360,x
         clc
         adc     LA24A,y
         pha
@@ -275,7 +317,7 @@ LA211:  lda     $0360,x
         sta     $0380,y
         pla
         sta     $0360,y
-LA228:  lda     $03C0,x
+code_A228:  lda     $03C0,x
         clc
         adc     #$07
         sta     $03C0,y
@@ -287,13 +329,13 @@ LA228:  lda     $03C0,x
         sta     $0480,y
         lda     #$AF
         sta     $0320,y
-LA245:  rts
+code_A245:  rts
 
 LA246:  .byte   $15
 LA247:  .byte   $00,$EB,$FF
 LA24A:  .byte   $02
 LA24B:  .byte   $00,$FE,$FF
-LA24E:  lda     $0300,x
+code_A24E:  lda     $0300,x
         and     #$0F
         tay
         lda     LA261,y
@@ -305,26 +347,26 @@ LA24E:  lda     $0300,x
 LA261:  .byte   $6B,$EB,$0C,$76,$A5
 LA266:  .byte   $A2,$A2,$A3,$A3,$A3
         lda     $0520,x
-        bne     LA2E7
+        bne     code_A2E7
         lda     $0300,x
         ora     #$40
         sta     $0300,x
         lda     $0560,x
         and     #$01
-        beq     LA28D
+        beq     code_A28D
         lda     $0580,x
         ora     #$40
         sta     $0580,x
         jsr     LF71D
-        jmp     LA298
+        jmp     code_A298
 
-LA28D:  lda     $0580,x
+code_A28D:  lda     $0580,x
         and     #$BF
         sta     $0580,x
         jsr     LF73B
-LA298:  ldy     #$22
+code_A298:  ldy     #$22
         jsr     LF67C
-        bcc     LA2E2
+        bcc     code_A2E2
         lda     $0500,x
         tay
         lda     LA419,y
@@ -342,7 +384,7 @@ LA298:  ldy     #$22
         inc     $0500,x
         lda     $0500,x
         cmp     #$03
-        bcc     LA2E1
+        bcc     code_A2E1
         inc     $0300,x
         lda     #$00
         sta     $0500,x
@@ -350,64 +392,64 @@ LA298:  ldy     #$22
         sta     $0440,x
         lda     #$09
         sta     $0460,x
-LA2E1:  rts
+code_A2E1:  rts
 
-LA2E2:  lda     #$20
+code_A2E2:  lda     #$20
         jmp     LF835
 
-LA2E7:  dec     $0520,x
+code_A2E7:  dec     $0520,x
         rts
 
         lda     $E4
         adc     $E5
         sta     $E4
         and     #$01
-        bne     LA2F9
+        bne     code_A2F9
         inc     $0300,x
         rts
 
-LA2F9:  lda     #$C4
+code_A2F9:  lda     #$C4
         sta     $0300,x
         lda     #$F0
         sta     $0540,x
         lda     #$1E
         jsr     LF835
-        jsr     LA3FC
+        jsr     code_A3FC
         rts
 
         lda     $05C0,x
         cmp     #$21
-        beq     LA333
+        beq     code_A333
         lda     #$20
         jsr     LF835
         ldy     #$23
         jsr     LF67C
         lda     $10
         and     #$10
-        beq     LA332
+        beq     code_A332
         lda     #$21
         jsr     LF835
         lda     #$00
         sta     $0520,x
         lda     #$06
         sta     $0500,x
-LA332:  rts
+code_A332:  rts
 
-LA333:  jsr     LA3FC
+code_A333:  jsr     code_A3FC
         dec     $0500,x
-        bne     LA375
+        bne     code_A375
         lda     #$06
         sta     $0500,x
         lda     $05A0,x
         cmp     #$01
-        bne     LA375
-        jsr     LA425
+        bne     code_A375
+        jsr     code_A425
         lda     #$2A
         jsr     LF89A
         inc     $0520,x
         lda     $0520,x
         cmp     #$03
-        bcc     LA375
+        bcc     code_A375
         inc     $0300,x
         lda     #$00
         sta     $0500,x
@@ -419,16 +461,16 @@ LA333:  jsr     LA3FC
         sta     $0440,x
         lda     #$06
         sta     $0460,x
-LA375:  rts
+code_A375:  rts
 
         lda     $0500,x
-        bne     LA383
+        bne     code_A383
         dec     $0540,x
-        bne     LA375
+        bne     code_A375
         inc     $0500,x
-LA383:  ldy     #$1E
+code_A383:  ldy     #$1E
         jsr     LF606
-        bcc     LA3A4
+        bcc     code_A3A4
         lda     #$1F
         jsr     LF835
         jsr     LF81B
@@ -439,67 +481,67 @@ LA383:  ldy     #$1E
         sta     $0300,x
         lda     #$00
         sta     $0500,x
-LA3A4:  rts
+code_A3A4:  rts
 
         jsr     LF8C2
         cmp     #$18
-        bcc     LA3E8
+        bcc     code_A3E8
         lda     $0580,x
         and     #$40
-        bne     LA3B7
+        bne     code_A3B7
         lda     #$01
-        bne     LA3B9
-LA3B7:  lda     #$02
-LA3B9:  sta     $36
+        bne     code_A3B9
+code_A3B7:  lda     #$02
+code_A3B9:  sta     $36
         lda     #$00
         sta     $37
         lda     #$01
         sta     $38
         lda     $05A0,x
         cmp     #$04
-        bne     LA3D2
+        bne     code_A3D2
         lda     $05E0,x
-        beq     LA3D2
+        beq     code_A3D2
         inc     $05A0,x
-LA3D2:  lda     $05A0,x
+code_A3D2:  lda     $05A0,x
         cmp     #$06
-        bne     LA3E3
+        bne     code_A3E3
         lda     $05E0,x
-        beq     LA3E3
+        beq     code_A3E3
         lda     #$05
         sta     $05A0,x
-LA3E3:  dec     $0540,x
-        bne     LA3F6
-LA3E8:  lda     #$C3
+code_A3E3:  dec     $0540,x
+        bne     code_A3F6
+code_A3E8:  lda     #$C3
         sta     $0300,x
         lda     #$CA
         sta     $0480,x
         sta     $0500,x
         rts
 
-LA3F6:  lda     #$AA
+code_A3F6:  lda     #$AA
         sta     $0480,x
         rts
 
-LA3FC:  jsr     LF869
+code_A3FC:  jsr     LF869
         lda     $04A0,x
         and     #$01
-        beq     LA410
+        beq     code_A410
         lda     $0580,x
         ora     #$40
         sta     $0580,x
-        bne     LA418
-LA410:  lda     $0580,x
+        bne     code_A418
+code_A410:  lda     $0580,x
         and     #$BF
         sta     $0580,x
-LA418:  rts
+code_A418:  rts
 
 LA419:  .byte   $9E,$88,$88
 LA41C:  .byte   $04,$06,$06
 LA41F:  .byte   $B3,$00,$00
 LA422:  .byte   $01,$02,$02
-LA425:  jsr     LFC53
-        bcs     LA46F
+code_A425:  jsr     LFC53
+        bcs     code_A46F
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -527,39 +569,39 @@ LA425:  jsr     LFC53
         sta     $0480,y
         lda     #$C4
         sta     $0320,y
-LA46F:  rts
+code_A46F:  rts
 
 LA470:  .byte   $EC,$14
-LA472:  lda     $05C0,x
+code_A472:  lda     $05C0,x
         cmp     #$51
-        beq     LA49C
+        beq     code_A49C
         lda     $0300,x
         and     #$0F
-        bne     LA49C
+        bne     code_A49C
         lda     $04A0,x
         and     #$01
-        beq     LA48D
+        beq     code_A48D
         jsr     LF71D
-        jmp     LA490
+        jmp     code_A490
 
-LA48D:  jsr     LF73B
-LA490:  jsr     LF8C2
+code_A48D:  jsr     LF73B
+code_A490:  jsr     LF8C2
         cmp     #$06
-        bcs     LA4B2
+        bcs     code_A4B2
         lda     #$51
         jsr     LF835
-LA49C:  lda     $05C0,x
+code_A49C:  lda     $05C0,x
         cmp     #$59
-        beq     LA4B2
+        beq     code_A4B2
         ldy     #$12
         jsr     LF606
-        bcc     LA4B2
+        bcc     code_A4B2
         lda     #$59
         jsr     LF835
         inc     $0300,x
-LA4B2:  rts
+code_A4B2:  rts
 
-LA4B3:  lda     $0300,x
+code_A4B3:  lda     $0300,x
         and     #$0F
         tay
         lda     LA4C6,y
@@ -583,61 +625,61 @@ LA4CA:  .byte   $A4,$A4,$A5,$A5
         sta     $0480,x
         lda     $05A0,x
         cmp     #$02
-        bne     LA4FD
+        bne     code_A4FD
         lda     $0540,x
-        bne     LA4FD
+        bne     code_A4FD
         lda     #$00
         sta     $01
-        jsr     LA5BC
+        jsr     code_A5BC
         inc     $0540,x
-LA4FD:  lda     $05A0,x
+code_A4FD:  lda     $05A0,x
         cmp     #$03
-        bne     LA525
+        bne     code_A525
         lda     $05E0,x
         and     #$08
-        beq     LA525
+        beq     code_A525
         ldy     #$1F
         lda     #$10
-LA50F:  cmp     $04C0,y
-        beq     LA51B
+code_A50F:  cmp     $04C0,y
+        beq     code_A51B
         dey
         cpy     #$0F
-        bne     LA50F
-        beq     LA525
-LA51B:  lda     #$C5
+        bne     code_A50F
+        beq     code_A525
+code_A51B:  lda     #$C5
         sta     $0320,y
         dey
         lda     #$10
-        bne     LA50F
-LA525:  lda     $05A0,x
+        bne     code_A50F
+code_A525:  lda     $05A0,x
         cmp     #$05
-        bne     LA539
+        bne     code_A539
         lda     $05E0,x
-        beq     LA539
+        beq     code_A539
         inc     $0300,x
         lda     #$44
         jsr     LF835
-LA539:  rts
+code_A539:  rts
 
         lda     $05C0,x
         cmp     #$47
-        beq     LA555
+        beq     code_A555
         lda     $0540,x
-        beq     LA564
+        beq     code_A564
         dec     $0500,x
-        bne     LA539
+        bne     code_A539
         lda     #$47
         jsr     LF835
         lda     #$AA
         sta     $0480,x
-LA555:  lda     $05A0,x
+code_A555:  lda     $05A0,x
         cmp     #$02
-        bne     LA564
+        bne     code_A564
         lda     #$48
         jsr     LF835
         dec     $0540,x
-LA564:  dec     $0520,x
-        bne     LA539
+code_A564:  dec     $0520,x
+        bne     code_A539
         inc     $0300,x
         lda     #$78
         sta     $0500,x
@@ -646,18 +688,18 @@ LA564:  dec     $0520,x
 
         lda     $0560,x
         and     #$01
-        beq     LA589
+        beq     code_A589
         jsr     LF71D
         lda     $0360,x
         cmp     #$D0
-        bcs     LA593
-        jmp     LA5BB
+        bcs     code_A593
+        jmp     code_A5BB
 
-LA589:  jsr     LF73B
+code_A589:  jsr     LF73B
         lda     $0360,x
         cmp     #$30
-        bcs     LA5BB
-LA593:  lda     $0560,x
+        bcs     code_A5BB
+code_A593:  lda     $0560,x
         eor     #$01
         sta     $0560,x
         lda     $04A0,x
@@ -672,10 +714,10 @@ LA593:  lda     $0560,x
         dec     $0300,x
         lda     #$00
         sta     $0540,x
-LA5BB:  rts
+code_A5BB:  rts
 
-LA5BC:  jsr     LFC53
-        bcs     LA624
+code_A5BC:  jsr     LFC53
+        bcs     code_A624
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -715,39 +757,39 @@ LA5BC:  jsr     LFC53
         inc     $01
         lda     $01
         cmp     #$03
-        bcc     LA5BC
-LA624:  rts
+        bcc     code_A5BC
+code_A624:  rts
 
 LA625:  .byte   $08,$10,$18
 LA628:  .byte   $32,$2A,$1E
-LA62B:  lda     $0300,x
+code_A62B:  lda     $0300,x
         and     #$0F
-        bne     LA653
+        bne     code_A653
         lda     $04A0,x
         and     #$01
-        beq     LA63F
+        beq     code_A63F
         jsr     LF71D
-        jmp     LA642
+        jmp     code_A642
 
-LA63F:  jsr     LF73B
-LA642:  jsr     LF779
+code_A63F:  jsr     LF73B
+code_A642:  jsr     LF779
         dec     $0500,x
-        bne     LA652
+        bne     code_A652
         lda     #$00
         sta     $0500,x
         inc     $0300,x
-LA652:  rts
+code_A652:  rts
 
-LA653:  lda     $0300,x
+code_A653:  lda     $0300,x
         and     #$02
-        bne     LA663
+        bne     code_A663
         dec     $0520,x
-        bne     LA652
+        bne     code_A652
         inc     $0300,x
         rts
 
-LA663:  lda     $0500,x
-        bne     LA67B
+code_A663:  lda     $0500,x
+        bne     code_A67B
         lda     #$33
         sta     $02
         lda     #$05
@@ -756,21 +798,21 @@ LA663:  lda     $0500,x
         lda     $0C
         sta     $04A0,x
         inc     $0500,x
-LA67B:  lda     $04A0,x
+code_A67B:  lda     $04A0,x
         and     #$08
-        beq     LA688
+        beq     code_A688
         jsr     LF779
-        jmp     LA68B
+        jmp     code_A68B
 
-LA688:  jsr     LF759
-LA68B:  lda     $04A0,x
+code_A688:  jsr     LF759
+code_A68B:  lda     $04A0,x
         and     #$01
-        beq     LA695
+        beq     code_A695
         jmp     LF71D
 
-LA695:  jmp     LF73B
+code_A695:  jmp     LF73B
 
-LA698:  lda     $0300,x
+code_A698:  lda     $0300,x
         and     #$0F
         tay
         lda     LA6AB,y
@@ -796,48 +838,48 @@ LA6B0:  .byte   $A6,$A6,$A7,$A7,$A7
         rts
 
         lda     $0520,x
-        bne     LA722
+        bne     code_A722
         lda     $04A0,x
         and     #$01
-        beq     LA6EA
+        beq     code_A6EA
         ldy     #$24
         jsr     LF580
-        jmp     LA6EF
+        jmp     code_A6EF
 
-LA6EA:  ldy     #$25
+code_A6EA:  ldy     #$25
         jsr     LF5C4
-LA6EF:  ldy     #$22
+code_A6EF:  ldy     #$22
         jsr     LF67C
-        bcc     LA714
+        bcc     code_A714
         lda     #$40
         jsr     LF835
         lda     #$04
         sta     $0520,x
-        jsr     LA84C
-        jsr     LA836
+        jsr     code_A84C
+        jsr     test_facing_change
         inc     $0500,x
         lda     $0500,x
         cmp     #$03
-        bcc     LA72F
+        bcc     code_A72F
         inc     $0300,x
         rts
 
-LA714:  lda     #$40
+code_A714:  lda     #$40
         jsr     LF835
         lda     #$00
         sta     $05E0,x
         sta     $05A0,x
         rts
 
-LA722:  lda     #$01
+code_A722:  lda     #$01
         sta     $05A0,x
         lda     #$00
         sta     $05E0,x
         dec     $0520,x
-LA72F:  rts
+code_A72F:  rts
 
         lda     $0540,x
-        bne     LA743
+        bne     code_A743
         inc     $0300,x
         lda     #$41
         jsr     LF835
@@ -845,7 +887,7 @@ LA72F:  rts
         sta     $0520,x
         rts
 
-LA743:  inc     $0300,x
+code_A743:  inc     $0300,x
         inc     $0300,x
         lda     #$08
         sta     $0500,x
@@ -877,24 +919,24 @@ LA743:  inc     $0300,x
         jmp     LF869
 
         lda     $0520,x
-        bne     LA7B4
+        bne     code_A7B4
         lda     $05A0,x
         cmp     #$00
-        bne     LA7ED
-        jsr     LA836
+        bne     code_A7ED
+        jsr     test_facing_change
         lda     #$00
         sta     $01
-        jsr     LA874
+        jsr     code_A874
         lda     #$14
         sta     $0500,x
         lda     #$FF
         sta     $0520,x
         rts
 
-LA7B4:  lda     $05A0,x
-        bne     LA7D7
+code_A7B4:  lda     $05A0,x
+        bne     code_A7D7
         dec     $0500,x
-        bne     LA7CE
+        bne     code_A7CE
         lda     #$2E
         jsr     LF89A
         lda     #$01
@@ -903,67 +945,67 @@ LA7B4:  lda     $05A0,x
         sta     $05E0,x
         rts
 
-LA7CE:  lda     #$00
+code_A7CE:  lda     #$00
         sta     $05A0,x
         sta     $05E0,x
         rts
 
-LA7D7:  lda     $05E0,x
+code_A7D7:  lda     $05E0,x
         and     #$08
-        beq     LA7E1
+        beq     code_A7E1
         inc     $05A0,x
-LA7E1:  lda     $05A0,x
+code_A7E1:  lda     $05A0,x
         cmp     #$06
-        bne     LA7ED
+        bne     code_A7ED
         lda     #$C0
         sta     $0300,x
-LA7ED:  rts
+code_A7ED:  rts
 
         lda     $0520,x
-        beq     LA7F8
+        beq     code_A7F8
         dec     $0500,x
-        beq     LA81E
-LA7F8:  lda     $04A0,x
+        beq     code_A81E
+code_A7F8:  lda     $04A0,x
         and     #$01
-        beq     LA807
+        beq     code_A807
         ldy     #$24
         jsr     LF580
-        jmp     LA80C
+        jmp     code_A80C
 
-LA807:  ldy     #$25
+code_A807:  ldy     #$25
         jsr     LF5C4
-LA80C:  bcs     LA81E
+code_A80C:  bcs     code_A81E
         lda     $0520,x
-        bne     LA835
+        bne     code_A835
         jsr     LF8C2
         cmp     #$08
-        bcs     LA835
+        bcs     code_A835
         inc     $0520,x
         rts
 
-LA81E:  lda     #$3D
+code_A81E:  lda     #$3D
         jsr     LF835
         lda     #$C0
         sta     $0300,x
         lda     #$CA
         sta     $0480,x
-        jsr     LA836
+        jsr     test_facing_change
         lda     #$C3
         sta     $0320,x
-LA835:  rts
+code_A835:  rts
 
-LA836:  lda     $04A0,x
-        pha
-        jsr     LF869
-        pla
-        cmp     $04A0,x
+test_facing_change:  lda     $04A0,x
+        pha                             ; faces toward player then
+        jsr     LF869                   ; tests if the facing
+        pla                             ; has changed (left to right
+        cmp     $04A0,x                 ; or right to left)
         beq     LA84B
-        lda     $0580,x
-        eor     #$40
-        sta     $0580,x
+        lda     $0580,x                 ; if so,
+        eor     #$40                    ; flip facing-lock flag
+        sta     $0580,x                 ; to simulate proper facing
 LA84B:  rts
 
-LA84C:  lda     $E4
+code_A84C:  lda     $E4
         adc     $E5
         sta     $E5
         and     #$03
@@ -979,8 +1021,8 @@ LA84C:  lda     $E4
 LA868:  .byte   $9E,$88,$00,$88
 LA86C:  .byte   $04,$06,$08,$06
 LA870:  .byte   $00,$01,$00,$01
-LA874:  jsr     LFC53
-        bcs     LA8D7
+code_A874:  jsr     LFC53
+        bcs     code_A8D7
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -1019,31 +1061,31 @@ LA874:  jsr     LFC53
         inc     $01
         lda     $01
         cmp     #$02
-        bcc     LA874
-LA8D7:  rts
+        bcc     code_A874
+code_A8D7:  rts
 
 LA8D8:  .byte   $D2
 LA8D9:  .byte   $FC,$00,$00
 LA8DC:  .byte   $2E
 LA8DD:  .byte   $03,$80,$04
-LA8E0:  lda     $05C0,x
+code_A8E0:  lda     $05C0,x
         cmp     #$42
-        bne     LA8FC
+        bne     code_A8FC
         lda     $05A0,x
         cmp     #$06
-        bne     LA929
+        bne     code_A929
         lda     #$43
         jsr     LF835
         lda     $03C0,x
         clc
         adc     #$0E
         sta     $03C0,x
-LA8FC:  lda     #$00
+code_A8FC:  lda     #$00
         sta     $02
         lda     $0460,x
-        bpl     LA907
+        bpl     code_A907
         dec     $02
-LA907:  lda     $03A0,x
+code_A907:  lda     $03A0,x
         clc
         adc     $0440,x
         sta     $03A0,x
@@ -1052,12 +1094,12 @@ LA907:  lda     $03A0,x
         sta     $03C0,x
         lda     $03E0,x
         adc     $02
-        bne     LA924
-        jmp     LA68B
+        bne     code_A924
+        jmp     code_A68B
 
-LA924:  lda     #$00
+code_A924:  lda     #$00
         sta     $0300,x
-LA929:  rts
+code_A929:  rts
 
         .byte   $AA,$81,$0A,$B6,$03,$D7,$A9,$F9
         .byte   $A8,$3C,$E2,$71,$20,$F7,$22,$9B

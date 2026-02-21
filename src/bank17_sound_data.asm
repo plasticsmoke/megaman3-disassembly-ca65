@@ -6,6 +6,24 @@
 ; Annotation: 0% — unannotated da65 output (pure data)
 ; =============================================================================
 
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $17 — SOUND/MUSIC DATA
+; =============================================================================
+; Mapped to $A000-$BFFF. Always loaded alongside bank $16 ($8000-$9FFF)
+; which contains the sound driver code. Together they form the audio engine.
+;
+; Bank $16 code calls `read_ptr` to access this data, with high-byte
+; remapping: addresses $A000-$BFFF read from this bank directly, while
+; addresses $C000+ temporarily swap in bank $18 to read from there.
+;
+; Contains music sequence data, sound effect definitions, instrument
+; parameters, and note/frequency tables used by the NES APU driver.
+; Called every NMI frame via play_sounds → bank $16/$17 swap.
+;
+; Annotation: none — pure music/SFX data
+; =============================================================================
+
         .setcpu "6502"
 
 

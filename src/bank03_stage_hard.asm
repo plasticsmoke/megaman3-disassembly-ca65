@@ -1,3 +1,23 @@
+; ===========================================================================
+; stage_transition_entry — horizontal scroll + boss name reveal
+; ===========================================================================
+; Entry point after stage select confirmation (JMP from bank18).
+; Y = adjusted grid index (used to index all parameter tables below).
+;
+; This routine:
+;   1. Plays stage intro music ($33)
+;   2. Loads stage parameters from lookup tables
+;   3. Horizontal scroll: 4px/frame for 64 frames (scrolls to new nametable)
+;      The MMC3 scanline IRQ creates a 3-strip effect:
+;        - Top strip (y=0-87): scrolls left, sliding portraits away
+;        - Middle band (y=88-151): stays fixed (blue boss intro band)
+;        - Bottom strip (y=152-239): scrolls left
+;   4. Waits 60 frames
+;   5. Waits for boss animation sync
+;   6. Writes boss name to nametable, 1 tile per 4 frames
+;   7. Returns to caller (bank18 robot_master_intro)
+; ---------------------------------------------------------------------------
+stage_transition_entry:
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $03 — STAGE TRANSITION + HARD MAN STAGE DATA
 ; =============================================================================
@@ -6,159 +26,218 @@
 ; Annotation: 0% — unannotated da65 output
 ; =============================================================================
 
-        .setcpu "6502"
 
-L9212           := $9212
-L938B           := $938B
-L939E           := $939E
-LCBCE           := $CBCE
-LF797           := $F797
-LF898           := $F898
-LFD52           := $FD52
-LFF1A           := $FF1A
-LFF21           := $FF21
-LFF3C           := $FF3C
-LFF6B           := $FF6B
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $03 — STAGE TRANSITION + HARD MAN STAGE DATA
+; =============================================================================
+; Mapped to $A000-$BFFF. Contains stage transition animation (boss name
+; reveal, horizontal scroll entry). Also doubles as Hard Man stage data ($22=$03).
+;
+; Annotation: partial — main flow well documented, 66 auto labels in branches
+; =============================================================================
 
-.segment "BANK03"
+        .setcpu "6502"                  ; play stage intro music
 
-        lda     #$33
+L9212           := $9212                ; play stage intro music
+L938B           := $938B                ; play stage intro music
+L939E           := $939E                ; play stage intro music
+LCBCE           := $CBCE                ; play stage intro music
+LF797           := $F797                ; play stage intro music
+LF898           := $F898                ; play stage intro music
+LFD52           := $FD52                ; play stage intro music
+LFF1A           := $FF1A                ; play stage intro music
+LFF21           := $FF21                ; play stage intro music
+LFF3C           := $FF3C                ; play stage intro music
+LFF6B           := $FF6B                ; play stage intro music
+
+.segment "BANK03"                       ; play stage intro music
+
+        lda     #$33                    ; play stage intro music
         jsr     LF898
-        lda     #$80
-        sta     $0310
+        lda     #$80                    ; mark entity slot $10 active
+        sta     $0310                   ; (used for scroll entity)
         sta     $0590
-        lda     LA139,y
+
+; Load stage parameters from lookup tables (indexed by Y = grid index).
+; Each table has 18 entries: 9 Robot Master + 9 Doc Robot stages.
+; Grid: 0=Spark, 1=Snake, 2=Needle, 3=Hard, 4=Center, 5=Top,
+;       6=Gemini, 7=Magnet, 8=Shadow
+        lda     LA139,y                 ; → $05D0 (stage config)
         sta     $05D0
-        lda     LA14B,y
+        lda     LA14B,y                 ; → $0410 (tileset / scroll speed sub)
         sta     $0410
-        lda     LA15D,y
+        lda     LA15D,y                 ; → $0430 (enemy/level data)
         sta     $0430
-        lda     LA16F,y
+        lda     LA16F,y                 ; → $0450 (sprite data)
         sta     $0450
-        lda     LA181,y
+        lda     LA181,y                 ; → $0470 (scroll direction flag)
         sta     $0470
-        lda     LA193,y
+        lda     LA193,y                 ; → $03D0 (scroll limit / position)
         sta     $03D0
-        lda     LA1A5,y
+        lda     LA1A5,y                 ; → $0370 (BG scroll position)
         sta     $0370
+
+; Load intro sprite palettes (8 bytes → SP 0 and SP 1, both active + working copy).
         ldx     #$07
-LA039:  lda     LA1D9,x
-        sta     $0610,x
-        sta     $0630,x
+LA039:  lda     LA1D9,x                 ; intro sprite palette data
+        sta     $0610,x                 ; → active sprite palette buffer
+        sta     $0630,x                 ; → working copy (for flash restore)
         dex
         bpl     LA039
-        lda     LA1B7,y
+        lda     LA1B7,y                 ; select CHR bank for this stage
         jsr     L938B
         jsr     LFF3C
         lda     #$00
-        sta     $05F0
-        sta     $05B0
-        sta     $0300
-        lda     #$40
-        sta     $99
-LA05D:  lda     $FC
+        sta     $05F0                   ; clear entity slot $10 flags
+        sta     $05B0                   ; clear entity slot $10 anim phase
+        sta     $0300                   ; clear entity slot 0 type
+        lda     #$40                    ; $99 = deceleration value for
+        sta     $99                     ; scroll physics (gravity)
+
+; --- Horizontal scroll loop ---
+; Scrolls X position by 4px/frame. $FC = X scroll low byte (0-255).
+; $FD bit 0 = nametable select (toggles when $FC overflows).
+; This scrolls the display from the old nametable (stage select)
+; to the new nametable (boss intro band). Takes 64 frames (256/4).
+; Simultaneously applies "gravity" to entity $10 (Y movement).
+LA05D:  lda     $FC                     ; $FC += 4
         clc
         adc     #$04
         sta     $FC
-        lda     $FD
+        lda     $FD                     ; $FD = carry into nametable select
         adc     #$00
-        and     #$01
+        and     #$01                    ; (wrap to 0-1)
         sta     $FD
-        ldx     #$10
-        jsr     LF797
-        lda     $0470
+        ldx     #$10                    ; apply Y movement to entity $10
+        jsr     LF797                   ; (scroll entity — creates vertical effect)
+        lda     $0470                   ; scroll direction check
         bpl     LA082
-        lda     #$70
+        lda     #$70                    ; clamp $03D0 to max $70
         cmp     $03D0
         bcs     LA082
         sta     $03D0
         bne     LA095
-LA082:  lda     $0350
-        clc
+LA082:  lda     $0350                   ; advance sub-pixel scroll
+        clc                             ; $0350 += $0410
         adc     $0410
         sta     $0350
-        lda     $0370
-        adc     $0430
+        lda     $0370                   ; advance scroll position
+        adc     $0430                   ; $0370 += $0430 + carry
         sta     $0370
-LA095:  jsr     LFD52
+LA095:  jsr     LFD52                   ; process entities + wait for NMI
         lda     #$00
-        sta     $05F0
-        lda     $FC
-        bne     LA05D
-        lda     #$7E
+        sta     $05F0                   ; clear entity $10 flags
+        lda     $FC                     ; loop until $FC wraps to 0
+        bne     LA05D                   ; (64 frames)
+
+; --- Post-scroll wait ---
+        lda     #$7E                    ; update CHR bank
         sta     $E9
         jsr     LFF3C
-        lda     #$3C
+        lda     #$3C                    ; A = $3C (60 frames)
 LA0AA:  pha
-        jsr     LFD52
+        jsr     LFD52                   ; process entities + wait for NMI
         lda     #$00
         sta     $05F0
         pla
         sec
-        sbc     #$01
+        sbc     #$01                    ; countdown
         bne     LA0AA
-LA0B9:  jsr     LFD52
-        ldy     $22
-        lda     LA1C9,y
-        cmp     $05B0
+
+; --- Wait for boss animation sync ---
+; $A1C9,y = expected animation phase value for this stage.
+; Wait until entity $10's anim phase ($05B0) matches.
+LA0B9:  jsr     LFD52                   ; process entities + wait for NMI
+        ldy     $22                     ; Y = stage number
+        lda     LA1C9,y                 ; expected anim phase
+        cmp     $05B0                   ; current anim phase
         bne     LA0B9
-        lda     #$03
-        sta     $F5
-        jsr     LFF6B
+        lda     #$03                    ; re-select bank 03
+        sta     $F5                     ; (may have been swapped during
+        jsr     LFF6B                   ; entity processing)
         jmp     LA0D0
 
-LA0D0:  lda     $60
-        bne     LA122
-        lda     $FD
+; ===========================================================================
+; Write boss name to nametable — 1 tile per 4 frames
+; ===========================================================================
+; PPU address: row 17, column 11 = $222B (or $262B for nametable 1).
+; Row 17 × 8 = pixel Y=136 — this places the name text inside the
+; blue band, below the boss sprite (verified: text at y=136-143).
+;
+; Boss name table at $A1E1 (10 chars per stage, indexed by stage*10):
+;   Stage $00 (Needle): "NEEDLE MAN"
+;   Stage $01 (Magnet): "MAGNET MAN"
+;   Stage $02 (Gemini): "GEMINI MAN"
+;   Stage $03 (Hard):   "HARD   MAN"
+;   Stage $04 (Top):    "TOP    MAN"
+;   Stage $05 (Snake):  "SNAKE  MAN"
+;   Stage $06 (Spark):  "SPARK  MAN"
+;   Stage $07 (Shadow): "SHADOW MAN"
+; Tile encoding: $0A=A, $0B=B, ... $23=Z, $25=space
+; ---------------------------------------------------------------------------
+
+LA0D0:  lda     $60                     ; if not Robot Master ($60 != 0),
+        bne     LA122                   ; skip name writing
+
+; Set up PPU write queue for 1-tile-at-a-time writes.
+; High byte: $22 or $26 depending on current nametable.
+        lda     $FD                     ; nametable select → PPU high byte
         and     #$01
-        asl     a
+        asl     a                       ; 0→$22 (NT0), 1→$26 (NT1)
         asl     a
         ora     #$22
         sta     $0780
-        lda     #$2B
+        lda     #$2B                    ; PPU low byte = $2B (column 11)
         sta     $0781
-        lda     #$00
+        lda     #$00                    ; $0782 = 0 (single tile write mode)
         sta     $0782
-        sta     $95
-        lda     #$FF
+        sta     $95                     ; $95 = frame counter for 4-frame pacing
+        lda     #$FF                    ; $0784 = terminator
         sta     $0784
-        lda     $22
+
+; Compute name table offset: stage * 10 = stage * 2 + stage * 8
+        lda     $22                     ; $00 = stage * 2
         asl     a
         sta     $00
+        asl     a                       ; A = stage * 8
         asl     a
-        asl     a
-        adc     $00
-        sta     $10
-LA0FB:  ldy     $10
-        lda     LA1E1,y
-        sta     $0783
-        inc     $19
-        lda     #$00
+        adc     $00                     ; A = stage * 10
+        sta     $10                     ; $10 = offset into boss name table
+
+; Write one tile per 4 frames, advancing across the nametable row.
+; 10 columns ($2B to $34) × 4 frames = 40 frames total.
+LA0FB:  ldy     $10                     ; Y = current name table offset
+        lda     transition_sprite_palette,y ; load tile ID (character)
+        sta     $0783                   ; → PPU write queue tile data
+        inc     $19                     ; flag PPU write pending
+        lda     #$00                    ; allow NMI
         sta     $EE
-        jsr     LFF21
-        inc     $EE
-        inc     $95
+        jsr     LFF21                   ; wait for NMI (tile gets uploaded)
+        inc     $EE                     ; skip next NMI (pacing)
+        inc     $95                     ; frame counter
         lda     $95
-        and     #$03
-        bne     LA0FB
-        inc     $10
-        inc     $0781
+        and     #$03                    ; every 4 frames:
+        bne     LA0FB                   ; re-write same tile (visual hold)
+        inc     $10                     ; advance to next character
+        inc     $0781                   ; advance PPU column
         lda     $0781
-        cmp     #$35
+        cmp     #$35                    ; stop at column $35 (10 tiles done)
         bne     LA0FB
-LA122:  lda     #$00
+
+; --- Final wait and return ---
+LA122:  lda     #$00                    ; A = 0
 LA124:  pha
         lda     #$00
-        sta     $EE
-        jsr     LFF21
+        sta     $EE                     ; allow NMI
+        jsr     LFF21                   ; wait 1 frame
         inc     $EE
         pla
         sec
-        sbc     #$01
+        sbc     #$01                    ; countdown (wraps: 0→$FF→254 loops)
         bne     LA124
         lda     #$00
         sta     $EE
-        rts
+        rts                             ; → returns to bank18 robot_master_intro
 
 LA139:  .byte   $36,$22,$26,$2B,$00,$45,$32,$1F
         .byte   $3F,$65,$00,$65,$00,$00,$00,$65
@@ -187,7 +266,9 @@ LA1B7:  .byte   $28,$26,$25,$24,$00,$2A,$27,$23
 LA1C9:  .byte   $04,$03,$05,$06,$02,$02,$08,$03
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
 LA1D9:  .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
-LA1E1:  .byte   $17,$0E,$0E,$0D,$15,$0E,$25,$16
+
+; Intro sprite palette data (8 bytes → SP 0 + SP 1)
+transition_sprite_palette:  .byte   $17,$0E,$0E,$0D,$15,$0E,$25,$16
         .byte   $0A,$17,$16,$0A,$10,$17,$0E,$1D
         .byte   $25,$16,$0A,$17,$10,$0E,$16,$12
         .byte   $17,$12,$25,$16,$0A,$17,$11,$0A
@@ -306,16 +387,16 @@ LA1E1:  .byte   $17,$0E,$0E,$0D,$15,$0E,$25,$16
         .byte   $A3,$A3,$A3,$A3,$A4,$A4,$A4,$A4
         .byte   $A4,$A4,$A4,$A4,$A4,$A4,$A4,$A4
         .byte   $A5,$A5
-LA593:  lda     #$00
+code_A593:  lda     #$00
         sta     $11
         ldy     #$2F
-LA599:  sta     $0150,y
+code_A599:  sta     $0150,y
         dey
-        bpl     LA599
+        bpl     code_A599
         lda     #$24
         sta     $10
         ldy     #$14
-LA5A5:  lda     LA6FF,y
+code_A5A5:  lda     LA6FF,y
         sta     $0204,y
         lda     LA700,y
         sta     $0205,y
@@ -327,64 +408,64 @@ LA5A5:  lda     LA6FF,y
         dey
         dey
         dey
-        bpl     LA5A5
-LA5C3:  lda     $14
+        bpl     code_A5A5
+code_A5C3:  lda     $14
         and     #$80
-        bne     LA603
+        bne     code_A603
         lda     $14
         and     #$03
-        beq     LA5E2
+        beq     code_A5E2
         lda     $10
         cmp     #$26
-        beq     LA5F2
+        beq     code_A5F2
         lda     #$24
         cmp     $10
-        bne     LA5DD
+        bne     code_A5DD
         lda     #$25
-LA5DD:  sta     $10
-        jmp     LA5F2
+code_A5DD:  sta     $10
+        jmp     code_A5F2
 
-LA5E2:  lda     $14
+code_A5E2:  lda     $14
         and     #$0C
-        beq     LA5F2
+        beq     code_A5F2
         lda     #$26
         cmp     $10
-        bne     LA5F0
+        bne     code_A5F0
         lda     #$24
-LA5F0:  sta     $10
-LA5F2:  jsr     LA681
+code_A5F0:  sta     $10
+code_A5F2:  jsr     code_A681
         lda     #$00
         sta     $EE
         jsr     LFF21
         inc     $EE
         inc     $95
-        jmp     LA5C3
+        jmp     code_A5C3
 
-LA603:  lda     $10
+code_A603:  lda     $10
         cmp     #$26
-        bne     LA60C
-        jmp     LA765
+        bne     code_A60C
+        jmp     stage_select_progression
 
-LA60C:  lda     $10
+code_A60C:  lda     $10
         and     #$01
         sta     $13
         lda     #$00
         sta     $10
         lda     #$00
         sta     $11
-        beq     LA66D
-LA61C:  lda     $14
+        beq     code_A66D
+code_A61C:  lda     $14
         and     #$40
-        beq     LA62D
+        beq     code_A62D
         lda     #$24
         sta     $10
         lda     #$00
         sta     $11
-        jmp     LA5C3
+        jmp     code_A5C3
 
-LA62D:  lda     $14
+code_A62D:  lda     $14
         and     #$80
-        beq     LA66D
+        beq     code_A66D
         lda     $10
         clc
         adc     $11
@@ -393,13 +474,13 @@ LA62D:  lda     $14
         asl     a
         tax
         lda     $0150,y
-        bpl     LA64D
+        bpl     code_A64D
         lda     #$F8
         sta     $021C,x
         lda     #$00
         sta     $0150,y
-        beq     LA66D
-LA64D:  lda     #$F0
+        beq     code_A66D
+code_A64D:  lda     #$F0
         ora     $13
         sta     $0150,y
         lda     LA73E,y
@@ -412,16 +493,16 @@ LA64D:  lda     #$F0
         sta     $021E,x
         lda     LA717,y
         sta     $021F,x
-LA66D:  jsr     LA6AF
-        jsr     LA681
+code_A66D:  jsr     code_A6AF
+        jsr     code_A681
         lda     #$00
         sta     $EE
         jsr     LFF21
         inc     $EE
         inc     $95
-        jmp     LA61C
+        jmp     code_A61C
 
-LA681:  lda     $10
+code_A681:  lda     $10
         clc
         adc     $11
         tay
@@ -431,7 +512,7 @@ LA681:  lda     $10
         sta     $01
         ldx     #$0C
         ldy     #$03
-LA695:  lda     $00
+code_A695:  lda     $00
         clc
         adc     LA6FB,y
         sta     $0207,x
@@ -444,48 +525,48 @@ LA695:  lda     $00
         dex
         dex
         dey
-        bpl     LA695
+        bpl     code_A695
         rts
 
-LA6AF:  lda     $14
+code_A6AF:  lda     $14
         and     #$03
-        beq     LA6CF
+        beq     code_A6CF
         and     #$01
-        beq     LA6C7
+        beq     code_A6C7
         inc     $10
         lda     $10
         cmp     #$06
-        bne     LA6CF
+        bne     code_A6CF
         lda     #$00
         sta     $10
-        beq     LA6CF
-LA6C7:  dec     $10
-        bpl     LA6CF
+        beq     code_A6CF
+code_A6C7:  dec     $10
+        bpl     code_A6CF
         lda     #$05
         sta     $10
-LA6CF:  lda     $14
+code_A6CF:  lda     $14
         and     #$0C
-        beq     LA6F6
+        beq     code_A6F6
         and     #$04
-        bne     LA6E7
+        bne     code_A6E7
         lda     $11
         sec
         sbc     #$06
         sta     $11
-        bcs     LA6E6
+        bcs     code_A6E6
         lda     #$1E
         sta     $11
-LA6E6:  rts
+code_A6E6:  rts
 
-LA6E7:  lda     $11
+code_A6E7:  lda     $11
         clc
         adc     #$06
         sta     $11
         cmp     #$1F
-        bcc     LA6F6
+        bcc     code_A6F6
         lda     #$00
         sta     $11
-LA6F6:  rts
+code_A6F6:  rts
 
 LA6F7:  .byte   $FC,$FC,$04,$04
 LA6FB:  .byte   $FC,$04,$FC,$04
@@ -505,18 +586,26 @@ LA73E:  .byte   $27,$27,$27,$27,$27,$27,$37,$37
         .byte   $47,$47,$5F,$5F,$5F,$5F,$5F,$5F
         .byte   $6F,$6F,$6F,$6F,$6F,$6F,$7F,$7F
         .byte   $7F,$7F,$7F,$7F,$3F,$3F,$70
-LA765:  lda     #$00
-        sta     $60
+
+; -----------------------------------------------
+; stage_select_progression: rebuilds $60/$61 from save data
+; scans $0150,x completion flags to determine which tier
+; the player is on and which bosses are defeated.
+;   $60 = stage select tier (0=Robot Master, $09=Doc Robot, $12=Wily)
+;   $61 = boss-defeated bitmask ($FF = all beaten in current tier)
+; -----------------------------------------------
+stage_select_progression:  lda     #$00 ; reset tier and defeat
+        sta     $60                     ; bitmask to start fresh
         sta     $61
         sta     $EE
         ldy     #$0C
-LA76F:  ldx     LA9DF,y
+code_A76F:  ldx     LA9DF,y
         lda     $0150,x
-        bne     LA77C
+        bne     code_A77C
         dey
-        bpl     LA76F
-        bmi     LA7A6
-LA77C:  lda     $FD
+        bpl     code_A76F
+        bmi     code_A7A6
+code_A77C:  lda     $FD
         asl     a
         asl     a
         and     #$04
@@ -529,160 +618,160 @@ LA77C:  lda     $FD
         jsr     L939E
         ldy     #$04
         lda     #$F8
-LA797:  sta     $0200,y
+code_A797:  sta     $0200,y
         iny
         iny
         iny
         iny
-        bne     LA797
+        bne     code_A797
         jsr     LFF21
-        jmp     LA593
+        jmp     code_A593
 
-LA7A6:  ldy     #$00
-LA7A8:  ldx     LA9B1,y
+code_A7A6:  ldy     #$00
+code_A7A8:  ldx     LA9B1,y
         lda     $0150,x
-        beq     LA804
+        beq     code_A804
         and     #$01
-        beq     LA7C4
+        beq     code_A7C4
         ldx     LA9B7,y
         lda     $0150,x
-        bne     LA77C
+        bne     code_A77C
         lda     LA9C8,y
         ora     LA9CE,y
-        bne     LA7CF
-LA7C4:  ldx     LA9B7,y
+        bne     code_A7CF
+code_A7C4:  ldx     LA9B7,y
         lda     $0150,x
-        bne     LA77C
+        bne     code_A77C
         lda     LA9C8,y
-LA7CF:  ora     $61
-        sta     $61
-LA7D3:  iny
+code_A7CF:  ora     $61                 ; accumulate defeated bit
+        sta     $61                     ; into boss-defeated bitmask
+code_A7D3:  iny
         cpy     #$04
-        bcc     LA7A8
+        bcc     code_A7A8
         cpy     #$06
-        beq     LA816
-        lda     $60
-        bne     LA7A8
-        lda     $61
-        cmp     #$FF
-        bne     LA7F0
-        lda     #$09
-        sta     $60
-        lda     #$3A
-        sta     $61
-        bne     LA7A8
-LA7F0:  lda     $0157
+        beq     check_doc_robot_complete
+        lda     $60                     ; if already in Doc Robot tier,
+        bne     code_A7A8               ; skip Robot Master check
+        lda     $61                     ; all 8 Robot Masters beaten?
+        cmp     #$FF                    ; ($FF = bits 0-7 all set)
+        bne     code_A7F0
+        lda     #$09                    ; advance to Doc Robot tier
+        sta     $60                     ; $60 = $09 (stage select offset)
+        lda     #$3A                    ; $61 = $3A (pre-set defeated bits
+        sta     $61                     ; for stages without Doc Robots)
+        bne     code_A7A8
+code_A7F0:  lda     $0157
         ora     $0150
         ora     $015B
         ora     $0153
         ora     $0168
-        beq     LA833
-        jmp     LA77C
+        beq     code_A833
+        jmp     code_A77C
 
-LA804:  ldx     LA9B7,y
-        lda     $0150,x
-        beq     LA7D3
-        lda     $61
-        ora     LA9CE,y
+code_A804:  ldx     LA9B7,y             ; check Doc Robot completion
+        lda     $0150,x                 ; for this stage pair
+        beq     code_A7D3
+        lda     $61                     ; mark Doc Robot stage defeated
+        ora     LA9CE,y                 ; using Doc Robot bitmask table
         sta     $61
-        jmp     LA7D3
+        jmp     code_A7D3
 
-LA816:  lda     $61
-        cmp     #$FF
-        bne     LA82B
-        lda     #$12
-        sta     $60
-        lda     $0168
-        beq     LA833
-        lda     #$FF
-        sta     $60
-        bne     LA833
-LA82B:  lda     $0168
-        beq     LA833
-        jmp     LA77C
+check_doc_robot_complete:  lda     $61  ; all 4 Doc Robot stages beaten?
+        cmp     #$FF                    ; ($FF = all bits set)
+        bne     code_A82B
+        lda     #$12                    ; advance to Wily tier
+        sta     $60                     ; $60 = $12
+        lda     $0168                   ; if Break Man defeated too,
+        beq     code_A833               ; done
+        lda     #$FF                    ; $60 = $FF marks all stages
+        sta     $60                     ; complete (Wily fortress)
+        bne     code_A833
+code_A82B:  lda     $0168
+        beq     code_A833
+        jmp     code_A77C
 
-LA833:  ldy     #$09
+code_A833:  ldy     #$09
         lda     #$01
         sta     $00
-LA839:  ldx     LA9BE,y
+code_A839:  ldx     LA9BE,y
         lda     $0150,x
-        beq     LA843
+        beq     code_A843
         dec     $00
-LA843:  dey
-        bpl     LA839
+code_A843:  dey
+        bpl     code_A839
         lda     $00
-        beq     LA84D
-        jmp     LA77C
+        beq     code_A84D
+        jmp     code_A77C
 
-LA84D:  ldy     #$09
-LA84F:  ldx     LA9BE,y
+code_A84D:  ldy     #$09
+code_A84F:  ldx     LA9BE,y
         lda     $0150,x
-        bne     LA85D
+        bne     code_A85D
         dey
-        bpl     LA84F
-        jmp     LA77C
+        bpl     code_A84F
+        jmp     code_A77C
 
-LA85D:  jsr     LA88E
+code_A85D:  jsr     code_A88E
         lda     LA9D5,y
         sta     $AF
         ldy     #$04
         lda     #$F8
-LA869:  sta     $0200,y
+code_A869:  sta     $0200,y
         dey
         dey
         dey
         dey
-        bne     LA869
+        bne     code_A869
         lda     $60
-        bmi     LA879
+        bmi     code_A879
         jmp     L9212
 
-LA879:  pla
+code_A879:  pla
         pla
         lda     #$80
         sta     $74
         lda     #$00
         sta     $75
         ldy     #$1F
-LA885:  sta     $0150,y
+code_A885:  sta     $0150,y
         dey
-        bpl     LA885
+        bpl     code_A885
         jmp     LCBCE
 
-LA88E:  sty     $00
+code_A88E:  sty     $00
         ldy     #$00
-LA892:  ldx     LA9B1,y
+code_A892:  ldx     LA9B1,y
         lda     $0150,x
-        beq     LA8A9
+        beq     code_A8A9
         pha
         ldx     LA9EC,y
         lda     #$9C
         sta     $A2,x
         pla
         and     #$01
-        beq     LA8B8
-        bne     LA8B1
-LA8A9:  ldx     LA9B7,y
+        beq     code_A8B8
+        bne     code_A8B1
+code_A8A9:  ldx     LA9B7,y
         lda     $0150,x
-        beq     LA8B8
-LA8B1:  ldx     LA9F2,y
+        beq     code_A8B8
+code_A8B1:  ldx     LA9F2,y
         lda     #$9C
         sta     $A2,x
-LA8B8:  iny
+code_A8B8:  iny
         cpy     #$04
-        bne     LA892
+        bne     code_A892
         lda     #$9C
         sta     $A9
         ldy     $0164
-        beq     LA8C8
+        beq     code_A8C8
         sta     $AD
-LA8C8:  ldy     $0167
-        bne     LA8D4
+code_A8C8:  ldy     $0167
+        bne     code_A8D4
         ldy     $0171
         cpy     #$F1
-        bne     LA8D6
-LA8D4:  sta     $AB
-LA8D6:  lda     #$02
+        bne     code_A8D6
+code_A8D4:  sta     $AB
+code_A8D6:  lda     #$02
         sta     $AE
         ldy     $00
         rts
@@ -690,87 +779,87 @@ LA8D6:  lda     #$02
         lda     $61
         sta     $10
         lda     $60
-        beq     LA8E9
+        beq     code_A8E9
         lda     #$FF
         sta     $10
-LA8E9:  ldy     #$00
-LA8EB:  lda     #$00
+code_A8E9:  ldy     #$00
+code_A8EB:  lda     #$00
         sta     $13
         lda     $10
         and     #$03
-        beq     LA90B
+        beq     code_A90B
         cmp     #$03
-        beq     LA906
+        beq     code_A906
         and     #$01
-        bne     LA908
+        bne     code_A908
         lda     LA9B7,y
-        jsr     LA988
-        jmp     LA90B
+        jsr     code_A988
+        jmp     code_A90B
 
-LA906:  inc     $13
-LA908:  jsr     LA985
-LA90B:  lsr     $10
+code_A906:  inc     $13
+code_A908:  jsr     code_A985
+code_A90B:  lsr     $10
         lsr     $10
         iny
         cpy     #$04
-        bne     LA8EB
+        bne     code_A8EB
         lda     $61
         sta     $10
         lda     $60
-        beq     LA975
+        beq     code_A975
         cmp     #$12
-        bcc     LA924
+        bcc     code_A924
         lda     #$FF
         sta     $10
-LA924:  lda     #$00
+code_A924:  lda     #$00
         sta     $13
         ldy     #$04
         lda     $10
         and     #$05
-        beq     LA946
+        beq     code_A946
         cmp     #$05
-        beq     LA941
+        beq     code_A941
         and     #$01
-        bne     LA943
+        bne     code_A943
         lda     LA9B7,y
-        jsr     LA988
-        jmp     LA946
+        jsr     code_A988
+        jmp     code_A946
 
-LA941:  inc     $13
-LA943:  jsr     LA985
-LA946:  lda     #$00
+code_A941:  inc     $13
+code_A943:  jsr     code_A985
+code_A946:  lda     #$00
         sta     $13
         ldy     #$05
         lda     $10
         and     #$C0
-        beq     LA968
+        beq     code_A968
         cmp     #$C0
-        beq     LA963
+        beq     code_A963
         and     #$40
-        bne     LA965
+        bne     code_A965
         lda     LA9B7,y
-        jsr     LA988
-        jmp     LA968
+        jsr     code_A988
+        jmp     code_A968
 
-LA963:  inc     $13
-LA965:  jsr     LA985
-LA968:  lda     $60
-        bpl     LA975
+code_A963:  inc     $13
+code_A965:  jsr     code_A985
+code_A968:  lda     $60
+        bpl     code_A975
         lda     #$00
         sta     $13
         ldy     #$0C
-        jsr     LA985
-LA975:  lda     #$00
+        jsr     code_A985
+code_A975:  lda     #$00
         sta     $13
         lda     $AF
         cmp     #$09
-        bcc     LA981
+        bcc     code_A981
         lda     #$09
-LA981:  clc
+code_A981:  clc
         adc     #$0D
         tay
-LA985:  lda     LA9B1,y
-LA988:  sty     $00
+code_A985:  lda     LA9B1,y
+code_A988:  sty     $00
         tay
         asl     a
         asl     a
@@ -790,6 +879,15 @@ LA988:  sty     $00
         sta     $021F,x
         ldy     $00
         rts
+
+; stage_select_progression lookup tables:
+; $A9B1: Robot Master completion slot indices (y=0..5)
+; $A9B7: Doc Robot completion slot indices (y=0..5)
+; $A9BE: E-tank/item slot indices (y=0..9)
+; $A9C8: Robot Master defeat bitmask per pair (y=0..5)
+; $A9CE: Doc Robot defeat bitmask per pair (y=0..5)
+; $A9D4: combined bitmask (both tiers)
+; $A9DF: initial scan slot indices (y=0..12)
 
 LA9B1:  .byte   $14,$0A,$02,$21,$07,$00
 LA9B7:  .byte   $22,$0F,$23,$17,$0B,$03,$18

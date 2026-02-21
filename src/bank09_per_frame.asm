@@ -6,6 +6,19 @@
 ; Annotation: 0% — unannotated da65 output
 ; =============================================================================
 
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $09 — PER-FRAME ENTITY SUBSYSTEMS
+; =============================================================================
+; Mapped to $8000-$9FFF. Called every gameplay frame from gameplay_frame_loop
+; (step 4) via `LDA #$09 / STA $F4`. Contains stage-specific entity
+; processing, weapon behavior updates, and per-frame game logic that runs
+; after the main entity AI loop. Also serves as Doc Robot Gemini stage
+; data bank ($22=$09) when mapped to $A000-$BFFF.
+;
+; Annotation: light — all labels auto-generated, per-frame subsystem logic bare
+; =============================================================================
+
         .setcpu "6502"
 
 LE8B4           := $E8B4
@@ -21,55 +34,55 @@ LFF6B           := $FF6B
 
 .segment "BANK09"
 
-L8000:  jmp     L82D1
+code_8000:  jmp     code_82D1
 
-L8003:  jmp     L8332
+code_8003:  jmp     code_8332
 
-        jmp     L84A0
+        jmp     code_84A0
 
-        jmp     L801B
+        jmp     code_801B
 
-        jmp     L81CA
+        jmp     code_81CA
 
-        jmp     L8518
+        jmp     code_8518
 
-        jmp     L82F9
+        jmp     code_82F9
 
-        jmp     L8000
+        jmp     code_8000
 
-        jmp     L8003
+        jmp     code_8003
 
-L801B:  lda     $22
+code_801B:  lda     $22
         cmp     #$05
-        bne     L802B
+        bne     code_802B
         ldy     $F9
         cpy     #$05
-        beq     L8034
+        beq     code_8034
         cpy     #$0E
-        beq     L8034
-L802B:  lda     #$00
+        beq     code_8034
+code_802B:  lda     #$00
         sta     $56
         sta     $57
         sta     $55
         rts
 
-L8034:  sta     $F5
+code_8034:  sta     $F5
         jsr     LFF6B
         lda     $55
-        beq     L8040
-        jmp     L815D
+        beq     code_8040
+        jmp     code_815D
 
-L8040:  lda     $56
+code_8040:  lda     $56
         inc     $56
         and     #$07
         cmp     #$00
-        beq     L8072
+        beq     code_8072
         cmp     #$01
-        bne     L8071
+        bne     code_8071
         ldx     #$00
         lda     #$06
         sta     $00
-L8054:  lda     $0781,x
+code_8054:  lda     $0781,x
         clc
         adc     #$08
         sta     $0781,x
@@ -78,17 +91,17 @@ L8054:  lda     $0781,x
         adc     #$0B
         tax
         dec     $00
-        bne     L8054
+        bne     code_8054
         lda     #$FF
         sta     $19
         ldx     #$18
-        jsr     L80ED
+        jsr     code_80ED
         inc     $57
-L8071:  rts
+code_8071:  rts
 
-L8072:  ldx     #$00
+code_8072:  ldx     #$00
         ldy     #$00
-L8076:  lda     L8141,y
+code_8076:  lda     L8141,y
         sta     $0780,x
         lda     L8147,y
         clc
@@ -102,10 +115,10 @@ L8076:  lda     L8141,y
         tax
         iny
         cpy     #$06
-        bne     L8076
+        bne     code_8076
         lda     #$00
         sta     $02
-L8098:  lda     $57
+code_8098:  lda     $57
         and     #$03
         tax
         ldy     $02
@@ -116,7 +129,7 @@ L8098:  lda     $57
         ldx     L813D,y
         lda     #$03
         sta     $01
-L80AF:  ldy     $00
+code_80AF:  ldy     $00
         lda     L8105,y
         tay
         lda     $BB00,y
@@ -133,31 +146,31 @@ L80AF:  ldy     $00
         adc     #$16
         tax
         dec     $01
-        bne     L80AF
+        bne     code_80AF
         inc     $02
         lda     $02
         cmp     #$04
-        bne     L8098
+        bne     code_8098
         lda     #$FF
         sta     $07C2
         sta     $19
         ldx     #$1C
-        jsr     L80ED
+        jsr     code_80ED
         rts
 
-L80ED:  lda     #$04
+code_80ED:  lda     #$04
         sta     $00
         lda     $57
         and     #$03
         asl     a
         asl     a
         tay
-L80F8:  lda     L814D,y
+code_80F8:  lda     L814D,y
         sta     $03C0,x
         iny
         inx
         dec     $00
-        bne     L80F8
+        bne     code_80F8
         rts
 
 L8105:  .byte   $83,$84,$85,$80,$81,$82,$83,$84
@@ -173,10 +186,10 @@ L8141:  .byte   $21,$22,$22,$22,$22,$22
 L8147:  .byte   $EC,$0C,$2C,$4C,$6C,$8C
 L814D:  .byte   $88,$90,$98,$90,$90,$98,$90,$88
         .byte   $98,$90,$88,$90,$90,$88,$90,$98
-L815D:  lda     $55
+code_815D:  lda     $55
         and     #$0F
         cmp     #$08
-        bcs     L81B1
+        bcs     code_81B1
         tax
         lda     L81B2,x
         sta     $28
@@ -186,7 +199,7 @@ L815D:  lda     $55
         jsr     LEEAB
         ldx     #$00
         jsr     LFC53
-        bcs     L81AF
+        bcs     code_81AF
         lda     #$71
         jsr     LF846
         lda     #$19
@@ -205,17 +218,17 @@ L815D:  lda     $55
         sta     $0360,y
         lda     $55
         and     #$03
-        bne     L81AF
+        bne     code_81AF
         lda     #$27
         jsr     LF89A
-L81AF:  inc     $55
-L81B1:  rts
+code_81AF:  inc     $55
+code_81B1:  rts
 
 L81B2:  .byte   $05,$06,$07,$0D,$0E,$0F,$17,$1F
 L81BA:  .byte   $10,$10,$10,$30,$30,$30,$50,$70
 L81C2:  .byte   $B0,$D0,$F0,$B0,$D0,$F0,$F0,$F0
-L81CA:  lda     $68
-        bpl     L81B1
+code_81CA:  lda     $68
+        bpl     code_81B1
         and     #$0F
         ldy     $22
         clc
@@ -223,7 +236,7 @@ L81CA:  lda     $68
         tay
         lda     L8279,y
         cmp     #$FF
-        beq     L822C
+        beq     code_822C
         sta     $11
         lda     L828F,y
         sta     $28
@@ -236,7 +249,7 @@ L81CA:  lda     $68
         pla
         tay
         jsr     LFC43
-        bcs     L8270
+        bcs     code_8270
         lda     #$71
         jsr     LF835
         lda     #$19
@@ -258,25 +271,25 @@ L81CA:  lda     $68
         lda     #$27
         jmp     LF89A
 
-L822C:  lda     $68
+code_822C:  lda     $68
         and     #$7F
         sta     $68
         lda     $22
         cmp     #$02
-        bne     L8270
+        bne     code_8270
         lda     #$4E
         sta     $E9
         jsr     LFF3C
         ldy     #$0F
-L8241:  lda     $AABE,y
+code_8241:  lda     $AABE,y
         sta     $0600,y
         sta     $0620,y
         dey
-        bpl     L8241
+        bpl     code_8241
         sty     $18
         ldx     #$00
         ldy     #$4C
-L8253:  lda     $AA82,y
+code_8253:  lda     $AA82,y
         pha
         and     #$80
         sta     $0100,x
@@ -289,8 +302,8 @@ L8253:  lda     $AA82,y
         iny
         inx
         cpx     #$04
-        bne     L8253
-L8270:  rts
+        bne     code_8253
+code_8270:  rts
 
 L8271:  .byte   $FF,$00,$0F,$03,$FF,$FF,$FF,$0C
 L8279:  .byte   $43,$43,$FF,$86,$86,$86,$86,$86
@@ -305,18 +318,18 @@ L82A5:  .byte   $C0,$D0,$FF,$90,$90,$B0,$B0,$D0
 L82BB:  .byte   $18,$28,$FF,$70,$90,$70,$90,$70
         .byte   $90,$70,$90,$FF,$18,$28,$FF,$68
         .byte   $88,$90,$78,$78,$88,$FF
-L82D1:  lda     $F8
+code_82D1:  lda     $F8
         cmp     #$09
-        beq     L82F6
+        beq     code_82F6
         lda     $22
         cmp     #$0E
-        bne     L82F8
+        bne     code_82F8
         lda     $F9
         cmp     #$09
-        beq     L82E7
+        beq     code_82E7
         cmp     #$0A
-        bne     L82F8
-L82E7:  lda     #$00
+        bne     code_82F8
+code_82E7:  lda     #$00
         sta     $69
         sta     $73
         lda     #$09
@@ -325,23 +338,23 @@ L82E7:  lda     #$00
         sta     $5E
         rts
 
-L82F6:  inc     $69
-L82F8:  rts
+code_82F6:  inc     $69
+code_82F8:  rts
 
-L82F9:  lda     $22
+code_82F9:  lda     $22
         cmp     #$08
-        bne     L8331
+        bne     code_8331
         lda     $F9
         cmp     #$15
-        beq     L8309
+        beq     code_8309
         cmp     #$1A
-        bne     L8331
-L8309:  lda     $F8
+        bne     code_8331
+code_8309:  lda     $F8
         cmp     #$03
-        beq     L8331
+        beq     code_8331
         lda     $033F
         cmp     #$FC
-        bne     L8331
+        bne     code_8331
         lda     $22
         sta     $F5
         jsr     LFF6B
@@ -351,32 +364,32 @@ L8309:  lda     $F8
         sta     $10
         jsr     LEF8C
         lda     $70
-        bne     L8331
+        bne     code_8331
         lda     #$03
         sta     $F8
-L8331:  rts
+code_8331:  rts
 
-L8332:  lda     $22
+code_8332:  lda     $22
         cmp     #$0C
-        beq     L8367
+        beq     code_8367
         cmp     #$01
-        bne     L835A
+        bne     code_835A
         lda     $0380
         cmp     #$0C
-        bcc     L835A
+        bcc     code_835A
         ldy     #$00
-L8345:  lda     $0360
+code_8345:  lda     $0360
         sec
         sbc     L83E6,y
         lda     $0380
         sbc     L83EA,y
-        bcc     L836F
+        bcc     code_836F
         iny
         cpy     #$04
-        bne     L8345
+        bne     code_8345
         rts
 
-L835A:  lda     #$3C
+code_835A:  lda     #$3C
         sta     $65
         lda     #$00
         sta     $64
@@ -384,12 +397,12 @@ L835A:  lda     #$3C
         sta     $66
         rts
 
-L8367:  lda     $F9
+code_8367:  lda     $F9
         cmp     #$0D
-        bne     L835A
+        bne     code_835A
         ldy     #$04
-L836F:  cpy     $64
-        beq     L8382
+code_836F:  cpy     $64
+        beq     code_8382
         sty     $64
         lda     #$3C
         sta     $65
@@ -397,13 +410,13 @@ L836F:  cpy     $64
         sta     $67
         lda     L83F3,y
         sta     $66
-L8382:  dec     $65
-        bne     L83E5
+code_8382:  dec     $65
+        bne     code_83E5
         ldy     $66
         lda     L83F8,y
         sta     $00
         inc     $66
-L838F:  jsr     LFC43
+code_838F:  jsr     LFC43
         lda     #$2C
         jsr     LF835
         lda     #$80
@@ -424,7 +437,7 @@ L838F:  jsr     LFC43
         sta     $03C0,x
         inc     $66
         dec     $00
-        bpl     L838F
+        bpl     code_838F
         lda     #$23
         jsr     LF89A
         lda     #$3C
@@ -433,12 +446,12 @@ L838F:  jsr     LFC43
         inc     $67
         lda     $67
         cmp     L83EE,y
-        bne     L83E5
+        bne     code_83E5
         lda     #$00
         sta     $67
         lda     L83F3,y
         sta     $66
-L83E5:  rts
+code_83E5:  rts
 
 L83E6:  .byte   $E0,$80,$40,$C0
 L83EA:  .byte   $0C,$0D,$0E,$0F
@@ -465,22 +478,22 @@ L8468:  .byte   $01,$98,$40,$00,$88,$00,$58,$00
         .byte   $00,$68,$00,$78,$00,$B8,$00,$88
         .byte   $00,$98,$00,$88,$00,$68,$00,$59
         .byte   $00,$98,$00,$98,$00,$88,$00,$68
-L84A0:  lda     $22
+code_84A0:  lda     $22
         cmp     #$0F
-        bne     L84FF
+        bne     code_84FF
         lda     $F9
         cmp     #$08
-        bne     L84FF
+        bne     code_84FF
         lda     $031F
-        bmi     L84FF
+        bmi     code_84FF
         lda     $30
         cmp     #$11
-        beq     L84FF
+        beq     code_84FF
         ldy     #$07
         lda     $6E
         sta     $00
-L84BD:  asl     $00
-        bcs     L84FC
+code_84BD:  asl     $00
+        bcs     code_84FC
         lda     #$80
         sta     $0318,y
         lda     #$90
@@ -503,16 +516,16 @@ L84BD:  asl     $00
         sta     $03D8,y
         lda     L8510,y
         sta     $04D8,y
-L84FC:  dey
-        bpl     L84BD
-L84FF:  rts
+code_84FC:  dey
+        bpl     code_84BD
+code_84FF:  rts
 
 L8500:  .byte   $30,$30,$30,$70,$90,$D0,$D0,$D0
 L8508:  .byte   $30,$70,$B0,$B0,$B0,$30,$70,$B0
 L8510:  .byte   $12,$13,$14,$15,$16,$17,$18,$19
-L8518:  lda     $72
+code_8518:  lda     $72
         ora     $1C
-        bne     L853E
+        bne     code_853E
         lda     #$03
         sta     $10
         lda     $18
@@ -520,32 +533,32 @@ L8518:  lda     $72
         sta     $11
         lda     #$00
         sta     $18
-L852C:  ldx     $10
+code_852C:  ldx     $10
         lda     $0100,x
-        bpl     L8536
-        jsr     L853F
-L8536:  dec     $10
-        bpl     L852C
+        bpl     code_8536
+        jsr     code_853F
+code_8536:  dec     $10
+        bpl     code_852C
         lda     $11
         sta     $18
-L853E:  rts
+code_853E:  rts
 
-L853F:  ldy     $0108,x
+code_853F:  ldy     $0108,x
         lda     L8600,y
         tay
         lda     $010C,x
         inc     $010C,x
         cmp     L860F,y
-        bne     L858D
+        bne     code_858D
         lda     #$00
         sta     $010C,x
         lda     $0104,x
         inc     $0104,x
         cmp     L860E,y
-        bne     L8566
+        bne     code_8566
         lda     #$00
         sta     $0104,x
-L8566:  tya
+code_8566:  tya
         clc
         adc     $0104,x
         tax
@@ -557,15 +570,15 @@ L8566:  tya
         tay
         lda     #$03
         sta     $00
-L857C:  lda     L858E,x
+code_857C:  lda     L858E,x
         sta     $0600,y
         sta     $0620,y
         iny
         inx
         dec     $00
-        bne     L857C
+        bne     code_857C
         inc     $11
-L858D:  rts
+code_858D:  rts
 
 L858E:  .byte   $20,$31,$21,$20,$21,$21,$00,$32
         .byte   $22,$33,$0F,$18,$0F,$33,$18,$3C

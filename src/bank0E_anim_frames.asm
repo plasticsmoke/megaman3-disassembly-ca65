@@ -6,15 +6,27 @@
 ; Annotation: 0% — unannotated da65 output
 ; =============================================================================
 
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $0E — ANIMATION FRAME MANAGEMENT
+; =============================================================================
+; Mapped to $A000-$BFFF. Contains animation frame advancement logic:
+; pointer table lookups for frame data, frame transfer, increment/loop.
+; Called via trampoline at $1FFDB2 (bank $0E entry at $A003).
+; Also serves as stage data for stage $16 (special) via stage_to_bank.
+;
+; Annotation: light — all labels auto-generated, frame management logic bare
+; =============================================================================
+
         .setcpu "6502"
 
 LFF21           := $FF21
 
 .segment "BANK0E"
 
-        jmp     LA05F
+        jmp     code_A05F
 
-        jmp     LA026
+        jmp     code_A026
 
         lda     LA0A5,x
         sta     $B6
@@ -30,16 +42,16 @@ LFF21           := $FF21
         sta     $0781
         iny
         sty     $B8
-        bne     LA029
-LA026:  inc     $0781
-LA029:  ldy     $B8
+        bne     code_A029
+code_A026:  inc     $0781
+code_A029:  ldy     $B8
         cpy     #$FF
-        beq     LA05E
+        beq     code_A05E
         lda     ($B6),y
         cmp     #$FF
-        beq     LA05A
+        beq     code_A05A
         cmp     #$FE
-        bne     LA046
+        bne     code_A046
         iny
         lda     ($B6),y
         sta     $0780
@@ -47,7 +59,7 @@ LA029:  ldy     $B8
         lda     ($B6),y
         sta     $0781
         iny
-LA046:  lda     ($B6),y
+code_A046:  lda     ($B6),y
         sta     $0783
         iny
         sty     $B8
@@ -58,12 +70,12 @@ LA046:  lda     ($B6),y
         sty     $19
         rts
 
-LA05A:  lda     #$FF
+code_A05A:  lda     #$FF
         sta     $B8
-LA05E:  rts
+code_A05E:  rts
 
-LA05F:  ldx     #$00
-LA061:  lda     LA0A1,x
+code_A05F:  ldx     #$00
+code_A061:  lda     LA0A1,x
         sta     $0780
         lda     LA0A2,x
         sta     $07A3
@@ -75,10 +87,10 @@ LA061:  lda     LA0A1,x
         sty     $0782
         sty     $07A5
         lda     #$00
-LA083:  sta     $0783,y
+code_A083:  sta     $0783,y
         sta     $07A6,y
         dey
-        bpl     LA083
+        bpl     code_A083
         lda     #$FF
         sta     $07C6
         sta     $19
@@ -86,7 +98,7 @@ LA083:  sta     $0783,y
         inx
         inx
         cpx     #$04
-        bne     LA061
+        bne     code_A061
         rts
 
 LA09D:  .byte   $20

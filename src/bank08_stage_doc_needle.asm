@@ -6,6 +6,25 @@
 ; Annotation: 0% — unannotated da65 output (pure data)
 ; =============================================================================
 
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $08 — DOC ROBOT NEEDLE STAGE DATA
+; =============================================================================
+; Mapped to $A000-$BFFF. Stage data bank for Doc Robot Needle Man stage
+; ($22=$08). Contains Air Man & Crash Man Doc Robot encounters.
+;
+; Standard stage data layout:
+;   $A000-$A4FF: enemy spawn property tables (global enemy IDs)
+;   $AA00+:      screen metatile grid, screen pointer table
+;   $AA80+:      palette indices, screen layout data (20 bytes/screen)
+;   $AB00-$AE00: enemy placement tables (screen, X, Y, global enemy ID)
+;   $AF00+:      metatile column definitions (64 bytes/column)
+;   $B700+:      metatile CHR definitions (4 bytes/metatile: 2x2 tiles)
+;   $BF00:       collision attribute table (upper nibble = collision type)
+;
+; Annotation: none — pure stage data, header describes format
+; =============================================================================
+
         .setcpu "6502"
 
 
