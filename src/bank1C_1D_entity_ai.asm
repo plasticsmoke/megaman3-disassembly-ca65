@@ -218,7 +218,7 @@ check_player_hit:  lda     ent_anim_id        ; check player animation
         lda     #PSTATE_DAMAGE                    ; --- CONTACT HIT ---
         sta     player_state                     ; state → $06 (damage)
         lda     #$16                    ; SFX $16 = damage sound
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         lda     player_hp                     ; player HP
         and     #$1F                    ; isolate HP value (0-28)
         beq     code_80F9               ; already 0 → skip damage calc
@@ -238,9 +238,9 @@ L80E7:  lda     #$80                    ; --- PLAYER KILLED ---
         lda     #PSTATE_DEATH                    ; state → $0E (death)
         sta     player_state
         lda     #$F2                    ; SFX $F2 = stop music
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         lda     #$17                    ; SFX $17 = death sound
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
 code_80F9:  pla                         ; restore bank
         sta     prg_bank
         jsr     LFF6B
@@ -266,7 +266,7 @@ L8113:  jsr     LFB7B                   ; if no weapon collision
         and     #$20                    ; if shot tink flag on,
         beq     L8144                   ; bounce diagonally up
 L811F:  lda     #$19                    ; play tink sound
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         ldy     $10                     ; y = tinked weapon slot
         lda     ent_facing,y
         eor     #$03                    ; flip horizontal facing
@@ -283,7 +283,7 @@ L8142:  sec                             ; return carry on
         rts
 
 L8144:  lda     #$18                    ; play damage sound
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         lda     prg_bank
         pha                             ; preserve and select
         stx     $0F                     ; $0A as $A000~$BFFF bank
@@ -459,16 +459,16 @@ L82AA:  lda     ent_hp,x                 ; boss health bits
         rts                             ; if not, return
 
 L82B8:  lda     #$F2                    ; SFX $F2 = stop music
-        jsr     LF898
+        jsr     LF898                   ; submit_sound_ID_D9
         lda     #$17                    ; SFX $17 = boss death sound
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         ldy     #$1F
 code_82C4:  lda     boss_active
         bmi     code_82CC
         lda     #$7A
         bne     code_82CE
 code_82CC:  lda     #$5B
-code_82CE:  jsr     LF846
+code_82CE:  jsr     LF846               ; init_child_entity
         lda     #$80
         sta     ent_status,y
         lda     #$90
@@ -563,12 +563,29 @@ code_836A:  lda     #$80
 code_83AD:  .byte   $18,$60
 
 ; weapon damage table pointers, low then high
-weapon_damage_ptr_lo:  .byte   $00,$00,$00,$00,$00 ; Mega Buster
-L83B4:  .byte   $00,$00,$00,$00,$00,$00,$00 ; Top Spin
-weapon_damage_ptr_hi:  .byte   $A1,$A4,$A2,$A5,$A3 ; Mega Buster
-L83C0:  .byte   $A6,$A7,$A1,$A8,$A1,$A9,$A1 ; Top Spin
+weapon_damage_ptr_lo:  .byte   $00,$00,$00,$00,$00 ; Buster, Gemini, Needle, Hard, Magnet
+L83B4:  .byte   $00,$00,$00,$00,$00,$00,$00 ; TopSpin, Snake, RushCoil, Spark, RushMarine, Shadow, RushJet
+weapon_damage_ptr_hi:  .byte   $A1,$A4,$A2,$A5,$A3 ; Buster, Gemini, Needle, Hard, Magnet
+L83C0:  .byte   $A6,$A7,$A1,$A8,$A1,$A9,$A1 ; TopSpin, Snake, RushCoil, Spark, RushMarine, Shadow, RushJet
 
 ; low bytes of sprite main routine pointers
+; Indexed by entity type. Each byte is the low byte of the AI routine address.
+; $00=ret_A $02=dada $03=potton $05=new_shotman $06=hammer_joe $07=peterchy
+; $08=bubukan $0A=bomb_flier $0D=yambow $0E=met $12=cannon $14=cloud_platform
+; $15/$16=jamacy $17/$18=unknown_0C $1A=mag_fly $1E=gyoraibo $1F=junk_golem
+; $20=pickelman_bull $21=giant_springer $24=unknown_14 $25=magnet_force
+; $28=gyoraibo $2A=hari_harry $2B=penpen_maker $2C=returning_monking
+; $2D=unknown_1B $2E=have_su_bee $2F=beehive $30=bolton_nutton $32=wanaan
+; $33=needle_press $34=walking_bomb $35=elecn $37=mechakkero $38=top_man_plat
+; $3B=chibee $3D=bomb_flier $3E=spark_falling_plat $3F=ret_B $42=pole
+; $47=komasaburo $49=parasyu $4A/$4B=hologran $4C=bomber_pepe $4D=metall_dx
+; $4E=petit_snakey $4F=init_tama $52=proto_man
+; $55-$5C=robot_master_intro(x8)  $60-$67=item pickups / surprise box
+; $68-$6C=junk_block, spinning_wheel, trap/plat, giant_springer, breakable_wall
+; $6F/$70=electric_gabyoall
+; $78-$7F=magnet_missile, gemini, hard_knuckle, snake, spark, shadow, big_snakey, tama
+; $80-$97=boss jump tables (needle/magnet/top/shadow/hard/spark/snake/gemini man)
+; $98-$A7=fortress boss jump tables (yellow_devil, wily_machine, gamma, etc.)
 sprite_main_ptr_lo:  .byte   $C7,$C9,$FB,$58,$DE,$B4,$FD,$7C
         .byte   $D3,$C8,$14,$49,$12,$C5,$83,$85
         .byte   $0E,$09,$B3,$9B,$8A,$CB,$CB,$E2
@@ -580,14 +597,14 @@ sprite_main_ptr_lo:  .byte   $C7,$C9,$FB,$58,$DE,$B4,$FD,$7C
         .byte   $C9,$C9,$56,$85,$F7,$35,$3F,$7F
         .byte   $60,$CC,$40,$40,$0A,$C3,$E4,$55
         .byte   $34,$C9,$F7,$F7,$C8,$C8,$60,$C8
-        .byte   $53,$53,$53,$53,$53,$53,$53,$53
-        .byte   $C8,$C9,$93,$3F,$FD,$F9,$FD,$F9
-        .byte   $FD,$FD,$D2,$C8,$2F,$65,$F8,$C8
-        .byte   $31,$E2,$C8,$94,$AC,$B6,$C8,$C8
-        .byte   $5F,$5F,$51,$C8,$C8,$C8,$C8,$C8
-        .byte   $A4,$1E,$96,$DD,$88,$47,$C2,$79
-        .byte   $98,$6C,$BE,$A7,$A8,$65,$95,$34
-        .byte   $E8,$E8,$E8,$E8,$E8,$E8,$E8,$E8
+        .byte   $53,$53,$53,$53,$53,$53,$53,$53 ; $55-$5C: robot_master_intro (x8)
+        .byte   $C8,$C9,$93,$3F,$FD,$F9,$FD,$F9 ; $60-$67: item pickups, surprise box
+        .byte   $FD,$FD,$D2,$C8,$2F,$65,$F8,$C8 ; $68-$6F: junk_block, spinning_wheel, etc.
+        .byte   $31,$E2,$C8,$94,$AC,$B6,$C8,$C8 ; $70-$77: elec_gabyoall, breakable_wall, etc.
+        .byte   $5F,$5F,$51,$C8,$C8,$C8,$C8,$C8 ; (unused padding)
+        .byte   $A4,$1E,$96,$DD,$88,$47,$C2,$79 ; $78-$7F: magnet_missile thru shadow_blade
+        .byte   $98,$6C,$BE,$A7,$A8,$65,$95,$34 ; $80-$87: big_snakey, tama, doc_robot bosses
+        .byte   $E8,$E8,$E8,$E8,$E8,$E8,$E8,$E8 ; $88-$8F: doc_robot_intro (x8)
         .byte   $C8,$C8,$C8,$C8,$C8,$C8,$C8,$C8
         .byte   $00,$03,$06,$09,$0C,$0F,$12,$15
         .byte   $18,$1B,$1E,$21,$24,$27,$2A,$2D
@@ -682,7 +699,7 @@ code_85D9:  cpx     #$10                ; only weapon/player slots break blocks
 
 ; --- no free slot or max debris: become explosion in place ---
 code_8600:  lda     #$71                ; OAM $71 = small explosion sprite
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$00                    ; routine $00 = idle dispatch
         sta     ent_routine,x
         lda     ent_x_px,x                 ; snap X to metatile grid center
@@ -719,7 +736,7 @@ code_863E:  dey                         ; loop $1F down to $10
         cmp     #$03
         beq     code_8600               ; yes → just explode, no child
         lda     #$71                    ; spawn child with OAM $71 (explosion)
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$27                    ; child AI routine = $27
         sta     ent_routine,y                 ; (falling debris handler)
         lda     ent_x_px,x                 ; snap child X to metatile grid center
@@ -794,7 +811,7 @@ code_867C:  stx     L0000               ; save entity slot
 
 ; --- state 1: fall with $99 ---
 code_86BC:  ldy     #$00                ; apply $99 + move down
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_8712               ; no landing → freeze anim
         lda     ent_anim_state,x                 ; landed: check anim frame
         cmp     #$04                    ; must be frame 4 (final bounce)
@@ -889,7 +906,7 @@ code_874B:  inc     ent_status,x             ; advance to state 1
         and     #$FC
         sta     ent_flags,x
         lda     #$13                    ; OAM $13 = teleport beam
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$04                    ; set anim frame to 4
         sta     ent_anim_state,x                 ; (beam animation start)
 
@@ -943,11 +960,11 @@ code_87B3:  plp                         ; restore direction
         sta     ent_xvel_sub,x
         bcc     code_87C6               ; player left → move left
         ldy     #$08                    ; move right with collision
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_87CB
 
 code_87C6:  ldy     #$09                ; move left with collision
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_87CB:  lda     ent_flags               ; copy player facing (bit 6)
         and     #$40                    ; to slot 1 entity
         sta     L0000
@@ -1177,7 +1194,7 @@ code_8961:  lda     ent_anim_state,x             ; fist opening ($71): wait for 
         cmp     #$04                    ; (fist fully open)
         bne     code_89C1               ; not yet → return
         lda     #$AF                    ; done → switch to flying fist anim
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_896D:  lda     ent_xvel,x             ; flying phase: accelerate X speed
         cmp     #$03                    ; already at max $03.00?
         beq     code_8985               ; yes → skip acceleration
@@ -1191,10 +1208,10 @@ code_896D:  lda     ent_xvel,x             ; flying phase: accelerate X speed
 code_8985:  lda     ent_facing,x             ; move horizontally based on facing
         and     #$01                    ; bit 0: 1=right, 0=left
         beq     code_8992
-        jsr     LF71D
+        jsr     LF71D                   ; move_sprite_right
         jmp     code_8995
 
-code_8992:  jsr     LF73B
+code_8992:  jsr     LF73B               ; move_sprite_left
 code_8995:  lda     $95                 ; Y wobble via frame parity
         and     #$01                    ; $95 = global frame counter
         beq     code_89A1               ; even frame → Y-1
@@ -1310,11 +1327,11 @@ code_8A55:  lda     #$A5                ; OAM $A5 = horizontal
         and     #$01
         beq     code_8A69               ; no → move left
         ldy     #$1E                    ; move right with wall detection
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_8A6E
 
 code_8A69:  ldy     #$1F                ; move left with wall detection
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_8A6E:  bcc     code_8A78           ; no wall → done
         lda     ent_facing,x                 ; hit wall: flip vertical direction
         eor     #$0C                    ; (transition to wall climbing)
@@ -1330,7 +1347,7 @@ L8A80:  lda     ent_facing,x                 ; facing left?
         beq     L8A8A
         jmp     LF71D                   ; else move right
 
-L8A8A:  jmp     LF73B
+L8A8A:  jmp     LF73B                   ; move_sprite_left
 
 L8A8D:  dec     ent_timer,x                 ; decrease shock timer
         bne     L8A97                   ; return if not expired
@@ -1347,7 +1364,7 @@ main_shadow_blade:
         jsr     LF71D                   ; else move right
         jmp     L8AAC
 
-L8AA9:  jsr     LF73B
+L8AA9:  jsr     LF73B                   ; move_sprite_left
 L8AAC:  lda     ent_facing,x                 ; facing neither up nor down?
         and     #$0C                    ; skip vertical movement
         beq     L8AC0
@@ -1356,7 +1373,7 @@ L8AAC:  lda     ent_facing,x                 ; facing neither up nor down?
         jsr     LF779                   ; else move up
         jmp     L8AC0
 
-L8ABD:  jsr     LF759
+L8ABD:  jsr     LF759                   ; move_sprite_down
 L8AC0:  lda     ent_y_scr,x                 ; offscreen vertically?
         bne     L8AD1                   ; despawn
         dec     ent_timer,x                 ; movement timer not expired?
@@ -1401,13 +1418,13 @@ code_8B0A:  lda     ent_facing,x             ; walk horizontally with wall colli
         and     #$01
         beq     code_8B19               ; bit 0 clear → move left
         ldy     #$0A
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_8B1E
 
 code_8B19:  ldy     #$0B
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_8B1E:  ldy     #$0A                ; apply $99; C=1 if landed
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_8B51               ; still airborne → return
         lda     ent_timer,x                 ; on landing: load bounce Y speed
         tay                             ; from table indexed by bounce#
@@ -1448,11 +1465,11 @@ main_potton:
         and     #$01
         beq     code_8B6E
         ldy     #$08
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_8B73
 
 code_8B6E:  ldy     #$09
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_8B73:  bcc     code_8B7D           ; hit wall → reverse direction
         lda     ent_facing,x
         eor     #$03
@@ -1474,7 +1491,7 @@ code_8B92:  lda     ent_anim_id,x             ; already showing bomb bay ($24)?
         bne     code_8BA8               ; not yet → wait
         jsr     code_8BA9               ; spawn bomb child (Copipi)
         lda     #$24                    ; OAM $24 = bomb bay open
-code_8BA5:  jsr     LF835
+code_8BA5:  jsr     LF835               ; reset_sprite_anim
 code_8BA8:  rts
 
 ; --- spawn_copipi: drop bomb child below Potton ---
@@ -1494,7 +1511,7 @@ code_8BA9:  jsr     LFC53               ; find free enemy slot
         lda     #$01                    ; HP = 1
         sta     ent_hp,y
         lda     #$25                    ; OAM $25 = Copipi (bomb)
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$04                    ; AI routine = $04 (falling bomb)
         sta     ent_routine,y
         lda     #$C0                    ; dmg flags: $C0 = hurts player + hittable
@@ -1504,13 +1521,13 @@ code_8BDD:  rts
         lda     ent_status,x
         and     #$0F
         bne     code_8BEB
-        jsr     LF81B
+        jsr     LF81B                   ; reset_gravity
         inc     ent_status,x
 code_8BEB:  ldy     #$08
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_8BFC
         lda     #$71
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$00
         sta     ent_routine,x
 code_8BFC:  rts
@@ -1545,7 +1562,7 @@ code_8C12:  lda     ent_timer,x             ; shield timer active?
 code_8C2A:  dec     ent_timer,x             ; decrement shield timer
 code_8C2D:  lda     ent_facing,x             ; save old facing, re-face player
         pha
-        jsr     LF869
+        jsr     LF869                   ; face_player
         pla                             ; if facing changed,
         cmp     ent_facing,x                 ; flip sprite horizontally
         beq     code_8C42
@@ -1607,7 +1624,7 @@ code_8C80:  jsr     LFC53               ; find free enemy slot
         lda     #$03
         sta     ent_xvel,y
         lda     #$28                    ; OAM $28 = hammer sprite
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$2D                    ; AI routine = $2D (arcing projectile)
         sta     ent_routine,y
         lda     #$C0                    ; dmg flags: hurts player + hittable
@@ -1637,11 +1654,11 @@ code_8CEF:  lda     ent_facing,x             ; check facing direction
         and     #$01                    ; bit 0 = facing right
         beq     code_8CFE
         ldy     #$00                    ; move right with wall collision
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_8D03
 
 code_8CFE:  ldy     #$01                ; move left with wall collision
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_8D03:  bcc     code_8D0D           ; if no wall hit, skip
         lda     ent_facing,x                 ; hit wall: flip direction
         eor     #$03                    ; toggle bits 0+1 (left/right)
@@ -1662,7 +1679,7 @@ code_8D23:  lda     ent_anim_id,x             ; if current OAM != $6A (crouch),
         cmp     #$02                    ; (crouch anim finished)
         bne     code_8D9C
         lda     #$6B                    ; switch to jump anim ($6B)
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     ent_hitbox,x                 ; toggle damage flags bits 5-6
         eor     #$60                    ; (change vulnerability during jump)
         sta     ent_hitbox,x
@@ -1713,7 +1730,7 @@ code_8D9C:  lda     ent_anim_id,x             ; if OAM != $6B (jump anim),
         and     #$01                    ; move_vertical_gravity earlier)
         beq     code_8DC3               ; not landed yet, keep falling
         lda     #$6D                    ; switch to walk-toward anim ($6D)
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         jsr     LF869                   ; face player after landing
         lda     #$00                    ; set X speed = $02.00
         sta     ent_xvel_sub,x                 ; (walk toward player)
@@ -1732,7 +1749,7 @@ L8DC5:  brk
         cpx     #$FF
 
 ; child projectile AI: just apply Y speed ($99 projectile)
-        jmp     LF797
+        jmp     LF797                   ; apply_y_speed
 
 ; =============================================
 ; Jamacy -- chain/spike ball enemy
@@ -1857,7 +1874,7 @@ code_8EAD:  lda     ent_routine,x             ; if AI routine != $0A (not PenPen
         lda     #$02
         sta     ent_xvel,x
         lda     #$48                    ; switch to walking bomb anim ($48)
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_8ED2:  rts
 
 code_8ED3:  lda     ent_routine,x             ; if AI routine != $0A (not PenPen),
@@ -1870,7 +1887,7 @@ code_8ED3:  lda     ent_routine,x             ; if AI routine != $0A (not PenPen
         ora     ent_anim_state,x                 ; (timer=0 AND frame=0)
         bne     code_8EF6               ; still animating, return
         lda     #$49                    ; switch to walking bomb anim ($49)
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     ent_hitbox,x                 ; set damage flags: hurts player +
         ora     #$C3                    ; hittable + invincible ($C3)
         sta     ent_hitbox,x                 ; (walking bomb is dangerous)
@@ -2191,7 +2208,7 @@ code_9156:  lda     $10                 ; tile collision result flags
         sta     ent_facing,x
 code_9164:  rts
 
-; --- Unreferenced code block at $9165 (possibly dead code) ---
+; --- Unreferenced code block at $9165 ---
 ; Gravity fall, on landing: state 0 sets X speed $03.44 and faces player,
 ; state 1 walks horizontally in facing direction.
 
@@ -2302,7 +2319,7 @@ code_922E:  jsr     LF8C2               ; A = horizontal distance to player
         sta     ent_var1,x
         inc     ent_status,x                 ; state 0 → state 1
         lda     #$C2                    ; OAM ID $C2 = bouncing sprite
-        jmp     LF835
+        jmp     LF835                   ; reset_sprite_anim
 
 code_9242:  lda     #$CA                ; damage flags: hittable + hurts player
         sta     ent_hitbox,x
@@ -2311,7 +2328,7 @@ code_9242:  lda     #$CA                ; damage flags: hittable + hurts player
         cmp     #$1E                    ; walked for 30 frames?
         bne     code_9285               ; not yet → continue
         lda     #$BC                    ; switch to stopped OAM (ready to launch)
-        jmp     LF835
+        jmp     LF835                   ; reset_sprite_anim
 
 ; -- state 1: bouncing in place --
 
@@ -2330,7 +2347,7 @@ code_926E:  jsr     LF8C2               ; A = distance to player
         bcc     code_9285               ; yes → keep bouncing
         dec     ent_status,x                 ; state 1 → state 0
         lda     #$BB                    ; OAM ID $BB = walking sprite
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         jsr     LF869                   ; turn toward player
         lda     #$00                    ; reset walk frame counter
         sta     ent_timer,x
@@ -2470,7 +2487,7 @@ L93E9:  .byte   $00,$00,$40,$40,$40,$40,$40,$40 ; facing flag ($00=right, $40=le
         brk
         brk
         brk
-        jsr     LFAE2
+        jsr     LFAE2                   ; check_player_collision
         bcc     code_9459
         lda     #$00
         sta     L0000
@@ -2543,11 +2560,11 @@ code_946E:  lda     ent_hitbox,x             ; clear low 5 damage bits
         and     #$01
         beq     code_9496
         ldy     #$08                    ; move right with collision
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_949B
 
 code_9496:  ldy     #$09                ; move left with collision
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_949B:  lda     ent_flags,x             ; clear H-flip bit
         and     #$BF                    ; (ball has no facing)
         sta     ent_flags,x
@@ -2566,7 +2583,7 @@ L94B5:  clc
         sta     ent_y_px,x
         jsr     check_player_hit
         ldy     #$08
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         ldy     ent_facing,x
         lda     tile_at_feet_max,y
         bne     code_94D4
@@ -2608,49 +2625,58 @@ code_9509:  pla
 code_9526:  .byte   $60,$D8,$C8,$50,$70
         cmp     $E1
         asl     joy1_press,x
+; ---------------------------------------------------------------------------
+; main_junk_block -- Junk Block (entity type $64)
+; ---------------------------------------------------------------------------
+; State 0: wait for player within $3C px, then activate.
+; Active: spawns child block (type $94) launched upward (Y speed $FF.AB)
+;   at same position. Child gets routine $62, flags $B2, HP=8.
+;   ent_var1 cooldown=$5B before next spawn.
+;   code_95B9 scans enemy slots for matching X position at target Y.
+; ---------------------------------------------------------------------------
 main_junk_block:
         lda     ent_status,x
         and     #$0F
-        bne     code_9540
-        jsr     LF8C2
-        cmp     #$3C
-        bcs     code_9592
-        inc     ent_status,x
-code_9540:  lda     ent_var1,x
-        bne     code_958F
+        bne     code_9540                   ; already initialized
+        jsr     LF8C2                       ; X distance to player
+        cmp     #$3C                        ; within 60 px?
+        bcs     code_9592                   ; no -> rts
+        inc     ent_status,x                ; activate
+code_9540:  lda     ent_var1,x              ; spawn cooldown active?
+        bne     code_958F                   ; yes -> decrement and return
         lda     #$70
-        sta     ent_timer,x
-        jsr     code_95B9
-        bcs     code_9592
-        jsr     LFC53
-        bcs     code_9592
-        lda     #$94
-        jsr     LF846
-        lda     ent_x_px,x
+        sta     ent_timer,x                 ; target Y position for slot scan
+        jsr     code_95B9                   ; find entity at same X, target Y
+        bcs     code_9592                   ; none found -> rts
+        jsr     LFC53                       ; find free enemy slot -> Y
+        bcs     code_9592                   ; no free slot -> rts
+        lda     #$94                        ; child entity type $94
+        jsr     LF846                       ; init child entity
+        lda     ent_x_px,x                  ; copy parent X to child
         sta     ent_x_px,y
         lda     ent_x_scr,x
         sta     ent_x_scr,y
-        lda     ent_y_px,x
+        lda     ent_y_px,x                  ; copy parent Y to child
         sta     ent_y_px,y
         lda     #$62
-        sta     ent_routine,y
+        sta     ent_routine,y               ; child AI routine $62
         lda     ent_hitbox,x
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y                ; copy parent hitbox
         lda     #$B2
-        sta     ent_flags,y
+        sta     ent_flags,y                 ; child sprite flags
         lda     #$5B
-        sta     ent_var1,x
+        sta     ent_var1,x                  ; parent spawn cooldown = $5B
         lda     #$AB
-        sta     ent_yvel_sub,y
+        sta     ent_yvel_sub,y              ; child Y speed = $FF.AB (upward)
         lda     #$FF
         sta     ent_yvel,y
         lda     #$08
-        sta     ent_hp,y
-code_958F:  dec     ent_var1,x
+        sta     ent_hp,y                    ; child HP = 8
+code_958F:  dec     ent_var1,x              ; decrement spawn cooldown
 code_9592:  rts
 
         ldy     #$1E
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcs     code_95B0
         lda     ent_y_px,x
         cmp     #$70
@@ -2666,8 +2692,10 @@ code_95B0:  lda     ent_flags,x
         sta     ent_flags,x
         rts
 
+; --- scan enemy slots for entity at same X, matching target Y ---
+; Returns C=1 if found, C=0 if none.
 code_95B9:  stx     L0000
-        ldy     #$1F
+        ldy     #$1F                        ; start from slot $1F
 code_95BD:  cpy     L0000
         beq     code_95DD
         lda     ent_status,y
@@ -2686,64 +2714,74 @@ code_95DD:  dey
         bne     code_95BD
         clc
 code_95E3:  rts
+; ---------------------------------------------------------------------------
+; main_petit_snakey -- Petit Snakey (small snake, entity type $4E)
+; ---------------------------------------------------------------------------
+; State 0: init -- set sprite hflip, face player, timer=$24.
+; Active: waits for timer, checks direction to player. If in firing arc
+;   (within 7 direction units), switches anim and fires homing projectile
+;   via code_9659. ent_var1=$10 attack cooldown, idle timer=$78.
+; code_9659: spawns bullet with speed $03.66 using calc_homing_velocity.
+; ---------------------------------------------------------------------------
 main_petit_snakey:
 
         lda     ent_status,x
         and     #$0F
-        bne     code_95F9
-        jsr     LF883
-        jsr     LF869
+        bne     code_95F9                   ; skip init if already active
+        jsr     LF883                       ; set_sprite_hflip
+        jsr     LF869                       ; face_player
         inc     ent_status,x
         lda     #$24
-        sta     ent_timer,x
-code_95F9:  lda     ent_var1,x
-        bne     code_9643
-        lda     ent_timer,x
-        bne     code_963F
-        lda     ent_facing,x
+        sta     ent_timer,x                 ; idle timer = 36 frames
+code_95F9:  lda     ent_var1,x              ; attack cooldown active?
+        bne     code_9643                   ; yes -> decrement cooldown
+        lda     ent_timer,x                 ; idle timer active?
+        bne     code_963F                   ; yes -> decrement idle
+        lda     ent_facing,x               ; check facing direction
         and     #$02
-        bne     code_9617
-        jsr     LF8D9
+        bne     code_9617                   ; facing left
+        jsr     LF8D9                       ; calc_direction_to_player (right)
         sec
-        sbc     #$01
-        cmp     #$07
-        bcs     code_9639
-        jmp     code_9621
+        sbc     #$01                        ; adjust for right-facing arc
+        cmp     #$07                        ; in firing arc?
+        bcs     code_9639                   ; no -> reset idle timer
+        jmp     code_9621                   ; yes -> fire
 
-code_9617:  jsr     LF8D9
+code_9617:  jsr     LF8D9                   ; calc_direction_to_player (left)
         sec
-        sbc     #$09
-        cmp     #$07
-        bcs     code_9639
-code_9621:  lda     ent_anim_id,x
+        sbc     #$09                        ; adjust for left-facing arc
+        cmp     #$07                        ; in firing arc?
+        bcs     code_9639                   ; no -> reset idle timer
+code_9621:  lda     ent_anim_id,x           ; choose attack anim based on current
         cmp     #$D1
         bne     code_962C
-        lda     #$D2
+        lda     #$D2                        ; attack anim variant A
         bne     code_962E
-code_962C:  lda     #$D5
-code_962E:  jsr     LF835
-        jsr     code_9659
+code_962C:  lda     #$D5                    ; attack anim variant B
+code_962E:  jsr     LF835                   ; reset_sprite_anim
+        jsr     code_9659                   ; fire homing projectile
         lda     #$10
-        sta     ent_var1,x
-code_9639:  lda     #$78
+        sta     ent_var1,x                  ; attack cooldown = 16 frames
+code_9639:  lda     #$78                    ; idle timer = 120 frames
         .byte   $9D
 L963C:  brk
         ora     stage_select_page
-code_963F:  dec     ent_timer,x
+code_963F:  dec     ent_timer,x             ; decrement idle timer
         rts
 
-code_9643:  dec     ent_var1,x
+code_9643:  dec     ent_var1,x              ; decrement attack cooldown
         bne     code_9658
-        lda     ent_anim_id,x
+        lda     ent_anim_id,x              ; cooldown done -> revert anim
         cmp     #$D2
         bne     code_9653
         lda     #$D1
         bne     code_9655
 code_9653:  lda     #$D4
-code_9655:  jsr     LF835
+code_9655:  jsr     LF835               ; reset_sprite_anim
 code_9658:  rts
 
-code_9659:  jsr     LFC53
+; --- petit snakey: spawn homing projectile (speed $03.66, type $73) ---
+code_9659:  jsr     LFC53               ; find_enemy_freeslot_y
         bcs     code_96C0
         sty     L0000
         lda     ent_facing,x
@@ -2775,13 +2813,13 @@ code_9659:  jsr     LFC53
         sty     $0F
         stx     $0E
         ldx     $0F
-        jsr     LFC63
+        jsr     LFC63                   ; calc_homing_velocity
         ldy     $0F
         ldx     $0E
         lda     $0C
         sta     ent_facing,y
         lda     #$73
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$8F
         sta     ent_routine,y
         lda     #$8B
@@ -2791,97 +2829,114 @@ L96C1:  .byte   $04
 L96C2:  brk
         .byte   $FC
         .byte   $FF
+; ---------------------------------------------------------------------------
+; main_yambow -- Yambow (dragonfly enemy, entity type $0D)
+; ---------------------------------------------------------------------------
+; 4-state flight: init -> flap upward -> swoop horizontal -> fly forward.
+; State 0: activate if player within $51 px, face player.
+; State 1: flap with gravity (accel $10/frame, Y cap +2). On timer=0,
+;   check Y distance; if close, advance to swooping.
+; State 2: swoop toward player. If within $29 px, advance.
+; State 3: re-check Y distance. If close, advance.
+; State 4: fly in facing direction indefinitely.
+; ---------------------------------------------------------------------------
 main_yambow:
         lda     ent_status,x
         and     #$0F
-        bne     code_96E5
-        jsr     LF8C2
-        cmp     #$51
-        bcs     code_9716
-        jsr     LF869
-        jsr     LF883
+        bne     code_96E5                   ; skip init if active
+        jsr     LF8C2                       ; entity_x_dist_to_player
+        cmp     #$51                        ; within 81 px?
+        bcs     code_9716                   ; no -> rts
+        jsr     LF869                       ; face_player
+        jsr     LF883                       ; set_sprite_hflip
         lda     ent_flags,x
-        and     #$FB
+        and     #$FB                        ; clear bit 2 (enable collision)
         sta     ent_flags,x
-        inc     ent_status,x
+        inc     ent_status,x                ; advance to state 1
         rts
 
+        ; --- timer active: flap with gravity ---
 code_96E5:  lda     ent_timer,x
-        beq     code_9717
+        beq     code_9717                   ; timer expired -> state dispatch
         dec     ent_timer,x
         lda     ent_status,x
-        and     #$01
+        and     #$01                        ; odd states skip flapping
         bne     code_9716
-        lda     ent_yvel,x
-        bmi     code_96FD
+        lda     ent_yvel,x                  ; Y speed cap check
+        bmi     code_96FD                   ; rising -> keep accelerating
         cmp     #$02
-        bcs     code_9716
-code_96FD:  lda     ent_yvel_sub,x
+        bcs     code_9716                   ; >= +2 -> stop
+code_96FD:  lda     ent_yvel_sub,x          ; gravity accel: +$10/frame
         clc
         adc     #$10
         sta     ent_yvel_sub,x
         lda     ent_yvel,x
         adc     #$00
         sta     ent_yvel,x
-        bpl     code_9713
-        jmp     LF7A8
+        bpl     code_9713                   ; positive -> falling
+        jmp     LF7A8                       ; apply_y_velocity (rising)
 
-code_9713:  jmp     LF7C8
+code_9713:  jmp     LF7C8                   ; apply_y_velocity (falling)
 
 code_9716:  rts
 
+        ; --- timer expired: state dispatch ---
 code_9717:  lda     ent_status,x
         and     #$0F
         cmp     #$04
-        beq     code_9776
+        beq     code_9776                   ; state 4: fly forward
         cmp     #$03
-        beq     code_9767
+        beq     code_9767                   ; state 3: check Y distance
         cmp     #$02
-        beq     code_9745
-        jsr     LF8B3
-        bcc     code_9734
-        cmp     #$4D
-        bcc     code_9734
-        jmp     LF797
+        beq     code_9745                   ; state 2: swoop horizontal
+        ; state 1: check Y distance to player
+        jsr     LF8B3                       ; entity_y_dist_to_player
+        bcc     code_9734                   ; player above -> advance
+        cmp     #$4D                        ; > 77 px below?
+        bcc     code_9734                   ; close enough -> advance
+        jmp     LF797                       ; apply_y_speed (keep descending)
 
-code_9734:  lda     #$14
+code_9734:  lda     #$14                    ; timer = 20 frames
         sta     ent_timer,x
-        inc     ent_status,x
-        jsr     LF81B
-        jsr     LF869
-        jmp     LF883
+        inc     ent_status,x                ; advance state
+        jsr     LF81B                       ; reset_gravity
+        jsr     LF869                       ; face_player
+        jmp     LF883                       ; set_sprite_hflip
 
+        ; --- state 2: swoop toward player ---
 code_9745:  lda     ent_facing,x
         and     #$02
-        beq     code_9758
-        jsr     LF8C2
+        beq     code_9758                   ; facing right
+        jsr     LF8C2                       ; entity_x_dist_to_player
         bcc     code_9755
-        cmp     #$29
-        bcs     code_9764
-code_9755:  jmp     LF73B
+        cmp     #$29                        ; within 41 px?
+        bcs     code_9764                   ; yes -> advance state
+code_9755:  jmp     LF73B                   ; move_sprite_left
 
-code_9758:  jsr     LF8C2
+code_9758:  jsr     LF8C2                   ; entity_x_dist_to_player
         bcs     code_9761
-        cmp     #$29
-        bcs     code_9764
-code_9761:  jmp     LF71D
+        cmp     #$29                        ; within 41 px?
+        bcs     code_9764                   ; yes -> advance state
+code_9761:  jmp     LF71D                   ; move_sprite_right
 
-code_9764:  jmp     code_9734
+code_9764:  jmp     code_9734               ; advance to next state
 
-code_9767:  jsr     LF8B3
-        bcc     code_9734
-        cmp     #$09
-        bcc     code_9773
-        jmp     LF797
+        ; --- state 3: re-check Y distance ---
+code_9767:  jsr     LF8B3                   ; entity_y_dist_to_player
+        bcc     code_9734                   ; close -> advance
+        cmp     #$09                        ; within 9 px?
+        bcc     code_9773                   ; close -> advance
+        jmp     LF797                       ; apply_y_speed
 
-code_9773:  jmp     code_9734
+code_9773:  jmp     code_9734               ; advance to state 4
 
+        ; --- state 4: fly forward in facing direction ---
 code_9776:  lda     ent_facing,x
         and     #$02
         beq     code_9780
-        jmp     LF73B
+        jmp     LF73B                       ; move_sprite_left
 
-code_9780:  jmp     LF71D
+code_9780:  jmp     LF71D                   ; move_sprite_right
 
 ; ===========================================================================
 ; main_met — Met (hard hat enemy, classic hide/peek/shoot)
@@ -2937,9 +2992,9 @@ code_97D0:  rts
 code_97D1:  lda     #$1D                ; set walking OAM $1D (if not already)
         cmp     ent_anim_id,x
         beq     code_97DB
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_97DB:  ldy     #$00                ; apply $99; C=1 if on ground
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_97D0               ; airborne → return
         lda     ent_var1,x                 ; walk frames remaining?
         beq     code_97FB               ; zero → done walking
@@ -2956,7 +3011,7 @@ code_97F6:  ldy     #$01
 ; --- walk done: close helmet, return to hiding ---
 
 code_97FB:  lda     #$1C                ; OAM $1C = helmet closing anim
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     ent_status,x                 ; state → 0 (clear low nibble)
         and     #$F0
         sta     ent_status,x
@@ -2988,7 +3043,7 @@ code_9823:  jsr     LFC53               ; find free enemy slot
         lda     L987E,x                 ; Y speed whole
         sta     ent_yvel,y
         lda     #$73                    ; OAM $73 = Met bullet
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$8B                    ; dmg = $8B (hurts player only)
         sta     ent_hitbox,y
         ldx     L0000                   ; restore Met slot to X
@@ -3109,9 +3164,9 @@ code_990F:  jsr     LFC53               ; find free slot
         lda     #$04
         sta     ent_yvel,y
         lda     #$6F                    ; OAM $6F = cannon shell
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$1E                    ; play shot sound
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         lda     #$C0                    ; dmg: hurts player + hittable
         sta     ent_hitbox,y
         lda     #$13                    ; AI routine $13 = arcing shell
@@ -3166,24 +3221,24 @@ L9998:  brk
 
 ; --- cannon shell AI: $99 + walk, explode on landing/wall hit ---
         ldy     #$08                    ; apply $99; C=1 if landed
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcs     code_99B9               ; landed → explode
         lda     ent_facing,x                 ; walk horizontally with collision
         and     #$02
         beq     code_99B1
         ldy     #$07
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
         jmp     code_99B6
 
 code_99B1:  ldy     #$08
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
 code_99B6:  bcs     code_99B9           ; hit wall → explode
         rts
 
 code_99B9:  lda     #$00                ; become generic explosion
         sta     ent_routine,x                 ; (routine $00)
         lda     #$71                    ; OAM $71 = small explosion
-        jmp     LF835
+        jmp     LF835                   ; reset_sprite_anim
 
 ; ===========================================================================
 ; main_metall_dx — Metall DX (walking Met variant)
@@ -3207,7 +3262,7 @@ main_metall_dx:
 ; --- state 0: hiding / opening / ascending ---
 
 code_99D7:  jsr     LF869               ; track player
-        jsr     LF883
+        jsr     LF883                   ; set_sprite_hflip
         lda     ent_anim_id,x                 ; OAM $1F = ascending (propeller)?
         cmp     #$1F
         beq     code_9A0E               ; yes → fly up logic
@@ -3227,7 +3282,7 @@ code_99FB:  cmp     #$05                ; anim frame 5? (fully opened)
         lda     #$02
         sta     ent_yvel,x
         lda     #$1F                    ; OAM $1F = ascending
-        jmp     LF835
+        jmp     LF835                   ; reset_sprite_anim
 
 code_9A0E:  jsr     LF8B3               ; within $49 Y of player?
         cmp     #$49
@@ -3253,7 +3308,7 @@ code_9A2D:  bcc     code_9A4F           ; C=0: player right → fire
 ; --- state 2: descend to player altitude ---
 
 code_9A32:  jsr     LF869               ; track player
-        jsr     LF883
+        jsr     LF883                   ; set_sprite_hflip
         lda     ent_timer,x                 ; post-fire delay timer
         beq     code_9A41               ; zero → descend
         dec     ent_timer,x                 ; wait
@@ -3270,7 +3325,7 @@ code_9A4B:  inc     ent_status,x             ; advance to next state
 code_9A4F:  stx     L0000
         lda     #$02
         sta     $01
-code_9A55:  jsr     LFC53
+code_9A55:  jsr     LFC53               ; find_enemy_freeslot_y
         bcs     code_9AA1
         ldx     $01
         lda     L9AAC,x
@@ -3284,7 +3339,7 @@ code_9A55:  jsr     LFC53
         lda     L9AB8,x
         sta     ent_facing,y
         lda     #$73
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$8B
         sta     ent_hitbox,y
         ldx     L0000
@@ -3323,10 +3378,10 @@ main_mag_fly:
         lda     ent_facing,x                 ; direction flag
         and     #$01
         beq     L9AC8
-        jsr     LF71D
+        jsr     LF71D                   ; move_sprite_right
         jmp     L9ACB
 
-L9AC8:  jsr     LF73B
+L9AC8:  jsr     LF73B                   ; move_sprite_left
 L9ACB:  jsr     LF8B3                   ; check player proximity
         bcc     L9B2B                   ; no overlap → check dismount
         jsr     LF8C2                   ; detailed collision check
@@ -3452,7 +3507,7 @@ code_9BBD:  cmp     #$30                ; if |Y dist| >= $30, block still far
         cmp     #$39                    ; skip animation reset
         beq     code_9BD1
         lda     #$39                    ; switch to throwing animation (OAM $39)
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         inc     ent_var2,x                 ; set throw-anim flag = 1
         rts
 
@@ -3461,7 +3516,7 @@ code_9BD1:  dec     ent_var1,x             ; decrement throw cooldown timer
         ora     ent_anim_state,x                 ; (anim timer=0 AND frame=0)
         bne     code_9BE1               ; not done yet, skip
         lda     #$38                    ; revert to idle animation (OAM $38)
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_9BE1:  rts
 
 ; --- spawn_junk_block: create thrown junk block child entity ---
@@ -3479,7 +3534,7 @@ code_9BE2:  jsr     LFC53               ; find free enemy slot
         lda     ent_y_px,x                 ; ent_timer,y = golem's Y position
         sta     ent_timer,y                 ; (target Y for homing transition)
         lda     #$94                    ; entity type $94 (junk block)
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$CA                    ; damage flags $CA: hurts player + takes damage
         sta     ent_hitbox,y
         lda     #$24                    ; AI routine = $24 (main_unknown_24)
@@ -3549,87 +3604,92 @@ main_pickelman_bull:
         lda     #$1E                    ; stop timer = $1E (30 frames)
         sta     ent_var1,x
         inc     ent_status,x                 ; advance to state 1
+        ; --- rider weapon collision check (Y-$17 offset for rider hitbox) ---
 code_9C73:  lda     ent_y_px,x             ; save real Y position
         pha
         lda     ent_y_px,x
         sec
-        sbc     #$17
+        sbc     #$17                        ; offset Y up by 23 px for rider
         sta     ent_y_px,x
-        lda     #$C3
+        lda     #$C3                        ; rider hitbox (vulnerable)
         sta     ent_hitbox,x
-        jsr     code_8003
+        jsr     code_8003                   ; check_weapon_hit
         pla
-        sta     ent_y_px,x
-        lda     ent_hp,x
-        beq     code_9CA5
-        lda     #$AC
+        sta     ent_y_px,x                  ; restore real Y
+        lda     ent_hp,x                    ; rider killed?
+        beq     code_9CA5                   ; yes -> rts
+        lda     #$AC                        ; bull hitbox (body)
         sta     ent_hitbox,x
         lda     ent_status,x
-        and     #$02
-        bne     code_9CD6
-        dec     ent_timer,x
-        bne     code_9CA6
-        inc     ent_status,x
+        and     #$02                        ; state 2 = stopped?
+        bne     code_9CD6                   ; yes -> oscillation logic
+        dec     ent_timer,x                 ; decrement drive counter
+        bne     code_9CA6                   ; still driving
+        inc     ent_status,x               ; drive count 0 -> stop state
 code_9CA5:  rts
 
+        ; --- state 1: driving with gravity + wall check ---
 code_9CA6:  ldy     #$2A
-        jsr     LF606
+        jsr     LF606                       ; move_down_collide (gravity)
         lda     ent_facing,x
-        and     #$01
-        beq     code_9CC0
-        lda     $42
-        and     #$10
-        beq     code_9CCD
+        and     #$01                        ; facing right?
+        beq     code_9CC0                   ; no -> check left
+        lda     $42                         ; tile to left
+        and     #$10                        ; solid?
+        beq     code_9CCD                   ; no solid -> reverse
         ldy     #$10
-        jsr     LF580
+        jsr     LF580                       ; move_right_collide
         jmp     code_9CCB
 
 code_9CC0:  lda     tile_at_feet_hi
         and     #$10
         beq     code_9CCD
         ldy     #$11
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_9CCB:  bcc     code_9CD5
 code_9CCD:  lda     ent_facing,x
         eor     #$03
         sta     ent_facing,x
 code_9CD5:  rts
 
-code_9CD6:  dec     ent_var1,x
-        bne     code_9CF0
-        sta     ent_var2,x
-        sta     ent_var3,x
+        ; --- state 2: stopped, rider oscillates left/right ---
+code_9CD6:  dec     ent_var1,x              ; decrement stop timer
+        bne     code_9CF0                   ; still stopped
+        sta     ent_var2,x                  ; reset oscillation delay
+        sta     ent_var3,x                  ; reset oscillation counter
         lda     #$1E
-        sta     ent_var1,x
-        jsr     code_9D20
-        sta     ent_timer,x
-        dec     ent_status,x
+        sta     ent_var1,x                  ; new stop timer = 30 frames
+        jsr     code_9D20                   ; random drive count
+        sta     ent_timer,x                 ; set new drive step counter
+        dec     ent_status,x               ; -> back to driving state
         rts
 
-code_9CF0:  lda     ent_var2,x
-        bne     code_9D18
-        lda     ent_var3,x
-        and     #$01
+        ; --- oscillation: move rider 1px left/right alternating ---
+code_9CF0:  lda     ent_var2,x              ; oscillation delay
+        bne     code_9D18                   ; delay active -> decrement
+        lda     ent_var3,x                  ; oscillation counter
+        and     #$01                        ; even=right, odd=left
         asl     a
         tay
         lda     ent_x_px,x
         clc
-        adc     L9D1C,y
+        adc     L9D1C,y                     ; +1 or -1 pixel
         sta     ent_x_px,x
         lda     ent_x_scr,x
         adc     L9D1D,y
         sta     ent_x_scr,x
         lda     #$02
-        sta     ent_var2,x
+        sta     ent_var2,x                  ; 2-frame delay between oscillations
         inc     ent_var3,x
         rts
 
-code_9D18:  .byte   $DE,$40,$05,$60
-L9D1C:  .byte   $01
+code_9D18:  .byte   $DE,$40,$05,$60         ; dec ent_var2,x; rts
+L9D1C:  .byte   $01                         ; oscillation X offsets: +1, 0, -1, -1
 L9D1D:  brk
         .byte   $FF
         .byte   $FF
-code_9D20:  lda     $E4
+; --- random drive count from table ($10/$20/$30/$10) ---
+code_9D20:  lda     $E4                     ; pseudo-random: add two RNG bytes
         adc     $E5
         sta     $E4
         and     #$03
@@ -3637,101 +3697,127 @@ code_9D20:  lda     $E4
         .byte   $B9,$2D,$9D,$60
         bpl     L9D4F
         bmi     L9D41
+; ---------------------------------------------------------------------------
+; main_bikky -- Bikky (stomping enemy, entity type $21)
+; ---------------------------------------------------------------------------
+; Applies gravity, walks horizontally with collision.
+; On landing (anim_state=$08, frame=0): launch upward (Y speed $05.A8),
+;   face player, hitbox $C5 (dangerous). Sound $20 on subsequent landing.
+; While airborne: hitbox $A5 (safe).
+; ---------------------------------------------------------------------------
 main_bikky:
-        jsr     LF883
+        jsr     LF883                       ; set_sprite_hflip
         ldy     #$10
-        jsr     LF67C
-        bcs     code_9D51
+        jsr     LF67C                       ; move_vertical_gravity
+        bcs     code_9D51                   ; landed -> check anim state
         lda     #$00
-        sta     ent_anim_frame,x
+        sta     ent_anim_frame,x            ; reset anim frame while airborne
         .byte   $BD
-L9D41:  ldy     #$04
+L9D41:  ldy     #$04                        ; (encoded lda ent_facing,x)
         and     #$01
-        beq     code_9D4C
+        beq     code_9D4C                   ; facing left
         ldy     #$0E
-        jmp     LF580
+        jmp     LF580                       ; move_right_collide
 
 code_9D4C:  ldy     #$0F
         .byte   $4C
-L9D4F:  cpy     prg_bank
+L9D4F:  cpy     prg_bank                    ; (encoded jmp move_left_collide)
+        ; --- landed: check animation state ---
 code_9D51:  lda     ent_anim_state,x
-        cmp     #$08
-        bne     code_9D7E
+        cmp     #$08                        ; stomp anim finished?
+        bne     code_9D7E                   ; no -> safe hitbox
         lda     ent_anim_frame,x
-        beq     code_9D6B
-        lda     #$00
+        beq     code_9D6B                   ; frame 0 -> launch upward
+        lda     #$00                        ; frame > 0 -> reset anim, play sound
         sta     ent_anim_state,x
         sta     ent_anim_frame,x
         lda     #$20
-        jsr     LF89A
+        jsr     LF89A                       ; submit_sound_ID (stomp)
         rts
 
-code_9D6B:  lda     #$A8
+code_9D6B:  lda     #$A8                    ; launch upward: Y speed = $05.A8
         sta     ent_yvel_sub,x
         lda     #$05
         sta     ent_yvel,x
-        jsr     LF869
+        jsr     LF869                       ; face_player
         lda     #$C5
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x                ; dangerous hitbox (landing)
         rts
 
-code_9D7E:  lda     #$A5
+code_9D7E:  lda     #$A5                    ; safe hitbox (airborne)
         sta     ent_hitbox,x
         rts
+; ---------------------------------------------------------------------------
+; main_magnet_force -- Magnet Force (horizontal pull/push, type $25)
+; ---------------------------------------------------------------------------
+; Applies horizontal force on player when within range (Y<$1C, X<$68).
+; Uses entity flag bit 6 for direction. Sets $36/$37/$38 for pull effect.
+; ---------------------------------------------------------------------------
 main_magnet_force:
 
-        jsr     LF8B3
-        cmp     #$1C
-        bcs     code_9DB3
-        jsr     LF8C2
-        ror     L0000
-        cmp     #$68
-        bcs     code_9DB3
+        jsr     LF8B3                       ; entity_y_dist_to_player
+        cmp     #$1C                        ; within 28 px vertically?
+        bcs     code_9DB3                   ; no -> rts
+        jsr     LF8C2                       ; entity_x_dist_to_player
+        ror     L0000                       ; carry = direction -> $00 bit 7
+        cmp     #$68                        ; within 104 px horizontally?
+        bcs     code_9DB3                   ; no -> rts
         lda     ent_flags,x
-        and     #$40
-        bne     code_9DA3
-        lda     L0000
-        bmi     code_9DB3
-        lda     #$01
+        and     #$40                        ; entity facing (bit 6)
+        bne     code_9DA3                   ; facing left -> branch
+        lda     L0000                       ; facing right: player to right?
+        bmi     code_9DB3                   ; no -> no force
+        lda     #$01                        ; pull direction = right
         bne     code_9DA9
-code_9DA3:  lda     L0000
-        bpl     code_9DB3
-        lda     #$02
-code_9DA9:  sta     $36
+code_9DA3:  lda     L0000                   ; facing left: player to left?
+        bpl     code_9DB3                   ; no -> no force
+        lda     #$02                        ; pull direction = left
+code_9DA9:  sta     $36                     ; set magnet pull direction
         lda     #$00
-        sta     $37
+        sta     $37                         ; pull sub-speed = 0
         lda     #$01
-        sta     $38
+        sta     $38                         ; pull whole-speed = 1
 code_9DB3:  rts
+; ---------------------------------------------------------------------------
+; main_new_shotman -- New Shotman (shooting enemy, entity type $05)
+; ---------------------------------------------------------------------------
+; State 0: init timer=$1E.
+; State 1: if player within $50 px, shoot anim $5A, spawn falling projectile.
+;   After 2 shots, walk state (ent_var2=$78 timer).
+; State 2: walk timer, return to shoot. Fires horizontal bullets every $1E
+;   frames, 3 per burst, then $5A frame cooldown.
+; code_9EA9: spawn falling projectile (type $73, Y speed $04.00, routine $0C).
+; code_9E46: spawn horizontal bullet pair (speed $01.80, type $73, routine $1B).
+; ---------------------------------------------------------------------------
 main_new_shotman:
 
         lda     ent_status,x
         and     #$0F
-        bne     code_9DC3
+        bne     code_9DC3                   ; skip init
         lda     #$1E
-        sta     ent_timer,x
-        inc     ent_status,x
+        sta     ent_timer,x                 ; fire timer = 30 frames
+        inc     ent_status,x                ; -> state 1
 code_9DC3:  lda     ent_status,x
-        and     #$02
-        bne     code_9E04
-        jsr     LF8C2
-        cmp     #$50
-        bcs     code_9E0C
-        lda     ent_var2,x
-        bne     code_9DE7
-        lda     #$5A
-        jsr     LF835
-        jsr     LF869
-        jsr     code_9EA9
+        and     #$02                        ; bit 1 = walking state?
+        bne     code_9E04                   ; yes -> walk countdown
+        jsr     LF8C2                       ; entity_x_dist_to_player
+        cmp     #$50                        ; within 80 px?
+        bcs     code_9E0C                   ; no -> fire timer only
+        lda     ent_var2,x                  ; shot cooldown active?
+        bne     code_9DE7                   ; yes -> count down
+        lda     #$5A                        ; shooting animation
+        jsr     LF835                       ; reset_sprite_anim
+        jsr     LF869                       ; face_player
+        jsr     code_9EA9                   ; spawn falling projectile
         lda     #$1E
-        sta     ent_var2,x
+        sta     ent_var2,x                  ; shot cooldown = 30 frames
         rts
 
-code_9DE7:  dec     ent_var2,x
+code_9DE7:  dec     ent_var2,x              ; decrement shot cooldown
         bne     code_9E0C
-        inc     ent_var3,x
+        inc     ent_var3,x                  ; shot count++
         lda     ent_var3,x
-        cmp     #$02
+        cmp     #$02                        ; fired 2 shots?
         bcc     code_9E0C
         lda     #$00
         sta     ent_var3,x
@@ -3740,36 +3826,40 @@ code_9DE7:  dec     ent_var2,x
         inc     ent_status,x
         rts
 
-code_9E04:  dec     ent_var2,x
+        ; --- walk state ---
+code_9E04:  dec     ent_var2,x              ; walk timer--
         bne     code_9E0C
-        dec     ent_status,x
+        dec     ent_status,x               ; -> back to shoot state
+        ; --- horizontal bullet fire timer ---
 code_9E0C:  dec     ent_timer,x
-        bne     code_9E31
+        bne     code_9E31                   ; timer not expired
         lda     #$00
-        sta     $01
-        jsr     code_9E46
+        sta     $01                         ; bullet pair counter
+        jsr     code_9E46                   ; spawn horizontal bullet pair
         lda     #$1E
-        sta     ent_timer,x
-        inc     ent_var1,x
+        sta     ent_timer,x                 ; reset fire timer
+        inc     ent_var1,x                  ; burst count++
         lda     ent_var1,x
-        cmp     #$03
-        bcc     code_9E31
+        cmp     #$03                        ; 3 bursts in a row?
+        bcc     code_9E31                   ; no -> keep firing
         lda     #$5A
-        sta     ent_timer,x
+        sta     ent_timer,x                 ; long cooldown = 90 frames
         lda     #$00
-        sta     ent_var1,x
-code_9E31:  lda     ent_anim_id,x
+        sta     ent_var1,x                  ; reset burst count
+code_9E31:  lda     ent_anim_id,x           ; if still in shoot anim ($5A)
         cmp     #$5A
         bne     code_9E45
-        lda     ent_anim_frame,x
+        lda     ent_anim_frame,x            ; and anim done...
         ora     ent_anim_state,x
         bne     code_9E45
-        lda     #$59
-        jsr     LF835
+        lda     #$59                        ; ...return to idle anim
+        jsr     LF835                       ; reset_sprite_anim
 code_9E45:  rts
 
-code_9E46:  jsr     LFC53
-        bcs     code_9EA4
+; --- new shotman: spawn horizontal bullet pair (speed $01.80, type $73) ---
+; Fires two bullets by flipping facing between iterations ($01 counter).
+code_9E46:  jsr     LFC53                   ; find_enemy_freeslot_y
+        bcs     code_9EA4                   ; no slot -> rts
         sty     L0000
         lda     ent_facing,x
         sta     ent_facing,y
@@ -3794,7 +3884,7 @@ code_9E46:  jsr     LFC53
         lda     #$01
         sta     ent_xvel,y
         lda     #$73
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$1B
         sta     ent_routine,y
         lda     #$8B
@@ -3812,59 +3902,63 @@ code_9EA4:  .byte   $60
 L9EA5:  .byte   $0F
 L9EA6:  brk
         sbc     (ppu_ctrl_shadow),y
-code_9EA9:  jsr     LFC53
-        bcs     code_9EA4
-        lda     #$00
+; --- new shotman: spawn falling projectile (type $73, Y speed $04.00) ---
+code_9EA9:  jsr     LFC53                   ; find_enemy_freeslot_y
+        bcs     code_9EA4                   ; no slot -> rts
+        lda     #$00                        ; Y speed = $04.00 (falling)
         sta     ent_yvel_sub,y
         lda     #$04
         sta     ent_yvel,y
-        lda     #$73
-        jsr     LF846
+        lda     #$73                        ; entity type $73 (projectile)
+        jsr     LF846                       ; init_child_entity
         lda     #$8B
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y                ; projectile hitbox
         lda     #$0C
-        sta     ent_routine,y
-        lda     ent_x_px,x
+        sta     ent_routine,y               ; routine $0C (falling projectile)
+        lda     ent_x_px,x                  ; copy parent position
         sta     ent_x_px,y
         lda     ent_x_scr,x
         sta     ent_x_scr,y
         lda     ent_y_px,x
         sec
-        sbc     #$10
+        sbc     #$10                        ; spawn 16 px above parent
         sta     ent_y_px,y
         lda     ent_y_scr,x
         sta     ent_y_scr,y
-        lda     ent_facing,x
+        lda     ent_facing,x               ; copy facing
         sta     ent_facing,y
-        jsr     LF8C2
+        ; --- set X speed based on distance to player ---
+        jsr     LF8C2                       ; entity_x_dist_to_player
         stx     L0000
-        ldx     #$03
-code_9EEF:  cmp     L9F06,x
-        bcc     code_9EF7
+        ldx     #$03                        ; scan distance brackets
+code_9EEF:  cmp     L9F06,x                 ; distance < threshold?
+        bcc     code_9EF7                   ; yes -> use this speed
         dex
         bne     code_9EEF
-code_9EF7:  lda     L9F0A,x
+code_9EF7:  lda     L9F0A,x                 ; X speed sub from table
         sta     ent_xvel_sub,y
-        lda     L9F0E,x
+        lda     L9F0E,x                    ; X speed whole from table
         sta     ent_xvel,y
         .byte   $A6,$00,$60
-L9F06:  .byte   $4C,$3D,$2E,$1F
-L9F0A:  .byte   $00,$80,$00,$80
-L9F0E:  .byte   $02
+; X speed lookup by distance bracket: $4C/$3D/$2E/$1F thresholds
+L9F06:  .byte   $4C,$3D,$2E,$1F             ; distance thresholds
+L9F0A:  .byte   $00,$80,$00,$80             ; X speed sub values
+L9F0E:  .byte   $02                         ; X speed whole: $02, $01, $01, $00
         ora     ($01,x)
         brk
+; --- generic projectile AI: gravity + walk, used by new_shotman bullets ---
         ldy     #$12
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcs     code_9F30
         lda     ent_facing,x
         and     #$01
         beq     code_9F28
         ldy     #$1E
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_9F2D
 
 code_9F28:  ldy     #$1F
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_9F2D:  bcs     code_9F30
         rts
 
@@ -3878,24 +3972,24 @@ code_9F30:  lda     ent_routine,x
         lda     #$59
         bne     code_9F46
 code_9F44:  lda     #$71
-code_9F46:  jmp     LF835
+code_9F46:  jmp     LF835               ; reset_sprite_anim
 
         lda     ent_facing,x
         and     #$01
         beq     code_9F58
         ldy     #$0C
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_9F5D
 
 code_9F58:  ldy     #$0D
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_9F5D:  bcs     code_9F6C
         lda     ent_facing,x
         and     #$08
         beq     code_9F69
-        jmp     LF779
+        jmp     LF779                   ; move_sprite_up
 
-code_9F69:  jmp     LF759
+code_9F69:  jmp     LF759               ; move_sprite_down
 
 code_9F6C:  lda     #$00
         sta     ent_status,x
@@ -3903,7 +3997,7 @@ code_9F6C:  lda     #$00
         lda     #$FF
         sta     ent_spawn_id,x
 code_9F78:
-        jsr     LFC53
+        jsr     LFC53                   ; find_enemy_freeslot_y
         bcs     code_9FE2
         sty     L0000
         lda     ent_facing,x
@@ -3922,7 +4016,7 @@ code_9F78:
         lda     ent_y_px,x
         sta     ent_y_px,y
         lda     #$5B
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$0C
         sta     ent_routine,y
         lda     #$8B
@@ -3970,119 +4064,129 @@ main_proto_man:
         beq     code_9FE2
         .byte   $BD
 
+; ===========================================================================
+; BANK $1D — Entity AI routines (continued)
+; ===========================================================================
+; This bank continues main_proto_man from bank $1C. The .byte $BD at end of
+; bank $1C + .byte $E0,$04 here form a cross-bank LDA $04E0,x instruction.
+; ===========================================================================
+
 .segment "BANK1D"
 
-LA000:  .byte   $E0,$04
-        bne     code_A007
-        jmp     code_A180
+LA000:  .byte   $E0,$04                 ; cross-bank: LDA ent_hp,x (opcode $BD in bank $1C)
+        bne     code_A007               ; HP > 0 → alive, continue AI
+        jmp     code_A180               ; HP = 0 → defeated sequence
 
-code_A007:  lda     ent_status,x
+; --- Proto Man alive: state machine ---
+code_A007:  lda     ent_status,x            ; extract sub-state
         and     #$0F
-        bne     code_A032
-        sta     ent_anim_frame,x
+        bne     code_A032               ; nonzero → already initialized
+        sta     ent_anim_frame,x        ; state 0: reset anim frame
         lda     ent_y_px,x
-        cmp     #$90
-        bcs     code_A01B
-        jmp     LF797
+        cmp     #$90                    ; above Y=$90?
+        bcs     code_A01B               ; no → apply gravity+collision
+        jmp     LF797                   ; yes → apply Y speed (falling)
 
 code_A01B:  ldy     #$00
-        jsr     LF67C
-        bcc     code_A05F
-        lda     ent_routine,x
+        jsr     LF67C                   ; move_vertical_gravity
+        bcc     code_A05F               ; no floor hit → walking logic
+        lda     ent_routine,x           ; routine $52 or $53
         sec
-        sbc     #$52
+        sbc     #$52                    ; index 0 or 1 into tables
         tay
-        lda     LA176,y
+        lda     LA176,y                 ; timer variant from table
         sta     ent_timer,x
-        inc     ent_status,x
+        inc     ent_status,x            ; advance to state 1
 code_A032:  lda     ent_anim_id,x
-        cmp     #$99
+        cmp     #$99                    ; teleport beam sprite?
         bne     code_A04A
         lda     ent_anim_state,x
-        cmp     #$04
+        cmp     #$04                    ; anim complete?
         bne     code_A05F
-        lda     ent_timer,x
+        lda     ent_timer,x             ; load variant index
         tya
-        lda     LA178,y
-        jsr     LF835
+        lda     LA178,y                 ; walking anim from table
+        jsr     LF835                   ; reset_sprite_anim
 code_A04A:  lda     ent_status,x
-        and     #$02
+        and     #$02                    ; state >= 2?
         beq     code_A054
-        jmp     code_A0D3
+        jmp     code_A0D3               ; → attacking phase
 
-code_A054:  jsr     LF8C2
-        cmp     #$60
-        bcs     code_A05F
-        inc     ent_status,x
+code_A054:  jsr     LF8C2               ; entity_x_dist_to_player
+        cmp     #$60                    ; within 96 px?
+        bcs     code_A05F               ; no → keep walking
+        inc     ent_status,x            ; yes → advance to attack
         rts
 
+; --- walking phase: gravity + horizontal movement ---
 code_A05F:  ldy     #$00
-        jsr     LF67C
-        rol     $0F
+        jsr     LF67C                   ; move_vertical_gravity
+        rol     $0F                     ; save carry (landed) into $0F bit 0
         lda     ent_facing,x
         and     #$01
         beq     code_A075
         ldy     #$00
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_A07A
 
 code_A075:  ldy     #$01
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_A07A:  lda     $0F
-        and     #$01
-        beq     code_A0D2
+        and     #$01                    ; check if landed on floor
+        beq     code_A0D2               ; airborne → skip wall checks
         lda     ent_facing,x
         and     #$01
         beq     code_A091
         lda     ent_x_px,x
-        cmp     #$D6
+        cmp     #$D6                    ; near right edge?
         bcc     code_A0A1
-        jmp     code_A098
+        jmp     code_A098               ; → reverse direction
 
 code_A091:  lda     ent_x_px,x
-        cmp     #$2A
+        cmp     #$2A                    ; near left edge?
         bcs     code_A0A1
-code_A098:  lda     ent_facing,x
+code_A098:  lda     ent_facing,x          ; reverse facing direction
         eor     #$03
         sta     ent_facing,x
         rts
 
 code_A0A1:  lda     $10
-        and     #$10
-        beq     code_A0BC
-        lda     ent_timer,x
+        and     #$10                    ; floor collision flag?
+        beq     code_A0BC               ; no floor → check walking anim
+        lda     ent_timer,x             ; variant index
         tya
-        lda     LA17A,y
-        jsr     LF835
-        lda     #$A8
+        lda     LA17A,y                 ; jump anim from table
+        jsr     LF835                   ; reset_sprite_anim
+        lda     #$A8                    ; set Y velocity for jump
         sta     ent_yvel_sub,x
         lda     #$05
         sta     ent_yvel,x
         rts
 
-code_A0BC:  lda     ent_timer,x
+code_A0BC:  lda     ent_timer,x          ; variant index
         tay
-        lda     LA17C,y
-        cmp     ent_anim_id,x
-        beq     code_A0D2
+        lda     LA17C,y                 ; walk anim from table
+        cmp     ent_anim_id,x           ; already set?
+        beq     code_A0D2               ; yes → skip
         lda     ent_timer,x
         tay
         lda     LA17C,y
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_A0D2:  rts
 
-code_A0D3:  lda     ent_var2,x
-        bne     code_A13A
+; --- attacking phase (state 2) ---
+code_A0D3:  lda     ent_var2,x          ; attack cooldown
+        bne     code_A13A               ; still cooling down → decrement
         lda     ent_facing,x
         and     #$01
         beq     code_A0E7
         ldy     #$00
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_A0EC
 
 code_A0E7:  ldy     #$01
-        jsr     LF5C4
-code_A0EC:  lda     ent_facing,x
+        jsr     LF5C4                   ; move_left_collide
+code_A0EC:  lda     ent_facing,x          ; edge/wall checks same as walking
         and     #$01
         beq     code_A0FD
         lda     ent_x_px,x
@@ -4090,97 +4194,100 @@ code_A0EC:  lda     ent_facing,x
         bcc     code_A10C
         jmp     code_A104
 
-code_A0FD:  .byte   $BD
-        rts
+code_A0FD:  .byte   $BD                 ; cross-bank LDA ent_x_px,x
+        rts                             ; (rts = $60, part of the address)
 
-LA0FF:  .byte   $03
-        cmp     #$2A
+LA0FF:  .byte   $03                     ; ($0360 = ent_x_px)
+        cmp     #$2A                    ; near left edge?
         bcs     code_A10C
-code_A104:  lda     ent_facing,x
+code_A104:  lda     ent_facing,x          ; reverse direction at edges
         eor     #$03
         sta     ent_facing,x
 code_A10C:  ldy     #$00
-        jsr     LF67C
-        bcc     code_A13E
-        lda     #$04
+        jsr     LF67C                   ; move_vertical_gravity
+        bcc     code_A13E               ; airborne → check anim
+        lda     #$04                    ; landed: set attack cooldown
         sta     ent_var2,x
         lda     ent_timer,x
         tay
-        lda     LA17C,y
-        jsr     LF835
-        lda     #$A8
+        lda     LA17C,y                 ; walk anim from table
+        jsr     LF835                   ; reset_sprite_anim
+        lda     #$A8                    ; set jump velocity
         sta     ent_yvel_sub,x
         lda     #$05
         sta     ent_yvel,x
-        jsr     LF8C2
-        cmp     #$60
-        bcc     code_A139
-        dec     ent_status,x
-        jsr     LF81B
+        jsr     LF8C2                   ; entity_x_dist_to_player
+        cmp     #$60                    ; player far away (> 96 px)?
+        bcc     code_A139               ; no → stay in attack
+        dec     ent_status,x            ; yes → revert to walking
+        jsr     LF81B                   ; reset_gravity
 code_A139:  rts
 
-code_A13A:  dec     ent_var2,x
+code_A13A:  dec     ent_var2,x          ; decrement attack cooldown
         rts
 
-code_A13E:  lda     ent_yvel,x
-        bpl     code_A14D
-        lda     ent_timer,x
+code_A13E:  lda     ent_yvel,x          ; airborne: check Y direction
+        bpl     code_A14D               ; rising → jump anim
+        lda     ent_timer,x             ; falling → use different anim
         tay
-        lda     LA17A,y
-        jmp     LF835
+        lda     LA17A,y                 ; jump anim from table
+        jmp     LF835                   ; reset_sprite_anim
 
-code_A14D:  lda     ent_timer,x
+code_A14D:  lda     ent_timer,x          ; falling: shooting anim
         tya
-        lda     LA17E,y
+        lda     LA17E,y                 ; shoot anim from table
         cmp     ent_anim_id,x
-        beq     code_A163
+        beq     code_A163               ; already set → skip
         lda     ent_timer,x
         tya
         lda     LA17E,y
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_A163:  lda     ent_anim_state,x
-        cmp     #$01
-        bne     code_A139
-        jsr     code_A293
-        lda     #$00
+        cmp     #$01                    ; at frame 1?
+        bne     code_A139               ; no → return
+        jsr     code_A293               ; spawn projectile
+        lda     #$00                    ; reset anim after firing
         sta     ent_anim_frame,x
         sta     ent_anim_state,x
         rts
 
-LA176:  .byte   $00,$01
-LA178:  .byte   $88,$8A
-LA17A:  .byte   $86,$8F
-LA17C:  .byte   $83,$8C
-LA17E:  .byte   $85,$8E
-code_A180:  lda     #$99
+; Proto Man variant data tables (indexed by routine - $52):
+;   index 0 = routine $52 (normal), index 1 = routine $53 (Hard Man)
+LA176:  .byte   $00,$01                 ; timer variant
+LA178:  .byte   $88,$8A                 ; walking anim IDs
+LA17A:  .byte   $86,$8F                 ; jump anim IDs
+LA17C:  .byte   $83,$8C                 ; walk anim IDs
+LA17E:  .byte   $85,$8E                 ; shoot anim IDs
+; --- Proto Man defeated: fly upward off screen ---
+code_A180:  lda     #$99                ; teleport beam sprite
         cmp     ent_anim_id,x
-        beq     code_A1A2
+        beq     code_A1A2               ; already set → skip to accelerate
         lda     #$00
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; remove hitbox
         tay
-        jsr     LF67C
-        bcc     code_A1E1
-        lda     #$99
-        jsr     LF835
+        jsr     LF67C                   ; move_vertical_gravity
+        bcc     code_A1E1               ; airborne → return
+        lda     #$99                    ; set teleport beam sprite
+        jsr     LF835                   ; reset_sprite_anim
         inc     ent_anim_state,x
-        lda     #$00
+        lda     #$00                    ; clear Y velocity
         sta     ent_yvel_sub,x
         sta     ent_yvel,x
-code_A1A2:  lda     ent_anim_state,x
+code_A1A2:  lda     ent_anim_state,x    ; wait for anim to complete
         bne     code_A1E1
-        sta     ent_anim_frame,x
-        lda     ent_yvel_sub,x
+        sta     ent_anim_frame,x        ; hold on frame 0
+        lda     ent_yvel_sub,x          ; accelerate upward
         clc
         adc     gravity
         sta     ent_yvel_sub,x
         lda     ent_yvel,x
         adc     #$00
         sta     ent_yvel,x
-        cmp     #$0C
+        cmp     #$0C                    ; cap speed at $0C
         bne     code_A1C4
         lda     #$00
         sta     ent_yvel_sub,x
-code_A1C4:  jsr     LF779
+code_A1C4:  jsr     LF779               ; move_sprite_up
         lda     ent_y_scr,x
         beq     code_A1E1
         lda     #$00
@@ -4213,7 +4320,7 @@ main_proto_man_gemini_cutscene:
         lda     ent_status,x
         and     #$0F
         bne     code_A216
-        jsr     LF797
+        jsr     LF797                   ; apply_y_speed
         lda     #$9C
         cmp     ent_y_px,x
         bcs     code_A243
@@ -4222,7 +4329,7 @@ main_proto_man_gemini_cutscene:
         cmp     #$04
         bne     code_A248
         lda     #$88
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         inc     ent_status,x
         lda     #$FF
         sta     ent_timer,x
@@ -4263,7 +4370,7 @@ cutscene_init:  lda     ent_var3,x         ; if phase already started,
 code_A25D:  lda     #$11
         cmp     $D9
         beq     code_A26B
-        jsr     LF898
+        jsr     LF898                   ; submit_sound_ID_D9
         lda     #$B4
         sta     ent_timer,x
 code_A26B:  dec     ent_timer,x
@@ -4282,17 +4389,18 @@ code_A26B:  dec     ent_timer,x
 LA28A:  lda     stage_id                     ; else play stage music
         clc                             ; (stage index + 1)
         adc     #$01
-LA28F:  jsr     LF898
+LA28F:  jsr     LF898                   ; submit_sound_ID_D9
 code_A292:  rts
 
-code_A293:  jsr     LFC53
-        bcs     code_A2E7
-        sty     L0000
-        lda     ent_facing,x
+; --- spawn Proto Man projectile ---
+code_A293:  jsr     LFC53               ; find_enemy_freeslot_y
+        bcs     code_A2E7               ; no slot → abort
+        sty     L0000                   ; save child slot
+        lda     ent_facing,x            ; copy parent facing to child
         sta     ent_facing,y
-        and     #$02
+        and     #$02                    ; direction offset for X spawn table
         tay
-        lda     ent_x_px,x
+        lda     ent_x_px,x              ; child X = parent X + offset
         clc
         adc     LA2E8,y
         pha
@@ -4302,26 +4410,27 @@ code_A293:  jsr     LFC53
         sta     ent_x_scr,y
         pla
         sta     ent_x_px,y
-        lda     ent_y_px,x
+        lda     ent_y_px,x              ; child Y = parent Y
         sta     ent_y_px,y
         lda     #$00
-        sta     ent_hp,y
+        sta     ent_hp,y                ; HP = 0 (indestructible)
         sta     ent_xvel_sub,y
         lda     #$04
-        sta     ent_xvel,y
+        sta     ent_xvel,y              ; X speed = 4
         lda     ent_routine,x
-        and     #$01
+        and     #$01                    ; routine $52 vs $53
         bne     code_A2D8
-        lda     #$18
+        lda     #$18                    ; routine $52: OAM $18
         bne     code_A2DA
-code_A2D8:  lda     #$73
-code_A2DA:  jsr     LF846
-        lda     #$8B
+code_A2D8:  lda     #$73                ; routine $53: OAM $73
+code_A2DA:  jsr     LF846               ; init_child_entity
+        lda     #$8B                    ; hitbox = projectile
         sta     ent_hitbox,y
-        lda     #$1B
+        lda     #$1B                    ; AI routine = $1B
         sta     ent_routine,y
 code_A2E7:  rts
 
+; Proto Man projectile X spawn offsets (indexed by facing direction):
 LA2E8:  .byte   $0D
 LA2E9:  .byte   $00,$F3,$FF
 
@@ -4400,7 +4509,7 @@ code_A36B:  lda     #$00                ; freeze animation during pause
         bne     code_A388
         inc     ent_status,x                 ; advance to state 3 (walking)
         lda     #$77                    ; set walking sprite
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         jsr     LF869                   ; face player for walk direction
         lda     #$5A                    ; walk timer = 90 frames
         sta     ent_var2,x
@@ -4412,7 +4521,7 @@ code_A389:  lda     ent_anim_id,x             ; check if using helmet sprite (OA
         cmp     #$76                    ; if so, do retract-and-fire sequence
         beq     code_A3FA
         ldy     #$0E                    ; apply $99, speed index $0E
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_A3BA               ; no floor hit: skip horizontal move
         lda     #$AA                    ; on floor: set damage flags (hurts player, takes damage)
         sta     ent_hitbox,x
@@ -4420,11 +4529,11 @@ code_A389:  lda     ent_anim_id,x             ; check if using helmet sprite (OA
         and     #$01
         beq     code_A3AB               ; branch if facing left
         ldy     #$1C                    ; move right with collision
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_A3B0
 
 code_A3AB:  ldy     #$1D                ; move left with collision
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_A3B0:  bcc     code_A3BA           ; no wall hit: continue
         lda     ent_facing,x                 ; wall hit: reverse direction
         eor     #$03                    ; toggle left/right bits
@@ -4436,7 +4545,7 @@ code_A3BA:  lda     ent_var3,x             ; check retract phase flag
         lda     #$C6                    ; walk timer expired: switch to helmet
         sta     ent_hitbox,x                 ; damage flags = invincible in helmet
         lda     #$76                    ; set helmet closing sprite
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$FF                    ; retract timer = 255 frames
         sta     ent_var2,x
         inc     ent_var3,x                 ; set retract phase flag
@@ -4454,7 +4563,7 @@ code_A3D7:  dec     ent_var2,x             ; count down retract timer
         lda     #$C6                    ; damage flags = shielded helmet
         sta     ent_hitbox,x
         lda     #$76                    ; set helmet sprite
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$82                    ; reset to state 2 (active + firing)
         sta     ent_status,x                 ; skips init, goes straight to fire
         rts
@@ -4493,7 +4602,7 @@ code_A41A:  jsr     LFC53               ; find free enemy slot
         lda     LA489,x                 ; set direction flags from table
         sta     ent_facing,y
         lda     LA48E,x                 ; init child with OAM ID from table
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     LA493,x                 ; set sprite flags from table
         sta     ent_flags,y
         ldx     L0000                   ; restore parent slot to X
@@ -4677,28 +4786,29 @@ code_A5BC:  jsr     LFC53               ; find free enemy slot
         lda     #$00                    ; HP = 0 (indestructible)
         sta     ent_hp,y
         lda     #$81                    ; init child with OAM $81
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$26                    ; AI routine = $26 (falling bomb)
         sta     ent_routine,y
         lda     #$93                    ; damage flags = projectile
         sta     ent_hitbox,y
 code_A5FD:  rts
 
+; --- Nitron bomb AI (routine $26): fall with gravity, explode on impact ---
         lda     ent_status,x
         and     #$0F
         bne     code_A60B
-        jsr     LF81B
+        jsr     LF81B                   ; reset_gravity
         inc     ent_status,x
 code_A60B:  lda     ent_status,x
         and     #$02
         bne     code_A627
         ldy     #$12
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_A626
         lda     #$71
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$24
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         inc     ent_status,x
 code_A626:  rts
 
@@ -4709,9 +4819,10 @@ code_A627:  lda     ent_anim_id,x
         cmp     #$04
         bne     code_A626
         lda     #$80
-        jmp     LF835
-main_unknown_27:
+        jmp     LF835                   ; reset_sprite_anim
 
+; --- main_unknown_27 — unknown entity AI routine $27 ---
+main_unknown_27:
         lda     ent_anim_id,x
         cmp     #$71
         bne     code_A668
@@ -4719,7 +4830,7 @@ main_unknown_27:
         cmp     #$04
         bne     code_A667
         lda     #$92
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$40
         sta     ent_xvel_sub,x
         sta     ent_yvel_sub,x
@@ -4732,9 +4843,15 @@ main_unknown_27:
         sta     ent_hp,x
 code_A667:  rts
 
-code_A668:  jmp     code_ABEA
-main_gyoraibo:
+code_A668:  jmp     code_ABEA               ; → Nutton homing AI
 
+; ===========================================================================
+; main_gyoraibo — Gyoraibo (torpedo fish, Gemini Man stage)
+; Swims horizontally, opens mouth to fire upward projectile when aligned
+; with player. If wall is hit, begins descending. ent_var2=wall-hit flag,
+; ent_var1=fired flag, ent_timer=variant index.
+; ===========================================================================
+main_gyoraibo:
         lda     ent_status,x
         and     #$0F
         bne     code_A67D
@@ -4749,26 +4866,26 @@ code_A67D:  lda     ent_status,x
         and     #$01
         beq     code_A693
         ldy     #$14
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_A698
 
 code_A693:  ldy     #$15
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_A698:  bcc     code_A6A0
         inc     ent_var2,x
-code_A69D:  jmp     LF759
+code_A69D:  jmp     LF759               ; move_sprite_down
 
 code_A6A0:  lda     ent_var2,x
         bne     code_A69D
         lda     ent_var1,x
         bne     code_A6BC
-        jsr     LF8C2
+        jsr     LF8C2                   ; entity_x_dist_to_player
         cmp     #$08
         bcs     code_A6BC
         inc     ent_status,x
         inc     ent_var1,x
         lda     #$33
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_A6BC:  rts
 
 code_A6BD:  lda     ent_anim_id,x
@@ -4778,13 +4895,13 @@ code_A6BD:  lda     ent_anim_id,x
         ora     ent_anim_state,x
         bne     code_A6BC
         lda     #$32
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$00
         sta     ent_xvel_sub,x
         lda     #$04
         sta     ent_xvel,x
         dec     ent_status,x
-        jsr     LFC53
+        jsr     LFC53                   ; find_enemy_freeslot_y
         bcs     code_A730
         sty     L0000
         lda     ent_facing,x
@@ -4808,7 +4925,7 @@ code_A6BD:  lda     ent_anim_id,x
         lda     #$00
         sta     ent_hp,y
         lda     #$34
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     ent_routine,x
         cmp     #$28
         beq     code_A726
@@ -4839,7 +4956,7 @@ code_A74A:  lda     ent_status,x
         bcc     code_A76B
         inc     ent_status,x
         lda     #$71
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$00
         sta     ent_timer,x
         lda     #$56
@@ -4859,7 +4976,7 @@ code_A780:  lda     ent_y_px,x
         cmp     #$B4
         bcs     code_A7CA
 code_A787:  inc     ent_timer,x
-        jsr     LFC53
+        jsr     LFC53                   ; find_enemy_freeslot_y
         bcs     code_A7CA
         sty     L0000
         lda     ent_facing,x
@@ -4885,11 +5002,16 @@ code_A787:  inc     ent_timer,x
         sta     ent_hitbox,y
         sta     ent_hp,y
         lda     #$68
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
 code_A7CA:  rts
-main_penpen_maker:
 
-        lda     ent_status,x
+; ===========================================================================
+; main_penpen_maker — Penpen Maker (Gemini Man stage pipe spawner)
+; Periodically spawns Penpen enemies. Changes palette colors on spawn.
+; Uses a pseudo-random timer between spawns.
+; ===========================================================================
+main_penpen_maker:
+        lda     ent_status,x            ; state 0: init
         and     #$0F
         bne     code_A7EB
         ldy     #$02
@@ -4946,12 +5068,12 @@ LA83B:  .byte   $3C,$1E,$78,$3C
         bne     code_A8B8
         lda     #$0A
         sta     ent_var1,x
-        jsr     LFC53
+        jsr     LFC53                   ; find_enemy_freeslot_y
         bcs     code_A8BB
         lda     #$27
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         lda     #$71
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$19
         sta     ent_routine,y
         lda     #$00
@@ -5006,7 +5128,7 @@ LA8BD:  .byte   $20,$10,$17,$0F,$10,$00,$17,$0F
         .byte   $0F,$17,$0F,$0F,$0F,$0F,$0F
 LA8DC:  .byte   $F0,$10,$10,$D0,$F0,$10,$10,$D0
 LA8E4:  .byte   $F0,$20,$E8,$10,$F0,$20,$E8,$10
-code_A8EC:  jsr     LFC53
+code_A8EC:  jsr     LFC53               ; find_enemy_freeslot_y
         bcs     code_A93A
         sty     L0000
         lda     ent_facing,x
@@ -5032,7 +5154,7 @@ code_A8EC:  jsr     LFC53
         lda     #$02
         sta     ent_xvel,y
         lda     #$93
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$46
         sta     ent_routine,y
         lda     #$C0
@@ -5047,14 +5169,14 @@ LA93C:  .byte   $FF,$F8,$FF
         and     #$01
         beq     code_A94E
         lda     #$08
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_A953
 
 code_A94E:  ldy     #$09
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_A953:  bcc     code_A95F
         lda     #$71
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$00
         sta     ent_routine,x
 code_A95F:  rts
@@ -5078,10 +5200,10 @@ code_A95F:  rts
         sta     $11
         lda     ent_timer,x
         tax
-code_A98D:  jsr     LFC53
+code_A98D:  jsr     LFC53               ; find_enemy_freeslot_y
         bcs     code_A9F7
         lda     $10
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     $11
         cmp     #$56
         beq     code_A9B3
@@ -5130,6 +5252,12 @@ code_A9F7:  ldx     L0000
 
 LA9FA:  .byte   $0C,$F4,$F0,$10,$F4,$0C,$00,$00
 LAA02:  .byte   $F4,$0C,$00,$00,$F4,$0C,$F0,$10
+
+; ===========================================================================
+; main_bomber_pepe — Bomber Pepe (penguin bomber, Gemini Man stage)
+; Flies horizontally dropping bombs, with gravity and floor collision.
+; Uses pseudo-random timer between bomb drops.
+; ===========================================================================
 main_bomber_pepe:
         lda     ent_status,x
         and     #$0F
@@ -5140,7 +5268,7 @@ main_bomber_pepe:
         sta     ent_yvel,x
         lda     #$1E
         sta     ent_timer,x
-        jsr     LF883
+        jsr     LF883                   ; set_sprite_hflip
         jsr     code_A82E
         sta     ent_var1,x
         inc     ent_status,x
@@ -5156,13 +5284,13 @@ code_AA3A:  lda     ent_status,x
         and     #$01
         beq     code_AA50
         ldy     #$0A
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_AA55
 
 code_AA50:  ldy     #$0B
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_AA55:  ldy     #$20
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_AA6D
         lda     #$44
         sta     ent_yvel_sub,x
@@ -5172,7 +5300,7 @@ code_AA55:  ldy     #$20
         lda     #$3D
         bne     code_AA6F
 code_AA6D:  lda     #$3C
-code_AA6F:  jmp     LF835
+code_AA6F:  jmp     LF835               ; reset_sprite_anim
 
 code_AA72:  lda     ent_anim_id,x
         cmp     #$3B
@@ -5181,17 +5309,17 @@ code_AA72:  lda     ent_anim_id,x
         ora     ent_anim_state,x
         bne     code_AA99
         lda     #$3B
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_AA86:  dec     ent_timer,x
         bne     code_AA99
-        jsr     LF869
-        jsr     LF883
+        jsr     LF869                   ; face_player
+        jsr     LF883                   ; set_sprite_hflip
         dec     ent_status,x
         lda     #$3C
         sta     ent_timer,x
 code_AA99:  rts
 
-code_AA9A:  jsr     LFC53
+code_AA9A:  jsr     LFC53               ; find_enemy_freeslot_y
         bcs     code_AADB
         sty     L0000
         lda     ent_facing,x
@@ -5213,7 +5341,7 @@ code_AA9A:  jsr     LFC53
         lda     #$01
         sta     ent_hp,y
         lda     #$3E
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$1D
         sta     ent_routine,y
         lda     #$C0
@@ -5235,12 +5363,12 @@ code_AAF2:  lda     ent_status,x
         lda     ent_facing,x
         and     #$01
         beq     code_AB06
-        jsr     LF71D
+        jsr     LF71D                   ; move_sprite_right
         jmp     code_AB09
 
-code_AB06:  jsr     LF73B
+code_AB06:  jsr     LF73B               ; move_sprite_left
 code_AB09:  ldy     #$08
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_AB39
         lda     ent_timer,x
         tay
@@ -5262,7 +5390,7 @@ code_AB39:  rts
 code_AB3A:  dec     ent_var1,x
         bne     code_AB3A
         lda     #$71
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$00
         sta     ent_timer,x
         lda     #$39
@@ -5358,13 +5486,13 @@ code_ABEA:  lda     ent_x_px
         pla
         beq     code_AC16
         bcc     code_AC0B
-        jsr     LF71D
+        jsr     LF71D                   ; move_sprite_right
         lda     ent_flags,x
         ora     #$40
         sta     ent_flags,x
         jmp     code_AC16
 
-code_AC0B:  jsr     LF73B
+code_AC0B:  jsr     LF73B               ; move_sprite_left
         lda     ent_flags,x
         and     #$BF
         sta     ent_flags,x
@@ -5373,11 +5501,11 @@ code_AC16:  lda     ent_y_px
         sbc     ent_y_px,x
         beq     code_ABE9
         bcs     code_AC24
-        jmp     LF779
+        jmp     LF779                   ; move_sprite_up
 
-code_AC24:  jmp     LF759
+code_AC24:  jmp     LF759               ; move_sprite_down
 
-code_AC27:  jsr     LF8C2
+code_AC27:  jsr     LF8C2               ; entity_x_dist_to_player
         cmp     #$44
         bcs     code_AC7E
         lda     ent_x_px,x
@@ -5428,7 +5556,7 @@ code_AC80:  clc
         and     #$0F
         bne     code_ACBE
         sta     ent_var3,x
-        jsr     LF71D
+        jsr     LF71D                   ; move_sprite_right
         lda     ent_timer,x
         sec
         sbc     ent_x_px,x
@@ -5451,7 +5579,7 @@ code_ACB8:  lda     #$00
 code_ACBE:  lda     ent_var3,x
         bne     code_ACCB
         lda     #$25
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         inc     ent_var3,x
 code_ACCB:  lda     #$01
         sta     $95
@@ -5480,13 +5608,18 @@ code_ACE0:  lda     ent_anim_state,x
         sta     ent_hp,y
 code_AD08:  rts
 
-; bee carrier dudes
+; ===========================================================================
+; main_have_su_bee — Have "Su" Bee (bee carrier, Snake Man stage)
+; Flies toward player, hovers while carrying a bee, then releases it.
+; After release, reverses direction and flies away. ent_timer=pre-launch
+; delay, ent_var2=hover timer, ent_var1=release range check flag.
+; ===========================================================================
 main_have_su_bee:
 
         lda     ent_status,x
         and     #$0F
         bne     code_AD4B
-        jsr     LF8C2
+        jsr     LF8C2                   ; entity_x_dist_to_player
         cmp     #$28
         bcs     code_AD4A
         inc     ent_status,x
@@ -5509,23 +5642,23 @@ main_have_su_bee:
         sta     ent_x_scr,x
         pla
         sta     ent_x_px,x
-        jsr     LF869
+        jsr     LF869                   ; face_player
 code_AD4A:  rts
 
 code_AD4B:  lda     ent_status,x
         and     #$02
         bne     code_AD9A
-        jsr     LF883
+        jsr     LF883                   ; set_sprite_hflip
         lda     ent_facing,x
         and     #$01
         beq     code_AD62
-        jsr     LF71D
+        jsr     LF71D                   ; move_sprite_right
         jmp     code_AD65
 
-code_AD62:  jsr     LF73B
+code_AD62:  jsr     LF73B               ; move_sprite_left
 code_AD65:  lda     ent_var1,x
         bne     code_AD99
-        jsr     LF8C2
+        jsr     LF8C2                   ; entity_x_dist_to_player
         cmp     #$50
         bcc     code_AD99
         inc     ent_status,x
@@ -5554,16 +5687,16 @@ code_AD9A:  dec     ent_var2,x
         eor     #$03
         sta     ent_facing,x
         lda     #$3A
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         jmp     code_ADD9
 
 code_ADB2:  lda     ent_facing,x
         and     #$01
         beq     code_ADBF
-        jsr     LF779
+        jsr     LF779                   ; move_sprite_up
         jmp     code_ADC2
 
-code_ADBF:  jsr     LF759
+code_ADBF:  jsr     LF759               ; move_sprite_down
 code_ADC2:  dec     ent_timer,x
         bne     code_AD99
         lda     #$3C
@@ -5575,7 +5708,7 @@ code_ADC2:  dec     ent_timer,x
 
 LADD5:  .byte   $50
 LADD6:  .byte   $00,$B0,$FF
-code_ADD9:  jsr     LFC53
+code_ADD9:  jsr     LFC53               ; find_enemy_freeslot_y
         bcs     code_AE27
         sty     $01
         lda     ent_facing,x
@@ -5597,7 +5730,7 @@ code_ADD9:  jsr     LFC53
         adc     #$18
         sta     ent_y_px,y
         lda     #$35
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$2F
         sta     ent_routine,y
         lda     #$CF
@@ -5609,20 +5742,25 @@ code_ADD9:  jsr     LFC53
         lda     #$04
         sta     ent_yvel,y
 code_AE27:  rts
-main_beehive:
 
+; ===========================================================================
+; main_beehive — Beehive (Snake Man stage)
+; Falls until hitting floor, then explodes and spawns 5 Chibee enemies
+; at offset positions around the hive. Changes AI routine to $3A (dead).
+; ===========================================================================
+main_beehive:
         ldy     #$08
-        jsr     LF606
+        jsr     LF606                   ; move_down_collide
         bcc     code_AE27
         lda     #$71
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$00
         sta     ent_timer,x
         lda     #$3A
         sta     ent_routine,x
         lda     #$00
         sta     $01
-code_AE42:  jsr     LFC53
+code_AE42:  jsr     LFC53               ; find_enemy_freeslot_y
         bcs     code_AEB3
         sty     L0000
         lda     ent_facing,x
@@ -5647,7 +5785,7 @@ code_AE42:  jsr     LFC53
         ldy     L0000
         sta     ent_y_px,y
         lda     #$41
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$00
         sta     ent_xvel_sub,y
         sta     ent_xvel,y
@@ -5681,6 +5819,12 @@ LAEB5:  .byte   $FF,$E8,$FF,$01,$00,$18,$00,$18
 
 ; pixel
 bee_spawn_y_offset:  .byte   $E8,$18,$01,$E8,$18
+
+; ===========================================================================
+; main_returning_monking — Returning Monking (monkey enemy, Snake Man stage)
+; Jumps between platforms, pauses on landing, then leaps again toward player.
+; States: 0=init, 1=jumping/patrolling, 2=grounded/attacking, 3=retreating
+; ===========================================================================
 main_returning_monking:
         lda     ent_status,x
         and     #$0F
@@ -5692,7 +5836,7 @@ main_returning_monking:
         sta     ent_yvel,x
         lda     #$1E
         sta     ent_timer,x
-        jsr     LF883
+        jsr     LF883                   ; set_sprite_hflip
 code_AEDF:  lda     ent_status,x
         and     #$0F
         cmp     #$02
@@ -5709,14 +5853,14 @@ code_AEEF:  lda     ent_timer,x
         lda     ent_var1,x
         bne     code_AF1A
         lda     #$45
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         ldy     #$15
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         lda     $10
         and     #$10
         beq     code_AF19
         lda     #$44
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         rts
 
 code_AF16:  dec     ent_timer,x
@@ -5725,17 +5869,17 @@ code_AF19:  rts
 code_AF1A:  lda     ent_anim_id,x
         cmp     #$45
         beq     code_AF30
-        jsr     LF8C2
+        jsr     LF8C2                   ; entity_x_dist_to_player
         cmp     #$28
         bcs     code_AF19
         lda     #$45
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         inc     ent_var1,x
 code_AF30:  ldy     #$15
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_AF19
         lda     #$43
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         inc     ent_status,x
 code_AF3F:  lda     ent_var2,x
         bne     code_AF5C
@@ -5754,65 +5898,71 @@ code_AF5C:  lda     ent_facing,x
         and     #$01
         beq     code_AF6B
         ldy     #$16
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_AF70
 
 code_AF6B:  ldy     #$17
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_AF70:  lda     ent_anim_id,x
         cmp     #$43
         beq     code_AF9B
         ldy     #$15
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_AF9A
         lda     #$BB
         sta     ent_yvel_sub,x
         lda     #$06
         sta     ent_yvel,x
         lda     #$43
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$01
         sta     ent_anim_state,x
         lda     #$00
         sta     ent_anim_frame,x
-        jsr     LF869
+        jsr     LF869                   ; face_player
 code_AF9A:  rts
 
 code_AF9B:  lda     ent_anim_state,x
         bne     code_AFA0
 code_AFA0:  lda     #$46
-        jmp     LF835
+        jmp     LF835                   ; reset_sprite_anim
 
 code_AFA5:  lda     ent_anim_id,x
         cmp     #$44
         beq     code_AFC6
         lda     #$45
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         ldy     #$15
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         lda     $10
         and     #$10
         beq     code_AF9A
         lda     #$44
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$5A
         sta     ent_var3,x
 code_AFC6:  dec     ent_var3,x
         bne     code_AFD6
         dec     ent_status,x
-        jsr     LF81B
+        jsr     LF81B                   ; reset_gravity
         lda     #$45
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_AFD6:  rts
-main_wanaan:
 
+; ===========================================================================
+; main_wanaan — Wanaan (pipe snake, Snake Man stage)
+; Hides in pipe, snaps out to bite when player is within $18 px both X and Y.
+; Snap sequence: presnap delay → upward snap (6 frames) → sound → downward
+; snap (16 frames) → retract to original position and re-hide.
+; ===========================================================================
+main_wanaan:
         lda     ent_status,x                 ; test state:
         and     #$0F                    ; any of these bits
         bne     LB00D                   ; means at least presnap
         sta     ent_yvel_sub,x
         lda     #$02                    ; if not, $0200
         sta     ent_yvel,x                 ; -> Y speed
-        jsr     LF8B3
+        jsr     LF8B3                   ; entity_y_dist_to_player
         cmp     #$18
         bcs     LB00C                   ; if player is within $18
         jsr     LF8C2                   ; pixel distance both X & Y
@@ -5859,7 +6009,7 @@ LB04C:  lda     #$01
         sta     ent_anim_state,x                 ; show closed mouth frame
         lda     #$00
         sta     ent_anim_frame,x
-        jsr     LF759
+        jsr     LF759                   ; move_sprite_down
         dec     ent_var3,x                 ; downward snap timer
         bne     LB00C                   ; not expired yet? return
         lda     #$00                    ; on expiration,
@@ -5875,12 +6025,18 @@ LB04C:  lda     #$01
         lda     #$83                    ; reset shape
         sta     ent_hitbox,x
         rts
-main_komasaburo:
 
+; ===========================================================================
+; main_komasaburo — Komasaburo (spinning top enemy, Top Man stage)
+; Spins in place, periodically fires child projectiles (OAM $E2).
+; After 3 firings, enters a different behavioral pattern.
+; ent_timer=fire delay, ent_var1=anim timer, ent_var2=fire count.
+; ===========================================================================
+main_komasaburo:
         lda     ent_status,x
         and     #$0F
         bne     code_B096
-        jsr     LF883
+        jsr     LF883                   ; set_sprite_hflip
         inc     ent_status,x
         lda     #$36
         sta     ent_timer,x
@@ -5898,7 +6054,7 @@ code_B096:  lda     ent_status,x
         dec     ent_timer,x
         bne     code_B0E0
         lda     #$D6
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_B0B5:  lda     #$00
         sta     ent_anim_state,x
         sta     ent_anim_frame,x
@@ -5919,7 +6075,7 @@ code_B0E0:  lda     ent_anim_id,x
         cmp     #$C6
         beq     code_B0EC
         lda     #$C6
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_B0EC:  rts
 
 code_B0ED:  lda     #$00
@@ -5946,7 +6102,7 @@ code_B110:  lda     $01
         inc     L0000
         jmp     code_B0FC
 
-code_B11C:  jsr     LFC53
+code_B11C:  jsr     LFC53               ; find_enemy_freeslot_y
         bcs     code_B155
         lda     ent_facing,x
         sta     ent_facing,y
@@ -5959,7 +6115,7 @@ code_B11C:  jsr     LFC53
         adc     #$04
         sta     ent_y_px,y
         lda     #$E2
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$98
         sta     ent_flags,y
         lda     #$C0
@@ -5980,19 +6136,19 @@ code_B155:  rts
         inc     ent_status,x
         lda     #$F0
         sta     ent_timer,x
-        jsr     LF81B
+        jsr     LF81B                   ; reset_gravity
 code_B173:  ldy     #$08
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_B198
         lda     ent_facing,x
         and     #$01
         beq     code_B189
         ldy     #$08
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_B18E
 
 code_B189:  ldy     #$09
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_B18E:  bcc     code_B198
         lda     ent_facing,x
         eor     #$03
@@ -6000,7 +6156,7 @@ code_B18E:  bcc     code_B198
 code_B198:  dec     ent_timer,x
         bne     code_B1A8
         lda     #$71
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$00
         sta     ent_routine,x
 code_B1A7:  rts
@@ -6014,6 +6170,12 @@ code_B1A8:  lda     ent_var1,x
         sta     ent_timer,x
         inc     ent_var1,x
         rts
+
+; ===========================================================================
+; main_mechakkero — Mechakkero (frog robot, Shadow Man stage)
+; Hops toward player with gravity. On floor hit, sets random jump height
+; and waits on a timer before hopping again. State 0=airborne, 1=grounded.
+; ===========================================================================
 main_mechakkero:
 
         lda     ent_status,x                 ; state nonzero
@@ -6023,13 +6185,13 @@ main_mechakkero:
         and     #$01
         beq     code_B1D3
         ldy     #$18
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_B1D8
 
 code_B1D3:  ldy     #$19
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_B1D8:  ldy     #$18
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_B1EE
         jsr     code_B224
         inc     ent_status,x
@@ -6040,7 +6202,7 @@ code_B1D8:  ldy     #$18
 code_B1EE:  lda     #$C3
         sta     ent_hitbox,x
         lda     #$2A
-code_B1F5:  jmp     LF835
+code_B1F5:  jmp     LF835               ; reset_sprite_anim
 
 code_B1F8:  lda     ent_anim_id,x
         cmp     #$2B
@@ -6051,7 +6213,7 @@ code_B1F8:  lda     ent_anim_id,x
         lda     #$29
         bne     LB20C
 LB20A:  lda     #$29
-LB20C:  jsr     LF835
+LB20C:  jsr     LF835                   ; reset_sprite_anim
         lda     ent_timer,x                 ; timer not expired yet?
         bne     LB220
         lda     #$3C                    ; on timer expiration,
@@ -6076,6 +6238,12 @@ code_B224:  lda     $E4
 
 LB23A:  .byte   $52,$A8
 LB23C:  .byte   $04,$05
+
+; ===========================================================================
+; main_top_man_platform — Top Man stage moving platform (conveyor belt)
+; Moves up or down, carries the player when standing on it. Reverses
+; direction on a timer. Checks player collision to apply conveyor push.
+; ===========================================================================
 main_top_man_platform:
         lda     ent_status,x
         and     #$0F
@@ -6094,10 +6262,10 @@ code_B25A:  lda     #$10
         sta     ent_facing,x
         rts
 
-code_B265:  jsr     LF8C2
+code_B265:  jsr     LF8C2               ; entity_x_dist_to_player
         cmp     #$16
         bcs     code_B29C
-        jsr     LF8B3
+        jsr     LF8B3                   ; entity_y_dist_to_player
         cmp     #$15
         bcs     code_B29C
         lda     ent_facing,x
@@ -6120,7 +6288,7 @@ code_B280:  sta     $36
         sta     ent_facing,x
 code_B29C:  lda     ent_var1,x
         bne     code_B2AF
-        jsr     LF779
+        jsr     LF779                   ; move_sprite_up
         lda     ent_y_scr,x
         beq     code_B2AE
         lda     #$00
@@ -6130,7 +6298,7 @@ code_B2AE:  rts
 code_B2AF:  lda     ent_y_px,x
         pha
         dec     ent_y_px,x
-        jsr     LFAE2
+        jsr     LFAE2                   ; check_player_collision
         pla
         sta     ent_y_px,x
         bcs     code_B2F0
@@ -6155,7 +6323,7 @@ code_B2DC:  stx     $0F
         beq     code_B2EE
         jsr     LEE13
 code_B2EE:  ldx     $0F
-code_B2F0:  jsr     LF759
+code_B2F0:  jsr     LF759               ; move_sprite_down
         lda     ent_y_scr,x
         beq     code_B2AE
         lda     #$00
@@ -6213,15 +6381,21 @@ code_B34B:  rts
 code_B34C:  lda     #$A4                ; damage = hittable + hurts player
         sta     ent_hitbox,x
         rts
-main_elecn:
 
+; ===========================================================================
+; main_elecn — Elec'n (electric jellyfish, Spark Man stage)
+; Descends from ceiling, fires electric sparks at timed intervals.
+; Waits for player proximity before activating. ent_timer=fire interval,
+; ent_var1=spark count, ent_var2=spark spawn index.
+; ===========================================================================
+main_elecn:
         lda     ent_status,x
         and     #$0F
         bne     code_B389
         lda     ent_flags,x
         and     #$04
         beq     code_B372
-        jsr     LF8C2
+        jsr     LF8C2                   ; entity_x_dist_to_player
         cmp     #$61
         bcs     code_B34B
         lda     ent_flags,x
@@ -6229,7 +6403,7 @@ main_elecn:
         sta     ent_flags,x
         jmp     LF883
 
-code_B372:  jsr     LF797
+code_B372:  jsr     LF797               ; apply_y_speed
         lda     ent_y_px,x
         cmp     #$78
         bcc     code_B34B
@@ -6244,7 +6418,7 @@ code_B389:  lda     ent_anim_id,x
         lda     ent_anim_frame,x
         bne     code_B34B
         lda     #$55
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_B39A:  dec     ent_timer,x
         lda     ent_timer,x
         bne     code_B3AA
@@ -6267,24 +6441,24 @@ code_B3AA:  lda     ent_var1,x
         beq     code_B3DA
         lda     ent_var2,x
         bne     code_B3D7
-        jsr     LF8C2
+        jsr     LF8C2                   ; entity_x_dist_to_player
         bcs     code_B3E7
-code_B3D7:  jmp     LF73B
+code_B3D7:  jmp     LF73B               ; move_sprite_left
 
 code_B3DA:  lda     ent_var2,x
         bne     code_B3E4
-        jsr     LF8C2
+        jsr     LF8C2                   ; entity_x_dist_to_player
         bcc     code_B3E7
-code_B3E4:  jmp     LF71D
+code_B3E4:  jmp     LF71D               ; move_sprite_right
 
 code_B3E7:  lda     #$26
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         lda     #$56
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         stx     L0000
         lda     #$07
         sta     $01
-code_B3F7:  jsr     LFC53
+code_B3F7:  jsr     LFC53               ; find_enemy_freeslot_y
         bcs     code_B446
         ldx     $01
         lda     LB454,x
@@ -6299,7 +6473,7 @@ code_B3F7:  jsr     LFC53
         sta     ent_facing,y
         ldx     L0000
         lda     #$57
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$80
         sta     ent_hitbox,y
         lda     #$0F
@@ -6325,18 +6499,24 @@ LB45C:  .byte   $00,$01,$02,$01,$00,$01,$02,$01
 LB464:  .byte   $00,$96,$00,$6A,$00,$6A,$00,$96
 LB46C:  .byte   $FE,$FE,$00,$01,$02,$01,$00,$FE
 LB474:  .byte   $02,$02,$02,$02,$01,$01,$01,$01
+
+; ===========================================================================
+; main_peterchy — Peterchy (walking snake, Snake Man stage)
+; Walks horizontally with gravity, reverses at walls. Charges when player
+; is close (< $10 px), backs off when > $30 px away.
+; ===========================================================================
 main_peterchy:
         ldy     #$08
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         lda     ent_facing,x
         and     #$01
         beq     code_B490
         ldy     #$1A
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_B495
 
 code_B490:  ldy     #$1B
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_B495:  bcc     code_B49F
         lda     ent_facing,x
         eor     #$03
@@ -6344,13 +6524,13 @@ code_B495:  bcc     code_B49F
 code_B49F:  lda     ent_status,x
         and     #$0F
         bne     code_B4B1
-        jsr     LF8C2
+        jsr     LF8C2                   ; entity_x_dist_to_player
         cmp     #$10
         bcs     code_B4B0
         inc     ent_status,x
 code_B4B0:  rts
 
-code_B4B1:  jsr     LF8C2
+code_B4B1:  jsr     LF8C2               ; entity_x_dist_to_player
         cmp     #$30
         bcc     code_B4B0
         lda     ent_facing,x
@@ -6368,19 +6548,19 @@ code_B4B1:  jsr     LF8C2
 main_walking_bomb:
 
         ldy     #$1A                    ; apply $99 with hitbox $1A
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         rol     $0F                     ; save carry (landed flag) into $0F bit 0
         jsr     LFB7B                   ; check if weapon hit this enemy
         bcs     code_B4EC               ; survived → continue walking
 
 ; --- weapon killed this enemy: explode ---
         lda     #$18                    ; play explosion sound
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         ldy     $10                     ; deactivate the weapon that hit us
         lda     #$00
         sta     ent_status,y
         lda     #$71                    ; switch to explosion sprite
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$00                    ; clear timer
         sta     ent_timer,x
         lda     #$39                    ; change main routine to explosion handler
@@ -6393,11 +6573,11 @@ code_B4EC:  lda     ent_facing,x             ; check facing direction
         and     #$01
         beq     code_B4FB               ; bit 0 clear → move left
         ldy     #$1C                    ; move right with wall collision
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_B500
 
 code_B4FB:  ldy     #$1D                ; move left with wall collision
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_B500:  lda     $0F                 ; check landed flag (saved from $99)
         and     #$01
         beq     code_B53F               ; not on ground → done
@@ -6407,7 +6587,7 @@ code_B500:  lda     $0F                 ; check landed flag (saved from $99)
 
 ; --- hit a wall: bounce ---
         lda     #$52                    ; switch to bounce sprite
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         inc     ent_timer,x                 ; increment bounce counter
         lda     ent_timer,x
         cmp     #$04                    ; 4 bounces → reverse direction
@@ -6429,7 +6609,7 @@ code_B52E:  lda     ent_anim_id,x             ; if already using walk OAM $51, s
         cmp     #$51
         beq     code_B53A
         lda     #$51                    ; reset to walking sprite
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
 code_B53A:  lda     #$00                ; reset bounce counter
         sta     ent_timer,x
 code_B53F:  rts
@@ -6485,10 +6665,10 @@ code_B579:  lda     ent_timer,x             ; if visibility timer active,
         lda     ent_facing,x                 ; move in facing direction
         and     #$01
         beq     code_B58B               ; bit 0 clear → move left
-        jsr     LF71D
+        jsr     LF71D                   ; move_sprite_right
         jmp     code_B58E
 
-code_B58B:  jsr     LF73B
+code_B58B:  jsr     LF73B               ; move_sprite_left
 code_B58E:  lda     ent_status,x             ; check entity state
         and     #$0F
         bne     code_B5CB               ; already appeared → done
@@ -6562,7 +6742,7 @@ code_B5FD:  lda     ent_var3,x             ; check phase flag
 ; --- delay expired: detach parachute ---
 
 code_B60D:  lda     #$4D                ; switch to detached sprite (OAM $4D)
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         inc     ent_var3,x                 ; set phase flag -> 1 (detached)
         lda     #$10                    ; set fall timer = 16 frames
         sta     ent_var2,x                 ; (before first swoop)
@@ -6638,10 +6818,10 @@ code_B694:  dec     ent_timer,x             ; decrement speed hold timer
         lda     ent_facing,x                 ; move horizontally by X speed
         and     #$02                    ; bit 1: 0=right, 1=left
         bne     code_B6B8
-        jsr     LF71D
+        jsr     LF71D                   ; move_sprite_right
         bcs     code_B6BB               ; (unconditional branch pair)
         bcc     code_B6BB
-code_B6B8:  jsr     LF73B
+code_B6B8:  jsr     LF73B               ; move_sprite_left
 code_B6BB:  rts
 
 ; --- gentle fall phase (between swoops) ---
@@ -6664,7 +6844,14 @@ LB6D6:  .byte   $09,$0A,$0B,$0C,$0D,$0E,$0F,$09
         .byte   $0A,$0B,$0C,$0D,$0E,$0F
 LB6E4:  .byte   $22,$2A,$26,$2E
 
-; same intro for all 8
+; ===========================================================================
+; main_doc_robot_intro — Doc Robot introduction sequence (all 8 stages)
+; ===========================================================================
+; Same routine handles all 8 Doc Robot intros. State 0: calls init_boss_wait,
+; spawns a shutter entity, sets up CHR banks and palette for the specific
+; Doc Robot master. State 1: waits for boss HP bar to fill ($B0 >= $9C),
+; then morphs this entity into the actual Doc Robot AI (via
+; doc_robot_master_main_indices table).
 main_doc_robot_intro:
         lda     #$00
         sta     ent_anim_frame,x
@@ -6683,19 +6870,19 @@ main_doc_robot_intro:
         tay                             ; main routine index
         lda     doc_robot_master_main_indices,y ; morph this sprite into it
         sta     ent_routine,x
-        lda     #$CA
+        lda     #$CA                    ; doc robot hitbox
         sta     ent_hitbox,x
-        lda     #$1C
+        lda     #$1C                    ; 28 HP
         sta     ent_hp,x
-        lda     LB843,y
+        lda     LB843,y                 ; master-specific X velocity (sub)
         sta     ent_xvel_sub,x
-        lda     LB84B,y
+        lda     LB84B,y                 ; master-specific X velocity (whole)
         sta     ent_xvel,x
-        jsr     LF81B
-        lda     LB81B,y
+        jsr     LF81B                   ; reset_gravity
+        lda     LB81B,y                 ; CHR bank set for this master
         sta     $ED
-        jsr     LFF3C
-        lda     #$C0
+        jsr     LFF3C                   ; update_CHR_banks
+        lda     #$C0                    ; set status: active + invincible
         sta     ent_status,x
         tya
         asl     a
@@ -6714,9 +6901,10 @@ code_B73C:  lda     LB823,y
         ldx     L0000
 code_B751:  rts
 
-code_B752:  jsr     init_boss_wait
+; --- state 0: spawn shutter and set up doc robot ---
+code_B752:  jsr     init_boss_wait          ; freeze player, start HP bar fill
         inc     ent_status,x
-        jsr     LFC53
+        jsr     LFC53                   ; find_enemy_freeslot_y
         lda     #$61
         sta     ent_routine,y
         lda     ent_y_px,x
@@ -6738,7 +6926,7 @@ code_B752:  jsr     init_boss_wait
         tax
         lda     LB7F3,x
         ldx     L0000
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     ent_routine,x
         and     #$07
         tay
@@ -6760,9 +6948,9 @@ code_B752:  jsr     init_boss_wait
         sta     $063F
         lda     #$FF
         sta     palette_dirty
-        jmp     LFF3C
+        jmp     LFF3C                   ; update_CHR_banks
 
-        jsr     LF759
+        jsr     LF759                   ; move_sprite_down
         lda     ent_y_px,x
         cmp     ent_var1,x
         beq     code_B7D9
@@ -6790,7 +6978,7 @@ init_boss_wait:  lda     #PSTATE_BOSS_WAIT           ; state → $09 (boss_wait)
         lda     #$8E                    ; $B3 = HP fill target
         sta     $B3                     ; ($8E = $80 + 14 ticks = 28 HP)
         lda     #$0C                    ; SFX $0C = boss intro music
-        jsr     LF898
+        jsr     LF898                   ; submit_sound_ID_D9
         rts
 
 LB7F3:  .byte   $16,$1A,$14,$18,$15,$13,$19,$17
@@ -6810,40 +6998,49 @@ LB823:  .byte   $0F,$30,$15,$27,$0F,$0F,$30,$19
 LB843:  .byte   $00,$00,$00,$B3,$4C,$00,$80,$00
 LB84B:  .byte   $01,$00,$00,$01,$01,$00,$02,$04
 
-; same intro for all 8
+; ===========================================================================
+; main_robot_master_intro — Robot Master introduction sequence (all 8)
+; ===========================================================================
+; Shared intro for all 8 Robot Masters. State 0: calls init_boss_wait,
+; advances state. Then falls with gravity until Y >= $80. Once landed and
+; boss HP bar filled ($B0 >= $9C), morphs entity into the actual Robot Master
+; AI (via robot_master_main_indices table), sets HP to $1C (28), and loads
+; the master-specific initial animation frame.
 main_robot_master_intro:
         lda     ent_status,x
         and     #$0F
         bne     code_B860
         inc     ent_status,x
-        jsr     init_boss_wait
-code_B860:  lda     ent_y_px,x
+        jsr     init_boss_wait                  ; freeze player, start HP bar fill
+; --- falling / waiting for HP bar to fill ---
+code_B860:  lda     ent_y_px,x          ; still above landing Y ($80)?
         cmp     #$80
-        bcs     code_B86D
-        jsr     LF797
+        bcs     code_B86D               ; no → apply gravity with floor
+        jsr     LF797                   ; apply_y_speed (still falling)
         jmp     code_B8BD
 
-code_B86D:  lda     ent_routine,x
+code_B86D:  lda     ent_routine,x       ; look up floor tile for this master
         and     #$07
         tay
-        lda     LB8EF,y
+        lda     LB8EF,y                 ; gravity floor offset per master
         tay
-        jsr     LF67C
-        bcc     code_B8BD
-        lda     ent_routine,x
+        jsr     LF67C                   ; move_vertical_gravity
+        bcc     code_B8BD               ; not landed yet
+        lda     ent_routine,x           ; check if landing animation done
         and     #$07
         tay
-        lda     LB8E7,y
+        lda     LB8E7,y                 ; target anim_state for this master
         cmp     ent_anim_state,x
-        bne     code_B8C2
+        bne     code_B8C2               ; not yet → keep boss HP bar filling
         lda     #$00
         sta     ent_anim_frame,x
         lda     boss_hp_display
-        cmp     #$9C
-        bne     code_B8C6
-        lda     #$C0
+        cmp     #$9C                    ; HP bar fully filled?
+        bne     code_B8C6               ; no → wait
+; --- morph into actual Robot Master AI ---
+        lda     #$C0                    ; active + invincible
         sta     ent_status,x
-        lda     #$1C
+        lda     #$1C                    ; 28 HP
         sta     ent_hp,x
         lda     ent_routine,x
         and     #$07                    ; fetch robot master's
@@ -6855,7 +7052,7 @@ code_B86D:  lda     ent_routine,x
         lda     LB8D7,y
         sta     ent_xvel,x
         lda     LB8DF,y
-        jmp     LF835
+        jmp     LF835                   ; reset_sprite_anim
 
 code_B8BD:  lda     #$00
         sta     ent_anim_frame,x
@@ -6863,18 +7060,23 @@ code_B8C2:  lda     #$80
         sta     boss_hp_display
 code_B8C6:  rts
 
+; Needle, Magnet, Gemini, Hard, Top, Snake, Spark, Shadow
 robot_master_main_indices:  .byte   $C0,$C1,$D6,$D0,$C2,$D4,$D2,$C3
-LB8CF:  .byte   $B3,$00,$2D,$00,$00,$4C,$6D,$00
-LB8D7:  .byte   $01,$00,$03,$01,$04,$01,$01,$04
-LB8DF:  .byte   $29,$1F,$33,$2C,$49,$22,$36,$3F
-LB8E7:  .byte   $04,$03,$05,$06,$02,$02,$08,$03
-LB8EF:  .byte   $1E,$1E,$00,$26,$1E,$00,$1E,$1E
+LB8CF:  .byte   $B3,$00,$2D,$00,$00,$4C,$6D,$00 ; X velocity (sub) per master
+LB8D7:  .byte   $01,$00,$03,$01,$04,$01,$01,$04 ; X velocity (whole) per master
+LB8DF:  .byte   $29,$1F,$33,$2C,$49,$22,$36,$3F ; initial anim frame per master
+LB8E7:  .byte   $04,$03,$05,$06,$02,$02,$08,$03 ; target anim_state per master
+LB8EF:  .byte   $1E,$1E,$00,$26,$1E,$00,$1E,$1E ; gravity floor offset per master
         .byte   $60
+
+; --- main_spinning_wheel — Shadow Man stage conveyor wheel ---
+; Checks player collision, then scrolls camera horizontally based on
+; the OAM ID's low bit (left/right wheel direction).
 main_spinning_wheel:
         lda     ent_y_px,x
         pha
         dec     ent_y_px,x
-        jsr     LFAE2
+        jsr     LFAE2                   ; check_player_collision
         pla
         sta     ent_y_px,x
         bcs     code_B92A
@@ -6896,6 +7098,10 @@ code_B92A:  rts
 LB92B:  .byte   $80,$80
 LB92D:  .byte   $00,$FF
 LB92F:  .byte   $00,$FF
+
+; --- main_trap_platform — Shadow Man stage trap platform ---
+; Triggers when player is close (< $15 Y, < $18 X). Plays open animation,
+; then closes after a delay. Toggles sprite flag bit 0 on completion.
 main_trap_platform:
         lda     ent_status,x
         and     #$0F
@@ -6903,7 +7109,7 @@ main_trap_platform:
         sta     ent_anim_state,x
         sta     ent_anim_frame,x
         sta     ent_var1,x
-        jsr     LF8B3
+        jsr     LF8B3                   ; entity_y_dist_to_player
         cmp     #$15
         bcs     code_B963
         lda     player_state
@@ -6911,7 +7117,7 @@ main_trap_platform:
         lda     ent_y_px,x
         cmp     ent_y_px
         bcc     code_B963
-        jsr     LF8C2
+        jsr     LF8C2                   ; entity_x_dist_to_player
         cmp     #$18
         bcs     code_B963
         lda     #$0C
@@ -6948,6 +7154,10 @@ code_B98F:  lda     #$04
         lda     #$80
         sta     ent_status,x
         rts
+
+; --- main_breakable_wall — breakable wall segment (Hard Knuckle target) ---
+; Checks weapon slots $01-$02 for Hard Knuckle ($AC) or Shadow Blade ($AF).
+; If hit, plays explosion and changes AI routine to $19 (debris).
 main_breakable_wall:
 
         ldy     #$01
@@ -6958,15 +7168,15 @@ code_B9AE:  lda     ent_status,y
         beq     code_B9BE
         cmp     #$AF
         bne     code_B9DF
-code_B9BE:  jsr     LFB7B
+code_B9BE:  jsr     LFB7B               ; check_sprite_weapon_collision
         bcs     code_B9DF
         lda     #$18
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         ldy     $10
         lda     #$00
         sta     ent_status,y
         lda     #$71
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     #$00
         sta     ent_timer,x
         lda     #$19
@@ -6977,147 +7187,174 @@ code_B9DF:  iny
         cpy     #$03
         bcc     code_B9AE
         rts
+
+; ===========================================================================
+; main_spark_falling_platform — Spark Man stage falling platform
+; ===========================================================================
+; Platform that falls when the player stands on it. State 0: checks if player
+; is within range (Y < $15, X < $0A), saves initial Y to ent_var3 for
+; return trip. State 1: falls upward (accelerates from speed $01.00 to max
+; $03.00), stops when Y < $3A (offscreen top). State 2: returns to original
+; Y position (ent_var3), then re-checks player proximity to cycle again.
 main_spark_falling_platform:
 
         lda     ent_status,x
         and     #$0F
         bne     code_BA0B
-        sta     ent_yvel_sub,x
+; --- state 0: idle, waiting for player proximity ---
+        sta     ent_yvel_sub,x          ; init Y speed = $01.00
         lda     #$01
         sta     ent_yvel,x
         lda     ent_y_px,x
-        sta     ent_var3,x
-        jsr     LF8B3
-        cmp     #$15
+        sta     ent_var3,x              ; save home Y position
+        jsr     LF8B3                   ; entity_y_dist_to_player
+        cmp     #$15                    ; within $15 pixels Y?
         bcs     code_BA41
-        jsr     LF8C2
-        cmp     #$0A
+        jsr     LF8C2                   ; entity_x_dist_to_player
+        cmp     #$0A                    ; within $0A pixels X?
         bcs     code_BA41
-        inc     ent_status,x
+        inc     ent_status,x            ; player close enough → start rising
+; --- state 1: rising upward ---
 code_BA0B:  lda     ent_timer,x
-        bne     code_BA42
-        jsr     LF779
-        lda     ent_yvel_sub,x
+        bne     code_BA42               ; timer set → returning phase
+        jsr     LF779                   ; move_sprite_up
+        lda     ent_yvel_sub,x          ; accelerate upward (+$10 sub each frame)
         clc
         adc     #$10
         sta     ent_yvel_sub,x
         lda     ent_yvel,x
         adc     #$00
         sta     ent_yvel,x
-        cmp     #$03
+        cmp     #$03                    ; cap speed at $03.00
         bne     code_BA2D
         lda     #$00
         sta     ent_yvel_sub,x
 code_BA2D:  lda     ent_y_px,x
-        cmp     #$3A
+        cmp     #$3A                    ; reached top of screen?
         bcs     code_BA41
-        inc     ent_timer,x
-        lda     #$00
+        inc     ent_timer,x             ; mark: time to return
+        lda     #$00                    ; reset speed to $01.00 for descent
         sta     ent_yvel_sub,x
         lda     #$01
         sta     ent_yvel,x
 code_BA41:  rts
 
+; --- state 1+: returning to home position ---
 code_BA42:  lda     ent_status,x
         and     #$02
-        bne     code_BA57
-        jsr     code_B2AF
+        bne     code_BA57               ; state 2+ → check player again
+        jsr     code_B2AF               ; move downward (return to home)
         lda     ent_y_px,x
-        cmp     ent_var3,x
-        bcc     code_BA41
-        inc     ent_status,x
-code_BA57:  jsr     LF8B3
+        cmp     ent_var3,x              ; reached home Y?
+        bcc     code_BA41               ; not yet
+        inc     ent_status,x            ; advance to state 2
+code_BA57:  jsr     LF8B3               ; entity_y_dist_to_player
         cmp     #$16
         bcs     code_BA41
-        jsr     LF8C2
+        jsr     LF8C2                   ; entity_x_dist_to_player
         cmp     #$09
         bcs     code_BA41
         dec     ent_status,x
         dec     ent_timer,x
         rts
+
+; ===========================================================================
+; main_big_snakey — Big Snakey (Snake Man stage mini-boss)
+; ===========================================================================
+; Large snake entity. State 0: picks random shot count (2-4) from table,
+; sets $78 frame timer. State 1: when timer expires, opens mouth (animation
+; state |= $01), spawns homing bullet child (routine $8F) using
+; calc_homing_velocity (LFC63). After all shots fired, returns to state 0.
+; On death (HP=0): despawns all child projectiles below Y < $80, sets $55
+; to $80 (screen shake / boss defeated flag).
 main_big_snakey:
 
+; --- state 0: init, pick random shot count ---
         lda     ent_status,x
         and     #$0F
         bne     code_BA8C
         inc     ent_status,x
-        lda     $E4
+        lda     $E4                     ; RNG: $E4 += $E6
         adc     $E6
         sta     $E4
-        and     #$03
+        and     #$03                    ; 0-3 index
         tay
-        lda     LBB51,y
+        lda     LBB51,y                 ; shot count: 2, 3, 4, or 2
         sta     ent_var1,x
-        lda     #$78
+        lda     #$78                    ; 120-frame delay before firing
         sta     ent_timer,x
         bne     code_BB01
+; --- state 1: firing phase ---
 code_BA8C:  lda     ent_timer,x
-        bne     code_BAFE
-        lda     ent_anim_state,x
+        bne     code_BAFE              ; timer not expired → wait
+        lda     ent_anim_state,x       ; open mouth (anim |= $01)
         ora     #$01
         sta     ent_anim_state,x
-        lda     ent_var2,x
-        bne     code_BAF8
-        jsr     LFC53
-        lda     #$BA
-        jsr     LF846
-        lda     ent_x_px,x
+        lda     ent_var2,x             ; inter-shot delay active?
+        bne     code_BAF8              ; yes → count down
+; --- spawn homing bullet child ---
+        jsr     LFC53                   ; find_enemy_freeslot_y
+        lda     #$BA                    ; child anim ID
+        jsr     LF846                   ; init_child_entity
+        lda     ent_x_px,x             ; copy position to child
         sta     ent_x_px,y
         lda     ent_x_scr,x
         sta     ent_x_scr,y
         lda     ent_y_px,x
         sta     ent_y_px,y
         lda     #$80
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; child hitbox
         lda     #$8F
-        sta     ent_routine,y
+        sta     ent_routine,y           ; child AI routine
         lda     #$00
         sta     ent_xvel_sub,y
-        sta     $02
+        sta     $02                     ; target speed (sub) for homing calc
         lda     #$04
         sta     ent_xvel,y
-        sta     $03
+        sta     $03                     ; target speed (whole) for homing calc
         sty     $0F
         stx     $0E
         ldx     $0F
-        jsr     LFC63
+        jsr     LFC63                   ; calc_homing_velocity
         ldy     $0F
         ldx     $0E
-        lda     $0C
+        lda     $0C                     ; homing result → child facing
         sta     ent_facing,y
-        dec     ent_var1,x
-        beq     code_BAEE
-        lda     #$12
+        dec     ent_var1,x              ; shots remaining--
+        beq     code_BAEE              ; all shots fired → close mouth
+        lda     #$12                    ; 18-frame delay between shots
         sta     ent_var2,x
         bne     code_BB01
-code_BAEE:  lda     #$00
+code_BAEE:  lda     #$00               ; close mouth (clear anim bit)
         sta     ent_anim_state,x
-        dec     ent_status,x
+        dec     ent_status,x            ; return to state 0
         bne     code_BB01
-code_BAF8:  dec     ent_var2,x
+code_BAF8:  dec     ent_var2,x          ; inter-shot cooldown
         jmp     code_BB01
 
-code_BAFE:  dec     ent_timer,x
-code_BB01:  lda     ent_anim_id,x
+code_BAFE:  dec     ent_timer,x         ; pre-fire delay countdown
+; --- common: run bank $1C collision + check death ---
+code_BB01:  lda     ent_anim_id,x       ; preserve anim_id across $8003 call
         pha
-        jsr     code_8003
+        jsr     code_8003               ; bank $1C collision handler
         pla
         sta     ent_anim_id,x
         lda     ent_hp,x
-        bne     code_BB2E
-        sta     ent_status,x
+        bne     code_BB2E              ; still alive → skip
+; --- death: despawn all child projectiles ---
+        sta     ent_status,x            ; despawn self
         ldy     #$0F
-code_BB16:  lda     $0310,y
-        bpl     code_BB27
-        lda     $03D0,y
-        cmp     #$80
-        bcs     code_BB27
+code_BB16:  lda     $0310,y             ; check enemy slot $10+Y
+        bpl     code_BB27              ; not active → skip
+        lda     $03D0,y                 ; child Y position
+        cmp     #$80                    ; below midscreen?
+        bcs     code_BB27              ; yes → don't despawn (offscreen)
         lda     #$00
-        sta     $0310,y
+        sta     $0310,y                 ; despawn child
 code_BB27:  dey
         bpl     code_BB16
         lda     #$80
-        sta     $55
+        sta     $55                     ; boss defeated flag / screen shake
 code_BB2E:  lda     #$00
         sta     ent_anim_frame,x
         rts
@@ -7125,22 +7362,24 @@ code_BB2E:  lda     #$00
         lda     ent_facing,x
         and     #$01
         beq     code_BB41
-        jsr     LF71D
+        jsr     LF71D                   ; move_sprite_right
         jmp     code_BB44
 
-code_BB41:  jsr     LF73B
+code_BB41:  jsr     LF73B               ; move_sprite_left
 code_BB44:  lda     ent_facing,x
         and     #$08
         beq     code_BB4E
-        jmp     LF779
+        jmp     LF779                   ; move_sprite_up
 
-code_BB4E:  jmp     LF759
+code_BB4E:  jmp     LF759               ; move_sprite_down
 
-LBB51:  .byte   $03,$03,$04,$02
+LBB51:  .byte   $03,$03,$04,$02         ; shot count table (3, 3, 4, 2)
+
+; --- init_tama — shared Tama initialization / floor clamp ---
 init_tama:
         lda     ent_anim_id,x
         beq     code_BBBB
-        jsr     LF797
+        jsr     LF797                   ; apply_y_speed
         ldy     #$00
         sty     $54
         lda     ent_x_scr,x
@@ -7185,6 +7424,16 @@ code_BBB6:  lda     #$00
 code_BBBB:  rts
 
 LBBBC:  .byte   $48,$78
+
+; ===========================================================================
+; main_tama_A — Tama (giant cat, Snake Man stage boss support, variant A)
+; ===========================================================================
+; Tama variant A. Checks if disabled (flags bit 2). Preserves anim_id across
+; bank $1C collision check ($8003). On death (HP=0): clears all enemy slots,
+; switches to item-drop routine $63. When alive: state 0 waits for all $CF/$D0
+; child projectiles to despawn (checks $54 flag). State 1: spawns kitten
+; projectiles ($CF) with homing velocity, then returns to state 0 after 2
+; volleys. Includes floor-level clamping from LBBBC table ($48/$78).
 main_tama_A:
         lda     ent_flags,x
         and     #$04
@@ -7261,10 +7510,10 @@ code_BC52:  lda     ent_anim_frame,x
         lda     ent_anim_state,x
         cmp     #$02
         bne     code_BCA6
-        jsr     LFC53
+        jsr     LFC53                   ; find_enemy_freeslot_y
         bcs     code_BCA6
         lda     #$CF
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     ent_x_px,x
         sta     ent_x_px,y
         lda     ent_x_scr,x
@@ -7285,12 +7534,21 @@ code_BC52:  lda     ent_anim_frame,x
         sta     ent_yvel_sub,y
         lda     #$04
         sta     ent_yvel,y
-        jsr     LF869
+        jsr     LF869                   ; face_player
         lda     ent_facing,x
         sta     ent_facing,y
 code_BCA6:  rts
 
 code_BCA7:  rts
+
+; ===========================================================================
+; main_tama_B — Tama (giant cat, Snake Man stage boss support, variant B)
+; ===========================================================================
+; Tama variant B. Similar to variant A but spawns different projectiles ($D0)
+; and uses the $54 flag in reverse: waits for $54 to be set before advancing.
+; State 0: scans enemy slots for active $CF/$D0 projectiles. State 1: fires
+; a spread of 3 bouncing kitten bullets ($D0) using velocity tables at $BD59,
+; each with 30-frame timers. Clears $54 when all shots spawned.
 main_tama_B:
 
         lda     ent_flags,x
@@ -7327,11 +7585,11 @@ code_BCE3:  lda     ent_anim_state,x
         bne     code_BCD7
         lda     #$02
         sta     $10
-        jsr     LF869
-code_BCF6:  jsr     LFC53
+        jsr     LF869                   ; face_player
+code_BCF6:  jsr     LFC53               ; find_enemy_freeslot_y
         bcs     code_BD58
         lda     #$D0
-        jsr     LF846
+        jsr     LF846                   ; init_child_entity
         lda     #$01
         sta     ent_anim_state,y
         sta     ent_hp,y
@@ -7372,7 +7630,7 @@ LBD5C:  .byte   $03,$04,$05
 LBD5F:  .byte   $39,$55,$8C
 LBD62:  .byte   $01,$01,$01
         ldy     #$08
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         bcc     code_BD76
         lda     #$44
         sta     ent_yvel_sub,x
@@ -7382,11 +7640,11 @@ code_BD76:  lda     ent_facing,x
         and     #$01
         beq     code_BD85
         ldy     #$08
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         jmp     code_BD8A
 
 code_BD85:  ldy     #$09
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_BD8A:  bcc     code_BD94
         lda     ent_facing,x
         eor     #$03
@@ -7396,16 +7654,16 @@ code_BD94:  rts
         lda     ent_timer,x
         beq     code_BDAD
         dec     ent_timer,x
-        jsr     LF797
+        jsr     LF797                   ; apply_y_speed
         lda     ent_facing,x
         and     #$01
         beq     code_BDAA
-        jmp     LF71D
+        jmp     LF71D                   ; move_sprite_right
 
-code_BDAA:  jmp     LF73B
+code_BDAA:  jmp     LF73B               ; move_sprite_left
 
 code_BDAD:  ldy     #$12
-        jsr     LF67C
+        jsr     LF67C                   ; move_vertical_gravity
         lda     #$01
         sta     ent_anim_state,x
         bcc     code_BDDF
@@ -7423,17 +7681,17 @@ code_BDAD:  ldy     #$12
         sta     ent_xvel_sub,x
         lda     #$00
         sta     ent_xvel,x
-        jsr     LF869
+        jsr     LF869                   ; face_player
 code_BDDF:  lda     ent_facing,x
         and     #$01
         beq     code_BDEE
 LBDE6:  ldy     #$1E
-        jsr     LF580
+        jsr     LF580                   ; move_right_collide
         .byte   $4C
 LBDEC:  .byte   $F3
         .byte   $BD
 code_BDEE:  ldy     #$1F
-        jsr     LF5C4
+        jsr     LF5C4                   ; move_left_collide
 code_BDF3:  lda     #$00
         sta     ent_anim_frame,x
         rts
@@ -7528,7 +7786,7 @@ code_BE72:  ldy     $0E                 ; check current energy level
         adc     #$01
         sta     player_hp,y
         lda     #$1C                    ; play refill tick sound
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         dec     $0F                     ; all ticks applied?
         beq     code_BE98               ; yes → done
 code_BE8D:  jsr     LFD6E               ; wait 4 frames between ticks
@@ -7543,7 +7801,7 @@ code_BE98:  lda     #$00                ; clear refill-active flag
 ; --- pickup_etank: add 1 E-tank (max 9) ---
 
         lda     #$14                    ; play 1-up/E-tank sound
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         lda     etanks                     ; current E-tanks ($AF)
         cmp     #$09                    ; max 9?
         beq     code_BEAA               ; yes → don't add more
@@ -7553,7 +7811,7 @@ code_BEAA:  rts
 ; --- pickup_1up: add 1 extra life (BCD, max 99) ---
 
         lda     #$14                    ; play 1-up sound
-        jsr     LF89A
+        jsr     LF89A                   ; submit_sound_ID
         lda     lives                     ; $AE ($AE, BCD format)
         cmp     #$99                    ; max 99?
         beq     code_BED1               ; yes → done
@@ -7572,62 +7830,75 @@ code_BEAA:  rts
         lda     #$99
         sta     lives
 code_BED1:  rts
+
+; ===========================================================================
+; main_surprise_box — ? Box (random item container)
+; ===========================================================================
+; Destructible box that reveals a random pickup when hit. Checks weapon
+; collision; on hit, marks collected in respawn table ($0150), despawns the
+; weapon, and plays break animation ($71). When break animation completes
+; (anim_state == $04): uses RNG ($E5) divided by 100 to select a random item
+; from weighted probability table at $BF3F. Spawns the selected item with
+; routine ID from $BF4B table and 240-frame despawn timer.
 main_surprise_box:
 
-        lda     ent_anim_id,x
-        cmp     #$71
-        beq     code_BF03
-        jsr     LFB7B
-        bcs     code_BED1
-        lda     ent_spawn_id,x
+        lda     ent_anim_id,x           ; already broken?
+        cmp     #$71                    ; $71 = break animation
+        beq     code_BF03               ; yes → handle item spawn
+        jsr     LFB7B                   ; check_sprite_weapon_collision
+        bcs     code_BED1               ; no hit → return
+; --- weapon hit: mark collected, despawn weapon, play break anim ---
+        lda     ent_spawn_id,x          ; mark in respawn table ($0150)
         pha
-        and     #$07
+        and     #$07                    ; bit position
         tay
-        lda     $DEC2,y
+        lda     $DEC2,y                 ; bit mask
         sta     L0000
         pla
-        lsr     a
+        lsr     a                       ; byte index
         lsr     a
         lsr     a
         tay
         lda     $0150,y
         ora     L0000
         sta     $0150,y
-        ldy     $10
+        ldy     $10                     ; despawn the weapon that hit
         lda     #$00
         sta     ent_status,y
-        lda     #$71
-        jmp     LF835
+        lda     #$71                    ; play break animation
+        jmp     LF835                   ; reset_sprite_anim
 
+; --- break animation done: spawn random item ---
 code_BF03:  lda     ent_anim_state,x
-        cmp     #$04
-        bne     code_BF3E
-        lda     $E5
+        cmp     #$04                    ; break anim finished?
+        bne     code_BF3E               ; no → wait
+        lda     $E5                     ; RNG: $E5 += $E6
         adc     $E6
         sta     $E5
         sta     L0000
-        lda     #$64
+        lda     #$64                    ; divide by 100
         sta     $01
-        jsr     LFCEB
-        ldy     #$05
+        jsr     LFCEB                   ; divide_8bit (remainder in $03)
+        ldy     #$05                    ; scan probability thresholds
         lda     $03
-code_BF1D:  cmp     LBF3F,y
+code_BF1D:  cmp     LBF3F,y             ; weighted probability table
         bcc     code_BF25
         dey
         bne     code_BF1D
-code_BF25:  lda     LBF45,y
-        jsr     LF835
-        lda     LBF4B,y
+code_BF25:  lda     LBF45,y             ; item anim ID for selected item
+        jsr     LF835                   ; reset_sprite_anim
+        lda     LBF4B,y                 ; item AI routine
         sta     ent_routine,x
-        lda     ent_flags,x
+        lda     ent_flags,x             ; clear low 2 flag bits
         and     #$FC
         sta     ent_flags,x
-        lda     #$F0
+        lda     #$F0                    ; 240-frame despawn timer
         sta     ent_timer,x
 code_BF3E:  .byte   $60
-LBF3F:  .byte   $63,$41,$23,$19,$0F,$05
-LBF45:  .byte   $FB,$F9,$FA,$FC,$FE,$FD
-LBF4B:  .byte   $66,$64,$65
+; surprise box data tables
+LBF3F:  .byte   $63,$41,$23,$19,$0F,$05 ; probability thresholds (99,65,35,25,15,5)
+LBF45:  .byte   $FB,$F9,$FA,$FC,$FE,$FD ; item anim IDs
+LBF4B:  .byte   $66,$64,$65             ; item AI routine IDs
         .byte   $67
         adc     #$68
         lda     ent_anim_state,x
@@ -7641,7 +7912,7 @@ LBF4B:  .byte   $66,$64,$65
         sta     L0000
         lda     #$64
         sta     $01
-        jsr     LFCEB
+        jsr     LFCEB                   ; divide_8bit
         ldy     #$04
         lda     $03
 code_BF6F:  cmp     LBF97,y
@@ -7653,7 +7924,7 @@ code_BF77:  lda     #$00
         rts
 
 code_BF7D:  lda     LBF9C,y
-        jsr     LF835
+        jsr     LF835                   ; reset_sprite_anim
         lda     LBFA1,y
         sta     ent_routine,x
         lda     #$F0
@@ -7664,7 +7935,10 @@ code_BF7D:  lda     LBF9C,y
 code_BF96:  .byte   $60
 LBF97:  .byte   $1D,$1B,$0C,$0A,$01
 LBF9C:  .byte   $FB,$FC,$F9,$FA,$FE
-LBFA1:  .byte   $66,$67,$64,$65,$69,$ED,$40,$40
+LBFA1:  .byte   $66,$67,$64,$65,$69
+
+; freespace (unused bytes, fills remainder of bank $1D to $BFFF)
+        .byte   $ED,$40,$40
         .byte   $01,$C6,$15,$ED,$00,$A6,$41,$97
         .byte   $11,$59,$54,$93,$44,$CD,$84,$66
         .byte   $04,$08,$41,$75,$51,$9B,$15,$0B
