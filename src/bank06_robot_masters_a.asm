@@ -29,7 +29,7 @@ main_needle_man_j:
 L0000           := $0000
 move_right_collide           := $F580
 move_left_collide           := $F5C4
-LF606           := $F606
+move_down_collide           := $F606
 move_vertical_gravity           := $F67C
 move_sprite_right           := $F71D
 move_sprite_left           := $F73B
@@ -493,7 +493,7 @@ code_A375:  rts
         bne     code_A375
         inc     ent_timer,x             ; begin falling
 code_A383:  ldy     #$1E
-        jsr     LF606                   ; move down, check floor
+        jsr     move_down_collide                   ; move down, check floor
         bcc     code_A3A4               ; still falling
         lda     #$1F                    ; landing animation
         jsr     reset_sprite_anim
@@ -625,7 +625,7 @@ code_A49C:  lda     ent_anim_id,x
         cmp     #$59                    ; impact anim done?
         beq     code_A4B2
         ldy     #$12
-        jsr     LF606                   ; move down, check floor collision
+        jsr     move_down_collide                   ; move down, check floor collision
         bcc     code_A4B2
         lda     #$59                    ; play impact animation
         jsr     reset_sprite_anim

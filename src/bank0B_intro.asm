@@ -33,14 +33,14 @@ prepare_oam_buffer           := $C5E9                ; prepare OAM buffer
 clear_entity_table           := $C628                ; clear entity table
 fade_palette_out           := $C74C                ; fade palette out (reveal)
 fade_palette_in           := $C752                ; fade palette in (to black)
-LE8B4           := $E8B4                ; init metatile column pointers
-LEF8C           := $EF8C                ; fill one nametable column
+metatile_column_ptr_by_id           := $E8B4                ; init metatile column pointers
+fill_nametable_progressive           := $EF8C                ; fill one nametable column
 apply_y_speed           := $F797                ; apply Y speed (gravity)
 reset_sprite_anim           := $F835                ; reset sprite animation (A=anim, X=entity)
 submit_sound_ID_D9           := $F898                ; submit sound ID (with $D9 prefix)
 submit_sound_ID           := $F89A                ; submit sound ID (direct)
-LFD6E           := $FD6E                ; process frame + yield (full entity update)
-LFD80           := $FD80                ; process frame + yield (sprites only)
+process_frame_yield_full           := $FD6E                ; process frame + yield (full entity update)
+process_frame_yield           := $FD80                ; process frame + yield (sprites only)
 task_yield           := $FF21                ; task yield (wait for NMI)
 update_CHR_banks           := $FF3C                ; update CHR banks via MMC3
 select_PRG_banks           := $FF6B                ; select PRG banks
@@ -84,11 +84,11 @@ L8006:  lda     #$00
         lda     #$16
         sta     stage_id                ; stage $16 = intro/Shadow Man stage
         lda     #$02
-        jsr     LE8B4                   ; init metatile column pointers
+        jsr     metatile_column_ptr_by_id                   ; init metatile column pointers
 ; --- fill nametable progressively until complete ---
 code_8038:  lda     #$00
         sta     $10                     ; column direction = rightward
-        jsr     LEF8C                   ; draw one nametable column
+        jsr     fill_nametable_progressive                   ; draw one nametable column
         jsr     task_yield                   ; wait for NMI
         lda     $70
         bne     code_8038               ; loop until nametable fully drawn
@@ -221,7 +221,7 @@ code_8131:  lda     L86C7,y             ; load 3 bytes of cycling palette
 ; --- process frame and run music driver ---
 code_814E:  lda     #$08
         sta     oam_ptr                 ; OAM write position past scenery
-        jsr     LFD80                   ; process frame + yield (sprites + NMI)
+        jsr     process_frame_yield                   ; process frame + yield (sprites + NMI)
         lda     ent_anim_id
         cmp     #$01                    ; Mega Man standing?
         bne     code_81AD               ; no — loop back
@@ -285,11 +285,11 @@ code_81B0:  lda     #$00
         sta     prg_bank                ; bank $13 for phase 2 stage tiles
         jsr     select_PRG_banks                   ; select PRG banks
         lda     #$08
-        jsr     LE8B4                   ; init metatile columns for stage $08
+        jsr     metatile_column_ptr_by_id                   ; init metatile columns for stage $08
 ; --- fill nametable progressively ---
 code_81D6:  lda     #$00
         sta     $10
-        jsr     LEF8C                   ; draw one nametable column
+        jsr     fill_nametable_progressive                   ; draw one nametable column
         jsr     task_yield                   ; wait for NMI
         lda     $70
         bne     code_81D6               ; loop until complete
@@ -376,7 +376,7 @@ code_827E:  lda     $95
         lda     #$28
         jsr     submit_sound_ID                   ; submit wind SFX $28
 code_8289:  inc     palette_dirty       ; mark palette for NMI upload
-        jsr     LFD6E                   ; process frame + yield (full)
+        jsr     process_frame_yield_full                   ; process frame + yield (full)
         jmp     code_823D               ; loop phase 2
 
 ; ===========================================================================
@@ -579,7 +579,7 @@ code_8422:  stx     oam_ptr
         bne     code_8430
         lda     #$28
         jsr     submit_sound_ID                   ; wind SFX $28
-code_8430:  jsr     LFD80               ; process frame + yield
+code_8430:  jsr     process_frame_yield               ; process frame + yield
         inc     ent_var3                ; increment wind timer
         jmp     code_82E2               ; loop phase 3
 
@@ -610,11 +610,11 @@ code_8439:  lda     #$00
         sta     prg_bank                ; bank $0E for stage tile data
         jsr     select_PRG_banks                   ; select PRG banks
         lda     #$00
-        jsr     LE8B4                   ; init metatile columns
+        jsr     metatile_column_ptr_by_id                   ; init metatile columns
 ; --- fill nametable progressively ---
 code_8466:  lda     #$00
         sta     $10
-        jsr     LEF8C                   ; draw one nametable column
+        jsr     fill_nametable_progressive                   ; draw one nametable column
         jsr     task_yield                   ; wait for NMI
         lda     $70
         bne     code_8466               ; loop until complete
@@ -734,7 +734,7 @@ code_8525:  txa
         clc
         adc     #$02                    ; tile $02 or $03 (blink)
         sta     $0202,x                 ; update icon tile
-code_8543:  jsr     LFD80               ; process frame + yield
+code_8543:  jsr     process_frame_yield               ; process frame + yield
         pla
         tay
         pla

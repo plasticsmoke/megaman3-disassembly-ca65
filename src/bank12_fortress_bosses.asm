@@ -32,8 +32,8 @@ L8006           := $8006
 L8009           := $8009
 move_right_collide           := $F580
 move_left_collide           := $F5C4
-LF606           := $F606
-LF642           := $F642
+move_down_collide           := $F606
+move_up_collide           := $F642
 move_vertical_gravity           := $F67C
 move_sprite_right           := $F71D
 move_sprite_left           := $F73B
@@ -47,13 +47,13 @@ submit_sound_ID_D9           := $F898
 submit_sound_ID           := $F89A
 entity_y_dist_to_player           := $F8B3
 entity_x_dist_to_player           := $F8C2
-LFAE2           := $FAE2
-LFB7B           := $FB7B
+check_player_collision           := $FAE2
+check_sprite_weapon_collision           := $FB7B
 find_enemy_freeslot_y           := $FC53
 calc_homing_velocity           := $FC63
-LFD11           := $FD11
-LFD8C           := $FD8C
-LFDA6           := $FDA6
+divide_16bit           := $FD11
+call_bank0E_A006           := $FD8C
+call_bank0E_A003           := $FDA6
 update_CHR_banks           := $FF3C
 
 .segment "BANK12"
@@ -1140,7 +1140,7 @@ code_AA91:  lda     #$58
         sta     $02
         lda     #$24
         sta     $03
-        jsr     LFD11
+        jsr     divide_16bit
         ldy     $0F
         lda     $04
         sta     ent_xvel_sub,x
@@ -1826,7 +1826,7 @@ code_B17B:  lda     ent_flags,x
         lda     ent_y_px
         pha
         inc     ent_y_px
-        jsr     LFAE2
+        jsr     check_player_collision
         bcs     code_B1A7
         lda     $041F
         sta     $37
@@ -1843,7 +1843,7 @@ code_B1A7:  pla
         beq     code_B1BF
         lda     invincibility_timer                     ; i-frames active?
         bne     code_B1BF               ; skip
-        jsr     LFAE2                   ; AABB collision test
+        jsr     check_player_collision                   ; AABB collision test
         bcs     code_B1BF               ; no collision → skip
         lda     #PSTATE_DEATH                    ; state → $0E (death)
         sta     player_state                     ; instant kill, no damage calc
@@ -1869,7 +1869,7 @@ code_B1DA:  rts
 ; then back to $00 (on_ground) in the destination room.
 ; $6C = destination index (from entity sub-type).
 ; ---------------------------------------------------------------------------
-code_B1DE:  jsr     LFAE2               ; is player touching teleporter?
+code_B1DE:  jsr     check_player_collision               ; is player touching teleporter?
         bcs     code_B20F               ; no → return
         jsr     entity_x_dist_to_player                   ; detailed alignment check
         cmp     #$02                    ; close enough to center?
@@ -1904,7 +1904,7 @@ code_B224:  sta     ent_facing,x
         lda     ent_y_px,x
         pha
         dec     ent_y_px,x
-        jsr     LFAE2
+        jsr     check_player_collision
         pla
         sta     ent_y_px,x
         bcs     code_B244
@@ -2139,9 +2139,9 @@ code_B42A:  inc     ent_timer,x
         sta     $5E
         lda     #$0A
         sta     $B8
-        jmp     LFD8C
+        jmp     call_bank0E_A006
 
-code_B44A:  jsr     LFDA6
+code_B44A:  jsr     call_bank0E_A003
         lda     $B8
         cmp     #$FF
         beq     code_B457
@@ -2586,7 +2586,7 @@ code_B847:  lda     ent_facing,x
 code_B85D:  lda     #$62
 code_B85F:  sta     ent_anim_id,x
         ldy     #$0E
-        jsr     LF606
+        jsr     move_down_collide
         jmp     code_B898
 
 code_B86A:  lda     ent_facing,x
@@ -2607,7 +2607,7 @@ code_B883:  lda     ent_timer,x
 code_B88E:  lda     #$64
 code_B890:  sta     ent_anim_id,x
         ldy     #$0F
-        jsr     LF642
+        jsr     move_up_collide
 code_B898:  bcc     code_B8A2
         lda     ent_facing,x
         eor     #$0C
@@ -2787,7 +2787,7 @@ code_BA2F:  lda     ent_status,x
         lda     #$F0
         sta     ent_var1,x
         inc     ent_status,x
-code_BA4E:  jsr     LFB7B
+code_BA4E:  jsr     check_sprite_weapon_collision
         bcs     code_BA62
         lda     #$18
         jsr     submit_sound_ID
@@ -2978,7 +2978,7 @@ code_BC0A:  lda     ent_facing,x
         and     #$08
         beq     code_BC20
         ldy     #$09
-        jsr     LF642
+        jsr     move_up_collide
         lda     ent_y_px,x
         cmp     #$48
         bcs     code_BC48

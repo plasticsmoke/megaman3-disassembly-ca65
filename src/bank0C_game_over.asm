@@ -29,20 +29,20 @@
 LA000           := $A000
 LA003           := $A003
 LA006           := $A006
-LC531           := $C531
-LC53B           := $C53B
-LC59D           := $C59D
+rendering_off           := $C531
+rendering_on           := $C53B
+fill_nametable           := $C59D
 prepare_oam_buffer           := $C5E9
 clear_entity_table           := $C628
 fade_palette_out           := $C74C
 fade_palette_in           := $C752
-LE8B4           := $E8B4
-LEEAB           := $EEAB
-LEF8C           := $EF8C
+metatile_column_ptr_by_id           := $E8B4
+queue_metatile_update           := $EEAB
+fill_nametable_progressive           := $EF8C
 reset_sprite_anim           := $F835
 submit_sound_ID_D9           := $F898
-LFD6E           := $FD6E
-LFD80           := $FD80
+process_frame_yield_full           := $FD6E
+process_frame_yield           := $FD80
 task_yield_x           := $FF1A
 task_yield           := $FF21
 update_CHR_banks           := $FF3C
@@ -80,12 +80,12 @@ select_PRG_banks           := $FF6B
         sta     camera_x_hi            ; reset camera position
         sta     camera_x_lo
         sta     game_mode              ; reset game mode
-        jsr     LC531                   ; turn off rendering (PPU mask)
+        jsr     rendering_off                   ; turn off rendering (PPU mask)
         lda     #$20                    ; nametable at $2000
         ldx     #$00                    ; fill tile = $00 (blank)
         ldy     #$00                    ; attribute fill = $00
-        jsr     LC59D                   ; fill entire nametable
-        jsr     LC53B                   ; turn on rendering
+        jsr     fill_nametable                   ; fill entire nametable
+        jsr     rendering_on                   ; turn on rendering
 ; --- load game over palette ---
         ldy     #$1F
 code_803F:  lda     L863E,y             ; copy 32-byte palette for game over screen
@@ -119,11 +119,11 @@ code_804A:  lda     L8626,y             ; load CHR bank mapping table
         lda     #$16
         sta     stage_id                ; stage $16 = game over background stage
         lda     #$02
-        jsr     LE8B4                   ; load metatile column pointer for stage bg
+        jsr     metatile_column_ptr_by_id                   ; load metatile column pointer for stage bg
 ; --- fill background nametable progressively ---
 code_8084:  lda     #$00
         sta     $10                     ; no special flags
-        jsr     LEF8C                   ; fill nametable progressively (column by column)
+        jsr     fill_nametable_progressive                   ; fill nametable progressively (column by column)
         jsr     task_yield                   ; yield one frame
         lda     $70                     ; check if fill is complete
         bne     code_8084               ; loop until done ($70 = 0)
@@ -293,7 +293,7 @@ code_81BA:  lda     L86D6,y             ; read 3 palette bytes per cycle step
         sta     $0104                   ; wrap around to step 0
 code_81D7:  lda     #$08
         sta     oam_ptr                 ; set OAM write offset past fixed sprites
-        jsr     LFD80                   ; process frame + yield (entities + NMI)
+        jsr     process_frame_yield                   ; process frame + yield (entities + NMI)
         jmp     code_80F6               ; loop back to main animation
 
 ; =============================================================================
@@ -326,18 +326,18 @@ code_81FC:  lda     L865E,y             ; 16-byte palette for results screen
         lda     #$14
         sta     stage_id                ; stage $14 = results screen layout
         lda     #$00
-        jsr     LE8B4                   ; load metatile column pointers (pass 0)
+        jsr     metatile_column_ptr_by_id                   ; load metatile column pointers (pass 0)
 code_8213:  lda     #$04
         sta     $10                     ; set nametable base ($2400)
-        jsr     LEF8C                   ; fill nametable progressively
+        jsr     fill_nametable_progressive                   ; fill nametable progressively
         jsr     task_yield
         lda     $70
         bne     code_8213               ; loop until complete
         lda     #$01
-        jsr     LE8B4                   ; load metatile column pointers (pass 1)
+        jsr     metatile_column_ptr_by_id                   ; load metatile column pointers (pass 1)
 code_8226:  lda     #$00
         sta     $10                     ; set nametable base ($2000)
-        jsr     LEF8C                   ; fill nametable progressively
+        jsr     fill_nametable_progressive                   ; fill nametable progressively
         jsr     task_yield
         lda     $70
         bne     code_8226               ; loop until complete
@@ -494,7 +494,7 @@ code_8354:  lda     ent_timer
         bne     code_8367
 code_8362:  lda     ent_var3
         sta     oam_ptr                 ; restore saved OAM pointer
-code_8367:  jsr     LFD80               ; process frame + yield
+code_8367:  jsr     process_frame_yield               ; process frame + yield
         jmp     code_82B6               ; loop back to scroll
 
 ; ===========================================================================
@@ -507,7 +507,7 @@ code_8367:  jsr     LFD80               ; process frame + yield
 
 code_836D:  lda     ent_var3
         sta     oam_ptr
-        jsr     LFD80                   ; process frame + yield
+        jsr     process_frame_yield                   ; process frame + yield
         lda     ent_anim_state          ; wait for pose animation to complete
         beq     code_836D               ; loop until anim state is nonzero
         lda     #$00
@@ -523,7 +523,7 @@ code_838C:  inc     $5E                  ; increment to create screen split
         lda     $5E
         cmp     #$E8                    ; split complete?
         beq     code_839F
-        jsr     LFD6E                   ; process frame yield (full)
+        jsr     process_frame_yield_full                   ; process frame yield (full)
         lda     #$00
         sta     ent_anim_frame          ; keep resetting frame during wipe
         jmp     code_838C
@@ -543,10 +543,10 @@ code_839F:  lda     #$01
         sta     game_mode               ; reset game mode
 ; --- load credits nametable ---
         lda     #$06
-        jsr     LE8B4                   ; load metatile column pointers (credits)
+        jsr     metatile_column_ptr_by_id                   ; load metatile column pointers (credits)
 code_83AF:  lda     #$08
         sta     $10                     ; nametable flags
-        jsr     LEF8C                   ; fill nametable progressively
+        jsr     fill_nametable_progressive                   ; fill nametable progressively
         jsr     task_yield
         lda     $70
         bne     code_83AF               ; loop until complete
@@ -562,7 +562,7 @@ code_83C5:  inc     ent_y_px             ; move Mega Man down
         beq     code_83DB               ; scroll complete
         lda     #$00
         sta     ent_anim_frame          ; keep resetting animation frame
-        jsr     LFD6E                   ; process frame yield (full)
+        jsr     process_frame_yield_full                   ; process frame yield (full)
         jmp     code_83C5
 
 ; ===========================================================================
@@ -633,7 +633,7 @@ code_8453:  dec     $0522               ; decrement sub-timer
         lda     #$08
         sta     $0522                   ; reset sub-timer to 8
         inc     $0502                   ; advance oscillation phase
-code_8460:  jsr     LFD6E               ; process frame yield (full)
+code_8460:  jsr     process_frame_yield_full               ; process frame yield (full)
         jmp     code_8430               ; loop fly-by animation
 
 ; =============================================================================
@@ -665,22 +665,22 @@ code_8466:  ldx     #$F0                ; hold for $F0 frames
         sta     stage_id                ; stage $13 = password screen
         jsr     select_PRG_banks                   ; apply bank switch
         lda     #$03
-        jsr     LE8B4                   ; load metatile column pointers
+        jsr     metatile_column_ptr_by_id                   ; load metatile column pointers
         lda     #$00
         sta     $70
 code_849E:  lda     #$00
         sta     $10
-        jsr     LEF8C                   ; fill nametable progressively
+        jsr     fill_nametable_progressive                   ; fill nametable progressively
         jsr     task_yield
         lda     $70
         bne     code_849E               ; loop until complete
 ; --- prepare secondary nametable ---
-        jsr     LC531                   ; rendering off
+        jsr     rendering_off                   ; rendering off
         lda     #$24                    ; nametable at $2400
         ldx     #$24                    ; fill tile = $24
         ldy     #$00                    ; attribute = $00
-        jsr     LC59D                   ; fill nametable
-        jsr     LC53B                   ; rendering on
+        jsr     fill_nametable                   ; fill nametable
+        jsr     rendering_on                   ; rendering on
         jsr     task_yield
 ; --- set CHR banks for password screen ---
         ldy     #$05
@@ -756,7 +756,7 @@ code_850F:  lda     #$00
         lda     #$80
         sta     $0310                   ; show portrait entity
 ; --- wait for portrait animation to reach target frame ---
-code_8544:  jsr     LFD6E               ; process frame yield (full)
+code_8544:  jsr     process_frame_yield_full               ; process frame yield (full)
         ldx     ent_timer
         lda     L86C8,x                 ; target anim state for this RM
         cmp     $05B0                   ; compare to current anim state
@@ -855,7 +855,7 @@ code_85BD:  lda     $28                 ; current column index
         and     #$04                    ; bit 2 = nametable select
         sta     $10                     ; set nametable flag
         ldy     $29
-        jsr     LEEAB                   ; queue metatile column update
+        jsr     queue_metatile_update                   ; queue metatile column update
 ; --- restore column index and advance ---
 code_85E5:  pla
         sta     $28                     ; restore original column value

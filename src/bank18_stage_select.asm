@@ -78,24 +78,24 @@ L9A58           := $9A58
 L9A87           := $9A87
 L9ABC           := $9ABC
 L9ABE           := $9ABE
-LC4F8           := $C4F8
-LC531           := $C531
-LC53B           := $C53B
-LC59D           := $C59D
+drain_ppu_buffer           := $C4F8
+rendering_off           := $C531
+rendering_on           := $C53B
+fill_nametable           := $C59D
 prepare_oam_buffer           := $C5E9
 clear_entity_table           := $C628
 fade_palette_out           := $C74C
 fade_palette_in           := $C752
 LC9B3           := $C9B3
-LE4F1           := $E4F1
-LE8B4           := $E8B4
-LEEAB           := $EEAB
-LEF8C           := $EF8C
+do_render_column           := $E4F1
+metatile_column_ptr_by_id           := $E8B4
+queue_metatile_update           := $EEAB
+fill_nametable_progressive           := $EF8C
 reset_gravity           := $F81B
 reset_sprite_anim           := $F835
 submit_sound_ID_D9           := $F898
 submit_sound_ID           := $F89A
-LFD6E           := $FD6E
+process_frame_yield_full           := $FD6E
 task_yield_x           := $FF1A
 task_yield           := $FF21
 update_CHR_banks           := $FF3C
@@ -656,7 +656,7 @@ LA8DD:  .byte   $60,$70,$60,$71,$71,$74,$73,$6F
 ; ===========================================================================
         jsr     fade_palette_in         ; disable rendering
         jsr     task_yield
-        jsr     LC531                   ; rendering_off
+        jsr     rendering_off                   ; rendering_off
         ldy     #$05
 ; --- Load CHR banks from $9BF7 table ---
 code_9014:  lda     $9BF7,y                 ; 6 CHR bank IDs
@@ -667,8 +667,8 @@ code_9014:  lda     $9BF7,y                 ; 6 CHR bank IDs
         lda     #$20                    ; nametable $2000
         ldx     #$24                    ; fill tile $24 (blank)
         ldy     #$00
-        jsr     LC59D                   ; fill_nametable
-        jsr     LC53B                   ; rendering_on
+        jsr     fill_nametable                   ; fill_nametable
+        jsr     rendering_on                   ; rendering_on
 ; --- Copy palette working copy from $9C03 ---
         ldy     #$1F
 code_902E:  lda     $9C03,y
@@ -690,7 +690,7 @@ code_902E:  lda     $9C03,y
 ; --- Second phase: load stage select background via metatiles ---
         jsr     fade_palette_in         ; fade out
         jsr     task_yield
-        jsr     LC531                   ; rendering_off
+        jsr     rendering_off                   ; rendering_off
         ldy     #$05
 code_905E:  lda     $9BF7,y                 ; reload CHR banks
         sta     $E8,y
@@ -705,8 +705,8 @@ code_905E:  lda     $9BF7,y                 ; reload CHR banks
 ; --- Render 64 metatile columns (stage select background) ---
 code_9075:  ldy     #$00
         sty     $10
-        jsr     LEEAB                   ; queue_metatile_update
-        jsr     LC4F8                   ; drain_ppu_buffer
+        jsr     queue_metatile_update                   ; queue_metatile_update
+        jsr     drain_ppu_buffer                   ; drain_ppu_buffer
         jsr     task_yield
         inc     $28
         lda     $28
@@ -719,7 +719,7 @@ code_908C:  lda     $9C03,y
         dey
         bpl     code_908C
         jsr     task_yield
-        jsr     LC53B                   ; rendering_on
+        jsr     rendering_on                   ; rendering_on
 ; --- Set up initial OAM sprite (password cursor sentinel) ---
         ldx     #$03
 code_909D:  lda     $9C69,x                 ; initial OAM data (4 bytes)
@@ -804,13 +804,13 @@ LB0F2:  sty     $0F                     ; $0F = 0 (fresh) or 1 (return)
         lda     #$00
         sta     $70                     ; clear NMI sync flag
         lda     $9C63,y                 ; load screen scroll/setup param
-        jsr     LE8B4
+        jsr     metatile_column_ptr_by_id
         lda     #$04
         sta     oam_ptr
         jsr     prepare_oam_buffer                   ; clear unused OAM sprites
 LB10B:  lda     #$04
         sta     $10
-        jsr     LEF8C
+        jsr     fill_nametable_progressive
         jsr     task_yield                   ; wait for NMI
         lda     $70
         bne     LB10B                   ; loop until NMI complete
@@ -826,7 +826,7 @@ LB126:  lda     $9C65,y                 ; load scroll params
         sta     $10
         lda     $9C67,y
         sta     $11
-        jsr     LC531                   ; enable PPU rendering
+        jsr     rendering_off                   ; enable PPU rendering
         ldx     $9C01,y                 ; X = offset into $9C03
         ldy     #$00
 LB138:  lda     $9C03,x                 ; load BG palette color
@@ -840,8 +840,8 @@ LB138:  lda     $9C03,x                 ; load BG palette color
         lda     #$20
         ldx     #$24
         ldy     #$00
-        jsr     LC59D                   ; fill_nametable
-        jsr     LC53B                   ; rendering_on
+        jsr     fill_nametable                   ; fill_nametable
+        jsr     rendering_on                   ; rendering_on
 
 ; ===========================================================================
 ; Horizontal scroll transition ($9155)
@@ -884,13 +884,13 @@ code_9164:  lda     camera_x_lo
         asl     a                       ; 0 or 4
         sta     $10
         lda     #$01                    ; metatile column 1
-        jsr     LE8B4                   ; metatile_column_ptr_by_id
+        jsr     metatile_column_ptr_by_id                   ; metatile_column_ptr_by_id
         lda     #$00
         sta     $70
         sta     nmi_skip
 code_9199:  lda     $10
         pha
-        jsr     LEF8C                   ; fill_nametable_progressive
+        jsr     fill_nametable_progressive                   ; fill_nametable_progressive
         pla
         sta     $10
         jsr     task_yield
@@ -973,11 +973,11 @@ code_9216:  sta     $0200,y             ; clear OAM Y to offscreen
         sta     $70                     ; nametable fill counter
         sta     $28
         lda     #$04                    ; metatile column 4
-        jsr     LE8B4                   ; metatile_column_ptr_by_id
+        jsr     metatile_column_ptr_by_id                   ; metatile_column_ptr_by_id
 code_9236:  lda     #$00
         sta     nmi_skip
         sta     $10
-        jsr     LEF8C                   ; fill_nametable_progressive
+        jsr     fill_nametable_progressive                   ; fill_nametable_progressive
         jsr     task_yield
         lda     $70
         bne     code_9236               ; loop until complete
@@ -1233,7 +1233,7 @@ LB316:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
 ; metatile_column_ptr_by_id computes: ($20/$21) = $AF00 + (A << 6)
 ; A=$03 → column 3 of bank $13 level data → pointer $AFC0
         lda     #$03                    ; set metatile column pointer
-        jsr     LE8B4                   ; ($20/$21) → $AFC0 in bank $13
+        jsr     metatile_column_ptr_by_id                   ; ($20/$21) → $AFC0 in bank $13
         lda     #$00                    ; $70 = nametable fill progress (0-63)
         sta     $70                     ; starts at 0
         sta     nmi_skip                     ; $EE = NMI skip flag (0=allow NMI)
@@ -1244,7 +1244,7 @@ LB316:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
 ; When $70 reaches $40, it writes the attribute table and resets $70 to 0.
 LB35F:  lda     $10                     ; preserve nametable select
         pha
-        jsr     LEF8C                   ; write 4 rows to PPU queue
+        jsr     fill_nametable_progressive                   ; write 4 rows to PPU queue
         jsr     task_yield                   ; wait for NMI (PPU uploads queued data)
         pla                             ; restore nametable select
         sta     $10
@@ -1426,10 +1426,10 @@ LB428:  jsr     fade_palette_in                   ; disable sprites/rendering
         lda     #$14                    ; $22 = $14 (boss intro layout ID)
         sta     stage_id
         lda     #$07                    ; metatile column 7
-        jsr     LE8B4                   ; pointer → $B0C0 in bank $13
+        jsr     metatile_column_ptr_by_id                   ; pointer → $B0C0 in bank $13
 LB449:  lda     #$00                    ; $10 = 0 → write to nametable $2000
         sta     $10
-        jsr     LEF8C                   ; write 4 tile rows
+        jsr     fill_nametable_progressive                   ; write 4 tile rows
         jsr     task_yield                   ; wait for NMI
         lda     $70                     ; $70 = 0 when complete
         bne     LB449
@@ -1500,7 +1500,7 @@ LB4B9:  lda     ent_anim_state                   ; check animation phase
         ldx     #$00                    ; switch to idle animation $1A
         lda     #$1A
         jsr     reset_sprite_anim
-LB4C7:  jsr     LFD6E                   ; process sprites + wait for NMI
+LB4C7:  jsr     process_frame_yield_full                   ; process sprites + wait for NMI
         lda     ent_anim_id                   ; check current OAM ID
         cmp     #$1A                    ; $1A = idle pose active
         bne     LB4A7                   ; loop until idle
@@ -1516,7 +1516,7 @@ LB4C7:  jsr     LFD6E                   ; process sprites + wait for NMI
         clc                             ; X += 2
         adc     #$02                    ; (note: using ent_x_px which is
         sta     ent_x_px                   ; the X position for the entity)
-        jsr     LFD6E                   ; process sprites + wait for NMI
+        jsr     process_frame_yield_full                   ; process sprites + wait for NMI
         jmp     L94D6
 
 ; --- Palette fade to black ---
@@ -1664,12 +1664,12 @@ code_958A:  jsr     fade_palette_in     ; disable rendering
         jsr     select_PRG_banks
 ; --- Fill nametable 0 with stage select layout ---
         lda     #$01                    ; metatile column 1
-        jsr     LE8B4                   ; metatile_column_ptr_by_id
+        jsr     metatile_column_ptr_by_id                   ; metatile_column_ptr_by_id
         lda     #$00
         sta     $70
 code_95AF:  lda     #$00
         sta     $10                     ; nametable $2000
-        jsr     LEF8C                   ; fill_nametable_progressive
+        jsr     fill_nametable_progressive                   ; fill_nametable_progressive
         jsr     task_yield
         lda     $70
         bne     code_95AF               ; loop until complete
@@ -1687,12 +1687,12 @@ code_95AF:  lda     #$00
         jsr     task_yield
 ; --- Fill nametable 1 (offscreen) ---
         lda     #$04                    ; metatile column 4
-        jsr     LE8B4                   ; metatile_column_ptr_by_id
+        jsr     metatile_column_ptr_by_id                   ; metatile_column_ptr_by_id
         lda     #$00
         sta     $70
 code_95E1:  lda     #$04
         sta     $10                     ; nametable $2400
-        jsr     LEF8C                   ; fill_nametable_progressive
+        jsr     fill_nametable_progressive                   ; fill_nametable_progressive
         jsr     task_yield
         lda     $70
         bne     code_95E1               ; loop until complete
@@ -1797,10 +1797,10 @@ code_968C:
         lda     #$01
         sta     camera_x_hi            ; display nametable 1
         lda     #$02                    ; metatile column 2
-        jsr     LE8B4                   ; metatile_column_ptr_by_id
+        jsr     metatile_column_ptr_by_id                   ; metatile_column_ptr_by_id
 code_96AC:  lda     #$04
         sta     $10                     ; nametable $2400
-        jsr     LEF8C                   ; fill_nametable_progressive
+        jsr     fill_nametable_progressive                   ; fill_nametable_progressive
         jsr     task_yield
         lda     $70
         bne     code_96AC               ; loop until complete
@@ -2063,10 +2063,10 @@ code_985D:
         sta     scroll_y                ; clear vertical scroll
 ; --- Fill nametable 1 with password screen layout ---
         lda     #$02                    ; metatile column 2
-        jsr     LE8B4                   ; metatile_column_ptr_by_id
+        jsr     metatile_column_ptr_by_id                   ; metatile_column_ptr_by_id
 code_987F:  lda     #$04
         sta     $10                     ; nametable $2400
-        jsr     LEF8C                   ; fill_nametable_progressive
+        jsr     fill_nametable_progressive                   ; fill_nametable_progressive
         jsr     task_yield
         lda     $70
         bne     code_987F               ; loop until complete
@@ -2451,7 +2451,7 @@ code_9ABE:
 code_9B0E:  pha
         lda     #$01
         sta     $10
-        jsr     LE4F1                   ; do_render_column
+        jsr     do_render_column                   ; do_render_column
         jsr     task_yield
         pla
         sec

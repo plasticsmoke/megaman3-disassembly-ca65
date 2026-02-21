@@ -58,7 +58,7 @@
 .include "include/zeropage.inc"
 .include "include/constants.inc"
 
-LC8A0           := $C8A0            ; ensure_stage_bank
+ensure_stage_bank           := $C8A0            ; ensure_stage_bank
 submit_sound_ID           := $F89A            ; submit_sound_ID
 task_yield           := $FF21            ; task_yield (wait for NMI)
 select_PRG_banks           := $FF6B            ; select_PRG_banks
@@ -82,7 +82,7 @@ select_PRG_banks           := $FF6B            ; select_PRG_banks
 ; to both nametable 0 and nametable 1 via the PPU buffer, with
 ; attribute table bits updated in the $0640 mirror.
 ; ---------------------------------------------------------------------------
-code_8006:  jsr     LC8A0           ; ensure stage PRG bank is selected
+code_8006:  jsr     ensure_stage_bank           ; ensure stage PRG bank is selected
         lda     #$00
         sta     $95                 ; reset frame counter
         ; --- Set up PPU buffer entry 1 (nametable 0 tile) ---
@@ -238,7 +238,7 @@ L8165:  .byte   $40,$04,$40,$04,$2F,$03,$40,$04
 ; address space), revealing the passage behind the shutter.
 ; Uses its own set of data tables (L82B0-L8342).
 ; ---------------------------------------------------------------------------
-code_81F3:  jsr     LC8A0           ; ensure stage PRG bank is selected
+code_81F3:  jsr     ensure_stage_bank           ; ensure stage PRG bank is selected
         lda     L82B0,y             ; PPU address high byte from table
         sta     $0780
         sta     $0784

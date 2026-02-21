@@ -64,16 +64,16 @@ LEE13           := $EE13
 LEE57           := $EE57
 move_right_collide           := $F580
 move_left_collide           := $F5C4
-LF606           := $F606
-LF642           := $F642
+move_down_collide           := $F606
+move_up_collide           := $F642
 move_vertical_gravity           := $F67C
 move_sprite_right           := $F71D
 move_sprite_left           := $F73B
 move_sprite_down           := $F759
 move_sprite_up           := $F779
 apply_y_speed           := $F797
-LF7A8           := $F7A8
-LF7C8           := $F7C8
+apply_y_velocity_fall           := $F7A8
+apply_y_velocity_rise           := $F7C8
 reset_gravity           := $F81B
 reset_sprite_anim           := $F835
 init_child_entity           := $F846
@@ -83,15 +83,15 @@ submit_sound_ID_D9           := $F898
 submit_sound_ID           := $F89A
 entity_y_dist_to_player           := $F8B3
 entity_x_dist_to_player           := $F8C2
-LF8D9           := $F8D9
+calc_direction_to_player           := $F8D9
 LF954           := $F954
-LFAE2           := $FAE2
+check_player_collision           := $FAE2
 LFAF6           := $FAF6
-LFB7B           := $FB7B
+check_sprite_weapon_collision           := $FB7B
 find_enemy_freeslot_y           := $FC53
 calc_homing_velocity           := $FC63
-LFCEB           := $FCEB
-LFD6E           := $FD6E
+divide_8bit           := $FCEB
+process_frame_yield_full           := $FD6E
 update_CHR_banks           := $FF3C
 select_PRG_banks           := $FF6B
 
@@ -155,7 +155,7 @@ L804A:  ldy     ent_routine,x
 
 L8060:  lda     #$00                    ; clear spark freeze slot
         sta     boss_active,y                   ; recheck weapon collision
-        jsr     LFB7B                   ; if none, spark cleared
+        jsr     check_sprite_weapon_collision                   ; if none, spark cleared
         bcs     L8083
         txa                             ; if so, reapply
         ldy     $10                     ; spark freeze slot
@@ -213,7 +213,7 @@ check_player_hit:  lda     ent_anim_id        ; check player animation
         beq     code_80F9               ; skip
         cmp     #PSTATE_VICTORY                    ; victory cutscene?
         beq     code_80F9               ; skip
-        jsr     LFAE2                   ; AABB overlap test
+        jsr     check_player_collision                   ; AABB overlap test
         bcs     code_80F9               ; no collision → skip
         lda     #PSTATE_DAMAGE                    ; --- CONTACT HIT ---
         sta     player_state                     ; state → $06 (damage)
@@ -260,7 +260,7 @@ L8109:  lda     ent_anim_id
         bne     L8113                   ; he is top spinning
         jmp     L825E
 
-L8113:  jsr     LFB7B                   ; if no weapon collision
+L8113:  jsr     check_sprite_weapon_collision                   ; if no weapon collision
         bcs     L8142                   ; return
         lda     ent_hitbox,x
         and     #$20                    ; if shot tink flag on,
@@ -418,7 +418,7 @@ L825D:  rts                             ; if not, return
 L825E:  lda     ent_hitbox,x                 ; shot tink flag also
         and     #$20                    ; implies invulnerable
         bne     L825D                   ; to top spin, return
-        jsr     LFAE2                   ; check if enemy collidiog with
+        jsr     check_player_collision                   ; check if enemy collidiog with
         bcs     L825D                   ; player, if not return
         stx     $0F                     ; preserve X
         lda     prg_bank
@@ -1149,7 +1149,7 @@ L8905:  .byte   $04
         lda     ent_timer,x                 ; bounce timer active?
         beq     code_891A               ; 0 → free movement
         ldy     #$12                    ; collision point: bottom edge
-        jsr     LF606                   ; move down with floor detection
+        jsr     move_down_collide                   ; move down with floor detection
         lda     #$A0                    ; OAM = $A0 (angled down)
         sta     ent_anim_id,x
         jmp     code_8939               ; → check if floor was hit
@@ -1165,7 +1165,7 @@ code_8922:  lda     ent_timer,x             ; bounce timer active?
         jmp     move_sprite_up                   ; move up, no collision
 
 code_892F:  ldy     #$13                ; collision point: top edge
-        jsr     LF642                   ; move up with ceiling detection
+        jsr     move_up_collide                   ; move up with ceiling detection
         lda     #$A1                    ; OAM = $A1 (angled up)
         sta     ent_anim_id,x
 
@@ -1274,13 +1274,13 @@ code_89F6:  lda     ent_facing,x             ; bit 3 = moving up?
         and     #$08
         bne     code_8A0A               ; yes → climb upward
         ldy     #$12                    ; move downward with collision
-        jsr     LF606                   ; C=1 if hit solid below
+        jsr     move_down_collide                   ; C=1 if hit solid below
         lda     #$A6                    ; OAM $A6 = descending wall
         sta     ent_anim_id,x
         jmp     code_8A14
 
 code_8A0A:  ldy     #$13                ; move upward with collision
-        jsr     LF642                   ; C=1 if hit solid above
+        jsr     move_up_collide                   ; C=1 if hit solid above
         lda     #$A7                    ; OAM $A7 = ascending wall
         sta     ent_anim_id,x
 code_8A14:  lda     ent_y_scr,x             ; Y screen nonzero = offscreen
@@ -1863,7 +1863,7 @@ code_8EAA:  jsr     move_sprite_left               ; move left at X speed
 code_8EAD:  lda     ent_routine,x             ; if AI routine != $0A (not PenPen),
         cmp     #$0A                    ; skip to bomb flier proximity check
         bne     code_8F04
-        jsr     LFB7B                   ; check if player weapon hit PenPen
+        jsr     check_sprite_weapon_collision                   ; check if player weapon hit PenPen
         bcs     code_8ED2               ; no hit, return
         ldy     $10                     ; destroy the weapon that hit us
         lda     #$00                    ; ($10 = weapon slot from collision)
@@ -2182,7 +2182,7 @@ code_911C:  lda     #$4F                ; switch to rising OAM sprite ($4F)
         rts
 
 code_912C:  ldy     #$0C                ; collision check offset
-        jsr     LF606                   ; move down with collision (C=1 if landed)
+        jsr     move_down_collide                   ; move down with collision (C=1 if landed)
         bcc     code_9141               ; not landed -> keep falling
         dec     ent_status,x                 ; landed: go back to state 0
         jsr     face_player                   ; turn toward player
@@ -2487,7 +2487,7 @@ L93E9:  .byte   $00,$00,$40,$40,$40,$40,$40,$40 ; facing flag ($00=right, $40=le
         brk
         brk
         brk
-        jsr     LFAE2                   ; check_player_collision
+        jsr     check_player_collision                   ; check_player_collision
         bcc     code_9459
         lda     #$00
         sta     L0000
@@ -2740,14 +2740,14 @@ code_95F9:  lda     ent_var1,x              ; attack cooldown active?
         lda     ent_facing,x               ; check facing direction
         and     #$02
         bne     code_9617                   ; facing left
-        jsr     LF8D9                       ; calc_direction_to_player (right)
+        jsr     calc_direction_to_player                       ; calc_direction_to_player (right)
         sec
         sbc     #$01                        ; adjust for right-facing arc
         cmp     #$07                        ; in firing arc?
         bcs     code_9639                   ; no -> reset idle timer
         jmp     code_9621                   ; yes -> fire
 
-code_9617:  jsr     LF8D9                   ; calc_direction_to_player (left)
+code_9617:  jsr     calc_direction_to_player                   ; calc_direction_to_player (left)
         sec
         sbc     #$09                        ; adjust for left-facing arc
         cmp     #$07                        ; in firing arc?
@@ -2874,9 +2874,9 @@ code_96FD:  lda     ent_yvel_sub,x          ; gravity accel: +$10/frame
         adc     #$00
         sta     ent_yvel,x
         bpl     code_9713                   ; positive -> falling
-        jmp     LF7A8                       ; apply_y_velocity (rising)
+        jmp     apply_y_velocity_fall                       ; apply_y_velocity (rising)
 
-code_9713:  jmp     LF7C8                   ; apply_y_velocity (falling)
+code_9713:  jmp     apply_y_velocity_rise                   ; apply_y_velocity (falling)
 
 code_9716:  rts
 
@@ -3630,7 +3630,7 @@ code_9CA5:  rts
 
         ; --- state 1: driving with gravity + wall check ---
 code_9CA6:  ldy     #$2A
-        jsr     LF606                       ; move_down_collide (gravity)
+        jsr     move_down_collide                       ; move_down_collide (gravity)
         lda     ent_facing,x
         and     #$01                        ; facing right?
         beq     code_9CC0                   ; no -> check left
@@ -4952,7 +4952,7 @@ code_A74A:  lda     ent_status,x
         and     #$02
         bne     code_A76B
         ldy     #$17
-        jsr     LF642
+        jsr     move_up_collide
         bcc     code_A76B
         inc     ent_status,x
         lda     #$71
@@ -5750,7 +5750,7 @@ code_AE27:  rts
 ; ===========================================================================
 main_beehive:
         ldy     #$08
-        jsr     LF606                   ; move_down_collide
+        jsr     move_down_collide                   ; move_down_collide
         bcc     code_AE27
         lda     #$71
         jsr     reset_sprite_anim                   ; reset_sprite_anim
@@ -6298,7 +6298,7 @@ code_B2AE:  rts
 code_B2AF:  lda     ent_y_px,x
         pha
         dec     ent_y_px,x
-        jsr     LFAE2                   ; check_player_collision
+        jsr     check_player_collision                   ; check_player_collision
         pla
         sta     ent_y_px,x
         bcs     code_B2F0
@@ -6550,7 +6550,7 @@ main_walking_bomb:
         ldy     #$1A                    ; apply $99 with hitbox $1A
         jsr     move_vertical_gravity                   ; move_vertical_gravity
         rol     $0F                     ; save carry (landed flag) into $0F bit 0
-        jsr     LFB7B                   ; check if weapon hit this enemy
+        jsr     check_sprite_weapon_collision                   ; check if weapon hit this enemy
         bcs     code_B4EC               ; survived → continue walking
 
 ; --- weapon killed this enemy: explode ---
@@ -7076,7 +7076,7 @@ main_spinning_wheel:
         lda     ent_y_px,x
         pha
         dec     ent_y_px,x
-        jsr     LFAE2                   ; check_player_collision
+        jsr     check_player_collision                   ; check_player_collision
         pla
         sta     ent_y_px,x
         bcs     code_B92A
@@ -7168,7 +7168,7 @@ code_B9AE:  lda     ent_status,y
         beq     code_B9BE
         cmp     #$AF
         bne     code_B9DF
-code_B9BE:  jsr     LFB7B               ; check_sprite_weapon_collision
+code_B9BE:  jsr     check_sprite_weapon_collision               ; check_sprite_weapon_collision
         bcs     code_B9DF
         lda     #$18
         jsr     submit_sound_ID                   ; submit_sound_ID
@@ -7710,7 +7710,7 @@ main_item_pickup:
         bne     code_BDFF
         ldy     #$2D                    ; large pickup hitbox
 code_BDFF:  jsr     move_vertical_gravity               ; apply $99
-        jsr     LFAE2                   ; check if player touches item
+        jsr     check_player_collision                   ; check if player touches item
         bcs     code_BE3A               ; no collision → timer logic
 
 ; --- player picked up item ---
@@ -7789,7 +7789,7 @@ code_BE72:  ldy     $0E                 ; check current energy level
         jsr     submit_sound_ID                   ; submit_sound_ID
         dec     $0F                     ; all ticks applied?
         beq     code_BE98               ; yes → done
-code_BE8D:  jsr     LFD6E               ; wait 4 frames between ticks
+code_BE8D:  jsr     process_frame_yield_full               ; wait 4 frames between ticks
         lda     $95                     ; (frame counter & 3 == 0)
         and     #$03
         bne     code_BE8D
@@ -7845,7 +7845,7 @@ main_surprise_box:
         lda     ent_anim_id,x           ; already broken?
         cmp     #$71                    ; $71 = break animation
         beq     code_BF03               ; yes → handle item spawn
-        jsr     LFB7B                   ; check_sprite_weapon_collision
+        jsr     check_sprite_weapon_collision                   ; check_sprite_weapon_collision
         bcs     code_BED1               ; no hit → return
 ; --- weapon hit: mark collected, despawn weapon, play break anim ---
         lda     ent_spawn_id,x          ; mark in respawn table ($0150)
@@ -7878,7 +7878,7 @@ code_BF03:  lda     ent_anim_state,x
         sta     L0000
         lda     #$64                    ; divide by 100
         sta     $01
-        jsr     LFCEB                   ; divide_8bit (remainder in $03)
+        jsr     divide_8bit                   ; divide_8bit (remainder in $03)
         ldy     #$05                    ; scan probability thresholds
         lda     $03
 code_BF1D:  cmp     LBF3F,y             ; weighted probability table
@@ -7912,7 +7912,7 @@ LBF4B:  .byte   $66,$64,$65             ; item AI routine IDs
         sta     L0000
         lda     #$64
         sta     $01
-        jsr     LFCEB                   ; divide_8bit
+        jsr     divide_8bit                   ; divide_8bit
         ldy     #$04
         lda     $03
 code_BF6F:  cmp     LBF97,y
