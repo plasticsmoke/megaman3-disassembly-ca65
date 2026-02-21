@@ -1,13 +1,3 @@
-main_needle_man_j:
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $06 — ROBOT MASTER AI (NEEDLE/MAGNET/TOP/SHADOW)
-; =============================================================================
-; AI state machines for Needle Man, Magnet Man, Top Man, and Shadow Man.
-;
-; Annotation: 0% — unannotated da65 output
-; =============================================================================
-
-
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $06 — ROBOT MASTER AI (NEEDLE/MAGNET/TOP/SHADOW)
 ; =============================================================================
@@ -17,8 +7,19 @@ main_needle_man_j:
 ; attack patterns, movement, and vulnerability windows.
 ; Also doubles as Spark Man stage data ($22=$06).
 ;
-; Annotation: partial — AI state labels named for all 4 bosses, 81 auto labels remain
+; Routine index mapping (from bank1C_1D dispatch):
+;   $C0 -> main_needle_man_j  (Needle Man boss AI)
+;   $C1 -> main_magnet_man_j  (Magnet Man boss AI)
+;   $C2 -> main_top_man_j     (Top Man boss AI)
+;   $C3 -> main_shadow_man_j  (Shadow Man boss AI)
+;   $C4 -> code_A472           (Magnet Missile projectile)
+;   $C5 -> code_A62B           (Top Spin projectile)
+;   $C6 -> code_A8E0           (Shadow Blade projectile)
+;   $C7 -> main_needle_man     (Needle Man — duplicate entry)
+;   $C8 -> code_A698           (Shadow Man — duplicate entry)
+;   $C9 -> RTS                 (stub)
 ; =============================================================================
+main_needle_man_j:
 
         .setcpu "6502"
 
@@ -45,28 +46,28 @@ LFC63           := $FC63
 
 .segment "BANK06"
 
-        jmp     main_needle_man
+; --- Entry trampolines (dispatched from bank1C_1D entity AI) ----------------
+        jmp     main_needle_man ; $C0 -- Needle Man boss AI
 main_magnet_man_j:
-
-        jmp     code_A24E
+        jmp     code_A24E       ; $C1 -- Magnet Man boss AI
 main_top_man_j:
-
-        jmp     code_A4B3
+        jmp     code_A4B3       ; $C2 -- Top Man boss AI
 main_shadow_man_j:
+        jmp     code_A698       ; $C3 -- Shadow Man boss AI
+        jmp     code_A472       ; $C4 -- Magnet Missile projectile
+        jmp     code_A62B       ; $C5 -- Top Spin projectile
+        jmp     code_A8E0       ; $C6 -- Shadow Blade projectile
+        jmp     main_needle_man ; $C7 -- Needle Man (duplicate)
+        jmp     code_A698       ; $C8 -- Shadow Man (duplicate)
+        rts                     ; $C9 -- stub
 
-        jmp     code_A698
-
-        jmp     code_A472
-
-        jmp     code_A62B
-
-        jmp     code_A8E0
-
-        jmp     main_needle_man
-
-        jmp     code_A698
-
-        rts
+; =============================================================================
+; NEEDLE MAN AI ($C0)
+; =============================================================================
+; 5-state AI: init, wait for B press, jump + throw needles, jump toward
+; player, headbutt. Randomly varies jump height and X velocity each cycle.
+; Throws two needles per jump, then either repeats or switches to headbutt.
+; =============================================================================
 
 main_needle_man:  lda     ent_status,x
         and     #$0F
@@ -77,8 +78,11 @@ main_needle_man:  lda     ent_status,x
         sta     $01
         jmp     (L0000)
 
-needle_man_state_ptr_lo:  .byte   $39,$4D,$68,$F4,$50 ; state $00: init
-needle_man_state_ptr_hi:  .byte   $A0,$A0,$A0,$A0,$A1 ; state $00: init
+; Needle Man state pointer table (lo/hi bytes)
+; state $00: init  state $01: wait for B  state $02: throw needles
+; state $03: jump toward player           state $04: headbutt
+needle_man_state_ptr_lo:  .byte   $39,$4D,$68,$F4,$50
+needle_man_state_ptr_hi:  .byte   $A0,$A0,$A0,$A0,$A1
 
 ; state $00: one-frame state for init
 needle_man_init:
@@ -216,32 +220,31 @@ LA145:  lda     #$2A                    ; set up headbutt
         sta     ent_status,x
 LA14F:  rts
 
-; state $04: head butt
+; state $04: headbutt — Needle Man extends head spike
 needle_man_headbutt:
-
         lda     ent_anim_state,x
-        cmp     #$04
+        cmp     #$04                    ; animation done?
         bne     code_A176
         lda     ent_anim_frame,x
         and     #$08
         beq     code_A176
-        lda     #$C0
+        lda     #$C0                    ; reset routine to main entry
         sta     ent_routine,x
-        lda     #$29
+        lda     #$29                    ; jumping anim
         jsr     LF835
-        lda     #$C3
+        lda     #$C3                    ; go to jump-toward-player state
         sta     ent_status,x
         jsr     needle_man_setup_jump
-code_A170:  lda     #$CA
+code_A170:  lda     #$CA                ; normal hitbox
         sta     ent_hitbox,x
         rts
 
 code_A176:  lda     ent_anim_state,x
-        cmp     #$02
+        cmp     #$02                    ; headbutt extended?
         bne     code_A170
-        lda     #$D2
+        lda     #$D2                    ; headbutt hitbox (larger)
         sta     ent_hitbox,x
-        lda     #$C7
+        lda     #$C7                    ; switch routine to headbutt collision
         sta     ent_routine,x
         rts
 
@@ -288,17 +291,18 @@ needle_man_setup_jump:  lda     #$88
 needle_man_jump_vel_x_sub:  .byte   $00,$80,$80,$00,$00,$80,$80,$80
 needle_man_jump_vel_x:  .byte   $00,$01,$02,$00,$00,$01,$03,$02
 needle_man_jump_states:  .byte   $FF,$00,$FF,$FF,$00,$FF,$00,$FF
-spawn_needle:  jsr     LFC53
-        bcs     code_A245
+; --- spawn_needle: create a needle projectile from Needle Man ----------------
+spawn_needle:  jsr     LFC53           ; find free enemy slot
+        bcs     code_A245               ; bail if none available
         sty     L0000
-        lda     ent_facing,x
+        lda     ent_facing,x           ; copy facing to projectile
         sta     ent_facing,y
         and     #$02
         tay
         lda     ent_anim_state,x
-        cmp     #$01
+        cmp     #$01                    ; first throw pose?
         bne     code_A211
-        lda     ent_x_px,x
+        lda     ent_x_px,x             ; position needle (pose 1 offset)
         clc
         adc     LA246,y
         pha
@@ -310,7 +314,7 @@ spawn_needle:  jsr     LFC53
         sta     ent_x_px,y
         jmp     code_A228
 
-code_A211:  lda     ent_x_px,x
+code_A211:  lda     ent_x_px,x     ; position needle (pose 2 offset)
         clc
         adc     LA24A,y
         pha
@@ -320,25 +324,34 @@ code_A211:  lda     ent_x_px,x
         sta     ent_x_scr,y
         pla
         sta     ent_x_px,y
-code_A228:  lda     ent_y_px,x
+code_A228:  lda     ent_y_px,x     ; Y offset = +7 pixels down
         clc
         adc     #$07
         sta     ent_y_px,y
         lda     #$00
         sta     ent_hp,y
-        lda     #$27
-        jsr     LF846
+        lda     #$27                    ; needle sprite ID
+        jsr     LF846                   ; init child entity
         lda     #$8B
-        sta     ent_hitbox,y
-        lda     #$AF
+        sta     ent_hitbox,y            ; needle hitbox
+        lda     #$AF                    ; needle AI routine
         sta     ent_routine,y
 code_A245:  rts
 
+; Needle spawn X offsets (per facing direction, two poses)
 LA246:  .byte   $15
 LA247:  .byte   $00,$EB,$FF
 LA24A:  .byte   $02
 LA24B:  .byte   $00,$FE,$FF
-code_A24E:  lda     ent_status,x
+; =============================================================================
+; MAGNET MAN AI ($C1)
+; =============================================================================
+; 5-state AI: init (3 bounces), random branch (50/50), fire Magnet Missiles
+; while hovering, fall/land, and magnetic pull attack. Alternates direction
+; each landing cycle. Magnet Missiles home toward the player.
+; =============================================================================
+
+code_A24E:  lda     ent_status,x    ; --- state dispatch ---
         and     #$0F
         tay
         lda     LA261,y
@@ -347,212 +360,225 @@ code_A24E:  lda     ent_status,x
         sta     $01
         jmp     (L0000)
 
+; Magnet Man state pointer table (lo/hi bytes)
+; state $00: init (3 bounces)  state $01: random branch
+; state $02: fire missiles     state $03: fall/land
+; state $04: magnetic pull
 LA261:  .byte   $6B,$EB,$0C,$76,$A5
 LA266:  .byte   $A2,$A2,$A3,$A3,$A3
-        lda     ent_var1,x
+; state $00: init — 3 bounces with alternating direction
+        lda     ent_var1,x              ; landing pause active?
         bne     code_A2E7
         lda     ent_status,x
-        ora     #$40
+        ora     #$40                    ; set boss invincibility flag
         sta     ent_status,x
-        lda     ent_var3,x
+        lda     ent_var3,x              ; direction toggle
         and     #$01
         beq     code_A28D
         lda     ent_flags,x
-        ora     #$40
+        ora     #$40                    ; face right
         sta     ent_flags,x
-        jsr     LF71D
+        jsr     LF71D                   ; move sprite right
         jmp     code_A298
 
 code_A28D:  lda     ent_flags,x
-        and     #$BF
+        and     #$BF                    ; face left
         sta     ent_flags,x
-        jsr     LF73B
+        jsr     LF73B                   ; move sprite left
 code_A298:  ldy     #$22
-        jsr     LF67C
-        bcc     code_A2E2
-        lda     ent_timer,x
+        jsr     LF67C                   ; apply gravity, check floor
+        bcc     code_A2E2               ; still airborne
+        lda     ent_timer,x             ; bounce index (0-2)
         tay
-        lda     LA419,y
+        lda     LA419,y                 ; load Y velocity sub for this bounce
         sta     ent_yvel_sub,x
-        lda     LA41C,y
+        lda     LA41C,y                 ; load Y velocity for this bounce
         sta     ent_yvel,x
-        lda     LA41F,y
+        lda     LA41F,y                 ; load X velocity sub for this bounce
         sta     ent_xvel_sub,x
-        lda     LA422,y
+        lda     LA422,y                 ; load X velocity for this bounce
         sta     ent_xvel,x
-        lda     #$1F
+        lda     #$1F                    ; bounce animation
         jsr     LF835
-        lda     #$04
+        lda     #$04                    ; 4-frame landing pause
         sta     ent_var1,x
-        inc     ent_timer,x
+        inc     ent_timer,x             ; next bounce
         lda     ent_timer,x
-        cmp     #$03
+        cmp     #$03                    ; done with 3 bounces?
         bcc     code_A2E1
-        inc     ent_status,x
+        inc     ent_status,x            ; advance to next state
         lda     #$00
         sta     ent_timer,x
-        lda     #$3C
+        lda     #$3C                    ; high jump Y velocity
         sta     ent_yvel_sub,x
         lda     #$09
         sta     ent_yvel,x
 code_A2E1:  rts
 
-code_A2E2:  lda     #$20
+code_A2E2:  lda     #$20                ; airborne animation
         jmp     LF835
 
-code_A2E7:  dec     ent_var1,x
+code_A2E7:  dec     ent_var1,x          ; tick landing pause
         rts
 
+; state $01: random branch — 50/50 missiles vs magnetic pull
         lda     $E4
-        adc     $E5
+        adc     $E5                     ; RNG
         sta     $E4
         and     #$01
         bne     code_A2F9
-        inc     ent_status,x
+        inc     ent_status,x            ; -> state $02: fire missiles
         rts
 
-code_A2F9:  lda     #$C4
+code_A2F9:  lda     #$C4                ; -> state $04: magnetic pull
         sta     ent_status,x
-        lda     #$F0
+        lda     #$F0                    ; pull duration = 240 frames
         sta     ent_var2,x
-        lda     #$1E
+        lda     #$1E                    ; pull animation
         jsr     LF835
-        jsr     code_A3FC
+        jsr     code_A3FC               ; face player + set sprite flip
         rts
 
+; state $02: fire Magnet Missiles while airborne
         lda     ent_anim_id,x
-        cmp     #$21
+        cmp     #$21                    ; hovering anim started?
         beq     code_A333
-        lda     #$20
+        lda     #$20                    ; airborne anim
         jsr     LF835
         ldy     #$23
-        jsr     LF67C
+        jsr     LF67C                   ; apply gravity (slow fall)
         lda     $10
-        and     #$10
+        and     #$10                    ; landed on ceiling?
         beq     code_A332
-        lda     #$21
+        lda     #$21                    ; switch to hover animation
         jsr     LF835
         lda     #$00
-        sta     ent_var1,x
+        sta     ent_var1,x              ; missile count = 0
         lda     #$06
-        sta     ent_timer,x
+        sta     ent_timer,x             ; fire interval = 6 frames
 code_A332:  rts
 
-code_A333:  jsr     code_A3FC
-        dec     ent_timer,x
+code_A333:  jsr     code_A3FC           ; face player
+        dec     ent_timer,x             ; fire interval countdown
         bne     code_A375
         lda     #$06
-        sta     ent_timer,x
+        sta     ent_timer,x             ; reset fire interval
         lda     ent_anim_state,x
-        cmp     #$01
+        cmp     #$01                    ; correct anim frame to fire?
         bne     code_A375
-        jsr     code_A425
-        lda     #$2A
+        jsr     code_A425               ; spawn Magnet Missile
+        lda     #$2A                    ; missile fire SFX
         jsr     LF89A
-        inc     ent_var1,x
+        inc     ent_var1,x              ; missile count++
         lda     ent_var1,x
-        cmp     #$03
+        cmp     #$03                    ; fired 3 missiles?
         bcc     code_A375
-        inc     ent_status,x
+        inc     ent_status,x            ; -> state $03: fall/land
         lda     #$00
         sta     ent_timer,x
-        lda     #$1E
+        lda     #$1E                    ; post-fire delay
         sta     ent_var2,x
-        lda     #$20
+        lda     #$20                    ; falling anim
         jsr     LF835
-        lda     #$80
+        lda     #$80                    ; fall velocity
         sta     ent_yvel_sub,x
         lda     #$06
         sta     ent_yvel,x
 code_A375:  rts
 
+; state $03: fall after missiles, land, restart cycle
         lda     ent_timer,x
         bne     code_A383
-        dec     ent_var2,x
+        dec     ent_var2,x              ; post-fire delay
         bne     code_A375
-        inc     ent_timer,x
+        inc     ent_timer,x             ; begin falling
 code_A383:  ldy     #$1E
-        jsr     LF606
-        bcc     code_A3A4
-        lda     #$1F
+        jsr     LF606                   ; move down, check floor
+        bcc     code_A3A4               ; still falling
+        lda     #$1F                    ; landing animation
         jsr     LF835
-        jsr     LF81B
+        jsr     LF81B                   ; reset gravity
         lda     ent_var3,x
-        eor     #$01
+        eor     #$01                    ; toggle direction for next cycle
         sta     ent_var3,x
-        lda     #$C0
+        lda     #$C0                    ; restart from state $00
         sta     ent_status,x
         lda     #$00
         sta     ent_timer,x
 code_A3A4:  rts
 
-        jsr     LF8C2
-        cmp     #$18
-        bcc     code_A3E8
+; state $04: magnetic pull — drags player toward Magnet Man
+        jsr     LF8C2                   ; get X distance to player
+        cmp     #$18                    ; close enough? (< 24 px)
+        bcc     code_A3E8               ; yes -> end pull, go to state $03
         lda     ent_flags,x
-        and     #$40
+        and     #$40                    ; check facing direction
         bne     code_A3B7
-        lda     #$01
+        lda     #$01                    ; pull direction = right
         bne     code_A3B9
-code_A3B7:  lda     #$02
-code_A3B9:  sta     $36
+code_A3B7:  lda     #$02                ; pull direction = left
+code_A3B9:  sta     $36                 ; set scroll pull direction
         lda     #$00
-        sta     $37
+        sta     $37                     ; pull sub-speed
         lda     #$01
-        sta     $38
+        sta     $38                     ; pull speed = 1 px/frame
         lda     ent_anim_state,x
-        cmp     #$04
+        cmp     #$04                    ; advance animation cycle
         bne     code_A3D2
         lda     ent_anim_frame,x
         beq     code_A3D2
         inc     ent_anim_state,x
 code_A3D2:  lda     ent_anim_state,x
-        cmp     #$06
+        cmp     #$06                    ; loop animation back
         bne     code_A3E3
         lda     ent_anim_frame,x
         beq     code_A3E3
         lda     #$05
         sta     ent_anim_state,x
-code_A3E3:  dec     ent_var2,x
+code_A3E3:  dec     ent_var2,x          ; pull duration countdown
         bne     code_A3F6
-code_A3E8:  lda     #$C3
+code_A3E8:  lda     #$C3                ; end pull -> state $03 (fall/land)
         sta     ent_status,x
-        lda     #$CA
+        lda     #$CA                    ; restore normal hitbox
         sta     ent_hitbox,x
         sta     ent_timer,x
         rts
 
-code_A3F6:  lda     #$AA
+code_A3F6:  lda     #$AA                ; magnet pull hitbox (contact damage)
         sta     ent_hitbox,x
         rts
 
-code_A3FC:  jsr     LF869
+; --- face player and update sprite flip flag --------------------------------
+code_A3FC:  jsr     LF869           ; face toward player
         lda     ent_facing,x
         and     #$01
         beq     code_A410
         lda     ent_flags,x
-        ora     #$40
+        ora     #$40                    ; set H-flip flag (facing right)
         sta     ent_flags,x
         bne     code_A418
 code_A410:  lda     ent_flags,x
-        and     #$BF
+        and     #$BF                    ; clear H-flip flag (facing left)
         sta     ent_flags,x
 code_A418:  rts
 
+; Magnet Man bounce velocity tables (indexed 0-2 for 3 bounces)
+; Y velocity sub, Y velocity, X velocity sub, X velocity
 LA419:  .byte   $9E,$88,$88
 LA41C:  .byte   $04,$06,$06
 LA41F:  .byte   $B3,$00,$00
 LA422:  .byte   $01,$02,$02
-code_A425:  jsr     LFC53
-        bcs     code_A46F
+; --- spawn Magnet Missile projectile -----------------------------------------
+code_A425:  jsr     LFC53           ; find free enemy slot
+        bcs     code_A46F               ; bail if none
         sty     L0000
-        lda     ent_facing,x
+        lda     ent_facing,x           ; copy facing to missile
         sta     ent_facing,y
         and     #$01
         tay
-        lda     ent_x_px,x
+        lda     ent_x_px,x             ; position missile with X offset
         clc
-        adc     LA470,y
+        adc     LA470,y                 ; facing-dependent offset
         ldy     L0000
         sta     ent_x_px,y
         lda     ent_x_scr,x
@@ -563,48 +589,58 @@ code_A425:  jsr     LFC53
         sta     ent_y_scr,y
         sta     ent_xvel_sub,y
         sta     ent_yvel_sub,x
-        lda     #$04
+        lda     #$04                    ; missile speed = 4 px/frame
         sta     ent_xvel,y
         sta     ent_yvel,y
-        lda     #$4D
-        jsr     LF846
-        lda     #$80
+        lda     #$4D                    ; Magnet Missile sprite ID
+        jsr     LF846                   ; init child entity
+        lda     #$80                    ; missile hitbox
         sta     ent_hitbox,y
-        lda     #$C4
+        lda     #$C4                    ; missile AI routine (homing)
         sta     ent_routine,y
 code_A46F:  rts
 
+; Magnet Missile spawn X offset per facing direction
 LA470:  .byte   $EC,$14
+; --- Magnet Missile projectile AI ($C4) — homing toward player --------------
 code_A472:  lda     ent_anim_id,x
-        cmp     #$51
+        cmp     #$51                    ; exploding anim?
         beq     code_A49C
         lda     ent_status,x
         and     #$0F
         bne     code_A49C
-        lda     ent_facing,x
+        lda     ent_facing,x           ; move in facing direction
         and     #$01
         beq     code_A48D
-        jsr     LF71D
+        jsr     LF71D                   ; move right
         jmp     code_A490
 
-code_A48D:  jsr     LF73B
-code_A490:  jsr     LF8C2
-        cmp     #$06
-        bcs     code_A4B2
-        lda     #$51
+code_A48D:  jsr     LF73B               ; move left
+code_A490:  jsr     LF8C2               ; X distance to player
+        cmp     #$06                    ; within 6 px?
+        bcs     code_A4B2               ; no -> keep moving
+        lda     #$51                    ; start explode animation
         jsr     LF835
 code_A49C:  lda     ent_anim_id,x
-        cmp     #$59
+        cmp     #$59                    ; impact anim done?
         beq     code_A4B2
         ldy     #$12
-        jsr     LF606
+        jsr     LF606                   ; move down, check floor collision
         bcc     code_A4B2
-        lda     #$59
+        lda     #$59                    ; play impact animation
         jsr     LF835
-        inc     ent_status,x
+        inc     ent_status,x            ; deactivate after impact
 code_A4B2:  rts
 
-code_A4B3:  lda     ent_status,x
+; =============================================================================
+; TOP MAN AI ($C2)
+; =============================================================================
+; 4-state AI: init, spin attack (spawn Top Spin projectiles, invulnerable),
+; walk across room (vulnerable), change direction + repeat.
+; Top Spin projectiles orbit outward then fall.
+; =============================================================================
+
+code_A4B3:  lda     ent_status,x    ; --- state dispatch ---
         and     #$0F
         tay
         lda     LA4C6,y
@@ -613,209 +649,230 @@ code_A4B3:  lda     ent_status,x
         sta     $01
         jmp     (L0000)
 
+; Top Man state pointer table (lo/hi bytes)
+; state $00: init  state $01: spin attack
+; state $02: walk  state $03: turn around
 LA4C6:  .byte   $CE,$E2,$3A,$75
 LA4CA:  .byte   $A4,$A4,$A5,$A5
-        lda     #$3C
+; state $00: init
+        lda     #$3C                    ; timer = 60 frames
         sta     ent_timer,x
-        sta     ent_var1,x
+        sta     ent_var1,x              ; walk timer = 60 frames
         lda     ent_status,x
-        ora     #$40
+        ora     #$40                    ; set boss invincibility flag
         sta     ent_status,x
-        inc     ent_status,x
+        inc     ent_status,x            ; advance to spin attack
         rts
 
-        lda     #$CA
+; state $01: spin attack — invulnerable, spawns Top Spin projectiles
+        lda     #$CA                    ; normal hitbox
         sta     ent_hitbox,x
         lda     ent_anim_state,x
-        cmp     #$02
+        cmp     #$02                    ; at spawn frame?
         bne     code_A4FD
-        lda     ent_var2,x
+        lda     ent_var2,x              ; already spawned tops?
         bne     code_A4FD
-        lda     #$00
+        lda     #$00                    ; spawn 3 Top Spin projectiles
         sta     $01
-        jsr     code_A5BC
-        inc     ent_var2,x
+        jsr     code_A5BC               ; spawn top projectile loop
+        inc     ent_var2,x              ; mark as spawned
 code_A4FD:  lda     ent_anim_state,x
-        cmp     #$03
+        cmp     #$03                    ; at recall frame?
         bne     code_A525
         lda     ent_anim_frame,x
         and     #$08
         beq     code_A525
-        ldy     #$1F
-        lda     #$10
-code_A50F:  cmp     ent_spawn_id,y
+        ldy     #$1F                    ; scan enemy slots for active tops
+        lda     #$10                    ; top spawn ID marker
+code_A50F:  cmp     ent_spawn_id,y      ; find matching top
         beq     code_A51B
         dey
         cpy     #$0F
         bne     code_A50F
-        beq     code_A525
-code_A51B:  lda     #$C5
+        beq     code_A525               ; no more tops found
+code_A51B:  lda     #$C5                ; set top to recall routine
         sta     ent_routine,y
         dey
-        lda     #$10
+        lda     #$10                    ; continue scanning for more
         bne     code_A50F
 code_A525:  lda     ent_anim_state,x
-        cmp     #$05
+        cmp     #$05                    ; spin complete?
         bne     code_A539
         lda     ent_anim_frame,x
         beq     code_A539
-        inc     ent_status,x
-        lda     #$44
+        inc     ent_status,x            ; -> state $02: walk
+        lda     #$44                    ; walking animation
         jsr     LF835
 code_A539:  rts
 
+; state $02: walk across room (vulnerable to attacks)
         lda     ent_anim_id,x
-        cmp     #$47
+        cmp     #$47                    ; spinning walk anim?
         beq     code_A555
-        lda     ent_var2,x
+        lda     ent_var2,x              ; top spawned previously?
         beq     code_A564
-        dec     ent_timer,x
+        dec     ent_timer,x             ; wait before spinning walk
         bne     code_A539
-        lda     #$47
+        lda     #$47                    ; start spinning walk anim
         jsr     LF835
-        lda     #$AA
+        lda     #$AA                    ; spinning hitbox (contact damage)
         sta     ent_hitbox,x
 code_A555:  lda     ent_anim_state,x
-        cmp     #$02
+        cmp     #$02                    ; spin cycle complete?
         bne     code_A564
-        lda     #$48
+        lda     #$48                    ; next spin cycle anim
         jsr     LF835
-        dec     ent_var2,x
-code_A564:  dec     ent_var1,x
+        dec     ent_var2,x              ; count spin cycles
+code_A564:  dec     ent_var1,x          ; walk duration countdown
         bne     code_A539
-        inc     ent_status,x
-        lda     #$78
+        inc     ent_status,x            ; -> state $03: turn around
+        lda     #$78                    ; timer = 120 frames
         sta     ent_timer,x
         sta     ent_var1,x
         rts
 
-        lda     ent_var3,x
+; state $03: walk in direction, reverse at screen edge, restart spin
+        lda     ent_var3,x              ; direction flag
         and     #$01
         beq     code_A589
-        jsr     LF71D
+        jsr     LF71D                   ; move right
         lda     ent_x_px,x
-        cmp     #$D0
-        bcs     code_A593
+        cmp     #$D0                    ; past right boundary?
+        bcs     code_A593               ; yes -> reverse
         jmp     code_A5BB
 
-code_A589:  jsr     LF73B
+code_A589:  jsr     LF73B               ; move left
         lda     ent_x_px,x
-        cmp     #$30
-        bcs     code_A5BB
-code_A593:  lda     ent_var3,x
+        cmp     #$30                    ; past left boundary?
+        bcs     code_A5BB               ; no -> keep going
+code_A593:  lda     ent_var3,x          ; toggle walk direction
         eor     #$01
         sta     ent_var3,x
-        lda     ent_facing,x
+        lda     ent_facing,x           ; flip facing
         eor     #$03
         sta     ent_facing,x
-        lda     ent_flags,x
+        lda     ent_flags,x            ; flip sprite
         eor     #$40
         sta     ent_flags,x
-        lda     #$49
+        lda     #$49                    ; turn-around animation
         jsr     LF835
-        dec     ent_status,x
+        dec     ent_status,x           ; back to state $01 (spin attack)
         dec     ent_status,x
         lda     #$00
-        sta     ent_var2,x
+        sta     ent_var2,x              ; reset top spawn flag
 code_A5BB:  rts
 
-code_A5BC:  jsr     LFC53
-        bcs     code_A624
+; --- spawn Top Spin projectiles (called in loop, spawns 3) ------------------
+code_A5BC:  jsr     LFC53           ; find free enemy slot
+        bcs     code_A624               ; bail if none
         sty     L0000
-        lda     ent_facing,x
+        lda     ent_facing,x           ; copy facing
         sta     ent_facing,y
         and     #$01
         tay
-        lda     ent_x_px,x
+        lda     ent_x_px,x             ; same X as Top Man
         ldy     L0000
         sta     ent_x_px,y
         lda     ent_x_scr,x
         sta     ent_x_scr,y
         lda     ent_y_px,x
         sec
-        sbc     #$0E
+        sbc     #$0E                    ; Y = Top Man Y - 14 px (above head)
         sta     ent_y_px,y
         lda     #$00
         sta     ent_hp,y
         sta     ent_routine,y
         sta     ent_xvel_sub,y
         sta     ent_yvel_sub,y
-        lda     #$04
+        lda     #$04                    ; speed = 4 px/frame
         sta     ent_xvel,y
         sta     ent_yvel,y
-        lda     #$46
-        jsr     LF846
-        lda     #$8B
+        lda     #$46                    ; Top Spin projectile sprite
+        jsr     LF846                   ; init child entity
+        lda     #$8B                    ; projectile hitbox
         sta     ent_hitbox,y
-        lda     #$10
+        lda     #$10                    ; spawn ID marker for recall
         sta     ent_spawn_id,y
-        ldy     $01
-        lda     LA625,y
+        ldy     $01                     ; projectile index (0-2)
+        lda     LA625,y                 ; staggered delay per projectile
         ldy     L0000
         sta     ent_timer,y
         ldy     $01
-        lda     LA628,y
+        lda     LA628,y                 ; orbit duration per projectile
         ldy     L0000
         sta     ent_var1,y
-        inc     $01
+        inc     $01                     ; next projectile
         lda     $01
-        cmp     #$03
-        bcc     code_A5BC
+        cmp     #$03                    ; spawned all 3?
+        bcc     code_A5BC               ; loop if not
 code_A624:  rts
 
-LA625:  .byte   $08,$10,$18
-LA628:  .byte   $32,$2A,$1E
+; Top Spin projectile delay and orbit duration tables (3 projectiles)
+LA625:  .byte   $08,$10,$18             ; staggered launch delays
+LA628:  .byte   $32,$2A,$1E             ; orbit durations
+; --- Top Spin projectile AI ($C5) — orbit then home toward player -----------
+; Phase 0: move outward horizontally + upward (staggered delay)
+; Phase 1: orbit/float (timed duration)
+; Phase 2: home toward player
 code_A62B:  lda     ent_status,x
         and     #$0F
         bne     code_A653
-        lda     ent_facing,x
+        lda     ent_facing,x           ; phase 0: move outward
         and     #$01
         beq     code_A63F
-        jsr     LF71D
+        jsr     LF71D                   ; move right
         jmp     code_A642
 
-code_A63F:  jsr     LF73B
-code_A642:  jsr     LF779
-        dec     ent_timer,x
+code_A63F:  jsr     LF73B               ; move left
+code_A642:  jsr     LF779               ; move up
+        dec     ent_timer,x             ; launch delay countdown
         bne     code_A652
         lda     #$00
         sta     ent_timer,x
-        inc     ent_status,x
+        inc     ent_status,x            ; -> phase 1: orbit
 code_A652:  rts
 
-code_A653:  lda     ent_status,x
+code_A653:  lda     ent_status,x        ; phase 1: orbit duration
         and     #$02
         bne     code_A663
-        dec     ent_var1,x
+        dec     ent_var1,x              ; orbit timer countdown
         bne     code_A652
-        inc     ent_status,x
+        inc     ent_status,x            ; -> phase 2: home toward player
         rts
 
-code_A663:  lda     ent_timer,x
+code_A663:  lda     ent_timer,x         ; phase 2: homing
         bne     code_A67B
-        lda     #$33
-        sta     $02
+        lda     #$33                    ; calculate homing velocity
+        sta     $02                     ; max speed
         lda     #$05
-        sta     $03
-        jsr     LFC63
-        lda     $0C
+        sta     $03                     ; acceleration
+        jsr     LFC63                   ; calc homing direction
+        lda     $0C                     ; resulting facing bits
         sta     ent_facing,x
-        inc     ent_timer,x
-code_A67B:  lda     ent_facing,x
+        inc     ent_timer,x             ; mark as initialized
+code_A67B:  lda     ent_facing,x        ; apply homing movement
         and     #$08
         beq     code_A688
-        jsr     LF779
+        jsr     LF779                   ; move up
         jmp     code_A68B
 
-code_A688:  jsr     LF759
+code_A688:  jsr     LF759               ; move down
 code_A68B:  lda     ent_facing,x
         and     #$01
         beq     code_A695
-        jmp     LF71D
+        jmp     LF71D                   ; move right
 
-code_A695:  jmp     LF73B
+code_A695:  jmp     LF73B               ; move left
 
-code_A698:  lda     ent_status,x
+; =============================================================================
+; SHADOW MAN AI ($C3)
+; =============================================================================
+; 5-state AI: init, jump + throw Shadow Blades, decision branch (slide vs
+; ninja jump), throw blades during jump, slide attack. Shadow Man moves
+; quickly and alternates between ranged blade attacks and close-range slides.
+; =============================================================================
+
+code_A698:  lda     ent_status,x    ; --- state dispatch ---
         and     #$0F
         tay
         lda     LA6AB,y
@@ -824,83 +881,90 @@ code_A698:  lda     ent_status,x
         sta     $01
         jmp     (L0000)
 
+; Shadow Man state pointer table (lo/hi bytes)
+; state $00: init  state $01: jump + throw blades
+; state $02: decision (slide vs ninja jump)
+; state $03: throw blades during jump  state $04: slide attack
 LA6AB:  .byte   $B5,$D6,$30,$93,$EE
 LA6B0:  .byte   $A6,$A6,$A7,$A7,$A7
+; state $00: init
         lda     #$00
-        sta     ent_timer,x
-        sta     ent_var1,x
-        sta     ent_var3,x
+        sta     ent_timer,x             ; clear timer
+        sta     ent_var1,x              ; clear landing pause
+        sta     ent_var3,x              ; clear misc counter
         lda     #$80
-        sta     ent_xvel_sub,x
+        sta     ent_xvel_sub,x          ; slow X drift
         lda     #$00
         sta     ent_xvel,x
         lda     ent_status,x
-        ora     #$40
+        ora     #$40                    ; set boss invincibility flag
         sta     ent_status,x
-        inc     ent_status,x
+        inc     ent_status,x            ; -> state $01
         rts
 
-        lda     ent_var1,x
+; state $01: jump toward player + throw Shadow Blades on landing
+        lda     ent_var1,x              ; landing pause active?
         bne     code_A722
-        lda     ent_facing,x
+        lda     ent_facing,x           ; move in facing direction
         and     #$01
         beq     code_A6EA
-        ldy     #$24
+        ldy     #$24                    ; move right with collision
         jsr     LF580
         jmp     code_A6EF
 
-code_A6EA:  ldy     #$25
+code_A6EA:  ldy     #$25                ; move left with collision
         jsr     LF5C4
 code_A6EF:  ldy     #$22
-        jsr     LF67C
-        bcc     code_A714
-        lda     #$40
+        jsr     LF67C                   ; apply gravity, check floor
+        bcc     code_A714               ; still airborne
+        lda     #$40                    ; landing animation
         jsr     LF835
-        lda     #$04
+        lda     #$04                    ; 4-frame landing pause
         sta     ent_var1,x
-        jsr     code_A84C
-        jsr     test_facing_change
-        inc     ent_timer,x
+        jsr     code_A84C               ; random jump velocity setup
+        jsr     test_facing_change      ; face player on landing
+        inc     ent_timer,x             ; count landings
         lda     ent_timer,x
-        cmp     #$03
+        cmp     #$03                    ; done with 3 jumps?
         bcc     code_A72F
-        inc     ent_status,x
+        inc     ent_status,x            ; -> state $02: decision
         rts
 
-code_A714:  lda     #$40
+code_A714:  lda     #$40                ; airborne: reset anim
         jsr     LF835
         lda     #$00
         sta     ent_anim_frame,x
         sta     ent_anim_state,x
         rts
 
-code_A722:  lda     #$01
+code_A722:  lda     #$01                ; landing pause: show standing frame
         sta     ent_anim_state,x
         lda     #$00
         sta     ent_anim_frame,x
-        dec     ent_var1,x
+        dec     ent_var1,x              ; tick landing pause
 code_A72F:  rts
 
-        lda     ent_var2,x
+; state $02: decision — slide (var2==0) vs ninja jump (var2!=0)
+        lda     ent_var2,x              ; jump height flag from table
         bne     code_A743
-        inc     ent_status,x
-        lda     #$41
+        inc     ent_status,x            ; -> state $03: throw blades
+        lda     #$41                    ; blade throw animation
         jsr     LF835
         lda     #$00
         sta     ent_var1,x
         rts
 
-code_A743:  inc     ent_status,x
+code_A743:  inc     ent_status,x        ; -> state $04: slide attack
         inc     ent_status,x
-        lda     #$08
+        lda     #$08                    ; slide timer = 8
         sta     ent_timer,x
         lda     #$00
         sta     ent_var1,x
-        lda     #$3E
+        lda     #$3E                    ; slide animation
         jsr     LF835
-        lda     #$C8
+        lda     #$C8                    ; slide collision routine
         sta     ent_routine,x
-        lda     ent_x_px,x
+        lda     ent_x_px,x             ; spawn shadow decoy at current pos
         sta     $0370
         lda     ent_x_scr,x
         sta     $0390
@@ -911,89 +975,91 @@ code_A743:  inc     ent_status,x
         sta     $0490
         sta     $0330
         ldy     #$10
-        lda     #$5A
-        jsr     LF846
-        lda     #$C3
+        lda     #$5A                    ; shadow decoy sprite
+        jsr     LF846                   ; init child entity
+        lda     #$C3                    ; slide hitbox
         sta     ent_hitbox,x
         lda     #$00
         sta     ent_xvel_sub,x
-        lda     #$04
+        lda     #$04                    ; slide speed = 4 px/frame
         sta     ent_xvel,x
-        jmp     LF869
+        jmp     LF869                   ; face player
 
-        lda     ent_var1,x
+; state $03: throw Shadow Blades (spawns 2 blades, then plays throw anim)
+        lda     ent_var1,x              ; already spawned?
         bne     code_A7B4
         lda     ent_anim_state,x
-        cmp     #$00
+        cmp     #$00                    ; at spawn frame?
         bne     code_A7ED
-        jsr     test_facing_change
+        jsr     test_facing_change      ; face player
         lda     #$00
         sta     $01
-        jsr     code_A874
-        lda     #$14
+        jsr     code_A874               ; spawn 2 Shadow Blades
+        lda     #$14                    ; 20-frame delay before throw anim
         sta     ent_timer,x
         lda     #$FF
-        sta     ent_var1,x
+        sta     ent_var1,x              ; mark as spawned
         rts
 
-code_A7B4:  lda     ent_anim_state,x
+code_A7B4:  lda     ent_anim_state,x   ; throw animation sequence
         bne     code_A7D7
-        dec     ent_timer,x
+        dec     ent_timer,x             ; pre-throw delay
         bne     code_A7CE
-        lda     #$2E
+        lda     #$2E                    ; blade throw SFX
         jsr     LF89A
-        lda     #$01
+        lda     #$01                    ; advance to throw frame
         sta     ent_anim_state,x
         lda     #$00
         sta     ent_anim_frame,x
         rts
 
-code_A7CE:  lda     #$00
+code_A7CE:  lda     #$00                ; hold pre-throw pose
         sta     ent_anim_state,x
         sta     ent_anim_frame,x
         rts
 
-code_A7D7:  lda     ent_anim_frame,x
+code_A7D7:  lda     ent_anim_frame,x   ; advance throw animation
         and     #$08
         beq     code_A7E1
         inc     ent_anim_state,x
 code_A7E1:  lda     ent_anim_state,x
-        cmp     #$06
+        cmp     #$06                    ; throw anim complete?
         bne     code_A7ED
-        lda     #$C0
+        lda     #$C0                    ; restart from state $00
         sta     ent_status,x
 code_A7ED:  rts
 
-        lda     ent_var1,x
+; state $04: slide attack — move toward player, stop on contact/wall/timer
+        lda     ent_var1,x              ; passed through player?
         beq     code_A7F8
-        dec     ent_timer,x
-        beq     code_A81E
-code_A7F8:  lda     ent_facing,x
+        dec     ent_timer,x             ; post-pass timer
+        beq     code_A81E               ; timer expired -> stop
+code_A7F8:  lda     ent_facing,x       ; slide in facing direction
         and     #$01
         beq     code_A807
-        ldy     #$24
+        ldy     #$24                    ; move right with collision
         jsr     LF580
         jmp     code_A80C
 
-code_A807:  ldy     #$25
+code_A807:  ldy     #$25                ; move left with collision
         jsr     LF5C4
-code_A80C:  bcs     code_A81E
+code_A80C:  bcs     code_A81E           ; hit wall -> stop
         lda     ent_var1,x
         bne     code_A835
-        jsr     LF8C2
-        cmp     #$08
-        bcs     code_A835
-        inc     ent_var1,x
+        jsr     LF8C2                   ; X distance to player
+        cmp     #$08                    ; within 8 px?
+        bcs     code_A835               ; no -> keep sliding
+        inc     ent_var1,x              ; mark as passed player
         rts
 
-code_A81E:  lda     #$3D
+code_A81E:  lda     #$3D                ; slide end animation
         jsr     LF835
-        lda     #$C0
+        lda     #$C0                    ; restart from state $00
         sta     ent_status,x
-        lda     #$CA
+        lda     #$CA                    ; restore normal hitbox
         sta     ent_hitbox,x
-        jsr     test_facing_change
-        lda     #$C3
+        jsr     test_facing_change      ; face player
+        lda     #$C3                    ; restore normal routine
         sta     ent_routine,x
 code_A835:  rts
 
@@ -1008,101 +1074,116 @@ test_facing_change:  lda     ent_facing,x
         sta     ent_flags,x                 ; to simulate proper facing
 LA84B:  rts
 
+; --- random jump velocity setup for Shadow Man (4 options) ------------------
 code_A84C:  lda     $E4
-        adc     $E5
+        adc     $E5                     ; RNG
         sta     $E5
-        and     #$03
+        and     #$03                    ; index 0-3
         tay
-        lda     LA868,y
+        lda     LA868,y                 ; Y velocity sub
         sta     ent_yvel_sub,x
-        lda     LA86C,y
+        lda     LA86C,y                 ; Y velocity (jump height)
         sta     ent_yvel,x
-        lda     LA870,y
+        lda     LA870,y                 ; var2: decides slide vs blade throw
         sta     ent_var2,x
         rts
 
+; Shadow Man jump velocity table (4 entries)
+; Y vel sub, Y vel (jump height), var2 (0=blade throw, 1=slide)
 LA868:  .byte   $9E,$88,$00,$88
 LA86C:  .byte   $04,$06,$08,$06
 LA870:  .byte   $00,$01,$00,$01
-code_A874:  jsr     LFC53
-        bcs     code_A8D7
+; --- spawn Shadow Blades (called in loop, spawns 2) -------------------------
+code_A874:  jsr     LFC53           ; find free enemy slot
+        bcs     code_A8D7               ; bail if none
         sty     L0000
-        lda     ent_facing,x
+        lda     ent_facing,x           ; copy facing to blade
         sta     ent_facing,y
         and     #$01
         tay
-        lda     ent_x_px,x
+        lda     ent_x_px,x             ; same X position
         ldy     L0000
         sta     ent_x_px,y
         lda     ent_x_scr,x
         sta     ent_x_scr,y
         lda     ent_y_px,x
         sec
-        sbc     #$18
+        sbc     #$18                    ; Y = Shadow Man Y - 24 px
         sta     ent_y_px,y
         lda     #$00
         sta     ent_hp,y
-        lda     #$42
-        jsr     LF846
-        lda     #$80
+        lda     #$42                    ; Shadow Blade sprite
+        jsr     LF846                   ; init child entity
+        lda     #$80                    ; blade hitbox
         sta     ent_hitbox,y
-        lda     #$C6
+        lda     #$C6                    ; blade AI routine
         sta     ent_routine,y
-        stx     $03
-        lda     $01
+        stx     $03                     ; save X (boss slot)
+        lda     $01                     ; blade index (0 or 1)
         asl     a
         tax
-        lda     LA8D8,x
+        lda     LA8D8,x                 ; blade Y velocity sub
         sta     ent_yvel_sub,y
-        lda     LA8D9,x
+        lda     LA8D9,x                 ; blade Y velocity
         sta     ent_yvel,y
-        lda     LA8DC,x
+        lda     LA8DC,x                 ; blade X velocity sub
         sta     ent_xvel_sub,y
-        lda     LA8DD,x
+        lda     LA8DD,x                 ; blade X velocity
         sta     ent_xvel,y
-        ldx     $03
-        inc     $01
+        ldx     $03                     ; restore boss slot
+        inc     $01                     ; next blade
         lda     $01
-        cmp     #$02
-        bcc     code_A874
+        cmp     #$02                    ; spawned both?
+        bcc     code_A874               ; loop if not
 code_A8D7:  rts
 
+; Shadow Blade velocity table (2 blades: one fast-up, one fast-forward)
+; Y vel sub, Y vel, X vel sub, X vel
 LA8D8:  .byte   $D2
 LA8D9:  .byte   $FC,$00,$00
 LA8DC:  .byte   $2E
 LA8DD:  .byte   $03,$80,$04
+; --- Shadow Blade projectile AI ($C6) — fly in arc, despawn offscreen -------
 code_A8E0:  lda     ent_anim_id,x
-        cmp     #$42
+        cmp     #$42                    ; initial blade anim?
         bne     code_A8FC
         lda     ent_anim_state,x
-        cmp     #$06
+        cmp     #$06                    ; anim sequence done?
         bne     code_A929
-        lda     #$43
+        lda     #$43                    ; switch to spinning blade anim
         jsr     LF835
-        lda     ent_y_px,x
+        lda     ent_y_px,x             ; adjust Y for new sprite frame
         clc
         adc     #$0E
         sta     ent_y_px,x
-code_A8FC:  lda     #$00
+code_A8FC:  lda     #$00                ; apply Y velocity (with sign extension)
         sta     $02
         lda     ent_yvel,x
         bpl     code_A907
-        dec     $02
+        dec     $02                     ; negative Y vel -> sign extend
 code_A907:  lda     ent_y_sub,x
         clc
-        adc     ent_yvel_sub,x
+        adc     ent_yvel_sub,x          ; add Y sub-velocity
         sta     ent_y_sub,x
         lda     ent_y_px,x
-        adc     ent_yvel,x
+        adc     ent_yvel,x              ; add Y velocity
         sta     ent_y_px,x
         lda     ent_y_scr,x
         adc     $02
-        bne     code_A924
-        jmp     code_A68B
+        bne     code_A924               ; went offscreen? despawn
+        jmp     code_A68B               ; apply horizontal movement
 
-code_A924:  lda     #$00
+code_A924:  lda     #$00                ; despawn blade
         sta     ent_status,x
 code_A929:  rts
+
+; =============================================================================
+; SPARK MAN STAGE DATA (stage_id $22 = bank $06)
+; =============================================================================
+; Compressed tile/nametable data, palettes, enemy spawn tables, and
+; metatile definitions for Spark Man's stage. Occupies the remainder
+; of the bank from $A92A to $BFFF.
+; =============================================================================
 
         .byte   $AA,$81,$0A,$B6,$03,$D7,$A9,$F9
         .byte   $A8,$3C,$E2,$71,$20,$F7,$22,$9B
