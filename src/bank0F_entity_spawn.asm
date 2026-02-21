@@ -4,14 +4,14 @@
 ; Mapped to $A000-$BFFF via MMC3.
 ;
 ; This bank is dual-purpose:
-;   1. Wily Fortress 4 ending credits sequence ($A000-$A2C5)
-;      - Initialization, scrolling nametable text, staff roll animation
-;      - OAM sprite placement for the credits "book" sequence
-;   2. Wily Fortress 4 stage data ($A2C6-$BFFF)
-;      - Compressed nametable tile maps
-;      - Palette data
-;      - Enemy/object spawn lists
-;      - Attribute tables
+;   1. Wily Fortress 4 ending credits sequence ($A000-$A629)
+;      - Initialization + main loop code ($A000-$A201)
+;      - OAM star sprite data, character walk-on tables ($A202-$A24D)
+;      - Credits text pointers + encoded staff roll data ($A24E-$A629)
+;   2. Wily Fortress 4 stage data ($A62A-$BFFF)
+;      - Compressed nametable tile maps, palette data
+;      - Enemy/object spawn lists (screen#, X, Y, entity ID)
+;      - Metatile definitions (columns, CHR, attributes, collision)
 ;
 ; Despite the file name referencing entity spawning, this bank contains
 ; no entity spawn dispatch code. The stage_id mapping $22 -> bank $0F
@@ -470,15 +470,30 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $22,$0A,$0C,$0C,$11,$0A,$17,$24
         .byte   $23,$07,$0D,$04,$12,$1B,$12,$14
 ; =============================================================================
-; WILY FORTRESS 4 — STAGE DATA
+; WILY FORTRESS 4 — STAGE DATA ($A62A-$BFFF)
 ; =============================================================================
-; Compressed nametable tile maps, palette tables, enemy/object spawn lists,
-; and attribute data for Wily Fortress stage 4. The stage_id $22 maps to
-; bank $0F, loading this data for the level layout engine.
+; Standard-format stage data for Wily Fortress 4 (stage_id $22 -> bank $0F).
+; Loaded by the fixed bank level layout engine.
 ;
-; Data format uses the game's standard 2-bit RLE compression for nametable
-; tiles, followed by raw palette data and spawn coordinate tables.
+; Data layout:
+;   $A62A:  Compressed nametable tile maps (2-bit RLE)
+;   $AA00:  Screen index table (14 screens, terminated by $FF)
+;   $AA1B:  Room scroll/transition config data
+;   $AA5A:  Room scroll direction / transition table
+;   $AA60:  Room CHR/palette config
+;   $AA82:  BG palette data (4 palettes x 4 bytes)
+;   $AAA6:  Additional compressed nametable data + attribute tables
+;   $AC00:  Enemy placement data — X pixel positions
+;   $AD00:  Enemy placement data — Y pixel positions
+;   $AE00:  Enemy placement data — global enemy IDs
+;   $AF00:  Metatile column definitions (8 bytes per column)
+;   $B700:  Metatile CHR definitions (4 bytes per metatile: 2x2 tile IDs)
+;   $BB00:  Metatile CHR attribute / flip plane data
+;   $BF00:  Collision attribute table (upper nybble = collision type)
 ; =============================================================================
+; --- Compressed nametable tile maps ($A62A) ---
+; 2-bit RLE encoded screen tile data, decompressed by the fixed bank
+; nametable loader. Each screen is 960 bytes when decompressed (30x32 tiles).
         .byte   $18,$22,$15,$2F,$10,$4E,$75,$57
         .byte   $55,$AD,$55,$FD,$15,$FF,$51,$FF
         .byte   $F5,$FB,$55,$FF,$5D,$7F,$55,$70
@@ -602,9 +617,15 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $2E,$2A,$9A,$AA,$DF,$1A,$B1,$A9
         .byte   $75,$88,$F7,$0A,$59,$AA,$95,$A0
         .byte   $D5,$28,$93,$02,$71,$08,$10,$00
+; --- Screen index table ($AA00, terminated by $FF) ---
+; Lists screen IDs for the stage layout. 14 screens total.
+; Screen numbers $01-$0D; entries $0A repeat for multi-screen rooms.
         .byte   $01,$02,$03,$04,$05,$06,$07,$08
         .byte   $09,$0B,$0B,$0A,$0A,$0A,$0A,$0A
         .byte   $0A,$0A,$0A,$0C,$0C,$0D,$0D,$0A
+; --- Room scroll/transition config ($AA19+) ---
+; Per-screen scrolling parameters, room transition settings, and
+; scroll direction data. Two sub-tables, each terminated by $FF.
         .byte   $0A,$FF,$00,$00,$00,$00,$00,$08
         .byte   $4E,$9A,$D1,$28,$BE,$A8,$19,$2A
         .byte   $3D,$00,$31,$20,$CA,$80,$02,$05
@@ -613,11 +634,15 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $40,$40,$40,$40,$60,$20,$20,$60
         .byte   $20,$40,$40,$20,$40,$20,$40,$20
         .byte   $40,$20,$40,$20,$40,$20,$40,$20
+; --- Room CHR/palette config + scroll direction ($AA58+) ---
         .byte   $40,$FF,$00,$00,$00,$00,$00,$00
         .byte   $00,$32,$00,$19,$00,$32,$00,$32
         .byte   $00,$00,$00,$02,$00,$02,$01,$02
         .byte   $01,$02,$01,$00,$01,$00,$01,$00
         .byte   $01,$00,$01,$00,$01,$00,$01,$60
+; --- BG palette data ($AA82) ---
+; 8 background palettes (4 bytes each: $0F + 3 NES color values).
+; First set = normal BG palettes, second set = alternate/variant.
         .byte   $62,$0F,$20,$22,$00,$0F,$20,$10
         .byte   $08,$0F,$27,$17,$07,$0F,$22,$00
         .byte   $03,$00,$00,$00,$00,$0F,$20,$22
@@ -633,6 +658,9 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $3A,$02,$B8,$40,$74,$BA,$E2,$AA
         .byte   $DF,$A2,$FB,$29,$69,$AA,$D9,$08
         .byte   $1A,$A2,$9B,$82,$DA,$22,$FF,$08
+; --- Enemy placement: screen numbers ($AB00, terminated by $FF) ---
+; Each byte is the screen number where the corresponding enemy spawns.
+; Entries are sorted by screen number. Terminated by $FF sentinel.
         .byte   $FF,$FF,$0C,$00,$05,$00,$00,$00
         .byte   $00,$00,$00,$00,$01,$02,$02,$02
         .byte   $02,$02,$02,$03,$04,$04,$06,$07
@@ -666,6 +694,7 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $1F,$2A,$76,$A8,$BB,$EA,$9A,$8E
         .byte   $EA,$D8,$F7,$02,$6F,$20,$92,$28
         .byte   $93,$08,$B3,$82,$00,$00,$E1,$28
+; --- Enemy placement: X pixel positions ($AC00, terminated by $FF) ---
         .byte   $38,$48,$58,$C0,$50,$64,$68,$74
         .byte   $80,$84,$94,$50,$70,$D0,$B0,$30
         .byte   $30,$48,$58,$68,$78,$68,$78,$88
@@ -698,6 +727,7 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $01,$02,$11,$02,$44,$FE,$05,$31
         .byte   $11,$00,$00,$44,$01,$02,$00,$80
         .byte   $04,$00,$00,$23,$00,$00,$10,$3C
+; --- Enemy placement: Y pixel positions ($AD00, terminated by $FF) ---
         .byte   $3C,$3C,$3C,$38,$48,$5C,$B8,$5C
         .byte   $88,$5C,$5C,$48,$48,$28,$B0,$00
         .byte   $50,$BC,$BC,$BC,$BC,$5C,$5C,$5C
@@ -730,6 +760,10 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $41,$50,$01,$04,$01,$60,$40,$C4
         .byte   $11,$29,$10,$91,$00,$1D,$01,$04
         .byte   $04,$20,$04,$00,$00,$00,$00,$53
+; --- Enemy placement: global enemy IDs ($AE00, terminated by $FF) ---
+; Entity IDs for each spawned enemy. $53=Kamegoro Maker, $52=Returning
+; Sniper Joe, $51=Bikky, $56=Walking Bomb, $11=weapon energy, $8A=Peterchy,
+; $55=Hologran, and various item drops ($47-$4E).
         .byte   $53,$53,$53,$52,$11,$51,$52,$51
         .byte   $56,$51,$51,$11,$11,$11,$8A,$8A
         .byte   $8A,$53,$53,$53,$53,$53,$53,$53
@@ -762,6 +796,13 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $40,$81,$04,$0C,$54,$00,$00,$20
         .byte   $40,$10,$84,$00,$04,$04,$00,$61
         .byte   $40,$00,$00,$01,$01,$00,$00,$00
+; ===========================================================================
+; Metatile column definitions ($AF00+)
+; ===========================================================================
+; Each 8-byte group defines one column of metatiles (8 rows top-to-bottom).
+; Metatile indices reference the CHR/attribute definitions at $B700/$BB00.
+; The level is built from columns of 8-metatile-tall "strips".
+; ---------------------------------------------------------------------------
         .byte   $01,$02,$03,$04,$05,$06,$07,$00
         .byte   $08,$09,$09,$0A,$0B,$0C,$07,$00
         .byte   $0D,$0D,$0E,$0F,$0D,$0D,$07,$00
@@ -874,6 +915,8 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $C4,$CD,$BE,$CE,$C8,$A6,$B9,$BF
         .byte   $C0,$9F,$9F,$9F,$CE,$B0,$BE,$BF
         .byte   $C0,$9F,$9F,$9F,$9F,$9F,$9F,$1E
+; --- Unused metatile column slots (filled with $1E) ---
+; Wily Fortress 4 is a short stage, so most column slots are empty.
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -1011,6 +1054,14 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
+; ===========================================================================
+; Metatile CHR definitions ($B700+)
+; ===========================================================================
+; 4 bytes per metatile: 2x2 tile IDs defining the visual appearance.
+; Each metatile is a 16x16 pixel block composed of four 8x8 CHR tiles.
+; Byte order: top-left, top-right, bottom-left, bottom-right.
+; Entries $00-$1D are unused ($1E fill); active metatiles start later.
+; ---------------------------------------------------------------------------
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -1139,6 +1190,13 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $B5,$00,$BC,$89,$0E,$83,$0E,$97
         .byte   $8A,$9B,$91,$8B,$92,$91,$9A,$9E
         .byte   $93,$99,$9B,$93,$8A,$9B,$91,$8B
+; ===========================================================================
+; Metatile attribute / flip plane data ($BB00+)
+; ===========================================================================
+; 4 bytes per metatile: palette assignment and horizontal/vertical flip
+; flags for each of the four 8x8 tiles in the 2x2 metatile.
+; Bit layout per byte: VH--PP-- (V=vflip, H=hflip, PP=palette 0-3).
+; ---------------------------------------------------------------------------
         .byte   $00,$81,$00,$00,$8A,$00,$80,$00
         .byte   $A4,$00,$00,$A4,$00,$00,$00,$8B
         .byte   $00,$81,$A4,$00,$8A,$A4,$80,$A8
@@ -1274,6 +1332,18 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $00,$90,$00,$B1,$A1,$A2,$B2,$00
         .byte   $00,$90,$00,$B1,$A1,$A2,$B2,$00
         .byte   $00,$00,$00,$B1,$A1,$00,$00,$00
+; ===========================================================================
+; Collision attribute table ($BF00+)
+; ===========================================================================
+; One byte per metatile. Defines collision behavior:
+;   $00 = empty/passable          $10 = solid
+;   $01 = breakable               $03 = solid (variant)
+;   $11 = solid (variant)         $12 = (verify in Mesen)
+;   $13 = semi-solid platform     $23 = (verify in Mesen)
+;   $50 = ladder                  $60 = spike (instant kill)
+;   $61 = death pit               $81 = solid (special)
+; Used by the tile collision system in the fixed bank.
+; ---------------------------------------------------------------------------
         .byte   $00,$02,$01,$00,$53,$51,$43,$03
         .byte   $00,$00,$13,$13,$10,$10,$23,$13
         .byte   $13,$13,$03,$03,$10,$13,$13,$11
@@ -1298,6 +1368,7 @@ LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $03,$03,$03,$03,$01,$01,$01,$03
         .byte   $03,$01,$01,$01,$03,$03,$03,$03
         .byte   $03,$01,$01,$03,$03,$03,$50,$61
+; --- Unused collision slots filled with $61 (death pit) to end of bank ---
         .byte   $61,$61,$61,$61,$61,$61,$61,$61
         .byte   $61,$61,$61,$61,$61,$61,$61,$61
         .byte   $61,$61,$61,$61,$61,$61,$61,$61
