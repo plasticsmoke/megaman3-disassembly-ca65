@@ -1,15 +1,6 @@
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $17 — SOUND/MUSIC DATA
 ; =============================================================================
-; Music scores and sound effect data tables for the sound driver.
-;
-; Annotation: 0% — unannotated da65 output (pure data)
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $17 — SOUND/MUSIC DATA
-; =============================================================================
 ; Mapped to $A000-$BFFF. Always loaded alongside bank $16 ($8000-$9FFF)
 ; which contains the sound driver code. Together they form the audio engine.
 ;
@@ -17,11 +8,21 @@
 ; remapping: addresses $A000-$BFFF read from this bank directly, while
 ; addresses $C000+ temporarily swap in bank $18 to read from there.
 ;
-; Contains music sequence data, sound effect definitions, instrument
-; parameters, and note/frequency tables used by the NES APU driver.
-; Called every NMI frame via play_sounds → bank $16/$17 swap.
+; Contains music sequence data and sound effect definitions for the NES APU
+; driver. The sound pointer table in bank $16 at $8A40 indexes music tracks
+; by ID. Tracks 0-5 begin in bank $16 ($8A39-$9FFF); tracks 6+ overflow
+; into this bank ($A000+). Each track consists of channel sub-sequences
+; with note data, duration, instrument selection, and loop markers.
 ;
-; Annotation: none — pure music/SFX data
+; Key music track pointers (from bank $16 $8A40):
+;   Track $06 → $A0D7    Track $07 → $A4BE    Track $08 → $A714
+;   Track $09 → $AAC1    Track $0A → $ADC2    Track $0B → $B1E5
+;   Track $0C → $B223    Track $0D → $B4CB    Track $0E → $B516
+;   Track $0F → $B8F6    Track $10 → $B92B    Track $11 → $BE1E
+;   Track $12 → $BF97
+;
+; Called every NMI frame via play_sounds in the fixed bank, which swaps
+; banks $16/$17 into the $8000-$BFFF window.
 ; =============================================================================
 
         .setcpu "6502"
@@ -31,6 +32,19 @@
 
 
 .segment "BANK17"
+
+; =============================================================================
+; MUSIC SEQUENCE DATA ($A000-$BFFF)
+; =============================================================================
+; Continuation of music/SFX data from bank $16. Each track contains
+; per-channel sub-sequences with NES APU register commands, note events
+; (pitch + duration), instrument parameters, volume envelopes, and loop
+; control bytes. The sound driver reads this data sequentially per channel,
+; advancing a pointer each frame.
+;
+; No fixed internal boundaries — track data flows continuously from $A000
+; to $BFFF as addressed by the bank $16 pointer table.
+; =============================================================================
 
         .byte   $09,$03,$08,$02,$64,$60,$64,$64
         .byte   $6D,$70,$60,$64,$60,$64,$60,$64

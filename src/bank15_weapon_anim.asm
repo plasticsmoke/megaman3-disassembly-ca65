@@ -1,28 +1,21 @@
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $15 — WEAPON SPRITE ANIMATION SEQUENCES
 ; =============================================================================
-; Weapon-specific sprite animation sequence data.
-;
-; Annotation: 0% — unannotated da65 output (pure data)
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $15 — WEAPON SPRITE ANIMATION SEQUENCES
-; =============================================================================
 ; Mapped to $8000-$9FFF. Contains OAM animation sequence data for weapon
-; and projectile sprites. Selected via `LDY #$15 / STY $F4` in the sprite
-; renderer when $5A (weapon sprite bank override) is nonzero.
+; and projectile sprites. Selected via `LDY #$15 / STY prg_bank` in the
+; sprite renderer when the weapon sprite bank override is nonzero.
 ;
-; Pointer tables at $8000/$8080 (low/high bytes): animation sequence
-; pointers indexed by OAM ID (ent_anim_id). Each sequence has:
-;   byte 0 = total frames
-;   byte 1 = ticks per frame
-;   byte 2+ = sprite definition IDs per frame
+; Structure:
+;   $8000-$807F: pointer table low bytes (128 entries, indexed by OAM ID)
+;   $8080-$80FF: pointer table high bytes (companion to $8000)
+;   $8100-$9FFF: animation sequence data (variable-length records)
+;
+; Each animation sequence:
+;   byte 0 = total frame count
+;   byte 1 = ticks per frame (animation speed)
+;   byte 2+ = sprite definition IDs, one per frame
 ;
 ; Companion banks: $1A (entity OAM IDs $00-$7F), $1B (OAM IDs $80-$FF).
-;
-; Annotation: none — pure animation sequence data, header describes format
 ; =============================================================================
 
         .setcpu "6502"
@@ -32,6 +25,14 @@
 
 
 .segment "BANK15"
+
+; =============================================================================
+; ANIMATION SEQUENCE POINTER TABLE — LOW BYTES ($8000-$807F)
+; =============================================================================
+; 128-byte table of low address bytes. Each entry is the low byte of the
+; pointer to that OAM ID's animation sequence data. Combined with the
+; high byte table at $8080 to form the full 16-bit address.
+; =============================================================================
 
         .byte   $00,$00,$04,$0A,$0D,$10,$16,$1A
         .byte   $1E,$22,$27,$3A,$3D,$41,$45,$49
@@ -49,6 +50,14 @@
         .byte   $09,$0C,$0F,$12,$16,$1A,$1D,$23
         .byte   $28,$2D,$32,$36,$39,$3C,$3F,$3F
         .byte   $45,$48,$4B,$4E,$51,$54,$5B,$61
+
+; =============================================================================
+; ANIMATION SEQUENCE POINTER TABLE — HIGH BYTES ($8080-$80FF)
+; =============================================================================
+; 128-byte table of high address bytes. Companion to the low byte table
+; at $8000. Values are $83-$85+, pointing into sequence data below.
+; =============================================================================
+
         .byte   $83,$83,$83,$83,$83,$83,$83,$83
         .byte   $83,$83,$83,$83,$83,$83,$83,$83
         .byte   $83,$83,$83,$83,$83,$83,$83,$83
@@ -65,6 +74,17 @@
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
+
+; =============================================================================
+; ANIMATION SEQUENCE DATA ($8100-$9FFF)
+; =============================================================================
+; Variable-length animation sequences. Each sequence:
+;   byte 0 = total frame count
+;   byte 1 = ticks per frame (animation speed)
+;   byte 2+ = sprite definition IDs, one per frame
+; Indexed via the pointer tables at $8000/$8080.
+; =============================================================================
+
         .byte   $67,$67,$89,$AB,$D5,$01,$2B,$59
         .byte   $83,$AD,$D1,$F7,$1F,$49,$73,$A5
         .byte   $D7,$F1,$0B,$25,$3F,$59,$5D,$63

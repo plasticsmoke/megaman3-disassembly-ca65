@@ -1,26 +1,21 @@
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $19 — SPRITE POSITION OFFSET DATA (DEFAULT)
 ; =============================================================================
-; Default sprite position offset lookup tables.
-;
-; Annotation: 0% — unannotated da65 output (pure data)
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $19 — SPRITE POSITION OFFSET DATA (DEFAULT)
-; =============================================================================
 ; Mapped to $A000-$BFFF. Contains sprite Y/X position offset tables used
-; by write_entity_oam in bank1E_1F. This is the DEFAULT sprite offset bank,
-; selected via `LDY #$19 / STY $F5` when the sprite definition's count byte
-; has bit 7 clear.
+; by write_entity_oam in the fixed bank. This is the DEFAULT sprite offset
+; bank, selected via `LDY #$19 / STY prg_bank` when the sprite definition's
+; count byte has bit 7 clear.
 ;
-; Data format: signed byte pairs (Y offset, X offset) per sprite tile.
-; Pointer table at $BE00/$BF00 indexes into this data per sprite def.
+; Data format: signed byte pairs (Y offset, X offset) per sprite tile,
+; grouped by sprite definition. Values like $F4=-12, $FC=-4, $04=+4, etc.
+;
+; Structure:
+;   $A000-$BDFF: sprite Y/X offset data (variable-length per sprite def)
+;   $BE00-$BEFF: pointer table low bytes (index into offset data above)
+;   $BF00-$BFFF: pointer table high bytes (companion to $BE00)
 ;
 ; Companion bank: $14 (alternate sprite offsets, used when bit 7 is set).
-;
-; Annotation: none — pure offset data, header describes format
+; The two banks together cover all entity sprite position layouts.
 ; =============================================================================
 
         .setcpu "6502"
@@ -30,6 +25,14 @@
 
 
 .segment "BANK19"
+
+; =============================================================================
+; SPRITE Y/X OFFSET DATA ($A000-$BDFF)
+; =============================================================================
+; Variable-length records of signed byte pairs (Y offset, X offset).
+; Each record describes the tile positions for one sprite definition.
+; Indexed via the pointer tables at $BE00/$BF00.
+; =============================================================================
 
         .byte   $FC,$F7,$F4,$F4,$F4,$FC,$FC,$F4
         .byte   $FC,$FC,$FC,$04,$04,$F4,$04,$FC
@@ -991,6 +994,15 @@
         .byte   $08,$00,$04,$00,$40,$00,$20,$00
         .byte   $00,$00,$00,$00,$02,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$04,$00,$10
+
+; =============================================================================
+; SPRITE DEFINITION POINTER TABLE — LOW BYTES ($BE00-$BEFF)
+; =============================================================================
+; 256-byte table of low address bytes. Entry N = low byte of pointer to
+; sprite definition N's Y/X offset data in the block above.
+; Used by write_entity_oam: ptr = ($BE00,y) | ($BF00,y << 8).
+; =============================================================================
+
         .byte   $00,$14,$28,$3A,$4C,$5A,$68,$70
         .byte   $78,$88,$98,$AA,$BC,$D2,$E8,$00
         .byte   $18,$2E,$44,$58,$6C,$82,$98,$A0
@@ -1023,6 +1035,14 @@
         .byte   $6E,$78,$84,$8E,$98,$C0,$D8,$F0
         .byte   $08,$30,$58,$80,$A8,$CA,$EC,$10
         .byte   $34,$5A,$80,$A2,$C4,$E4,$14,$2C
+
+; =============================================================================
+; SPRITE DEFINITION POINTER TABLE — HIGH BYTES ($BF00-$BFFF)
+; =============================================================================
+; 256-byte table of high address bytes. Companion to the low byte table
+; at $BE00. Values range from $A0-$BD, pointing into the offset data above.
+; =============================================================================
+
         .byte   $A0,$A0,$A0,$A0,$A0,$A0,$A0,$A0
         .byte   $A0,$A0,$A0,$A0,$A0,$A0,$A0,$A1
         .byte   $A1,$A1,$A1,$A1,$A1,$A1,$A1,$A1

@@ -1,37 +1,41 @@
-; global enemy data: each table is 256 bytes
-; indexed with a global enemy ID
-enemy_flags_g:
 ; =============================================================================
-; MEGA MAN 3 (U) — BANK $00 — GLOBAL ENEMY DATA
+; MEGA MAN 3 (U) — BANK $00 — GLOBAL ENEMY DATA / NEEDLE MAN STAGE
 ; =============================================================================
-; Global enemy data tables shared across all stages.
-; Contains enemy flags, routine IDs, spawn parameters, and hitbox data.
+; Mapped to $A000-$BFFF. This bank serves a dual purpose:
 ;
-; Annotation: ~50% — 8 data table labels named, block comments added
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $00 — GLOBAL ENEMY DATA
-; =============================================================================
-; Mapped to $A000-$BFFF. Contains global enemy property tables indexed by
-; "global enemy ID" (the ID used in stage enemy spawn lists at $AB00+).
-; NOT a stage data bank — loaded explicitly when the engine needs enemy
-; properties (spawning, collision). Each table is 256 bytes.
+; 1) GLOBAL ENEMY PROPERTY TABLES ($A000-$A70F)
+;    Six 256-byte tables indexed by "global enemy ID" (the ID stored in
+;    the enemy spawn tables at $AE00,y in each stage bank). Only the first
+;    $90 entries are meaningful; bytes $90-$FF in each table are unused
+;    padding that overlaps with Needle Man stage data via bitpacking.
 ;
-; Tables:
-;   $A000: enemy_flags_g     — entity flags (bit 7=active, bit 4=invincible, etc.)
-;   $A100: enemy_main_ID_g   — main routine index for bank1C_1D dispatch
-;   $A200: enemy_shape_g     — hitbox shape ID (bit 7=contact damage)
-;   $A300: enemy_OAM_ID_g    — OAM animation ID (ent_anim_id value)
-;   $A400: enemy_health_g    — starting HP (ent_hp value)
-;   (remaining tables at $A500+: speed, velocity data, etc.)
+;    $A000: enemy_flags_g       — entity init flags (written to ent_flags)
+;    $A100: enemy_main_ID_g     — AI routine index for bank1C_1D dispatch
+;    $A200: enemy_shape_g       — hitbox shape ID (bit 7 = deals contact damage)
+;    $A300: enemy_OAM_ID_g      — OAM animation ID (written to ent_anim_id)
+;    $A400: enemy_health_g      — starting HP (written to ent_hp; $FF = invincible)
+;    $A500: enemy_speed_ID_g    — index into X velocity lookup tables below
 ;
-; $AA00+ region: may contain additional data, but this bank is NOT used
-; as a stage layout bank (stage banks are $00-$0F per stage_to_bank table,
-; but bank $00 doubles as Needle Man's stage AND global enemy data).
+;    Two small lookup tables indexed by speed ID ($00-$0D, max $18):
+;    $A600: enemy_x_velocity_sub_g — X velocity subpixel component
+;    $A700: enemy_x_velocity_g     — X velocity whole pixel component
 ;
-; Annotation: partial — all data tables named, no per-entry annotations
+; 2) NEEDLE MAN STAGE DATA ($A800-$BFFF)
+;    Stage layout data for Needle Man (stage_id $22 = bank $00).
+;    Standard MM3 stage bank format:
+;    $A800-$A9FF: boss AI local data (read by bank $06 Needle Man routines)
+;    $AA00-$AA12: screen metatile column grid (column IDs per screen page)
+;    $AA13-$AA5F: room pointer table entries (CHR/palette param + layout index)
+;    $AA60-$AA81: room table (2 bytes/room) + palette indices at $AA80-$AA81
+;    $AA82-$AAFF: screen layout data (20 bytes/entry: 16 column IDs + 4 connections)
+;    $AB00-$ABFF: enemy spawn table: screen number (terminated by $FF)
+;    $AC00-$ACFF: enemy spawn table: X pixel position
+;    $AD00-$ADFF: enemy spawn table: Y pixel position
+;    $AE00-$AEFF: enemy spawn table: global enemy ID (indexes tables at $A000+)
+;    $AF00-$B6FF: metatile column definitions (64 bytes per column ID)
+;    $B700-$BAFF: metatile CHR tile definitions (4 bytes per metatile: 2x2 tiles)
+;    $BB00-$BEFF: metatile nametable data (4 quadrants, each with padding)
+;    $BF00-$BFFF: tile collision attribute table (1 byte per metatile index)
 ; =============================================================================
 
         .setcpu "6502"
@@ -42,25 +46,74 @@ enemy_flags_g:
 
 .segment "BANK00"
 
-        .byte   $90,$90,$90,$90,$98,$90,$90,$94
-        .byte   $94,$90,$90,$B5,$90,$90,$90,$90
-        .byte   $90,$94,$98,$98,$94,$90,$90,$90
-        .byte   $90,$90,$90,$90,$90,$98,$98,$9C
-        .byte   $94,$B4,$94,$94,$94,$90,$90,$91
-        .byte   $98,$98,$98,$98,$90,$91,$98,$98
-        .byte   $98,$D0,$90,$94,$B4,$90,$98,$90
-        .byte   $94,$90,$98,$90,$90,$D0,$94,$98
-        .byte   $98,$98,$98,$98,$98,$98,$98,$90
-        .byte   $90,$90,$90,$90,$90,$90,$90,$90
-        .byte   $90,$90,$90,$90,$90,$90,$92,$90
-        .byte   $91,$91,$91,$90,$90,$92,$90,$94
-        .byte   $90,$90,$90,$B6,$90,$90,$92,$92
-        .byte   $90,$90,$90,$90,$90,$90,$90,$90
-        .byte   $90,$90,$94,$94,$90,$94,$94,$92
-        .byte   $94,$90,$90,$96,$94,$94,$96,$96
-        .byte   $94,$94,$94,$94,$B4,$94,$D4,$94
-        .byte   $94,$D4,$90,$92,$92,$92,$90,$90
-        .byte   $AA,$FE,$2A,$FF,$A9,$FF,$EE,$FF
+; =============================================================================
+; GLOBAL ENEMY PROPERTY TABLES ($A000-$A70F)
+; =============================================================================
+; Each table is 256 bytes. Indexed by global enemy ID ($00-$8F valid).
+; The engine loads bank $00 explicitly during entity spawning (bank0F) to
+; read these properties, then switches back to the stage bank.
+; =============================================================================
+
+
+; ===========================================================================
+; enemy_flags_g ($A000) — entity initialization flags
+; ===========================================================================
+; Written to ent_flags on spawn. Bit meanings:
+;   bit 7 ($80): entity active
+;   bit 4 ($10): entity is a "large" sprite (32x32 or larger)
+;   bit 2 ($04): invincible / cannot be damaged
+;   bit 1 ($02): does not interact with terrain
+;   bit 0 ($01): affected by gravity
+;
+; --- enemy ID index (known names from bank1C_1D AI dispatch): ---
+;   $00=Met            $01=Peterchy        $02=Dada            $03=Potton
+;   $04=Hammer Joe     $05=New Shotman     $06=Bubukan         $07=(projectile)
+;   $08=Bomb Flier     $09=Jamacy          $0A=Yambow          $0B=Electric Gabyoall
+;   $0C=Cannon         $0D=Cannon          $0E=Needle Press    $0F=Mag Fly
+;   $10=Mag Fly        $11=Junk Golem      $12=Met (variant)   $13=Gyoraibo
+;   $14=Petit Snakey   $15=Cloud Platform  $16=unknown         $17=Bikky
+;   $18=Pickelman Bull $19=unknown         $1A=Hologran        $1B=Bolton & Nutton
+;   $1C=Nitron         $1D=unknown         $1E=Hari Harry      $1F=Giant Springer
+;   $20=Penpen Maker   $21=Proto Man       $22=Metall DX       $23=Junk Block
+;   $24=Junk Block     $25=Walking Bomb    $26=Magnet Missile  $27=Search Snake
+;   $28=Hard Knuckle   $29=Penpen (sub)    $2A=Spark Shock     $2B=Shadow Blade
+;   $2C=Buster shot    $2D=Proto Shield    $2E=Elecn
+;   $30=Returning Monking   $31=Chibee     $32=Top Man Platform
+;   $33=Top Man Platform    $34=Wanaan     $35=(unused)
+;   $36=Mechakkero     $37=Gemini Laser    $38=Bomb Flier(B)
+;   $39-$3C=Penpen variants $3D=Proto (G)  $3E=Beehive
+;   $3F=Have Su Bee    $40-$46=Doc Robot screens
+;   $47=Needle Press(B) $48=Doc Robot      $49=Doc Robot
+;   $4A=Doc Robot      $4B=Doc Robot
+;   $50-$56=Robot Master intros
+;   $57=Komasaburo     $58-$5E=Tama parts
+;   $60-$66=Surprise Box / item pickups
+;   $68-$6F=Robot Masters (Needle/Magnet/Gemini/Hard/Top/Snake/Spark/Shadow)
+;   $70-$77=Boss projectiles / special entities
+;   $78=Proto Man (Gemini cutscene)
+;   $80-$84=Wily fortress bosses / Break Man
+;   $8A-$8B=Fortress boss parts
+; ===========================================================================
+enemy_flags_g:
+        .byte   $90,$90,$90,$90,$98,$90,$90,$94 ; $00-$07
+        .byte   $94,$90,$90,$B5,$90,$90,$90,$90 ; $08-$0F
+        .byte   $90,$94,$98,$98,$94,$90,$90,$90 ; $10-$17
+        .byte   $90,$90,$90,$90,$90,$98,$98,$9C ; $18-$1F
+        .byte   $94,$B4,$94,$94,$94,$90,$90,$91 ; $20-$27
+        .byte   $98,$98,$98,$98,$90,$91,$98,$98 ; $28-$2F
+        .byte   $98,$D0,$90,$94,$B4,$90,$98,$90 ; $30-$37
+        .byte   $94,$90,$98,$90,$90,$D0,$94,$98 ; $38-$3F
+        .byte   $98,$98,$98,$98,$98,$98,$98,$90 ; $40-$47: Doc Robot / Needle Press(B)
+        .byte   $90,$90,$90,$90,$90,$90,$90,$90 ; $48-$4F
+        .byte   $90,$90,$90,$90,$90,$90,$92,$90 ; $50-$57: Robot Master intros / Komasaburo
+        .byte   $91,$91,$91,$90,$90,$92,$90,$94 ; $58-$5F: Tama segments
+        .byte   $90,$90,$90,$B6,$90,$90,$92,$92 ; $60-$67: item pickups / surprise box
+        .byte   $90,$90,$90,$90,$90,$90,$90,$90 ; $68-$6F: Robot Masters
+        .byte   $90,$90,$94,$94,$90,$94,$94,$92 ; $70-$77: boss projectiles
+        .byte   $94,$90,$90,$96,$94,$94,$96,$96 ; $78-$7F: Proto Man (Gemini) / fortress
+        .byte   $94,$94,$94,$94,$B4,$94,$D4,$94 ; $80-$87: Wily bosses
+        .byte   $94,$D4,$90,$92,$92,$92,$90,$90 ; $88-$8F
+        .byte   $AA,$FE,$2A,$FF,$A9,$FF,$EE,$FF ; $90-$FF: unused (overlaps stage data)
         .byte   $FE,$FF,$EA,$FF,$9A,$FF,$AC,$FD
         .byte   $A9,$FF,$AA,$FF,$FB,$BF,$AA,$F7
         .byte   $EA,$FE,$EA,$FD,$FE,$FD,$FE,$EF
@@ -75,27 +128,33 @@ enemy_flags_g:
         .byte   $AA,$FF,$AF,$FE,$AF,$7F,$AA,$EF
         .byte   $FB,$FD,$EA,$FF,$FA,$FD,$AA,$FF
 
-; main routine indices
+; ===========================================================================
+; enemy_main_ID_g ($A100) — AI routine index
+; ===========================================================================
+; Index into the sprite_main_ptr table in bank1C_1D ($83C7/$84C7).
+; The engine jumps to the routine pointed to by this index each frame.
+; $00 = no-op/return, $FF entries are unused.
+; ===========================================================================
 enemy_main_ID_g:
-        .byte   $02,$03,$05,$06,$08,$15,$0A,$00
-        .byte   $0D,$0E,$12,$14,$17,$18,$1E,$1A
-        .byte   $1B,$1F,$20,$21,$22,$16,$23,$24
-        .byte   $25,$27,$28,$2A,$2B,$2C,$2D,$2E
-        .byte   $30,$32,$33,$33,$35,$00,$37,$38
-        .byte   $39,$3A,$3B,$3C,$3D,$3E,$3F,$40
-        .byte   $41,$00,$43,$F5,$33,$48,$07,$34
-        .byte   $49,$4A,$4B,$4C,$4D,$23,$52,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$58
-        .byte   $59,$5A,$5B,$5C,$5D,$5E,$5F,$00
-        .byte   $64,$65,$66,$67,$68,$69,$6A,$FC
-        .byte   $6E,$6E,$70,$72,$73,$74,$F0,$F3
-        .byte   $4E,$4E,$47,$6C,$78,$79,$00,$00
-        .byte   $90,$91,$92,$93,$94,$95,$96,$97
-        .byte   $00,$89,$00,$8A,$00,$00,$8C,$4F
-        .byte   $71,$00,$E7,$00,$00,$00,$EA,$EA
-        .byte   $EA,$E0,$E3,$E5,$ED,$00,$00,$00
-        .byte   $00,$00,$EB,$EC,$EC,$EC,$00,$00
-        .byte   $AA,$FF,$EB,$FE,$B9,$FE,$3A,$FE
+        .byte   $02,$03,$05,$06,$08,$15,$0A,$00 ; $00-$07: Met/Peterchy/Dada/Potton/HammerJoe/NewShotman/Bubukan/(proj)
+        .byte   $0D,$0E,$12,$14,$17,$18,$1E,$1A ; $08-$0F: BombFlier/Jamacy/Yambow/ElecGabyoall/Cannon/Cannon/NeedlePress/MagFly
+        .byte   $1B,$1F,$20,$21,$22,$16,$23,$24 ; $10-$17: MagFly/JunkGolem/Met(var)/Gyoraibo/PetitSnakey/CloudPlatform/?/Bikky
+        .byte   $25,$27,$28,$2A,$2B,$2C,$2D,$2E ; $18-$1F: PickelmanBull/?/Hologran/Bolton+Nutton/Nitron/?/HariHarry/GiantSpringer
+        .byte   $30,$32,$33,$33,$35,$00,$37,$38 ; $20-$27: PenpenMaker/ProtoMan/MetallDX/MetallDX/WalkingBomb/?/MagnetMissile/SearchSnake
+        .byte   $39,$3A,$3B,$3C,$3D,$3E,$3F,$40 ; $28-$2F: HardKnuckle/Penpen(sub)/SparkShock/ShadowBlade/Buster/ProtoShield/Elecn/Mechakkero (verify in Mesen)
+        .byte   $41,$00,$43,$F5,$33,$48,$07,$34 ; $30-$37: RetMonking/?/Chibee/HaveSuBee/TopManPlatform/Beehive/Peterchy(B)/Wanaan
+        .byte   $49,$4A,$4B,$4C,$4D,$23,$52,$00 ; $38-$3F: BombFlier(B)/Penpen(var)/Penpen(var)/Penpen(var)/?/JunkBlock(B)/SparkFallPlat/?
+        .byte   $00,$00,$00,$00,$00,$00,$00,$58 ; $40-$47: Doc Robot screens (AI $00=noop) / NeedlePress(B)
+        .byte   $59,$5A,$5B,$5C,$5D,$5E,$5F,$00 ; $48-$4F: Doc Robot AI entries
+        .byte   $64,$65,$66,$67,$68,$69,$6A,$FC ; $50-$57: Robot Master intros / Komasaburo
+        .byte   $6E,$6E,$70,$72,$73,$74,$F0,$F3 ; $58-$5F: Tama segments
+        .byte   $4E,$4E,$47,$6C,$78,$79,$00,$00 ; $60-$67: item pickup / surprise box
+        .byte   $90,$91,$92,$93,$94,$95,$96,$97 ; $68-$6F: Robot Masters (bank06/07 dispatch)
+        .byte   $00,$89,$00,$8A,$00,$00,$8C,$4F ; $70-$77: boss projectiles
+        .byte   $71,$00,$E7,$00,$00,$00,$EA,$EA ; $78-$7F: Proto Man (Gemini) / fortress
+        .byte   $EA,$E0,$E3,$E5,$ED,$00,$00,$00 ; $80-$87: Wily bosses
+        .byte   $00,$00,$EB,$EC,$EC,$EC,$00,$00 ; $88-$8F
+        .byte   $AA,$FF,$EB,$FE,$B9,$FE,$3A,$FE ; $90-$FF: unused (overlaps stage data)
         .byte   $FA,$FF,$AA,$FF,$EA,$FF,$AA,$FF
         .byte   $AA,$BF,$EA,$FF,$BE,$7B,$FA,$FF
         .byte   $AA,$F7,$EB,$9F,$BA,$FF,$BA,$FF
@@ -109,26 +168,36 @@ enemy_main_ID_g:
         .byte   $BA,$FF,$EA,$FF,$AA,$FF,$EE,$FF
         .byte   $EA,$FF,$BE,$FF,$BE,$FF,$A8,$FF
         .byte   $AA,$7F,$EE,$FD,$EA,$FF,$E2,$FF
+
+; ===========================================================================
+; enemy_shape_g ($A200) — hitbox shape ID
+; ===========================================================================
+; Determines the entity's collision box dimensions.
+;   bit 7 ($80): entity deals contact damage to player on touch
+;   bits 6-0: shape index into hitbox dimension tables
+;   $00 = no hitbox (projectile or non-collidable)
+;   $0F = special shape (boss projectile / large entity)
+; ===========================================================================
 enemy_shape_g:
-        .byte   $C1,$C0,$C2,$A1,$A2,$C0,$83,$A1
-        .byte   $C8,$A3,$A9,$0F,$C0,$C0,$CA,$C4
-        .byte   $A2,$CA,$CC,$A5,$00,$C0,$00,$C0
-        .byte   $C2,$C0,$CA,$C6,$98,$C7,$C7,$CA
-        .byte   $A3,$83,$80,$80,$CA,$00,$C0,$0F
-        .byte   $80,$80,$80,$80,$C0,$00,$80,$80
-        .byte   $A0,$00,$0F,$C1,$80,$00,$C2,$82
-        .byte   $CA,$C2,$C2,$C1,$A3,$00,$C2,$C0
-        .byte   $C0,$C0,$C0,$C0,$C0,$C0,$C0,$CA
-        .byte   $CA,$8A,$D0,$CA,$CA,$CA,$CA,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$98
-        .byte   $00,$00,$00,$C0,$CA,$21,$AA,$00
-        .byte   $C1,$C1,$CA,$CA,$00,$00,$15,$14
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
-        .byte   $00,$8A,$00,$C3,$00,$00,$00,$98
-        .byte   $00,$00,$CA,$0F,$00,$00,$19,$18
-        .byte   $18,$00,$00,$80,$94,$00,$00,$00
-        .byte   $00,$00,$0B,$1A,$0F,$17,$00,$00
-        .byte   $AA,$FF,$A6,$F7,$EE,$FF,$AF,$BF
+        .byte   $C1,$C0,$C2,$A1,$A2,$C0,$83,$A1 ; $00-$07
+        .byte   $C8,$A3,$A9,$0F,$C0,$C0,$CA,$C4 ; $08-$0F
+        .byte   $A2,$CA,$CC,$A5,$00,$C0,$00,$C0 ; $10-$17
+        .byte   $C2,$C0,$CA,$C6,$98,$C7,$C7,$CA ; $18-$1F
+        .byte   $A3,$83,$80,$80,$CA,$00,$C0,$0F ; $20-$27
+        .byte   $80,$80,$80,$80,$C0,$00,$80,$80 ; $28-$2F
+        .byte   $A0,$00,$0F,$C1,$80,$00,$C2,$82 ; $30-$37
+        .byte   $CA,$C2,$C2,$C1,$A3,$00,$C2,$C0 ; $38-$3F
+        .byte   $C0,$C0,$C0,$C0,$C0,$C0,$C0,$CA ; $40-$47
+        .byte   $CA,$8A,$D0,$CA,$CA,$CA,$CA,$00 ; $48-$4F
+        .byte   $00,$00,$00,$00,$00,$00,$00,$98 ; $50-$57
+        .byte   $00,$00,$00,$C0,$CA,$21,$AA,$00 ; $58-$5F
+        .byte   $C1,$C1,$CA,$CA,$00,$00,$15,$14 ; $60-$67
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; $68-$6F: Robot Masters (shape set by AI)
+        .byte   $00,$8A,$00,$C3,$00,$00,$00,$98 ; $70-$77
+        .byte   $00,$00,$CA,$0F,$00,$00,$19,$18 ; $78-$7F
+        .byte   $18,$00,$00,$80,$94,$00,$00,$00 ; $80-$87
+        .byte   $00,$00,$0B,$1A,$0F,$17,$00,$00 ; $88-$8F
+        .byte   $AA,$FF,$A6,$F7,$EE,$FF,$AF,$BF ; $90-$FF: unused (overlaps stage data)
         .byte   $BB,$FF,$AA,$FF,$FE,$FF,$AB,$FF
         .byte   $CE,$7F,$AA,$FF,$8A,$EF,$21,$FF
         .byte   $BA,$FF,$AF,$FF,$BF,$F6,$BB,$FE
@@ -142,26 +211,34 @@ enemy_shape_g:
         .byte   $AA,$FF,$EA,$F7,$AE,$FF,$BB,$FE
         .byte   $AA,$FF,$EE,$FF,$AA,$FF,$BA,$FE
         .byte   $EB,$FF,$BA,$FB,$AA,$FF,$BA,$FF
+
+; ===========================================================================
+; enemy_OAM_ID_g ($A300) — OAM animation sequence ID
+; ===========================================================================
+; Written to ent_anim_id on spawn. Indexes the OAM sequence tables in
+; bank1A_1B to determine which sprite frames to display.
+; $00 = no sprite (invisible / managed by AI code directly).
+; ===========================================================================
 enemy_OAM_ID_g:
-        .byte   $21,$22,$59,$26,$69,$4F,$47,$13
-        .byte   $74,$1C,$6E,$70,$4E,$4E,$32,$62
-        .byte   $65,$38,$31,$72,$00,$4F,$36,$5B
-        .byte   $53,$36,$32,$76,$95,$43,$44,$3F
-        .byte   $30,$42,$82,$96,$55,$2D,$29,$91
-        .byte   $20,$20,$20,$20,$93,$19,$20,$75
-        .byte   $20,$2D,$92,$13,$82,$B6,$50,$51
-        .byte   $4C,$B2,$B2,$3B,$1E,$36,$99,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$26
-        .byte   $1F,$32,$2B,$45,$22,$36,$3F,$01
-        .byte   $F9,$FA,$FB,$FC,$FD,$FE,$FF,$C7
-        .byte   $B3,$B4,$A4,$00,$BB,$4B,$31,$55
-        .byte   $D1,$D4,$C6,$94,$C3,$DF,$00,$00
-        .byte   $01,$01,$01,$01,$01,$01,$01,$01
-        .byte   $B9,$B8,$CA,$CB,$A8,$CD,$CE,$B0
-        .byte   $99,$73,$72,$00,$74,$75,$00,$00
-        .byte   $00,$70,$6B,$5F,$6A,$63,$63,$68
-        .byte   $63,$63,$67,$00,$00,$00,$00,$00
-        .byte   $BA,$FF,$AA,$FF,$AA,$DF,$FA,$FF
+        .byte   $21,$22,$59,$26,$69,$4F,$47,$13 ; $00-$07
+        .byte   $74,$1C,$6E,$70,$4E,$4E,$32,$62 ; $08-$0F
+        .byte   $65,$38,$31,$72,$00,$4F,$36,$5B ; $10-$17
+        .byte   $53,$36,$32,$76,$95,$43,$44,$3F ; $18-$1F
+        .byte   $30,$42,$82,$96,$55,$2D,$29,$91 ; $20-$27
+        .byte   $20,$20,$20,$20,$93,$19,$20,$75 ; $28-$2F
+        .byte   $20,$2D,$92,$13,$82,$B6,$50,$51 ; $30-$37
+        .byte   $4C,$B2,$B2,$3B,$1E,$36,$99,$00 ; $38-$3F
+        .byte   $00,$00,$00,$00,$00,$00,$00,$26 ; $40-$47
+        .byte   $1F,$32,$2B,$45,$22,$36,$3F,$01 ; $48-$4F
+        .byte   $F9,$FA,$FB,$FC,$FD,$FE,$FF,$C7 ; $50-$57: Robot Master intros use $F9-$FF
+        .byte   $B3,$B4,$A4,$00,$BB,$4B,$31,$55 ; $58-$5F
+        .byte   $D1,$D4,$C6,$94,$C3,$DF,$00,$00 ; $60-$67
+        .byte   $01,$01,$01,$01,$01,$01,$01,$01 ; $68-$6F: Robot Masters (OAM set by AI)
+        .byte   $B9,$B8,$CA,$CB,$A8,$CD,$CE,$B0 ; $70-$77
+        .byte   $99,$73,$72,$00,$74,$75,$00,$00 ; $78-$7F
+        .byte   $00,$70,$6B,$5F,$6A,$63,$63,$68 ; $80-$87
+        .byte   $63,$63,$67,$00,$00,$00,$00,$00 ; $88-$8F
+        .byte   $BA,$FF,$AA,$FF,$AA,$DF,$FA,$FF ; $90-$FF: unused (overlaps stage data)
         .byte   $AB,$F7,$EF,$FF,$BA,$FF,$AA,$FF
         .byte   $A0,$FF,$EE,$DF,$2B,$FF,$AE,$FF
         .byte   $C2,$7F,$DA,$FF,$9E,$FF,$BE,$FF
@@ -175,26 +252,35 @@ enemy_OAM_ID_g:
         .byte   $A2,$F7,$AA,$DE,$AE,$FF,$AE,$FE
         .byte   $AF,$77,$AA,$FF,$BA,$BF,$8A,$FF
         .byte   $FA,$FF,$AA,$FD,$EA,$FF,$A2,$F7
+
+; ===========================================================================
+; enemy_health_g ($A400) — starting hit points
+; ===========================================================================
+; Written to ent_hp on spawn.
+;   $FF = invincible (cannot be killed by any weapon)
+;   $1C = 28 HP (standard boss health)
+;   $00 = instant death / not a real entity
+; ===========================================================================
 enemy_health_g:
-        .byte   $01,$01,$03,$08,$04,$01,$03,$03
-        .byte   $03,$01,$03,$FF,$01,$01,$02,$01
-        .byte   $02,$06,$03,$06,$FF,$01,$FF,$06
-        .byte   $01,$01,$02,$06,$0A,$08,$01,$03
-        .byte   $01,$FF,$FF,$FF,$01,$FF,$01,$FF
-        .byte   $01,$01,$01,$01,$01,$FF,$01,$06
-        .byte   $01,$FF,$FF,$1C,$FF,$FF,$03,$01
-        .byte   $03,$03,$03,$06,$01,$FF,$1C,$FF
-        .byte   $03,$03,$03,$03,$03,$03,$03,$1C
-        .byte   $1C,$1C,$1C,$1C,$1C,$1C,$1C,$FF
-        .byte   $FF,$FF,$1C,$1C,$FF,$FF,$FF,$0A
-        .byte   $FF,$FF,$FF,$00,$08,$08,$01,$00
-        .byte   $02,$02,$06,$08,$01,$01,$00,$00
-        .byte   $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .byte   $00,$0A,$00,$0A,$00,$00,$00,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
-        .byte   $00,$1C,$1C,$1C,$00,$00,$00,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
-        .byte   $FD,$44,$EB,$14,$F7,$51,$5F,$54
+        .byte   $01,$01,$03,$08,$04,$01,$03,$03 ; $00-$07: Met=1, Peterchy=1, Dada=3, Potton=8, HammerJoe=4
+        .byte   $03,$01,$03,$FF,$01,$01,$02,$01 ; $08-$0F: Gabyoall=$FF(invincible)
+        .byte   $02,$06,$03,$06,$FF,$01,$FF,$06 ; $10-$17: PetitSnakey=$FF, CloudPlatform=$FF
+        .byte   $01,$01,$02,$06,$0A,$08,$01,$03 ; $18-$1F: Bolton&Nutton=6, Nitron=10
+        .byte   $01,$FF,$FF,$FF,$01,$FF,$01,$FF ; $20-$27: ProtoMan=$FF, MetallDX=$FF
+        .byte   $01,$01,$01,$01,$01,$FF,$01,$06 ; $28-$2F: buster=1, ProtoShield=$FF
+        .byte   $01,$FF,$FF,$1C,$FF,$FF,$03,$01 ; $30-$37: Chibee=$FF, HaveSuBee=$1C(28)
+        .byte   $03,$03,$03,$06,$01,$FF,$1C,$FF ; $38-$3F: SparkFallPlat=$1C
+        .byte   $03,$03,$03,$03,$03,$03,$03,$1C ; $40-$47: Doc Robot screens, NeedlePress(B)=$1C
+        .byte   $1C,$1C,$1C,$1C,$1C,$1C,$1C,$FF ; $48-$4F: Doc Robot=$1C(28)
+        .byte   $FF,$FF,$1C,$1C,$FF,$FF,$FF,$0A ; $50-$57: Komasaburo=10
+        .byte   $FF,$FF,$FF,$00,$08,$08,$01,$00 ; $58-$5F: Tama parts
+        .byte   $02,$02,$06,$08,$01,$01,$00,$00 ; $60-$67: item pickups
+        .byte   $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF ; $68-$6F: Robot Masters=$FF (HP set by AI)
+        .byte   $00,$0A,$00,$0A,$00,$00,$00,$00 ; $70-$77
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; $78-$7F
+        .byte   $00,$1C,$1C,$1C,$00,$00,$00,$00 ; $80-$87: Wily bosses=$1C(28)
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; $88-$8F
+        .byte   $FD,$44,$EB,$14,$F7,$51,$5F,$54 ; $90-$FF: unused (overlaps stage data)
         .byte   $BF,$55,$FE,$44,$EF,$14,$DB,$51
         .byte   $CA,$44,$77,$55,$BA,$51,$5D,$57
         .byte   $E7,$35,$EE,$71,$33,$54,$FF,$0C
@@ -209,27 +295,33 @@ enemy_health_g:
         .byte   $CE,$44,$8F,$11,$FD,$5D,$93,$45
         .byte   $DC,$45,$8F,$45,$F5,$14,$5F,$55
 
-; speed ID/index into velocity tables
+; ===========================================================================
+; enemy_speed_ID_g ($A500) — movement speed index
+; ===========================================================================
+; Index into enemy_x_velocity_sub_g and enemy_x_velocity_g tables.
+; Values $00-$0D are standard speeds; $18 is used by some fortress entities.
+; The actual pixel velocity is: enemy_x_velocity_g[id].enemy_x_velocity_sub_g[id]
+; ===========================================================================
 enemy_speed_ID_g:
-        .byte   $03,$01,$00,$00,$04,$00,$01,$00
-        .byte   $05,$06,$00,$08,$03,$03,$04,$01
-        .byte   $01,$00,$01,$07,$00,$00,$00,$03
-        .byte   $0D,$01,$04,$0C,$00,$0C,$0C,$05
-        .byte   $02,$00,$00,$00,$01,$00,$04,$01
-        .byte   $02,$02,$02,$02,$02,$00,$00,$02
-        .byte   $00,$00,$00,$01,$00,$00,$08,$01
-        .byte   $04,$00,$08,$01,$04,$00,$01,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$0C
-        .byte   $00,$00,$01,$09,$0B,$00,$05,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
-        .byte   $00,$00,$00,$00,$08,$00,$01,$00
-        .byte   $00,$00,$00,$00,$08,$08,$00,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
-        .byte   $00,$00,$00,$18,$18,$18,$00,$00
-        .byte   $A6,$54,$6F,$45,$FF,$16,$AA,$55
+        .byte   $03,$01,$00,$00,$04,$00,$01,$00 ; $00-$07
+        .byte   $05,$06,$00,$08,$03,$03,$04,$01 ; $08-$0F
+        .byte   $01,$00,$01,$07,$00,$00,$00,$03 ; $10-$17
+        .byte   $0D,$01,$04,$0C,$00,$0C,$0C,$05 ; $18-$1F
+        .byte   $02,$00,$00,$00,$01,$00,$04,$01 ; $20-$27
+        .byte   $02,$02,$02,$02,$02,$00,$00,$02 ; $28-$2F
+        .byte   $00,$00,$00,$01,$00,$00,$08,$01 ; $30-$37
+        .byte   $04,$00,$08,$01,$04,$00,$01,$00 ; $38-$3F
+        .byte   $00,$00,$00,$00,$00,$00,$00,$0C ; $40-$47
+        .byte   $00,$00,$01,$09,$0B,$00,$05,$00 ; $48-$4F
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; $50-$57
+        .byte   $00,$00,$00,$00,$08,$00,$01,$00 ; $58-$5F
+        .byte   $00,$00,$00,$00,$08,$08,$00,$00 ; $60-$67
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; $68-$6F
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; $70-$77
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; $78-$7F
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; $80-$87
+        .byte   $00,$00,$00,$18,$18,$18,$00,$00 ; $88-$8F: fortress boss parts use speed $18
+        .byte   $A6,$54,$6F,$45,$FF,$16,$AA,$55 ; $90-$FF: unused (overlaps stage data)
         .byte   $87,$41,$BE,$15,$E3,$15,$4A,$66
         .byte   $FA,$54,$AE,$51,$7F,$55,$BF,$58
         .byte   $D0,$15,$FF,$55,$93,$53,$AF,$44
@@ -244,12 +336,19 @@ enemy_speed_ID_g:
         .byte   $75,$54,$9A,$17,$FF,$55,$7F,$71
         .byte   $FF,$15,$3D,$54,$FF,$55,$FF,$40
 
-; speed tables, indexed with speed ID
-; X velocity subpixel
+; ===========================================================================
+; enemy_x_velocity_sub_g ($A600) — X velocity subpixel table
+; ===========================================================================
+; Indexed by speed ID (from enemy_speed_ID_g). Only entries $00-$0D (14 bytes)
+; are used as velocity data; the remainder shares address space with stage data.
+;   $00=0.00  $01=0.00  $02=0.66  $03=0.80  $04=0.00  $05=0.00
+;   $06=0.19  $07=0.33  $08=0.80  $09=0.00  $0A=0.80  $0B=0.4C
+;   $0C=0.B3  $0D=0.CC
+; ===========================================================================
 enemy_x_velocity_sub_g:
-        .byte   $00,$00,$66,$80,$00,$00,$19,$33
-        .byte   $80,$00,$80,$4C,$B3,$CC,$00,$00
-        .byte   $AB,$45,$DC,$55,$FB,$11,$3E,$50
+        .byte   $00,$00,$66,$80,$00,$00,$19,$33 ; speed IDs $00-$07
+        .byte   $80,$00,$80,$4C,$B3,$CC,$00,$00 ; speed IDs $08-$0F (last 2 unused)
+        .byte   $AB,$45,$DC,$55,$FB,$11,$3E,$50 ; (stage data overlap from here)
         .byte   $F4,$55,$ED,$11,$FE,$50,$F7,$01
         .byte   $DB,$55,$CD,$85,$3F,$55,$5A,$15
         .byte   $7E,$55,$2B,$15,$5E,$44,$FF,$55
@@ -280,11 +379,19 @@ enemy_x_velocity_sub_g:
         .byte   $EA,$15,$40,$55,$AF,$85,$F7,$45
         .byte   $F7,$45,$B9,$40,$FB,$55,$FA,$55
 
-; X velocity
+; ===========================================================================
+; enemy_x_velocity_g ($A700) — X velocity whole pixel table
+; ===========================================================================
+; Indexed by speed ID. Only entries $00-$0D are velocity data:
+;   $00=0px  $01=1px  $02=0px  $03=1px  $04=2px  $05=4px
+;   $06=2px  $07=1px  $08=0px  $09=3px  $0A=2px  $0B=1px
+;   $0C=1px  $0D=0px
+; Combined with subpixel: e.g. speed $03 = 1.80 px/frame, speed $04 = 2.00
+; ===========================================================================
 enemy_x_velocity_g:
-        .byte   $00,$01,$00,$01,$02,$04,$02,$01
-        .byte   $00,$03,$02,$01,$01,$00,$00,$00
-        .byte   $76,$70,$DF,$51,$FB,$55,$9B,$51
+        .byte   $00,$01,$00,$01,$02,$04,$02,$01 ; speed IDs $00-$07
+        .byte   $00,$03,$02,$01,$01,$00,$00,$00 ; speed IDs $08-$0F (last 2 unused)
+        .byte   $76,$70,$DF,$51,$FB,$55,$9B,$51 ; (stage data overlap from here)
         .byte   $CC,$45,$7B,$03,$FF,$57,$DA,$90
         .byte   $7D,$61,$FA,$4D,$B2,$41,$1A,$55
         .byte   $3F,$55,$2D,$14,$DF,$55,$F7,$45
@@ -314,6 +421,23 @@ enemy_x_velocity_g:
         .byte   $F7,$55,$8D,$55,$73,$01,$97,$45
         .byte   $73,$45,$ED,$05,$DE,$D1,$F3,$45
         .byte   $F7,$54,$B3,$51,$85,$55,$F9,$55
+
+
+; =============================================================================
+; NEEDLE MAN STAGE DATA ($A800-$BFFF)
+; =============================================================================
+; Stage layout and enemy placement data for Needle Man's stage.
+; Stage ID $22 maps to PRG bank $00 via the stage_to_bank table.
+; =============================================================================
+
+
+; ===========================================================================
+; Boss AI local data ($A800-$A9FF)
+; ===========================================================================
+; Read by bank $06 Needle Man AI routines. Contains movement parameters,
+; projectile patterns, and state machine data for the Needle Man boss fight.
+; Referenced as $A868,y / $A86C,y / $A870,y / $A8D8,x etc. by bank $06.
+; ===========================================================================
         .byte   $02,$00,$08,$04,$00,$50,$22,$08
         .byte   $00,$D4,$80,$81,$00,$11,$00,$20
         .byte   $0A,$80,$00,$00,$0A,$13,$0A,$04
@@ -378,6 +502,20 @@ enemy_x_velocity_g:
         .byte   $00,$A2,$00,$44,$00,$A1,$0A,$11
         .byte   $82,$35,$80,$00,$00,$06,$20,$20
         .byte   $80,$17,$00,$40,$2C,$5D,$08,$91
+
+; ===========================================================================
+; Screen metatile grid + room table ($AA00-$AAFF)
+; ===========================================================================
+; $AA00-$AA12: screen column IDs per page (19 entries for Needle Man)
+; $AA13-$AA5F: room/screen pointer data
+; $AA60,y*2:   room pointer table (2 bytes/room):
+;                byte 0 = CHR/palette param (indexes bank $01 $A200/$A030)
+;                byte 1 = layout index (into $AA82, *20 for offset)
+; $AA80-$AA81: BG CHR bank indices for stage
+; $AA82+:      screen layout data (20 bytes/entry):
+;                bytes 0-15: 16 metatile column IDs (one per 16px column)
+;                bytes 16-19: screen connection data (bit 7=scroll, bits 0-6=target)
+; ===========================================================================
         .byte   $00,$01,$02,$03,$04,$05,$06,$07
         .byte   $08,$09,$0A,$0B,$0C,$0D,$0E,$0F
         .byte   $10,$11,$12,$A0,$20,$08,$02,$80
@@ -394,6 +532,8 @@ enemy_x_velocity_g:
         .byte   $17,$00,$0B,$00,$0B,$01,$25,$01
         .byte   $00,$19,$00,$C1,$00,$40,$80,$60
         .byte   $00,$00,$08,$02,$20,$64,$0A,$01
+
+; --- stage palette data ($AA80) ---
         .byte   $48,$4A,$0F,$20,$27,$17,$0F,$1C
         .byte   $20,$21,$0F,$2B,$1B,$0B,$0F,$38
         .byte   $27,$21,$00,$00,$00,$00,$0F,$20
@@ -410,10 +550,24 @@ enemy_x_velocity_g:
         .byte   $00,$98,$08,$12,$00,$31,$2A,$42
         .byte   $02,$06,$00,$03,$20,$86,$8A,$08
         .byte   $0A,$11,$FF,$70,$00,$65,$00,$68
+
+; ===========================================================================
+; Enemy spawn tables ($AB00-$AEFF)
+; ===========================================================================
+; Four parallel 256-byte tables define enemy placement:
+;   $AB00,y = screen number where enemy appears ($FF = end of list)
+;   $AC00,y = X pixel position on screen
+;   $AD00,y = Y pixel position on screen
+;   $AE00,y = global enemy ID (indexes the $A000+ property tables)
+; ===========================================================================
+
+; --- $AB00: enemy screen numbers (terminated by $FF) ---
         .byte   $01,$01,$02,$02,$04,$04,$04,$05
         .byte   $05,$06,$06,$07,$07,$08,$08,$09
         .byte   $09,$0A,$0A,$0B,$0B,$0B,$0B,$0B
         .byte   $0C,$0D,$0D,$0E,$0E,$0F,$12,$FF
+
+; --- $AC00: enemy X pixel positions ---
         .byte   $80,$00,$00,$40,$08,$C8,$00,$C4
         .byte   $0A,$00,$00,$00,$00,$00,$20,$00
         .byte   $08,$00,$02,$00,$28,$20,$08,$D8
@@ -442,10 +596,14 @@ enemy_x_velocity_g:
         .byte   $80,$00,$08,$83,$00,$05,$08,$0E
         .byte   $A0,$20,$08,$00,$A0,$16,$00,$BE
         .byte   $02,$28,$80,$B0,$22,$02,$22,$3B
+
+; --- $AD00: enemy Y pixel positions ---
         .byte   $10,$80,$40,$A0,$48,$B8,$D0,$70
         .byte   $D0,$48,$C8,$68,$A8,$48,$A8,$68
         .byte   $C8,$70,$FE,$50,$70,$B0,$D0,$F0
         .byte   $90,$48,$D0,$68,$A8,$F8,$C0,$FF
+
+; --- $AE00: global enemy IDs ---
         .byte   $28,$00,$00,$40,$01,$00,$02,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$01,$00,$00,$40
@@ -474,6 +632,14 @@ enemy_x_velocity_g:
         .byte   $16,$01,$80,$00,$06,$00,$00,$10
         .byte   $08,$01,$00,$00,$14,$00,$00,$00
         .byte   $84,$00,$80,$40,$10,$04,$10,$00
+
+; ===========================================================================
+; Metatile column definitions ($AF00-$B6FF)
+; ===========================================================================
+; Each column ID has 64 bytes of metatile indices (8 rows x 8 entries).
+; The engine reads these via metatile_column_ptr at $AF00 + (column_ID * 64).
+; 32 column IDs = 2048 bytes total.
+; ===========================================================================
         .byte   $B4,$84,$84,$64,$A4,$A8,$74,$74
         .byte   $54,$74,$18,$74,$18,$74,$64,$20
         .byte   $20,$38,$98,$98,$98,$68,$68,$68
@@ -506,6 +672,8 @@ enemy_x_velocity_g:
         .byte   $0A,$00,$08,$10,$00,$04,$00,$00
         .byte   $02,$00,$08,$00,$00,$10,$00,$00
         .byte   $00,$00,$10,$01,$84,$40,$50,$00
+
+; --- screen tile map data (column definitions continued) ---
         .byte   $1B,$1B,$1B,$1B,$09,$52,$0A,$0A
         .byte   $0A,$09,$08,$09,$08,$09,$09,$08
         .byte   $08,$23,$23,$23,$23,$23,$23,$23
@@ -538,6 +706,13 @@ enemy_x_velocity_g:
         .byte   $00,$00,$00,$00,$00,$00,$40,$00
         .byte   $00,$00,$00,$00,$00,$00,$80,$11
         .byte   $00,$00,$00,$00,$00,$00,$09,$00
+
+; ===========================================================================
+; Screen layout data ($AF00+ continued)
+; ===========================================================================
+; Metatile column definitions continue here. Each screen is built from
+; 16 column references; each column is 64 bytes defining 8 rows of metatiles.
+; ===========================================================================
         .byte   $00,$01,$02,$02,$03,$04,$05,$06
         .byte   $07,$08,$09,$0A,$04,$04,$0B,$0C
         .byte   $00,$01,$04,$04,$0D,$04,$06,$0E
@@ -618,6 +793,8 @@ enemy_x_velocity_g:
         .byte   $38,$38,$38,$79,$55,$42,$78,$83
         .byte   $40,$3D,$40,$7B,$43,$44,$2E,$83
         .byte   $55,$55,$43,$42,$55,$43,$78,$83
+
+; --- Needle Man boss room and fortress transition screens ---
         .byte   $84,$85,$86,$55,$43,$84,$87,$88
         .byte   $48,$89,$52,$8A,$8B,$8C,$89,$88
         .byte   $48,$8D,$8E,$8D,$8F,$90,$8D,$91
@@ -658,6 +835,8 @@ enemy_x_velocity_g:
         .byte   $48,$C6,$C7,$C8,$C7,$C7,$C8,$AB
         .byte   $48,$B9,$4A,$47,$4A,$49,$47,$AE
         .byte   $48,$B9,$47,$4A,$47,$4A,$4A,$A7
+
+; --- duplicate screen data (Doc Robot revisit of Needle Man stage) ---
         .byte   $48,$05,$02,$02,$02,$03,$04,$04
         .byte   $48,$04,$1D,$09,$0A,$04,$0D,$04
         .byte   $48,$04,$04,$0D,$04,$04,$04,$04
@@ -690,6 +869,8 @@ enemy_x_velocity_g:
         .byte   $E3,$DF,$D6,$DF,$DF,$D6,$D7,$E0
         .byte   $E4,$DF,$D6,$D7,$D7,$D6,$DF,$E2
         .byte   $E5,$9A,$9A,$9A,$9A,$9A,$9A,$BC
+
+; --- empty screen padding (filled with tile $B8) ---
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
@@ -746,6 +927,8 @@ enemy_x_velocity_g:
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
+
+; --- Doc Robot revisit screen data (duplicate of earlier screens) ---
         .byte   $48,$05,$02,$02,$02,$03,$04,$04
         .byte   $48,$04,$1D,$09,$0A,$04,$0D,$04
         .byte   $48,$04,$04,$0D,$04,$04,$04,$04
@@ -778,6 +961,8 @@ enemy_x_velocity_g:
         .byte   $E3,$DF,$D6,$DF,$DF,$D6,$D7,$E0
         .byte   $E4,$DF,$D6,$D7,$D7,$D6,$DF,$E2
         .byte   $E5,$9A,$9A,$9A,$9A,$9A,$9A,$BC
+
+; --- empty screen padding (filled with tile $B8) ---
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
@@ -794,6 +979,18 @@ enemy_x_velocity_g:
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
         .byte   $B8,$B8,$B8,$B8,$B8,$B8,$B8,$B8
+
+; ===========================================================================
+; Metatile CHR tile definitions ($B700-$BAFF)
+; ===========================================================================
+; 4 bytes per metatile index, defining the 2x2 CHR tile pattern:
+;   byte 0 = top-left CHR tile
+;   byte 1 = top-right CHR tile
+;   byte 2 = bottom-left CHR tile
+;   byte 3 = bottom-right CHR tile
+; Read by the engine at $B700 + (metatile_index * 4).
+; The engine also reads palette bits from the collision table at $BF00.
+; ===========================================================================
         .byte   $07,$28,$6A,$28,$20,$29,$20,$29
         .byte   $5C,$5C,$5C,$5C,$5C,$50,$50,$08
         .byte   $08,$08,$08,$08,$52,$5C,$08,$52
@@ -915,6 +1112,8 @@ enemy_x_velocity_g:
         .byte   $76,$2E,$74,$77,$68,$6B,$68,$68
         .byte   $71,$71,$74,$74,$A7,$A7,$A7,$A7
         .byte   $19,$19,$66,$71,$19,$1A,$08,$08
+
+; --- zero padding ($BAC8-$BAFF) ---
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
@@ -922,6 +1121,18 @@ enemy_x_velocity_g:
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+
+; ===========================================================================
+; Metatile nametable data ($BB00-$BEFF)
+; ===========================================================================
+; Four 256-byte blocks, one per nametable quadrant. Each block contains
+; metatile-to-CHR mapping data used during nametable updates. The engine
+; reads $BB00,x / $BC00,x / $BD00,x / $BE00,x for the 4 CHR tiles of
+; each metatile (top-left, top-right, bottom-left, bottom-right).
+; Each block has ~$92 bytes of data followed by zero padding.
+; ===========================================================================
+
+; --- nametable quadrant 0 ($BB00): top-left CHR tiles ---
         .byte   $00,$DD,$DE,$10,$EE,$6D,$8B,$7C
         .byte   $01,$69,$6A,$6A,$5C,$10,$21,$7C
         .byte   $60,$56,$CC,$EE,$02,$1C,$01,$BE
@@ -954,6 +1165,8 @@ enemy_x_velocity_g:
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+
+; --- nametable quadrant 1 ($BC00): top-right CHR tiles ---
         .byte   $00,$DE,$DF,$57,$6C,$EE,$7C,$8B
         .byte   $01,$6A,$6A,$6B,$20,$10,$5D,$7C
         .byte   $CC,$10,$61,$EE,$02,$1D,$01,$11
@@ -986,6 +1199,8 @@ enemy_x_velocity_g:
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+
+; --- nametable quadrant 2 ($BD00): bottom-left CHR tiles ---
         .byte   $00,$56,$10,$FE,$10,$ED,$8B,$10
         .byte   $01,$79,$7A,$7A,$10,$7D,$31,$10
         .byte   $70,$FD,$CD,$10,$02,$1C,$01,$CE
@@ -1018,6 +1233,8 @@ enemy_x_velocity_g:
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+
+; --- nametable quadrant 3 ($BE00): bottom-right CHR tiles ---
         .byte   $00,$10,$57,$FF,$EF,$10,$10,$8B
         .byte   $01,$7A,$7A,$7B,$30,$7D,$10,$10
         .byte   $CD,$FE,$71,$10,$02,$1D,$AF,$11
@@ -1051,10 +1268,24 @@ enemy_x_velocity_g:
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
 
-; tile collision attribute table: 1 byte per metatile index
-; upper nibble = collision type: $00=air $10=solid $20=ladder $30=damage
-;   $40=ladder_top $50=spikes $70=disappearing_block
-; lower nibble = visual sub-type (not used for collision)
+; ===========================================================================
+; Tile collision attribute table ($BF00-$BFFF)
+; ===========================================================================
+; 1 byte per metatile index (256 entries). Read by the engine at $BF00,y
+; during tile collision checks.
+;
+; Upper nibble = collision type:
+;   $00 = air (passable)
+;   $01 = background (passable, visual only)
+;   $02 = background variant
+;   $03 = hazard / spike (instant kill on contact)
+;   $10 = solid (blocks movement)
+;   $13 = solid + hazard
+;   $23 = ladder
+;   $43 = ladder top (player can stand on it)
+;
+; Lower 2 bits = palette index for attribute table generation.
+; ===========================================================================
         .byte   $00,$02,$02,$02,$10,$10,$02,$02
         .byte   $01,$02,$02,$02,$10,$02,$10,$02
         .byte   $10,$02,$10,$10,$13,$23,$01,$01
@@ -1073,7 +1304,7 @@ enemy_x_velocity_g:
         .byte   $02,$02,$13,$02,$02,$02,$03,$03
         .byte   $03,$03,$03,$03,$03,$03,$03,$03
         .byte   $03,$03,$03,$03,$03,$00,$03,$03
-        .byte   $10,$10,$00,$00,$00,$00,$00,$00
+        .byte   $10,$10,$00,$00,$00,$00,$00,$00 ; metatiles $90+ unused (zero)
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
