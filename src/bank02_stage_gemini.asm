@@ -33,11 +33,11 @@
 .include "include/constants.inc"
 
 ; --- Fixed bank subroutine imports ---
-LC5E9           := $C5E9    ; prepare_oam_buffer
-LF835           := $F835    ; reset_sprite_anim
-LF89A           := $F89A    ; submit_sound_ID
-LFF21           := $FF21    ; task_yield (wait for NMI)
-LFF3C           := $FF3C    ; update_CHR_banks
+prepare_oam_buffer           := $C5E9    ; prepare_oam_buffer
+reset_sprite_anim           := $F835    ; reset_sprite_anim
+submit_sound_ID           := $F89A    ; submit_sound_ID
+task_yield           := $FF21    ; task_yield (wait for NMI)
+update_CHR_banks           := $FF3C    ; update_CHR_banks
 
 ; =============================================================================
 ; PAUSE MENU CODE
@@ -190,7 +190,7 @@ code_A0D1:  jsr     code_A2EA           ; wait frames for animation
         bne     code_A0D1
         lda     #$1E                    ; then wait 30 more frames
 code_A0DC:  pha
-        jsr     LFF21                   ; yield one frame
+        jsr     task_yield                   ; yield one frame
         pla
         sec
         sbc     #$01
@@ -254,9 +254,9 @@ code_A139:  lda     LA641,y             ; copy 3 palette colors
         sta     player_state
         ldx     #$00
         lda     #$13                    ; Mega Man sprite object
-        jsr     LF835                   ; reset sprite animation
+        jsr     reset_sprite_anim                   ; reset sprite animation
         inc     ent_anim_state
-        jmp     LFF3C                   ; update CHR banks and return
+        jmp     update_CHR_banks                   ; update CHR banks and return
 
 ; ===========================================================================
 ; Refill weapon ammo entry ($A000 → JMP here)
@@ -304,13 +304,13 @@ code_A18B:  jmp     code_A0E6           ; slide menu out
 ; overlay into view by decreasing $51 from $E8 to $B0.
 
 code_A18E:  lda     #$1A                ; pause menu open SFX
-        jsr     LF89A
+        jsr     submit_sound_ID
         lda     scroll_lock
         pha
         inc     scroll_lock             ; advance build phase
         lda     #$04
         sta     oam_ptr                 ; reset OAM write pointer
-        jsr     LC5E9                   ; prepare OAM buffer
+        jsr     prepare_oam_buffer                   ; prepare OAM buffer
         pla
         sta     scroll_lock             ; restore phase counter
         lda     game_mode
@@ -390,7 +390,7 @@ code_A22D:  lda     LA624,x             ; load menu palette
         bne     code_A22D
         lda     #$FF
         sta     palette_dirty           ; flag for NMI upload
-        jsr     LFF3C                   ; update CHR banks
+        jsr     update_CHR_banks                   ; update CHR banks
 ; --- Slide menu into view ---
 code_A23D:  jsr     code_A2EA           ; wait one frame
         lda     $51
@@ -510,11 +510,11 @@ code_A2EA:  lda     game_mode
         bcc     code_A2F8               ; use whichever is lower
 code_A2F6:  lda     $51                 ; menu scroll Y position
 code_A2F8:  sta     irq_scanline        ; set IRQ scanline
-        jsr     LC5E9                   ; prepare OAM buffer
+        jsr     prepare_oam_buffer                   ; prepare OAM buffer
         jsr     code_A30C               ; draw menu sprites
         lda     #$00
         sta     nmi_skip                ; allow NMI processing
-        jsr     LFF21                   ; yield (wait for NMI)
+        jsr     task_yield                   ; yield (wait for NMI)
         inc     nmi_skip                ; block NMI again
         inc     $95                     ; increment frame counter
         rts
@@ -750,7 +750,7 @@ code_A477:  pla                         ; old cursor position
         cmp     weapon_cursor
         beq     code_A481              ; unchanged → no SFX
         lda     #$1B                    ; cursor move SFX
-        jsr     LF89A
+        jsr     submit_sound_ID
 ; ===========================================================================
 ; Build weapon name/icon nametable buffer (code_A481)
 ; ===========================================================================
@@ -839,7 +839,7 @@ code_A50A:  inc     nametable_dirty     ; flag for NMI upload
 ; bar in the nametable buffer. Plays the refill tick SFX.
 
 code_A50D:  lda     #$1C                ; HP refill tick SFX
-        jsr     LF89A
+        jsr     submit_sound_ID
         lda     weapon_cursor
         asl     a                       ; cursor * 2 = index into addr table
         tay

@@ -31,27 +31,27 @@
 ; ---------------------------------------------------------------------------
 stage_transition_entry:
 
-        .setcpu "6502"                  ; play stage intro music
+        .setcpu "6502"
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
 
-L9212           := $9212                ; play stage intro music
-L938B           := $938B                ; play stage intro music
-L939E           := $939E                ; play stage intro music
-LCBCE           := $CBCE                ; play stage intro music
-LF797           := $F797                ; play stage intro music
-LF898           := $F898                ; play stage intro music
-LFD52           := $FD52                ; play stage intro music
-LFF1A           := $FF1A                ; play stage intro music
-LFF21           := $FF21                ; play stage intro music
-LFF3C           := $FF3C                ; play stage intro music
-LFF6B           := $FF6B                ; play stage intro music
+L9212           := $9212
+L938B           := $938B
+L939E           := $939E
+LCBCE           := $CBCE
+apply_y_speed           := $F797
+submit_sound_ID_D9           := $F898
+boss_frame_yield           := $FD52
+task_yield_x           := $FF1A
+task_yield           := $FF21
+update_CHR_banks           := $FF3C
+select_PRG_banks           := $FF6B
 
 .segment "BANK03"                       ; play stage intro music
 
         lda     #$33                    ; play stage intro music
-        jsr     LF898
+        jsr     submit_sound_ID_D9
         lda     #$80                    ; mark entity slot $10 active
         sta     $0310                   ; (used for scroll entity)
         sta     $0590
@@ -84,7 +84,7 @@ LA039:  lda     LA1D9,x                 ; intro sprite palette data
         bpl     LA039
         lda     LA1B7,y                 ; select CHR bank for this stage
         jsr     L938B
-        jsr     LFF3C
+        jsr     update_CHR_banks
         lda     #$00
         sta     $05F0                   ; clear entity slot $10 flags
         sta     $05B0                   ; clear entity slot $10 anim phase
@@ -107,7 +107,7 @@ LA05D:  lda     camera_x_lo                     ; $FC += 4
         and     #$01                    ; (wrap to 0-1)
         sta     camera_x_hi
         ldx     #$10                    ; apply Y movement to entity $10
-        jsr     LF797                   ; (scroll entity — creates vertical effect)
+        jsr     apply_y_speed                   ; (scroll entity — creates vertical effect)
         lda     $0470                   ; scroll direction check
         bpl     LA082
         lda     #$70                    ; clamp $03D0 to max $70
@@ -122,7 +122,7 @@ LA082:  lda     $0350                   ; advance sub-pixel scroll
         lda     $0370                   ; advance scroll position
         adc     $0430                   ; $0370 += $0430 + carry
         sta     $0370
-LA095:  jsr     LFD52                   ; process entities + wait for NMI
+LA095:  jsr     boss_frame_yield                   ; process entities + wait for NMI
         lda     #$00
         sta     $05F0                   ; clear entity $10 flags
         lda     camera_x_lo                     ; loop until $FC wraps to 0
@@ -131,10 +131,10 @@ LA095:  jsr     LFD52                   ; process entities + wait for NMI
 ; --- Post-scroll wait ---
         lda     #$7E                    ; update CHR bank
         sta     $E9
-        jsr     LFF3C
+        jsr     update_CHR_banks
         lda     #$3C                    ; A = $3C (60 frames)
 LA0AA:  pha
-        jsr     LFD52                   ; process entities + wait for NMI
+        jsr     boss_frame_yield                   ; process entities + wait for NMI
         lda     #$00
         sta     $05F0
         pla
@@ -145,14 +145,14 @@ LA0AA:  pha
 ; --- Wait for boss animation sync ---
 ; $A1C9,y = expected animation phase value for this stage.
 ; Wait until entity $10's anim phase ($05B0) matches.
-LA0B9:  jsr     LFD52                   ; process entities + wait for NMI
+LA0B9:  jsr     boss_frame_yield                   ; process entities + wait for NMI
         ldy     stage_id                     ; Y = stage number
         lda     LA1C9,y                 ; expected anim phase
         cmp     $05B0                   ; current anim phase
         bne     LA0B9
         lda     #$03                    ; re-select bank 03
         sta     prg_bank                     ; (may have been swapped during
-        jsr     LFF6B                   ; entity processing)
+        jsr     select_PRG_banks                   ; entity processing)
         jmp     LA0D0
 
 ; ===========================================================================
@@ -210,7 +210,7 @@ LA0FB:  ldy     $10                     ; Y = current name table offset
         inc     nametable_dirty                     ; flag PPU write pending
         lda     #$00                    ; allow NMI
         sta     nmi_skip
-        jsr     LFF21                   ; wait for NMI (tile gets uploaded)
+        jsr     task_yield                   ; wait for NMI (tile gets uploaded)
         inc     nmi_skip                     ; skip next NMI (pacing)
         inc     $95                     ; frame counter
         lda     $95
@@ -227,7 +227,7 @@ LA122:  lda     #$00                    ; A = 0
 LA124:  pha
         lda     #$00
         sta     nmi_skip                     ; allow NMI
-        jsr     LFF21                   ; wait 1 frame
+        jsr     task_yield                   ; wait 1 frame
         inc     nmi_skip
         pla
         sec
@@ -475,7 +475,7 @@ code_A5F0:  sta     $10
 code_A5F2:  jsr     code_A681               ; update cursor sprite positions
         lda     #$00
         sta     nmi_skip
-        jsr     LFF21
+        jsr     task_yield
         inc     nmi_skip
         inc     $95
         jmp     code_A5C3
@@ -539,7 +539,7 @@ code_A66D:  jsr     code_A6AF
         jsr     code_A681
         lda     #$00
         sta     nmi_skip
-        jsr     LFF21
+        jsr     task_yield
         inc     nmi_skip
         inc     $95
         jmp     code_A61C
@@ -660,7 +660,7 @@ code_A77C:  lda     camera_x_hi
         ldx     #$0F
         jsr     L939E
         ldx     #$B4
-        jsr     LFF1A
+        jsr     task_yield_x
         ldx     #$00
         jsr     L939E
         ldy     #$04
@@ -671,7 +671,7 @@ code_A797:  sta     $0200,y
         iny
         iny
         bne     code_A797
-        jsr     LFF21
+        jsr     task_yield
         jmp     code_A593
 
 code_A7A6:  ldy     #$00

@@ -73,25 +73,25 @@ LC4F8           := $C4F8
 LC531           := $C531
 LC53B           := $C53B
 LC59D           := $C59D
-LC5E9           := $C5E9
-LC628           := $C628
-LC74C           := $C74C
-LC752           := $C752
+prepare_oam_buffer           := $C5E9
+clear_entity_table           := $C628
+fade_palette_out           := $C74C
+fade_palette_in           := $C752
 LC9B3           := $C9B3
 LE4F1           := $E4F1
 LE8B4           := $E8B4
 LEEAB           := $EEAB
 LEF8C           := $EF8C
-LF81B           := $F81B
-LF835           := $F835
-LF898           := $F898
-LF89A           := $F89A
+reset_gravity           := $F81B
+reset_sprite_anim           := $F835
+submit_sound_ID_D9           := $F898
+submit_sound_ID           := $F89A
 LFD6E           := $FD6E
-LFF1A           := $FF1A
-LFF21           := $FF21
-LFF3C           := $FF3C
-LFF45           := $FF45
-LFF6B           := $FF6B
+task_yield_x           := $FF1A
+task_yield           := $FF21
+update_CHR_banks           := $FF3C
+select_CHR_banks           := $FF45
+select_PRG_banks           := $FF6B
 
 .segment "BANK18"
 
@@ -620,15 +620,15 @@ LA8DD:  .byte   $60,$70,$60,$71,$71,$74,$73,$6F
 
         jmp     L9ABE
 
-        jsr     LC752
-        jsr     LFF21
+        jsr     fade_palette_in
+        jsr     task_yield
         jsr     LC531
         ldy     #$05
 code_9014:  lda     $9BF7,y
         sta     $E8,y
         dey
         bpl     code_9014
-        jsr     LFF45
+        jsr     select_CHR_banks
         lda     #$20
         ldx     #$24
         ldy     #$00
@@ -643,32 +643,32 @@ code_902E:  lda     $9C03,y
         sta     $10
         ldx     #$10
         jsr     L939E
-        jsr     LFF21
+        jsr     task_yield
         ldx     #$11
         jsr     L939E
-        jsr     LFF21
-        jsr     LC74C
+        jsr     task_yield
+        jsr     fade_palette_out
         ldx     #$B4
-        jsr     LFF1A
-        jsr     LC752
-        jsr     LFF21
+        jsr     task_yield_x
+        jsr     fade_palette_in
+        jsr     task_yield
         jsr     LC531
         ldy     #$05
 code_905E:  lda     $9BF7,y
         sta     $E8,y
         dey
         bpl     code_905E
-        jsr     LFF45
+        jsr     select_CHR_banks
         lda     #$13
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         lda     #$00
         sta     $28
 code_9075:  ldy     #$00
         sty     $10
         jsr     LEEAB
         jsr     LC4F8
-        jsr     LFF21
+        jsr     task_yield
         inc     $28
         lda     $28
         and     #$3F
@@ -678,7 +678,7 @@ code_908C:  lda     $9C03,y
         sta     $0620,y
         dey
         bpl     code_908C
-        jsr     LFF21
+        jsr     task_yield
         jsr     LC53B
         ldx     #$03
 code_909D:  lda     $9C69,x
@@ -689,8 +689,8 @@ code_909D:  lda     $9C69,x
         sta     nmi_skip
         lda     #$13
         sta     prg_bank
-        jsr     LFF6B
-        jsr     LC74C
+        jsr     select_PRG_banks
+        jsr     fade_palette_out
 code_90B4:
         lda     joy1_press
         and     #BTN_START
@@ -704,7 +704,7 @@ code_90B4:
         tay
         lda     $9BFF,y
         sta     $0200
-code_90CA:  jsr     LFF21
+code_90CA:  jsr     task_yield
         jmp     L90B4
 
 ; --- stage_select_init ($1890D0) ---
@@ -733,7 +733,7 @@ stage_select_init:  lda     #$36        ; CHR bank $36 for sprite tiles
         sta     $EC
         lda     #$34                    ; CHR bank $34 for BG tiles
         sta     $ED
-        jsr     LFF45                   ; apply CHR bank selection
+        jsr     select_CHR_banks                   ; apply CHR bank selection
 
 ; Load sprite palettes from $9C23 ($9C23)
         ldy     #$0F                    ; counter = 16 bytes
@@ -751,18 +751,18 @@ LB0DD:  lda     $9C23,y                 ; load sprite palette color
         iny                             ; returning from stage → Y=1
 LB0F2:  sty     $0F                     ; $0F = 0 (fresh) or 1 (return)
         lda     $9BFD,y                 ; select music track
-        jsr     LF898                   ; play stage select music
+        jsr     submit_sound_ID_D9                   ; play stage select music
         lda     #$00
         sta     $70                     ; clear NMI sync flag
         lda     $9C63,y                 ; load screen scroll/setup param
         jsr     LE8B4
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9                   ; clear unused OAM sprites
+        jsr     prepare_oam_buffer                   ; clear unused OAM sprites
 LB10B:  lda     #$04
         sta     $10
         jsr     LEF8C
-        jsr     LFF21                   ; wait for NMI
+        jsr     task_yield                   ; wait for NMI
         lda     $70
         bne     LB10B                   ; loop until NMI complete
 
@@ -811,7 +811,7 @@ code_9164:  lda     camera_x_lo
         sta     camera_x_hi
         lda     #$00
         sta     nmi_skip
-        jsr     LFF21
+        jsr     task_yield
         inc     nmi_skip
         lda     camera_x_lo
         bne     code_9164
@@ -833,13 +833,13 @@ code_9199:  lda     $10
         jsr     LEF8C
         pla
         sta     $10
-        jsr     LFF21
+        jsr     task_yield
         lda     $70
         bne     code_9199
         jsr     L995C
         ldx     #$03
         jsr     L939E
-        jsr     LFF21
+        jsr     task_yield
         ldx     #$04
         jsr     L939E
         lda     camera_x_hi
@@ -848,7 +848,7 @@ code_9199:  lda     $10
         ldy     #$00
         lda     #$7E
         sta     $E9
-        jsr     LFF3C
+        jsr     update_CHR_banks
 code_91C8:  ldx     #$00
 code_91CA:  lda     $9C33,y
         sta     $0600,x
@@ -871,7 +871,7 @@ code_91EC:  jsr     L93E9
 code_91EF:  jsr     L93FE
         lda     #$00
         sta     nmi_skip
-        jsr     LFF21
+        jsr     task_yield
         inc     nmi_skip
         lda     joy1_press
         and     #BTN_START
@@ -881,7 +881,7 @@ code_91EF:  jsr     L93FE
         beq     code_9212
         lda     #$03
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         jmp     LA593
 
 code_9212:  ldy     #$04
@@ -894,9 +894,9 @@ code_9216:  sta     $0200,y
         bne     code_9216
         lda     #$13
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         lda     #$10
-        jsr     LF898
+        jsr     submit_sound_ID_D9
         lda     #$00
         sta     $70
         sta     $28
@@ -906,7 +906,7 @@ code_9236:  lda     #$00
         sta     nmi_skip
         sta     $10
         jsr     LEF8C
-        jsr     LFF21
+        jsr     task_yield
         lda     $70
         bne     code_9236
         lda     #$04
@@ -915,7 +915,7 @@ code_9236:  lda     #$00
         sta     $11
         lda     #$7C
         sta     $E8
-        jsr     LFF3C
+        jsr     update_CHR_banks
         jmp     L9155
 code_9258:
 
@@ -991,7 +991,7 @@ code_9261:  lda     joy1_press                 ; new button presses
         bcs     code_9279               ; out of range → ignore
         sta     $12                     ; update column
         lda     #$1B                    ; SFX $1B = cursor move
-        jsr     LF89A
+        jsr     submit_sound_ID
 code_9279:  lda     joy1_press                 ; new button presses
         and     #$0C                    ; $08=Up, $04=Down
         beq     code_9291               ; no vertical input → skip
@@ -1003,7 +1003,7 @@ code_9279:  lda     joy1_press                 ; new button presses
         bcs     code_9291               ; out of range → ignore
         sta     $13                     ; update row
         lda     #$1B                    ; SFX $1B = cursor move
-        jsr     LF89A
+        jsr     submit_sound_ID
 code_9291:  lda     $12                 ; combine column + row
         clc
         adc     $13
@@ -1073,7 +1073,7 @@ LB2D4:  lda     L0000                   ; Y base
         bpl     LB2D4
 code_92F2:  lda     #$00
         sta     nmi_skip
-        jsr     LFF21
+        jsr     task_yield
         inc     nmi_skip
         inc     $95
         jmp     L9258
@@ -1098,7 +1098,7 @@ code_92F2:  lda     #$00
 ; ---------------------------------------------------------------------------
 stage_select_confirm:
 
-        jsr     LC628                   ; clear all entity slots
+        jsr     clear_entity_table                   ; clear all entity slots
         lda     $12                     ; $12 = cursor column (0-2)
         clc
         adc     $13                     ; $13 = cursor row offset (0/3/6)
@@ -1134,13 +1134,13 @@ LB316:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
 ; --- Set up PRG/CHR banks for the boss intro layout ---
         lda     #$13                    ; select PRG bank $13
         sta     prg_bank                     ; (contains boss intro metatile data
-        jsr     LFF6B                   ; at $AF00+, referenced by fill routine)
+        jsr     select_PRG_banks                   ; at $AF00+, referenced by fill routine)
         lda     #$04                    ; set rendering mode
         sta     oam_ptr
-        jsr     LC5E9                   ; clear unused OAM sprites
+        jsr     prepare_oam_buffer                   ; clear unused OAM sprites
         lda     #$76                    ; set CHR bank $76
         sta     $E9                     ; (boss intro screen tileset)
-        jsr     LFF3C
+        jsr     update_CHR_banks
 
 ; --- Determine which nametable to fill (the offscreen one) ---
 ; $FD bit 0 = currently displayed nametable. Toggle it so the NEW
@@ -1172,7 +1172,7 @@ LB316:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
 LB35F:  lda     $10                     ; preserve nametable select
         pha
         jsr     LEF8C                   ; write 4 rows to PPU queue
-        jsr     LFF21                   ; wait for NMI (PPU uploads queued data)
+        jsr     task_yield                   ; wait for NMI (PPU uploads queued data)
         pla                             ; restore nametable select
         sta     $10
         lda     $70                     ; $70 = 0 when fill complete
@@ -1195,19 +1195,19 @@ LB371:  lda     $9C53,y                 ; copy 16 bytes from $9C53
 ; stage select, not back here.
         lda     #$03                    ; select PRG bank $03
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         ldy     $0F                     ; Y = adjusted grid index
         jmp     LA000                   ; → bank03 stage_transition_entry
 
         pha
         lda     #$01
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         pla
         jsr     LA000
         lda     #$03
         sta     prg_bank
-        jmp     LFF6B
+        jmp     select_PRG_banks
 
 ; ---------------------------------------------------------------------------
 ; write_ppu_data_from_bank03 — copy a PPU write command list from bank03
@@ -1231,7 +1231,7 @@ write_ppu_data_from_bank03:
         pha
         lda     #$03                    ; switch to bank 03
         sta     prg_bank                     ; (contains PPU data tables)
-        jsr     LFF6B
+        jsr     select_PRG_banks
         ldx     $05                     ; X = table index
         lda     LA56D,x                 ; ($02/$03) = pointer to PPU data
         sta     $02                     ; low byte from $A56D+X
@@ -1259,7 +1259,7 @@ LB3D2:  lda     ($02),y                 ; tile data byte
 LB3DE:  sta     nametable_dirty                     ; $19 = $FF → flag PPU write pending
         pla                             ; restore original PRG bank
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         ldy     $04                     ; restore Y
         rts
 code_93E9:
@@ -1322,13 +1322,13 @@ LB41C:  dey
 
 ; --- Robot Master intro animation ---
 
-LB428:  jsr     LC752                   ; disable sprites/rendering
+LB428:  jsr     fade_palette_in                   ; disable sprites/rendering
         lda     #$04                    ; set rendering mode
         sta     oam_ptr
-        jsr     LC5E9                   ; configure PPU
-        jsr     LFF21                   ; wait 1 frame
+        jsr     prepare_oam_buffer                   ; configure PPU
+        jsr     task_yield                   ; wait 1 frame
         lda     #$35                    ; play sound $35
-        jsr     LF898                   ; (boss intro fanfare)
+        jsr     submit_sound_ID_D9                   ; (boss intro fanfare)
         jsr     L9936                   ; zero out game state
 
 ; Fill nametable 0 with boss intro layout from bank $13.
@@ -1344,7 +1344,7 @@ LB428:  jsr     LC752                   ; disable sprites/rendering
 LB449:  lda     #$00                    ; $10 = 0 → write to nametable $2000
         sta     $10
         jsr     LEF8C                   ; write 4 tile rows
-        jsr     LFF21                   ; wait for NMI
+        jsr     task_yield                   ; wait for NMI
         lda     $70                     ; $70 = 0 when complete
         bne     LB449
         pla                             ; restore real stage number
@@ -1358,7 +1358,7 @@ LB449:  lda     #$00                    ; $10 = 0 → write to nametable $2000
         lda     #$00                    ; $10 = 0 → nametable $2000
         sta     $10
         jsr     L939E                   ; write common intro nametable data
-        jsr     LFF21                   ; wait for NMI
+        jsr     task_yield                   ; wait for NMI
         lda     stage_id                     ; X = stage + 6
         clc                             ; (per-boss face data table index)
         adc     #$06
@@ -1373,7 +1373,7 @@ LB471:  lda     $9D46,y
         sta     $E8,y
         dey
         bpl     LB471
-        jsr     LFF3C
+        jsr     update_CHR_banks
         ldy     #$1F
 LB47F:  lda     $9D16,y                 ; 32 bytes: BG ($0620-$062F) + sprite ($0630-$063F)
         sta     $0620,y
@@ -1390,12 +1390,12 @@ LB47F:  lda     $9D16,y                 ; 32 bytes: BG ($0620-$062F) + sprite ($
         sta     ent_y_px
         ldx     #$00                    ; set animation to $B0
         lda     #$B0                    ; (boss intro drop animation)
-        jsr     LF835
+        jsr     reset_sprite_anim
         lda     ent_flags                   ; clear bit 6 of entity flags
         and     #$BF                    ; (enable rendering?)
         sta     ent_flags
-        jsr     LFF21                   ; wait 1 frame
-        jsr     LC74C                   ; enable rendering
+        jsr     task_yield                   ; wait 1 frame
+        jsr     fade_palette_out                   ; enable rendering
 
 ; Boss drop loop: decrement Y from $E8 to $74 at 4px/frame.
 ; ($E8 - $74) / 4 = 29 frames for the boss to slide down.
@@ -1413,13 +1413,13 @@ LB4B9:  lda     ent_anim_state                   ; check animation phase
         bne     LB4C7
         ldx     #$00                    ; switch to idle animation $1A
         lda     #$1A
-        jsr     LF835
+        jsr     reset_sprite_anim
 LB4C7:  jsr     LFD6E                   ; process sprites + wait for NMI
         lda     ent_anim_id                   ; check current OAM ID
         cmp     #$1A                    ; $1A = idle pose active
         bne     LB4A7                   ; loop until idle
         ldx     #$3C                    ; wait $3C (60) frames
-        jsr     LFF1A                   ; (boss stands idle)
+        jsr     task_yield_x                   ; (boss stands idle)
 
 ; --- Mega Man teleport-in animation ---
 ; Mega Man rises from Y=$80 to Y=$C0, 2px/frame = 32 frames.
@@ -1439,7 +1439,7 @@ LB4C7:  jsr     LFD6E                   ; process sprites + wait for NMI
 ; from palette colors, 4 frames per step, until all reach $0F.
 
 LB4E9:  ldx     #$3C                    ; wait $3C (60) frames
-        jsr     LFF1A
+        jsr     task_yield_x
         lda     #$00                    ; clear NMI skip flag
         sta     nmi_skip
         ldy     #$03                    ; fade BG palette 0 (bytes $00-$03)
@@ -1449,7 +1449,7 @@ LB4E9:  ldx     #$3C                    ; wait $3C (60) frames
         ldy     #$0B                    ; fade BG palette 2 (bytes $08-$0B)
         jsr     L954A
         ldx     #$B4                    ; wait $B4 (180) frames
-        jsr     LFF1A                   ; (3 seconds on black screen)
+        jsr     task_yield_x                   ; (3 seconds on black screen)
         jmp     L9581                   ; → stage loading
 
 ; ---------------------------------------------------------------------------
@@ -1495,7 +1495,7 @@ LB52F:  lda     $0630,y                 ; default SP 0
         bne     LB52F
 LB53E:  inc     palette_dirty                     ; flag palette upload
         ldx     #$02                    ; wait 2 frames per flash
-        jsr     LFF1A
+        jsr     task_yield_x
         dec     $10                     ; decrement flash counter
         bpl     LB50D
         rts
@@ -1528,7 +1528,7 @@ LB55E:  sta     $0604,y                 ; store to working palette
         bpl     LB554
         sty     palette_dirty                     ; flag palette upload
         ldx     #$04                    ; wait 4 frames per step
-        jsr     LFF1A
+        jsr     task_yield_x
         lda     $10                     ; $10 -= $10 (next darker step)
         sec
         sbc     #$10
@@ -1538,7 +1538,7 @@ LB55E:  sta     $0604,y                 ; store to working palette
         cmp     #$07                    ; chain into boss face flash
         beq     boss_face_palette_flash
         ldx     #$1E                    ; wait $1E (30) frames between groups
-        jsr     LFF1A
+        jsr     task_yield_x
         rts
 code_9581:
 
@@ -1547,17 +1547,17 @@ code_9581:
         beq     code_958A
         jmp     L968C
 
-code_958A:  jsr     LC752
+code_958A:  jsr     fade_palette_in
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9
-        jsr     LFF21
+        jsr     prepare_oam_buffer
+        jsr     task_yield
         jsr     L9936
         lda     #$10
-        jsr     LF898
+        jsr     submit_sound_ID_D9
         lda     #$13
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         lda     #$01
         jsr     LE8B4
         lda     #$00
@@ -1565,7 +1565,7 @@ code_958A:  jsr     LC752
 code_95AF:  lda     #$00
         sta     $10
         jsr     LEF8C
-        jsr     LFF21
+        jsr     task_yield
         lda     $70
         bne     code_95AF
         lda     #$00
@@ -1575,10 +1575,10 @@ code_95AF:  lda     #$00
         sta     $10
         ldx     #$03
         jsr     L939E
-        jsr     LFF21
+        jsr     task_yield
         ldx     #$04
         jsr     L939E
-        jsr     LFF21
+        jsr     task_yield
         lda     #$04
         jsr     LE8B4
         lda     #$00
@@ -1586,7 +1586,7 @@ code_95AF:  lda     #$00
 code_95E1:  lda     #$04
         sta     $10
         jsr     LEF8C
-        jsr     LFF21
+        jsr     task_yield
         lda     $70
         bne     code_95E1
         lda     #$7C
@@ -1597,7 +1597,7 @@ code_95E1:  lda     #$04
         sta     $EC
         lda     #$34
         sta     $ED
-        jsr     LFF3C
+        jsr     update_CHR_banks
         ldy     #$0F
 code_9604:  lda     $9C33,y
         sta     $0620,y
@@ -1608,17 +1608,17 @@ code_960F:  lda     $9C23,y
         sta     $0630,y
         dey
         bpl     code_960F
-        jsr     LFF21
+        jsr     task_yield
         jsr     L99FA
         lda     #$00
         sta     palette_dirty
-        jsr     LFF21
+        jsr     task_yield
         lda     #$58
         sta     $5E
         lda     #$07
         sta     game_mode
-        jsr     LFF21
-        jsr     LC74C
+        jsr     task_yield
+        jsr     fade_palette_out
         lda     stage_select_page
         beq     code_964D
         lda     #$12
@@ -1632,14 +1632,14 @@ code_960F:  lda     $9C23,y
         jmp     L9681
 
 code_964D:  ldx     #$F0
-        jsr     LFF1A
+        jsr     task_yield_x
         lda     #$3A
         sta     bosses_beaten
         lda     #$09
         sta     stage_select_page
         lda     #$74
         sta     $E9
-        jsr     LFF3C
+        jsr     update_CHR_banks
         ldy     #$0F
 code_9663:  lda     $9D36,y
         sta     $0600,y
@@ -1662,15 +1662,15 @@ code_9681:
         jmp     L9258
 code_968C:
 
-        jsr     LC752
+        jsr     fade_palette_in
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9
-        jsr     LFF21
+        jsr     prepare_oam_buffer
+        jsr     task_yield
         jsr     L9936
         lda     #$13
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         lda     #$01
         sta     camera_x_hi
         lda     #$02
@@ -1678,7 +1678,7 @@ code_968C:
 code_96AC:  lda     #$04
         sta     $10
         jsr     LEF8C
-        jsr     LFF21
+        jsr     task_yield
         lda     $70
         bne     code_96AC
         lda     #$7C
@@ -1689,7 +1689,7 @@ code_96AC:  lda     #$04
         sta     $EC
         lda     #$34
         sta     $ED
-        jsr     LFF3C
+        jsr     update_CHR_banks
         ldy     #$0F
 code_96CF:  lda     $9C43,y
         sta     $0620,y
@@ -1704,17 +1704,17 @@ code_96DA:  lda     $9C23,y
         sta     $10
         ldx     #$12
         jsr     L939E
-        jsr     LFF21
+        jsr     task_yield
         lda     #$03
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         jsr     LA8DD
-        jsr     LC74C
+        jsr     fade_palette_out
 code_96FC:
         lda     joy1_press
         and     #$90
         bne     code_9708
-        jsr     LFF21
+        jsr     task_yield
         jmp     L96FC
 
 code_9708:  jmp     L9212
@@ -1765,7 +1765,7 @@ LB749:  sta     $0780,x                 ; $FF end marker
         tya
         pha
         ldx     $0F
-        jsr     LFF1A                   ; submit PPU update buffer
+        jsr     task_yield_x                   ; submit PPU update buffer
         pla
         tay
 LB757:  iny
@@ -1843,7 +1843,7 @@ LB783:  lda     $9DC9,y                 ; PPU addr high ($20/$21/$22)
         tya
         pha
         ldx     $0F
-        jsr     LFF1A                   ; submit PPU update buffer
+        jsr     task_yield_x                   ; submit PPU update buffer
         pla
         tay
 LB7E1:  iny
@@ -1895,19 +1895,19 @@ code_983E:  lda     $9DC4,x
         sta     $079C
         stx     $07A1
         stx     nametable_dirty
-        jsr     LFF21
+        jsr     task_yield
         ldx     #$0E
         jsr     L939E
         rts
 code_985D:
 
-        jsr     LC752
+        jsr     fade_palette_in
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9
-        jsr     LFF21
+        jsr     prepare_oam_buffer
+        jsr     task_yield
         lda     #$0E
-        jsr     LF898
+        jsr     submit_sound_ID_D9
         jsr     L9936
         lda     #$01
         sta     camera_x_hi
@@ -1918,7 +1918,7 @@ code_985D:
 code_987F:  lda     #$04
         sta     $10
         jsr     LEF8C
-        jsr     LFF21
+        jsr     task_yield
         lda     $70
         bne     code_987F
         lda     #$7C
@@ -1929,7 +1929,7 @@ code_987F:  lda     #$04
         sta     $EC
         lda     #$34
         sta     $ED
-        jsr     LFF3C
+        jsr     update_CHR_banks
         ldy     #$0F
 code_98A2:  lda     $9C43,y
         sta     $0620,y
@@ -1940,7 +1940,7 @@ code_98AD:  lda     $9C23,y
         sta     $0630,y
         dey
         bpl     code_98AD
-        jsr     LFF21
+        jsr     task_yield
         ldx     #$01
         lda     #$04
         sta     $10
@@ -1951,13 +1951,13 @@ code_98AD:  lda     $9C23,y
         sta     game_mode
         lda     #$03
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         jsr     LA8DD
-        jsr     LFF21
-        jsr     LC74C
+        jsr     task_yield
+        jsr     fade_palette_out
         lda     #$78
 code_98DC:  pha
-        jsr     LFF21
+        jsr     task_yield
         pla
         sec
         sbc     #$01
@@ -1972,7 +1972,7 @@ code_98F2:
         lda     joy1_press
         and     #BTN_START
         bne     code_9901
-        jsr     LFF21
+        jsr     task_yield
         jmp     L98F2
 
 code_9901:  ldx     #$0B
@@ -2000,7 +2000,7 @@ code_992B:  rts
 
 code_992C:  lda     #$03
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         jmp     LA879
 
 ; ---------------------------------------------------------------------------
@@ -2067,7 +2067,7 @@ code_99A3:  sta     $0783,y
         bpl     code_99A3
         sty     $079C
         sty     nametable_dirty
-        jsr     LFF21
+        jsr     task_yield
 code_99BA:  dex
         bpl     code_9961
         lda     stage_select_page
@@ -2075,7 +2075,7 @@ code_99BA:  dex
         cmp     #$12
         bne     code_99CB
         jsr     L97EC
-        jsr     LFF21
+        jsr     task_yield
 code_99CB:  rts
 
 code_99CC:  lda     stage_select_page
@@ -2108,7 +2108,7 @@ code_99FA:
         beq     code_9A19
         lda     #$74
         sta     $E9
-        jsr     LFF3C
+        jsr     update_CHR_banks
         ldy     #$0F
 code_9A09:  lda     $9D36,y
         sta     $0600,y
@@ -2122,7 +2122,7 @@ code_9A19:  stx     L0000
         pha
         lda     #$03
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         ldx     L0000
 code_9A27:  lda     LA231,x
         sta     $0200,x
@@ -2140,7 +2140,7 @@ code_9A27:  lda     LA231,x
         bne     code_9A27
         pla
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         ldx     #$08
 code_9A4F:  lda     $9DED,x
         beq     code_9A71
@@ -2202,13 +2202,13 @@ code_9ABC:
         pla
         pla
 code_9ABE:
-        jsr     LC752
+        jsr     fade_palette_in
         jsr     L9936
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9
-        jsr     LFF21
-        jsr     LC628
+        jsr     prepare_oam_buffer
+        jsr     task_yield
+        jsr     clear_entity_table
         lda     #$01
         sta     LA000
         lda     #$00
@@ -2233,7 +2233,7 @@ code_9ABE:
         lda     #STAGE_HARD
         sta     stage_id
         sta     prg_bank
-        jsr     LFF6B
+        jsr     select_PRG_banks
         lda     #$1F
         sta     $24
         lda     #$21
@@ -2241,7 +2241,7 @@ code_9B0E:  pha
         lda     #$01
         sta     $10
         jsr     LE4F1
-        jsr     LFF21
+        jsr     task_yield
         pla
         sec
         sbc     #$01
@@ -2256,7 +2256,7 @@ code_9B0E:  pha
         sta     $EC
         lda     #$1E
         sta     $ED
-        jsr     LFF3C
+        jsr     update_CHR_banks
         ldy     #$1F
 code_9B38:  lda     $9E2A,y
         sta     $0620,y
@@ -2277,9 +2277,9 @@ code_9B38:  lda     $9E2A,y
         sta     $049F
         lda     #$01
         sta     $043F
-        jsr     LF81B
+        jsr     reset_gravity
         lda     #$99
-        jsr     LF835
+        jsr     reset_sprite_anim
         lda     #$18
         sta     camera_screen
         sta     ent_x_scr
@@ -2303,9 +2303,9 @@ code_9B38:  lda     $9E2A,y
         lda     #$30
         sta     ent_x_px
         lda     #$0C
-        jsr     LF898
-        jsr     LFF21
-        jsr     LC74C
+        jsr     submit_sound_ID_D9
+        jsr     task_yield
+        jsr     fade_palette_out
         jmp     LC9B3
 
         .byte   $0F

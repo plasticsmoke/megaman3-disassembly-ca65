@@ -29,21 +29,21 @@
 LA000           := $A000                ; init music driver (bank $0E)
 LA003           := $A003                ; continue music playback (bank $0E)
 LA006           := $A006                ; start music track X (bank $0E)
-LC5E9           := $C5E9                ; prepare OAM buffer
-LC628           := $C628                ; clear entity table
-LC74C           := $C74C                ; fade palette out (reveal)
-LC752           := $C752                ; fade palette in (to black)
+prepare_oam_buffer           := $C5E9                ; prepare OAM buffer
+clear_entity_table           := $C628                ; clear entity table
+fade_palette_out           := $C74C                ; fade palette out (reveal)
+fade_palette_in           := $C752                ; fade palette in (to black)
 LE8B4           := $E8B4                ; init metatile column pointers
 LEF8C           := $EF8C                ; fill one nametable column
-LF797           := $F797                ; apply Y speed (gravity)
-LF835           := $F835                ; reset sprite animation (A=anim, X=entity)
-LF898           := $F898                ; submit sound ID (with $D9 prefix)
-LF89A           := $F89A                ; submit sound ID (direct)
+apply_y_speed           := $F797                ; apply Y speed (gravity)
+reset_sprite_anim           := $F835                ; reset sprite animation (A=anim, X=entity)
+submit_sound_ID_D9           := $F898                ; submit sound ID (with $D9 prefix)
+submit_sound_ID           := $F89A                ; submit sound ID (direct)
 LFD6E           := $FD6E                ; process frame + yield (full entity update)
 LFD80           := $FD80                ; process frame + yield (sprites only)
-LFF21           := $FF21                ; task yield (wait for NMI)
-LFF3C           := $FF3C                ; update CHR banks via MMC3
-LFF6B           := $FF6B                ; select PRG banks
+task_yield           := $FF21                ; task yield (wait for NMI)
+update_CHR_banks           := $FF3C                ; update CHR banks via MMC3
+select_PRG_banks           := $FF6B                ; select PRG banks
 
 .segment "BANK0B"
 
@@ -65,14 +65,14 @@ LFF6B           := $FF6B                ; select PRG banks
 ; ===========================================================================
 L8006:  lda     #$00
         sta     nmi_skip                ; disable NMI processing
-        jsr     LC752                   ; fade palette to black
+        jsr     fade_palette_in                   ; fade palette to black
         lda     #$04
         sta     oam_ptr                 ; OAM write position
-        jsr     LC5E9                   ; prepare OAM buffer
-        jsr     LC628                   ; clear entity table
-        jsr     LFF21                   ; wait for NMI (task yield)
+        jsr     prepare_oam_buffer                   ; prepare OAM buffer
+        jsr     clear_entity_table                   ; clear entity table
+        jsr     task_yield                   ; wait for NMI (task yield)
         lda     #$F0
-        jsr     LF898                   ; submit sound $F0 (silence/init)
+        jsr     submit_sound_ID_D9                   ; submit sound $F0 (silence/init)
         lda     #$00
         sta     $B1                     ; clear music state vars
         sta     $B2
@@ -89,7 +89,7 @@ L8006:  lda     #$00
 code_8038:  lda     #$00
         sta     $10                     ; column direction = rightward
         jsr     LEF8C                   ; draw one nametable column
-        jsr     LFF21                   ; wait for NMI
+        jsr     task_yield                   ; wait for NMI
         lda     $70
         bne     code_8038               ; loop until nametable fully drawn
 ; --- load palette and CHR bank settings ---
@@ -103,7 +103,7 @@ code_8053:  lda     L86B5,y             ; phase 1 CHR bank assignments
         sta     $E8,y
         dey
         bpl     code_8053
-        jsr     LFF3C                   ; update CHR banks via MMC3
+        jsr     update_CHR_banks                   ; update CHR banks via MMC3
 ; --- set up entities 0 (Mega Man) and 1 (Rush) ---
         ldy     #$01
 code_8061:  lda     #$80
@@ -141,8 +141,8 @@ code_80A6:  lda     L86E9,y
         sta     game_mode               ; set game mode = intro cinematic
         lda     #$C0
         sta     $5E                     ; scroll limit
-        jsr     LFF21                   ; wait for NMI
-        jsr     LC74C                   ; fade palette out (reveal scene)
+        jsr     task_yield                   ; wait for NMI
+        jsr     fade_palette_out                   ; fade palette out (reveal scene)
 ; --- init phase 1 state variables ---
         lda     #$08
         sta     ent_timer               ; music track index
@@ -165,7 +165,7 @@ code_80CB:  ldx     #$00
         cmp     #$01
         beq     code_811A               ; branch if standing idle (== $01)
 ; --- Mega Man is still falling ---
-        jsr     LF797                   ; apply Y speed (gravity)
+        jsr     apply_y_speed                   ; apply Y speed (gravity)
         lda     #$A4
         cmp     ent_y_px                ; has MM reached ground (Y=$A4)?
         bcs     code_80F1               ; not yet, skip
@@ -174,7 +174,7 @@ code_80CB:  ldx     #$00
         cmp     ent_anim_state          ; check if landing anim complete
         bne     code_811A
         lda     #$04                    ; set anim $04 (landed/standing)
-        jsr     LF835                   ; reset sprite animation
+        jsr     reset_sprite_anim                   ; reset sprite animation
 code_80F1:  lda     #$00
         sta     ent_anim_frame          ; reset animation frame
         jmp     code_811A
@@ -192,7 +192,7 @@ code_80F9:  lda     ent_anim_id
         cmp     #$98
         bcs     code_811A               ; Rush hasn't reached target X yet
         lda     #$01                    ; set anim $01 (standing)
-        jsr     LF835                   ; reset sprite animation
+        jsr     reset_sprite_anim                   ; reset sprite animation
 ; --- palette cycling for sunset sky effect ---
 code_811A:  lda     $B8                 ; music continuation flag
         bne     code_8121
@@ -233,7 +233,7 @@ code_814E:  lda     #$08
         bne     code_81AD               ; only update music every 4 frames
         lda     #$0E
         sta     prg_bank                ; bank $0E = music/sound driver
-        jsr     LFF6B                   ; select PRG banks
+        jsr     select_PRG_banks                   ; select PRG banks
         lda     $B8                     ; music continuation flag
         bne     code_817B               ; track playing — continue it
         ldx     ent_timer               ; track index (starts at $08)
@@ -256,11 +256,11 @@ code_8190:  dec     ent_var1            ; count down delay
         beq     code_81B0               ; yes — transition to phase 2
         lda     #$0E
         sta     prg_bank
-        jsr     LFF6B                   ; select music bank
+        jsr     select_PRG_banks                   ; select music bank
         lda     #$00
         sta     nmi_skip
         jsr     LA000                   ; init music driver for next track
-        jsr     LFF21                   ; wait for NMI
+        jsr     task_yield                   ; wait for NMI
 code_81AD:  jmp     code_80CB           ; loop phase 1
 
 ; ===========================================================================
@@ -272,25 +272,25 @@ code_81AD:  jmp     code_80CB           ; loop phase 1
 ; ===========================================================================
 code_81B0:  lda     #$00
         sta     nmi_skip                ; disable NMI
-        jsr     LC752                   ; fade palette to black
+        jsr     fade_palette_in                   ; fade palette to black
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9                   ; prepare OAM buffer
-        jsr     LC628                   ; clear entity table
-        jsr     LFF21                   ; wait for NMI
+        jsr     prepare_oam_buffer                   ; prepare OAM buffer
+        jsr     clear_entity_table                   ; clear entity table
+        jsr     task_yield                   ; wait for NMI
         lda     #$00
         sta     $70                     ; nametable column counter
         sta     game_mode               ; game mode = 0 (reset for phase 2)
         lda     #$13
         sta     prg_bank                ; bank $13 for phase 2 stage tiles
-        jsr     LFF6B                   ; select PRG banks
+        jsr     select_PRG_banks                   ; select PRG banks
         lda     #$08
         jsr     LE8B4                   ; init metatile columns for stage $08
 ; --- fill nametable progressively ---
 code_81D6:  lda     #$00
         sta     $10
         jsr     LEF8C                   ; draw one nametable column
-        jsr     LFF21                   ; wait for NMI
+        jsr     task_yield                   ; wait for NMI
         lda     $70
         bne     code_81D6               ; loop until complete
 ; --- load phase 2 palette and CHR banks ---
@@ -304,7 +304,7 @@ code_81F1:  lda     L86BB,y             ; phase 2 CHR bank assignments
         sta     $E8,y
         dey
         bpl     code_81F1
-        jsr     LFF3C                   ; update CHR banks via MMC3
+        jsr     update_CHR_banks                   ; update CHR banks via MMC3
 ; --- set up Mega Man on Rush (entity 0) ---
         lda     #$80
         sta     ent_status              ; entity active
@@ -328,8 +328,8 @@ code_81F1:  lda     L86BB,y             ; phase 2 CHR bank assignments
         sta     ent_timer               ; movement phase timer
         lda     #$04
         sta     ent_xvel                ; horizontal speed = 4 px/frame
-        jsr     LFF21                   ; wait for NMI
-        jsr     LC74C                   ; fade palette out (reveal scene)
+        jsr     task_yield                   ; wait for NMI
+        jsr     fade_palette_out                   ; fade palette out (reveal scene)
 ; ===========================================================================
 ; Phase 2 Main Loop: Flying upward on Rush Jet
 ; ===========================================================================
@@ -374,7 +374,7 @@ code_827E:  lda     $95
         and     #$0F
         bne     code_8289
         lda     #$28
-        jsr     LF89A                   ; submit wind SFX $28
+        jsr     submit_sound_ID                   ; submit wind SFX $28
 code_8289:  inc     palette_dirty       ; mark palette for NMI upload
         jsr     LFD6E                   ; process frame + yield (full)
         jmp     code_823D               ; loop phase 2
@@ -388,7 +388,7 @@ code_8289:  inc     palette_dirty       ; mark palette for NMI upload
 ; ===========================================================================
 code_8291:  lda     #$00
         sta     nmi_skip                ; disable NMI
-        jsr     LC752                   ; fade palette to black
+        jsr     fade_palette_in                   ; fade palette to black
         lda     #$00
         sta     ent_y_scr              ; reset screen position
         sta     ent_x_scr
@@ -448,7 +448,7 @@ code_8301:  lda     #$5E
 ; --- change MM to standing anim, spawn Proto Man (entity 1) ---
         lda     #$5D
         ldx     #$00
-        jsr     LF835                   ; MM anim $5D (standing on Rush)
+        jsr     reset_sprite_anim                   ; MM anim $5D (standing on Rush)
         lda     ent_status              ; copy MM's entity properties to entity 1
         sta     $0301                   ; ent_status[1]
         lda     ent_flags
@@ -463,7 +463,7 @@ code_8301:  lda     #$5E
         sta     $03C1                   ; ent_y_px[1] = same Y as MM
         ldx     #$01
         lda     #$5C                    ; Proto Man walking anim
-        jsr     LF835                   ; reset entity 1 sprite animation
+        jsr     reset_sprite_anim                   ; reset entity 1 sprite animation
         lda     #$5C
         sta     $0501                   ; ent_timer[1] = $5C (countdown)
         lda     #$B4
@@ -491,7 +491,7 @@ code_835C:  lda     $0521               ; ent_var1[1] = whistle delay
         bne     code_8372
         ldx     #$00
         lda     #$5E                    ; anim $5E = Proto Man whistling
-        jsr     LF835
+        jsr     reset_sprite_anim
 code_8372:  jmp     code_83EA
 ; --- Proto Man departure: prepare MM for flight ---
 code_8375:  lda     #$00
@@ -502,7 +502,7 @@ code_8375:  lda     #$00
         ldx     #$00
         stx     $0301                   ; deactivate Proto Man (entity 1)
         lda     #$5F
-        jsr     LF835                   ; MM anim $5F = riding Rush Jet
+        jsr     reset_sprite_anim                   ; MM anim $5F = riding Rush Jet
         inc     ent_status              ; advance sub-state (start flight)
         lda     #$F0
         sta     $0521                   ; flight countdown timer
@@ -578,7 +578,7 @@ code_8422:  stx     oam_ptr
         and     #$0F                    ; every 16 frames
         bne     code_8430
         lda     #$28
-        jsr     LF89A                   ; wind SFX $28
+        jsr     submit_sound_ID                   ; wind SFX $28
 code_8430:  jsr     LFD80               ; process frame + yield
         inc     ent_var3                ; increment wind timer
         jmp     code_82E2               ; loop phase 3
@@ -594,28 +594,28 @@ code_8430:  jsr     LFD80               ; process frame + yield
 ; ===========================================================================
 code_8439:  lda     #$00
         sta     nmi_skip                ; disable NMI
-        jsr     LC752                   ; fade palette to black
+        jsr     fade_palette_in                   ; fade palette to black
         lda     #$36
-        jsr     LF898                   ; submit music $36 (Doc Robot theme)
+        jsr     submit_sound_ID_D9                   ; submit music $36 (Doc Robot theme)
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9                   ; prepare OAM buffer
-        jsr     LC628                   ; clear entity table
-        jsr     LFF21                   ; wait for NMI
+        jsr     prepare_oam_buffer                   ; prepare OAM buffer
+        jsr     clear_entity_table                   ; clear entity table
+        jsr     task_yield                   ; wait for NMI
         lda     #$16
         sta     stage_id                ; stage $16 = Doc Robot Shadow Man
         lda     #$00
         sta     $70                     ; nametable column counter
         lda     #$0E
         sta     prg_bank                ; bank $0E for stage tile data
-        jsr     LFF6B                   ; select PRG banks
+        jsr     select_PRG_banks                   ; select PRG banks
         lda     #$00
         jsr     LE8B4                   ; init metatile columns
 ; --- fill nametable progressively ---
 code_8466:  lda     #$00
         sta     $10
         jsr     LEF8C                   ; draw one nametable column
-        jsr     LFF21                   ; wait for NMI
+        jsr     task_yield                   ; wait for NMI
         lda     $70
         bne     code_8466               ; loop until complete
 ; --- load palette, CHR banks, and OAM scenery ---
@@ -629,16 +629,16 @@ code_8481:  lda     L86C1,y             ; Doc Robot CHR bank assignments
         sta     $E8,y
         dey
         bpl     code_8481
-        jsr     LFF3C                   ; update CHR banks via MMC3
+        jsr     update_CHR_banks                   ; update CHR banks via MMC3
 ; --- load background sprite decoration ---
         ldy     #$27
 code_848F:  lda     L86F1,y             ; 40 bytes of OAM sprites (scenery)
         sta     $0200,y
         dey
         bpl     code_848F
-        jsr     LC628                   ; clear entity table
-        jsr     LFF21                   ; wait for NMI
-        jsr     LC74C                   ; fade palette out (reveal scene)
+        jsr     clear_entity_table                   ; clear entity table
+        jsr     task_yield                   ; wait for NMI
+        jsr     fade_palette_out                   ; fade palette out (reveal scene)
 ; --- load robot master portrait position sprites ---
         ldy     #$13
 code_84A3:  lda     L8719,y             ; 5 robot master icon positions
@@ -674,7 +674,7 @@ code_84D9:  lda     $95
         lda     $10
         eor     #$2F                    ; toggle between $20 and $0F (flash)
         sta     $10
-code_84EC:  jsr     LFF21               ; wait for NMI
+code_84EC:  jsr     task_yield               ; wait for NMI
         inc     $95
         lda     $95
         cmp     #$30                    ; 48 frames of flashing
@@ -707,7 +707,7 @@ code_850F:  pha
         adc     #$0C                    ; stage bank = $0C + boss index
         sta     stage_id
         sta     prg_bank
-        jmp     LFF6B                   ; select PRG banks and run stage
+        jmp     select_PRG_banks                   ; select PRG banks and run stage
 
 ; ===========================================================================
 ; Subroutine: Process one frame with Doc Robot animation
@@ -815,7 +815,7 @@ code_85A0:  lda     L8774,x             ; copy one sprite to OAM
         iny
         sty     $10
         lda     #$1C
-        jsr     LF89A                   ; reveal SFX $1C
+        jsr     submit_sound_ID                   ; reveal SFX $1C
         jsr     code_8525               ; wait 4 frames (with Doc Robot anim)
         jsr     code_8525
         jsr     code_8525

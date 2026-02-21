@@ -2550,16 +2550,16 @@ code_CD76:  lda     $1F                 ; increment charge counter by $20
         ora     #BTN_B                    ; (triggers weapon_fire in state handler)
         sta     joy1_press
 code_CD8B:  ldy     player_state
-        lda     LCD9A,y                 ; grab player state
+        lda     player_state_ptr_lo,y                 ; grab player state
         sta     L0000                   ; index into state ptr tables
-        lda     LCDB0,y                 ; jump to address
+        lda     player_state_ptr_hi,y                 ; jump to address
         sta     $01
         jmp     (L0000)
 
-LCD9A:  .byte   $36,$07,$FD,$EB,$BA,$13,$AB,$31 ; $02 player_slide
+player_state_ptr_lo:  .byte   $36,$07,$FD,$EB,$BA,$13,$AB,$31 ; $02 player_slide
         .byte   $58,$29,$91,$BE,$D3,$E1,$79,$CC ; $0A player_top_spin
         .byte   $14,$AA,$52,$33,$8A,$8C ; $12 player_warp_anim
-LCDB0:  .byte   $CE,$D0,$D3,$D4,$D5,$D6,$D6,$D8 ; $02
+player_state_ptr_hi:  .byte   $CE,$D0,$D3,$D4,$D5,$D6,$D6,$D8 ; $02
         .byte   $D8,$D9,$D9,$D9,$D9,$DB,$D7,$CD ; $0A
         .byte   $DD,$DD,$DE,$DF,$DF,$E0,$66,$61 ; $12
         .byte   $E0,$CF,$CE
@@ -2673,7 +2673,7 @@ LCE4D:  ldy     $05C1                   ; slot 1 OAM ID >= $D7?
         lda     $0581                   ; clear slot 1 flag bit 0
         and     #$FE
         sta     $0581
-        jsr     LDED8                   ; consume Rush Coil ammo
+        jsr     decrease_ammo_tick                   ; consume Rush Coil ammo
         jmp     player_airborne         ; → airborne state (bouncing up)
 
 LCE88:  lda     ent_anim_id
@@ -2807,7 +2807,7 @@ code_CF65:  rts
 ; Rush Marine ground-mode handler (slot 1 management, walk, climb, jump, shoot)
 ; that was superseded by the current player_rush_marine implementation.
 
-        jsr     LDED8                   ; decrease Rush ammo
+        jsr     decrease_ammo_tick                   ; decrease Rush ammo
         lda     #$82                    ; set slot 1 (Rush) main routine = $82
         cmp     $0321                   ; (skip if already $82)
         beq     code_CF7B
@@ -4040,7 +4040,7 @@ code_D857:  rts
 ; ---------------------------------------------------------------------------
 player_rush_marine:
 
-        jsr     LDED8                   ; drain ammo over time
+        jsr     decrease_ammo_tick                   ; drain ammo over time
         lda     ent_anim_id                   ; intro anim check: $DA = mounting Rush
         cmp     #$DA
         bne     code_D86E               ; not mounting → skip
@@ -4959,10 +4959,10 @@ LDEC2:  .byte   $01,$02,$04,$08,$10,$20,$40,$80
         .byte   $80
 decrease_ammo:  lda     current_weapon
         cmp     #WPN_SNAKE                    ; if current weapon < 6
-        bcc     LDED8                   ; or is even
+        bcc     decrease_ammo_tick                   ; or is even
         and     #$01                    ; excludes Rush weapons
         bne     LDF1A
-LDED8:  ldy     current_weapon                     ; increment number of frames/shots
+decrease_ammo_tick:  ldy     current_weapon                     ; increment number of frames/shots
         inc     $B5                     ; for current weapon, if it has
         lda     $B5                     ; not yet reached the ammo decrease
         cmp     weapon_framerate,y      ; threshold, return
@@ -9764,10 +9764,10 @@ LFFA8:  ldx     $DB                     ; is current sound slot in buffer
         and     #$07                    ; with wraparound $07 -> $00
         sta     $DB
         pla                             ; play sound ID
-        jsr     L8003
+        jsr     L8003                   ; bank $16: play_sound_effect
         jmp     LFFA8                   ; check next slot
 
-LFFC2:  jsr     L8000
+LFFC2:  jsr     L8000                   ; bank $16: sound_driver_tick
         lda     #$00                    ; clear race condition flag
         sta     $F7
         .byte   $4C,$6B,$FF

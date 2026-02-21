@@ -50,11 +50,11 @@
 .include "include/zeropage.inc"
 .include "include/constants.inc"
 
-LF81B           := $F81B
-LF835           := $F835
-LF869           := $F869
-LFC43           := $FC43
-LFF6B           := $FF6B
+reset_gravity           := $F81B
+reset_sprite_anim           := $F835
+face_player           := $F869
+find_enemy_freeslot_x           := $FC43
+select_PRG_banks           := $FF6B
 
 .segment "BANK1A"
 
@@ -1113,7 +1113,7 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         bne     L9C83                   ; indicating $00-$0F are "reserved"
 
 ; ID not found, find a free slot
-        jsr     LFC43                   ; find a slot, if none found
+        jsr     find_enemy_freeslot_x                   ; find a slot, if none found
         bcs     L9C7F                   ; don't spawn
         tya                             ; store new stage ID
         sta     ent_spawn_id,x
@@ -1150,7 +1150,7 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         stx     $05                     ; preserve X
         lda     #$00                    ; switch to bank $00
         sta     prg_bank                     ; for global enemy data
-        jsr     LFF6B                   ; at $A000-$BFFF
+        jsr     select_PRG_banks                   ; at $A000-$BFFF
         ldx     $05                     ; restore X
         pla                             ; Y = global enemy ID
         tay                             ; for initial data lookup
@@ -1163,8 +1163,8 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         lda     LA200,y                 ; hitbox/shape from $A200,y
         sta     ent_hitbox,x
         lda     LA300,y                 ; sprite graphic ID
-        jsr     LF835
-        jsr     LF869                   ; face toward player
+        jsr     reset_sprite_anim
+        jsr     face_player                   ; face toward player
         lda     LA400,y                 ; HP from $A400,y
         sta     ent_hp,x
         lda     LA500,y                 ; Y = speed ID
@@ -1173,7 +1173,7 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         sta     ent_xvel_sub,x
         lda     LA700,y                 ; X velocity pixel
         sta     ent_xvel,x
-        jsr     LF81B                   ; Y velocity
+        jsr     reset_gravity                   ; Y velocity
         lda     #$00
         sta     ent_y_scr,x                 ; clear Y screen,
         sta     ent_x_sub,x                 ; X subpixel,
@@ -1184,7 +1184,7 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         sta     ent_var3,x
         lda     stage_id
         sta     prg_bank                     ; switch $A000-$BFFF bank
-        jmp     LFF6B                   ; back to stage's bank, return
+        jmp     select_PRG_banks                   ; back to stage's bank, return
 
 ; ===========================================================================
 ; Per-Stage Enemy Data — Bitmask and Placement Tables ($9D28+)

@@ -30,31 +30,31 @@ L0000           := $0000
 L8003           := $8003
 L8006           := $8006
 L8009           := $8009
-LF580           := $F580
-LF5C4           := $F5C4
+move_right_collide           := $F580
+move_left_collide           := $F5C4
 LF606           := $F606
 LF642           := $F642
-LF67C           := $F67C
-LF71D           := $F71D
-LF73B           := $F73B
-LF759           := $F759
-LF779           := $F779
-LF797           := $F797
-LF835           := $F835
-LF846           := $F846
-LF869           := $F869
-LF898           := $F898
-LF89A           := $F89A
-LF8B3           := $F8B3
-LF8C2           := $F8C2
+move_vertical_gravity           := $F67C
+move_sprite_right           := $F71D
+move_sprite_left           := $F73B
+move_sprite_down           := $F759
+move_sprite_up           := $F779
+apply_y_speed           := $F797
+reset_sprite_anim           := $F835
+init_child_entity           := $F846
+face_player           := $F869
+submit_sound_ID_D9           := $F898
+submit_sound_ID           := $F89A
+entity_y_dist_to_player           := $F8B3
+entity_x_dist_to_player           := $F8C2
 LFAE2           := $FAE2
 LFB7B           := $FB7B
-LFC53           := $FC53
-LFC63           := $FC63
+find_enemy_freeslot_y           := $FC53
+calc_homing_velocity           := $FC63
 LFD11           := $FD11
 LFD8C           := $FD8C
 LFDA6           := $FDA6
-LFF3C           := $FF3C
+update_CHR_banks           := $FF3C
 
 .segment "BANK12"
 
@@ -151,7 +151,7 @@ code_A058:  lda     ent_status,x
         lda     #$8E                    ; HP fill target (28 HP)
         sta     $B3
         lda     #$0D                    ; SFX $0D = boss intro music
-        jsr     LF898
+        jsr     submit_sound_ID_D9
 LA082:  lda     boss_hp_display                     ; has HP bar filled to $9C?
         cmp     #$9C
         bne     code_A0A1
@@ -167,7 +167,7 @@ code_A099:  lda     ent_timer,x
         dec     ent_timer,x
 code_A0A1:  rts
 
-code_A0A2:  jsr     LFC53
+code_A0A2:  jsr     find_enemy_freeslot_y
         stx     L0000
         lda     ent_var1,x
         sta     ent_timer,y
@@ -261,10 +261,10 @@ code_A13D:  rts
         lda     ent_anim_state,x
         cmp     #$02
         bne     code_A1F5
-        jsr     LFC53
+        jsr     find_enemy_freeslot_y
         bcs     code_A1F5
         lda     #$58
-        jsr     LF846
+        jsr     init_child_entity
         lda     ent_x_px,x
         sta     ent_x_px,y
         lda     ent_x_scr,x
@@ -284,7 +284,7 @@ code_A13D:  rts
         sty     $0F
         stx     $0E
         ldx     $0F
-        jsr     LFC63
+        jsr     calc_homing_velocity
         ldy     $0F
         ldx     $0E
         lda     $0C
@@ -396,7 +396,7 @@ code_A2A7:  sta     $0783,x
         lda     #$00
         sta     $03
         sty     $04
-code_A2C4:  jsr     LFC53
+code_A2C4:  jsr     find_enemy_freeslot_y
         bcs     code_A324
         lda     #$71
         sta     ent_anim_id,y
@@ -467,7 +467,7 @@ code_A364:  lda     ent_anim_id,x
         cmp     #$02
         bne     code_A377
         lda     #$7E
-        jsr     LF835
+        jsr     reset_sprite_anim
 code_A377:  rts
 
 code_A378:  lda     ent_facing,x
@@ -483,16 +483,16 @@ code_A378:  lda     ent_facing,x
         lda     ent_facing,x
         and     #$01
         beq     code_A39A
-        jsr     LF71D
+        jsr     move_sprite_right
         jmp     code_A39D
 
-code_A39A:  jsr     LF73B
+code_A39A:  jsr     move_sprite_left
 code_A39D:  lda     LA5B5,y
         cmp     ent_x_px,x
         bne     code_A423
         inc     ent_status,x
         lda     #$7F
-        jsr     LF835
+        jsr     reset_sprite_anim
 code_A3AD:  lda     ent_anim_state,x
         cmp     #$03
         bne     code_A423
@@ -551,7 +551,7 @@ code_A424:  lda     ent_anim_id,x
         cmp     #$02
         bne     code_A423
         lda     #$7E
-        jmp     LF835
+        jmp     reset_sprite_anim
 
 code_A43B:  jmp     code_A4BB
 
@@ -611,7 +611,7 @@ code_A4B5:  lda     #$00
 
 code_A4BB:  lda     ent_timer,x
         beq     code_A4D0
-        jsr     LF759
+        jsr     move_sprite_down
         lda     ent_y_px,x
         cmp     #$98
         bne     code_A4CF
@@ -650,13 +650,13 @@ code_A4F9:  lda     #$87
 code_A50E:  lda     ent_status,x
         and     #$0F
         bne     code_A551
-        jsr     LF797
+        jsr     apply_y_speed
         lda     #$98
         cmp     ent_y_px,x
         bcs     code_A524
         sta     ent_y_px,x
         bcc     code_A4DF
-code_A524:  jsr     LF71D
+code_A524:  jsr     move_sprite_right
         lda     ent_var2,x
         cmp     ent_x_px,x
         bcs     code_A4CF
@@ -680,13 +680,13 @@ code_A551:  lda     ent_y_px,x
         and     #$0F
         cmp     #$08
         bne     code_A598
-        jsr     LFC53
+        jsr     find_enemy_freeslot_y
         bcs     code_A597
         lda     ent_var3,x
         sta     ent_timer,y
         inc     ent_var3,x
         lda     #$7F
-        jsr     LF846
+        jsr     init_child_entity
         lda     ent_x_px,x
         sta     ent_x_px,y
         lda     ent_x_scr,x
@@ -704,7 +704,7 @@ code_A551:  lda     ent_y_px,x
         sta     ent_status,x
 code_A597:  rts
 
-code_A598:  jmp     LF759
+code_A598:  jmp     move_sprite_down
 
 LA59B:  .byte   $6F,$70
 LA59D:  .byte   $98,$58,$88,$98,$68,$78,$88,$58
@@ -807,7 +807,7 @@ code_A7BA:  lda     #$AB
         lda     #$8E
         sta     $B3
         lda     #$0D
-        jsr     LF898
+        jsr     submit_sound_ID_D9
         lda     #$00
         sta     $69
         sta     $6B
@@ -1054,15 +1054,15 @@ code_AA0A:  lda     $031E
         bne     code_AA7E
         lda     ent_var2,x
         bne     code_AA7B
-        jsr     LF8C2
+        jsr     entity_x_dist_to_player
         cmp     #$48
         bcc     code_AA7E
-        jsr     LFC53
+        jsr     find_enemy_freeslot_y
         bcs     code_AA7E
         lda     #$B4
         sta     ent_var2,x
         lda     #$61
-        jsr     LF846
+        jsr     init_child_entity
         lda     ent_x_px,x
         sta     ent_x_px,y
         lda     camera_screen
@@ -1085,7 +1085,7 @@ code_AA0A:  lda     $031E
         sty     $0F
         stx     $0E
         ldx     $0F
-        jsr     LFC63
+        jsr     calc_homing_velocity
         ldy     $0F
         ldx     $0E
         lda     $0C
@@ -1107,7 +1107,7 @@ code_AA86:  lda     ent_status,y
         rts
 
 code_AA91:  lda     #$58
-        jsr     LF846
+        jsr     init_child_entity
         lda     #$00
         sta     ent_yvel_sub,y
         lda     #$04
@@ -1132,8 +1132,8 @@ code_AA91:  lda     #$58
         ldy     $0F
         sta     ent_x_px,y
         ldx     $0F
-        jsr     LF869
-        jsr     LF8C2
+        jsr     face_player
+        jsr     entity_x_dist_to_player
         sta     $01
         lda     #$00
         sta     L0000
@@ -1280,7 +1280,7 @@ code_AC19:  lda     ent_timer,x
         and     #$03
         bne     code_AC4B
         lda     #$1C
-        jsr     LF89A
+        jsr     submit_sound_ID
         inc     boss_hp_display
         lda     boss_hp_display
         cmp     #$9C
@@ -1305,10 +1305,10 @@ code_AC4F:  lda     #$02
         sta     $02
         lda     ent_y_px,x
         sta     $03
-code_AC5D:  jsr     LFC53
+code_AC5D:  jsr     find_enemy_freeslot_y
         bcs     code_AC96
         lda     #$59
-        jsr     LF846
+        jsr     init_child_entity
         lda     #$00
         sta     ent_timer,y
         sta     ent_hitbox,y
@@ -1334,17 +1334,17 @@ code_AC96:  rts
 code_AC97:  lda     ent_facing,x
         and     #$01
         beq     code_ACA4
-        jsr     LF71D
+        jsr     move_sprite_right
         jmp     code_ACA7
 
-code_ACA4:  jsr     LF73B
+code_ACA4:  jsr     move_sprite_left
 code_ACA7:  lda     ent_facing,x
         and     #$08
         beq     code_ACB4
-        jsr     LF779
+        jsr     move_sprite_up
         jmp     code_ACB7
 
-code_ACB4:  jsr     LF759
+code_ACB4:  jsr     move_sprite_down
 code_ACB7:  ldy     ent_timer,x
         lda     #$00
         sta     L0000
@@ -1391,13 +1391,13 @@ code_AD1E:  lda     ent_var2,x
         sta     ent_var1,x
 code_AD24:  rts
 
-code_AD25:  jsr     LF797
+code_AD25:  jsr     apply_y_speed
         lda     ent_facing,x
         and     #$01
         beq     code_AD32
-        jmp     LF71D
+        jmp     move_sprite_right
 
-code_AD32:  jmp     LF73B
+code_AD32:  jmp     move_sprite_left
 
 LAD35:  .byte   $D3,$1D
 LAD37:  .byte   $A7,$A8
@@ -1442,14 +1442,14 @@ code_ADE0:  lda     ent_status,x             ; AI phase
         lda     #$8E                    ; HP fill target (28 HP)
         sta     $B3
         lda     #$0D                    ; SFX $0D = boss intro music
-        jsr     LF898
+        jsr     submit_sound_ID_D9
         lda     #$30
         sta     ent_timer,x
         lda     #$6C
         sta     $E8
         lda     #$6E
         sta     $E9
-        jsr     LFF3C
+        jsr     update_CHR_banks
         lda     #$00
         sta     $69
         sta     $6A
@@ -1510,17 +1510,17 @@ LAE81:  .byte   $0F,$30,$16,$04,$0F,$30,$11,$01
 LAE8D:  .byte   $0F,$01,$30,$11,$0F,$0F,$30,$10
 code_AE95:  lda     ent_timer,x
         bne     code_AEAC
-        jsr     LF8C2
+        jsr     entity_x_dist_to_player
         cmp     #$50
         bcs     code_AEAF
-        jsr     LF869
+        jsr     face_player
         jsr     code_AFD2
         lda     #$1F
         sta     ent_timer,x
 code_AEAC:  dec     ent_timer,x
 code_AEAF:  lda     ent_var2,x
         bne     code_AEBB
-        jsr     LF8B3
+        jsr     entity_y_dist_to_player
         cmp     #$30
         bcs     code_AEE3
 code_AEBB:  lda     ent_var1,x
@@ -1550,7 +1550,7 @@ code_AEED:  cpy     #$10
         lda     #$7A
         bne     code_AEF7
 code_AEF5:  lda     #$5B
-code_AEF7:  jsr     LF846
+code_AEF7:  jsr     init_child_entity
         lda     #$90
         sta     ent_flags,y
         lda     #$00
@@ -1600,9 +1600,9 @@ code_AEF7:  jsr     LF846
         and     #$BF
         sta     ent_hitbox,x
         lda     #$6B
-        jmp     LF835
+        jmp     reset_sprite_anim
 
-code_AF76:  jsr     LFC53
+code_AF76:  jsr     find_enemy_freeslot_y
         bcs     code_AFCD
         sty     L0000
         lda     ent_facing,x
@@ -1626,7 +1626,7 @@ code_AF76:  jsr     LFC53
         lda     #$01
         sta     ent_xvel,y
         lda     #$58
-        jsr     LF846
+        jsr     init_child_entity
         lda     #$51
         sta     ent_routine,y
         lda     #$8B
@@ -1642,14 +1642,14 @@ code_AFCD:  rts
 
 LAFCE:  .byte   $0F
 LAFCF:  .byte   $00,$F1,$FF
-code_AFD2:  jsr     LFC53
+code_AFD2:  jsr     find_enemy_freeslot_y
         bcs     code_B02E
         lda     #$00
         sta     ent_yvel_sub,y
         lda     #$04
         sta     ent_yvel,y
         lda     #$58
-        jsr     LF846
+        jsr     init_child_entity
         lda     #$8B
         sta     ent_hitbox,y
         lda     #$0C
@@ -1666,7 +1666,7 @@ code_AFD2:  jsr     LFC53
         sta     ent_y_scr,y
         lda     ent_facing,x
         sta     ent_facing,y
-        jsr     LF8C2
+        jsr     entity_x_dist_to_player
         stx     L0000
         ldx     #$03
 code_B018:  cmp     LB02F,x
@@ -1685,10 +1685,10 @@ LB033:  .byte   $00,$80,$00,$80
 LB037:  .byte   $02,$01,$01,$00
 code_B03B:  lda     ent_timer,x
         bne     code_B08E
-        jsr     LFC53
+        jsr     find_enemy_freeslot_y
         bcs     code_B091
         lda     #$77
-        jsr     LF846
+        jsr     init_child_entity
         lda     ent_x_px,x
         sta     ent_x_px,y
         lda     ent_x_scr,x
@@ -1710,7 +1710,7 @@ code_B03B:  lda     ent_timer,x
         sty     $0F
         stx     $0E
         ldx     $0F
-        jsr     LFC63
+        jsr     calc_homing_velocity
         ldy     $0F
         ldx     $0E
         lda     $0C
@@ -1871,7 +1871,7 @@ code_B1DA:  rts
 ; ---------------------------------------------------------------------------
 code_B1DE:  jsr     LFAE2               ; is player touching teleporter?
         bcs     code_B20F               ; no → return
-        jsr     LF8C2                   ; detailed alignment check
+        jsr     entity_x_dist_to_player                   ; detailed alignment check
         cmp     #$02                    ; close enough to center?
         bcs     code_B20F               ; no → return
         lda     ent_x_px,x                 ; snap player X to teleporter X
@@ -1927,7 +1927,7 @@ code_B245:  lda     ent_y_px,x
         lda     #$6C
         cmp     ent_anim_id,x
         beq     code_B265
-        jsr     LF835
+        jsr     reset_sprite_anim
         lda     #$10
         sta     ent_timer,x
 code_B265:  lda     ent_anim_id,x
@@ -1941,7 +1941,7 @@ code_B265:  lda     ent_anim_id,x
 code_B279:  rts
 
 code_B27A:  ldy     #$08
-        jsr     LF67C
+        jsr     move_vertical_gravity
         bcs     code_B285
         inc     ent_x_px,x
         rts
@@ -1949,10 +1949,10 @@ code_B27A:  ldy     #$08
 code_B285:  lda     #$6C
         cmp     ent_anim_id,x
         beq     code_B28F
-        jsr     LF835
+        jsr     reset_sprite_anim
 code_B28F:  rts
 
-code_B290:  jsr     LF797
+code_B290:  jsr     apply_y_speed
         lda     #$B0
         cmp     ent_y_px,x
         bcs     code_B28F
@@ -1965,10 +1965,10 @@ code_B290:  jsr     LF797
         sta     ent_status,x
 code_B2AB:  lda     #$03
         sta     L0000
-code_B2AF:  jsr     LFC53
+code_B2AF:  jsr     find_enemy_freeslot_y
         bcs     code_B28F
         lda     #$78
-        jsr     LF846
+        jsr     init_child_entity
         lda     #$FA
         sta     ent_routine,y
         lda     #$00
@@ -2010,7 +2010,7 @@ code_B307:  lda     ent_flags
         cmp     #$3C
         bne     code_B32B
         lda     #$79
-        jsr     LF835
+        jsr     reset_sprite_anim
         stx     ent_var3
         lda     #$00
         sta     ent_routine,x
@@ -2020,10 +2020,10 @@ code_B307:  lda     ent_flags
 
 code_B32B:  inc     ent_var1,x
         bne     code_B379
-        jsr     LFC53
+        jsr     find_enemy_freeslot_y
         bcs     code_B379
         lda     #$7D
-        jsr     LF846
+        jsr     init_child_entity
         lda     #$00
         sta     ent_y_px,y
         lda     ent_x_px,x
@@ -2054,7 +2054,7 @@ LB37A:  .byte   $A8,$A8,$B8,$B8
 LB37E:  .byte   $F8,$08,$F8,$08
 LB382:  .byte   $02,$01,$02,$01
 LB386:  .byte   $02,$02,$01,$01
-code_B38A:  jsr     LF797
+code_B38A:  jsr     apply_y_speed
         lda     ent_y_px,x
         cmp     #$B8
         bcc     code_B39A
@@ -2065,11 +2065,11 @@ code_B38A:  jsr     LF797
 code_B39A:  lda     ent_facing,x
         and     #$01
         beq     code_B3A4
-        jmp     LF71D
+        jmp     move_sprite_right
 
-code_B3A4:  jmp     LF73B
+code_B3A4:  jmp     move_sprite_left
 
-code_B3A7:  jsr     LF797
+code_B3A7:  jsr     apply_y_speed
         lda     ent_facing,x
         and     #$02
         beq     code_B3DA
@@ -2101,14 +2101,14 @@ code_B3DA:  lda     #$94
         cmp     #$7B
         bne     code_B3F8
         lda     #$7A
-        jsr     LF835
+        jsr     reset_sprite_anim
         lda     #$00
         sta     $B8
 code_B3F8:  lda     ent_anim_state,x
         cmp     #$04
         bne     code_B46B
         lda     #$7B
-        jsr     LF835
+        jsr     reset_sprite_anim
         lda     #$A3
         sta     ent_yvel_sub,x
         lda     #$04
@@ -2122,9 +2122,9 @@ code_B418:  lda     #$00
 code_B41D:  lda     ent_facing,x
         and     #$01
         beq     code_B427
-        jmp     LF71D
+        jmp     move_sprite_right
 
-code_B427:  jmp     LF73B
+code_B427:  jmp     move_sprite_left
 
 code_B42A:  inc     ent_timer,x
         lda     ent_timer,x
@@ -2153,7 +2153,7 @@ code_B457:  lda     #$A3
         lda     #$04
         sta     ent_yvel,x
         lda     #$7B
-        jsr     LF835
+        jsr     reset_sprite_anim
         lda     #$02
         sta     ent_facing,x
 code_B46B:  rts
@@ -2177,10 +2177,10 @@ code_B474:  lda     ent_hitbox,x
         sta     $02
         lda     ent_y_px,x
         sta     $03
-code_B49E:  jsr     LFC53
+code_B49E:  jsr     find_enemy_freeslot_y
         bcs     code_B4E4
         lda     #$71
-        jsr     LF846
+        jsr     init_child_entity
         lda     #$00
         sta     ent_timer,y
         sta     ent_hitbox,y
@@ -2255,13 +2255,13 @@ code_B526:  lda     ent_timer,x
 code_B548:  lda     ent_facing,x
         and     #$04
         bne     code_B55E
-        jsr     LF779
+        jsr     move_sprite_up
         lda     #$48
         cmp     ent_y_px,x
         bcc     code_B573
         sta     ent_y_px,x
         bcs     code_B56B
-code_B55E:  jsr     LF759
+code_B55E:  jsr     move_sprite_down
         lda     #$80
         cmp     ent_y_px,x
         bcs     code_B573
@@ -2294,10 +2294,10 @@ code_B595:  lda     ent_y_px,x
 
 code_B5A1:  lda     #$02
         sta     $01
-code_B5A5:  jsr     LFC53
+code_B5A5:  jsr     find_enemy_freeslot_y
         bcs     code_B5FA
         lda     #$6F
-        jsr     LF846
+        jsr     init_child_entity
         lda     #$80
         sta     ent_hitbox,y
         lda     #$00
@@ -2329,10 +2329,10 @@ code_B5A5:  jsr     LFC53
         bpl     code_B5A5
 code_B5FA:  rts
 
-code_B5FB:  jsr     LFC53
+code_B5FB:  jsr     find_enemy_freeslot_y
         bcs     code_B5FA
         lda     #$1D
-        jsr     LF846
+        jsr     init_child_entity
         lda     #$C0
         sta     ent_hitbox,y
         lda     #$6D
@@ -2379,7 +2379,7 @@ code_B664:  lda     ent_status,x
         lda     #$8E
         sta     $B3
         lda     #$0D
-        jsr     LF898
+        jsr     submit_sound_ID_D9
 code_B682:  lda     boss_hp_display
         cmp     #$9C
         bne     code_B6EC
@@ -2399,24 +2399,24 @@ code_B68E:  lda     ent_status,x
         lda     ent_timer,x
         bne     code_B6C7
         lda     #$4F
-        jsr     LF835
+        jsr     reset_sprite_anim
 code_B6B2:  lda     ent_anim_state,x
         cmp     #$02
         bne     code_B6EC
         jsr     code_B756
         inc     ent_var2,x
         lda     #$31
-        jsr     LF835
+        jsr     reset_sprite_anim
         inc     ent_var1,x
 code_B6C7:  lda     ent_facing,x
         and     #$01
         beq     code_B6D6
         ldy     #$20
-        jsr     LF580
+        jsr     move_right_collide
         jmp     code_B6DB
 
 code_B6D6:  ldy     #$21
-        jsr     LF5C4
+        jsr     move_left_collide
 code_B6DB:  bcc     code_B6E5
         lda     ent_facing,x
         eor     #$03
@@ -2452,7 +2452,7 @@ code_B6FC:  dey
         jmp     L8006
 
 code_B71D:  lda     #$31
-        jsr     LF835
+        jsr     reset_sprite_anim
         jsr     code_B732
         rts
 
@@ -2476,7 +2476,7 @@ code_B732:  lda     $E4
 LB748:  .byte   $40,$A0,$70,$D0
 LB74C:  .byte   $01,$02,$01,$02
 LB750:  .byte   $01,$02,$03,$05,$08,$0A
-code_B756:  jsr     LFC53
+code_B756:  jsr     find_enemy_freeslot_y
         bcs     code_B7C5
         sty     L0000
         lda     ent_x_px,x
@@ -2513,7 +2513,7 @@ code_B756:  jsr     LFC53
         sta     ent_xvel,y
         sta     ent_yvel,y
         lda     #$5E
-        jsr     LF846
+        jsr     init_child_entity
         lda     ent_facing,y
         and     #$01
         bne     code_B7C5
@@ -2557,11 +2557,11 @@ code_B81C:  lda     ent_facing,x
         and     #$01
         beq     code_B82B
         ldy     #$0C
-        jsr     LF580
+        jsr     move_right_collide
         jmp     code_B830
 
 code_B82B:  ldy     #$0D
-        jsr     LF5C4
+        jsr     move_left_collide
 code_B830:  bcc     code_B847
         lda     ent_facing,x
         eor     #$03
@@ -2628,7 +2628,7 @@ code_B8A3:  lda     ent_var3,x
         sta     ent_xvel,x
         inc     ent_var3,x
 code_B8C7:  ldy     #$0F
-        jsr     LF67C
+        jsr     move_vertical_gravity
         lda     $10
         and     #$10
         beq     code_B8D5
@@ -2638,14 +2638,14 @@ code_B8D5:  lda     ent_facing,x
         and     #$01
         beq     code_B8EC
         ldy     #$0C
-        jsr     LF580
+        jsr     move_right_collide
         lda     ent_flags,x
         and     #$BF
         sta     ent_flags,x
         jmp     code_B8F9
 
 code_B8EC:  ldy     #$0D
-        jsr     LF5C4
+        jsr     move_left_collide
         lda     ent_flags,x
         ora     #$40
         sta     ent_flags,x
@@ -2726,7 +2726,7 @@ code_B9AF:  lda     #$64
         sta     ent_anim_id,x
         rts
 
-code_B9B5:  jsr     LFC53
+code_B9B5:  jsr     find_enemy_freeslot_y
         bcs     code_B9E7
         sty     L0000
         lda     ent_x_px,x
@@ -2744,11 +2744,11 @@ code_B9B5:  jsr     LFC53
         sta     ent_hitbox,y
         sta     ent_hp,y
         lda     #$67
-        jsr     LF846
+        jsr     init_child_entity
 code_B9E7:  rts
 
         .byte   $00,$00,$00,$00
-code_B9EC:  jsr     LFC53
+code_B9EC:  jsr     find_enemy_freeslot_y
         bcs     code_BA2E
         sty     L0000
         lda     ent_facing,x
@@ -2766,7 +2766,7 @@ code_B9EC:  jsr     LFC53
         lda     #$01
         sta     ent_hp,y
         lda     #$66
-        jsr     LF846
+        jsr     init_child_entity
         lda     ent_facing,y
         and     #$01
         bne     code_BA2E
@@ -2790,7 +2790,7 @@ code_BA2F:  lda     ent_status,x
 code_BA4E:  jsr     LFB7B
         bcs     code_BA62
         lda     #$18
-        jsr     LF89A
+        jsr     submit_sound_ID
         ldy     $10
         lda     #$00
         sta     ent_status,y
@@ -2799,7 +2799,7 @@ code_BA4E:  jsr     LFB7B
 code_BA62:  lda     ent_status,x
         and     #$02
         bne     code_BA7A
-        jsr     LF779
+        jsr     move_sprite_up
         dec     ent_timer,x
         bne     code_BA79
         lda     #$02
@@ -2810,10 +2810,10 @@ code_BA79:  rts
 code_BA7A:  lda     ent_facing,x
         and     #$01
         bne     code_BA87
-        jsr     LF779
+        jsr     move_sprite_up
         jmp     code_BA8A
 
-code_BA87:  jsr     LF759
+code_BA87:  jsr     move_sprite_down
 code_BA8A:  dec     ent_timer,x
         bne     code_BA9C
         lda     ent_facing,x
@@ -2826,7 +2826,7 @@ code_BA9C:  dec     ent_var1,x
         lda     #$90
         sta     ent_flags,x
 code_BAA6:  lda     #$59
-        jsr     LF835
+        jsr     reset_sprite_anim
         lda     #$00
         sta     ent_timer,x
         lda     #$19
@@ -2924,7 +2924,7 @@ LBB71:  .byte   $48,$58,$68,$78,$88,$98,$A8,$B8
         .byte   $88,$B8,$A8,$98,$88,$78,$68,$58
 LBB81:  .byte   $28,$38,$48,$58,$68,$78,$88,$98
         .byte   $A8,$B8,$C8,$D8,$B8,$A8,$98,$88
-code_BB91:  jsr     LFC53
+code_BB91:  jsr     find_enemy_freeslot_y
         bcs     code_BC07
         sty     L0000
         lda     ent_x_scr,x
@@ -2939,7 +2939,7 @@ code_BB91:  jsr     LFC53
         and     #$08
         bne     code_BBD8
         lda     #$5D
-        jsr     LF846
+        jsr     init_child_entity
         lda     ent_facing,x
         sta     ent_facing,y
         and     #$01
@@ -2956,7 +2956,7 @@ code_BB91:  jsr     LFC53
 code_BBD8:  lda     ent_facing,x
         sta     ent_facing,y
         lda     #$5C
-        jsr     LF846
+        jsr     init_child_entity
         lda     ent_x_px,x
         sta     ent_x_px,y
         lda     ent_y_px,x
@@ -2988,11 +2988,11 @@ code_BC20:  lda     ent_facing,x
         and     #$01
         beq     code_BC2F
         ldy     #$08
-        jsr     LF580
+        jsr     move_right_collide
         jmp     code_BC34
 
 code_BC2F:  ldy     #$09
-        jsr     LF5C4
+        jsr     move_left_collide
 code_BC34:  bcc     code_BC48
 code_BC36:  lda     ent_facing,x
         and     #$08
@@ -3003,10 +3003,10 @@ code_BC3D:  lda     #$00
         sta     ent_spawn_id,x
         rts
 
-code_BC48:  jsr     LF8C2
+code_BC48:  jsr     entity_x_dist_to_player
         cmp     #$18
         bcs     code_BC75
-        jsr     LF8B3
+        jsr     entity_y_dist_to_player
         cmp     #$14
         bcs     code_BC75
         lda     ent_facing,x
@@ -3042,7 +3042,7 @@ code_BC7D:  lda     ent_status,x
         lda     #$8E
         sta     $B3
         lda     #$0D
-        jsr     LF898
+        jsr     submit_sound_ID_D9
 code_BC99:  lda     boss_hp_display
         cmp     #$9C
         bne     code_BCFA
@@ -3080,7 +3080,7 @@ code_BCE6:  lda     ent_anim_state,x
         cmp     #$04
         bne     code_BCFA
         lda     #$04
-        jsr     LF835
+        jsr     reset_sprite_anim
         lda     #$3C
         sta     ent_timer,x
         inc     ent_status,x
@@ -3092,13 +3092,13 @@ code_BCFB:  lda     ent_facing,x
         lda     ent_flags,x
         ora     #$40
         sta     ent_flags,x
-        jsr     LF71D
+        jsr     move_sprite_right
         jmp     code_BD1B
 
 code_BD10:  lda     ent_flags,x
         and     #$BF
         sta     ent_flags,x
-        jsr     LF73B
+        jsr     move_sprite_left
 code_BD1B:  dec     ent_var1,x
         bne     code_BD30
         lda     ent_facing,x
@@ -3119,12 +3119,12 @@ code_BD30:  lda     ent_var2,x
         lda     #$A1
         sta     ent_hitbox,x
         lda     #$01
-        jmp     LF835
+        jmp     reset_sprite_anim
 
 code_BD50:  dec     ent_timer,x
         bne     code_BD6C
         lda     #$05
-        jsr     LF835
+        jsr     reset_sprite_anim
         jsr     code_BEB8
         lda     $E4
         adc     $E5
@@ -3141,7 +3141,7 @@ code_BD6C:  lda     ent_anim_id,x
         cmp     #$03
         bne     code_BD81
         lda     #$04
-        jsr     LF835
+        jsr     reset_sprite_anim
 code_BD81:  rts
 
 code_BD82:  lda     ent_anim_id,x
@@ -3150,7 +3150,7 @@ code_BD82:  lda     ent_anim_id,x
         dec     ent_var3,x
         bne     code_BD98
         lda     #$13
-        jsr     LF835
+        jsr     reset_sprite_anim
         lda     #$3C
         sta     ent_var3,x
 code_BD98:  rts
@@ -3175,7 +3175,7 @@ code_BDB2:  dec     ent_var3,x
         sta     ent_var2,x
         sta     ent_var3,x
         lda     #$13
-        jsr     LF835
+        jsr     reset_sprite_anim
         lda     #$94
         sta     ent_flags,x
         lda     #$80
@@ -3185,7 +3185,7 @@ code_BDB2:  dec     ent_var3,x
         rts
 
 LBDDE:  .byte   $1E,$3C,$1E,$3C
-code_BDE2:  jsr     LFC53
+code_BDE2:  jsr     find_enemy_freeslot_y
         bcs     code_BE4B
         sty     L0000
         lda     ent_x_scr,x
@@ -3203,7 +3203,7 @@ code_BDE2:  jsr     LFC53
         lda     #$01
         sta     ent_xvel,y
         lda     #$13
-        jsr     LF846
+        jsr     init_child_entity
         lda     #$00
         sta     ent_var2,y
         sta     ent_var3,y
@@ -3261,7 +3261,7 @@ code_BE9A:  lda     #$00
 LBEA0:  .byte   $24,$C4,$74,$74,$24,$C4,$74,$74
 LBEA8:  .byte   $01,$01,$02,$02,$01,$01,$02,$02
 LBEB0:  .byte   $00,$02,$04,$06,$08,$0A,$0C,$0E
-code_BEB8:  jsr     LFC53
+code_BEB8:  jsr     find_enemy_freeslot_y
         bcs     code_BF14
         sty     L0000
         lda     ent_facing,x
@@ -3288,13 +3288,13 @@ code_BEB8:  jsr     LFC53
         sty     $0F
         stx     $0E
         ldx     $0F
-        jsr     LFC63
+        jsr     calc_homing_velocity
         ldy     $0F
         ldx     $0E
         lda     $0C
         sta     ent_facing,y
         lda     #$73
-        jsr     LF846
+        jsr     init_child_entity
         lda     #$8F
         sta     ent_routine,y
         lda     #$8B
