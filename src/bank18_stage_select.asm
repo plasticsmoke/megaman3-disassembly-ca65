@@ -693,7 +693,7 @@ code_909D:  lda     $9C69,x
         jsr     LC74C
 code_90B4:
         lda     $14
-        and     #$10
+        and     #BTN_START
         bne     stage_select_init
         lda     $14
         and     #$0C
@@ -874,7 +874,7 @@ code_91EF:  jsr     L93FE
         jsr     LFF21
         inc     $EE
         lda     $14
-        and     #$10
+        and     #BTN_START
         beq     code_91EF
         lda     $0200
         cmp     #$B7
@@ -1316,7 +1316,7 @@ LB412:  lda     player_hp,y                   ; $A2-$AD = weapon ammo
 LB41C:  dey
         bpl     LB412
         lda     $22                     ; stage < $08 = Robot Master
-        cmp     #$08                    ; stage >= $08 = Doc Robot/Wily
+        cmp     #STAGE_DOC_NEEDLE                    ; stage >= $08 = Doc Robot/Wily
         bcc     LB428
         jmp     L9581                   ; → skip to stage loading for Doc/Wily
 
@@ -1970,7 +1970,7 @@ code_98DC:  pha
 code_98F2:
         jsr     L93FE
         lda     $14
-        and     #$10
+        and     #BTN_START
         bne     code_9901
         jsr     LFF21
         jmp     L98F2
@@ -1986,7 +1986,7 @@ code_990B:  dex
         cmp     #$C7
         beq     code_991E
         lda     $22
-        cmp     #$0C
+        cmp     #STAGE_WILY1
         bcs     code_992C
         jsr     L9212
 code_991E:  lda     #$02
@@ -2230,7 +2230,7 @@ code_9ABE:
         sta     $2E
         lda     #$0D
         sta     $2B
-        lda     #$03
+        lda     #STAGE_HARD
         sta     $22
         sta     $F5
         jsr     LFF6B

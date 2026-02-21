@@ -1249,7 +1249,7 @@ code_ABD5:  rts
 code_ABD6:  lda     $B3
         bpl     code_ABD5
         lda     $30
-        cmp     #$09
+        cmp     #PSTATE_BOSS_WAIT
         beq     code_ABD5
         lda     ent_hp,x
         beq     code_AC19
@@ -1434,7 +1434,7 @@ code_ADE0:  lda     ent_status,x             ; AI phase
         bne     code_AE17               ; skip init if not phase 0
         sta     $95
         inc     ent_status,x                 ; advance to phase 1
-        lda     #$09                    ; state → $09 (boss_wait)
+        lda     #PSTATE_BOSS_WAIT                    ; state → $09 (boss_wait)
         sta     $30                     ; freeze player for HP fill
         lda     #$80                    ; init boss HP display
         sta     $B0
@@ -1576,7 +1576,7 @@ code_AEF7:  jsr     LF846
         bne     code_AEED
 
 ; Gamma phase transition — scroll screen vertically
-        lda     #$10                    ; state → $10 (screen_scroll)
+        lda     #PSTATE_SCREEN_SCROLL                    ; state → $10 (screen_scroll)
         sta     $30                     ; player frozen during scroll
         lda     #$C0
         sta     ent_status,x
@@ -1819,9 +1819,9 @@ code_B17B:  lda     ent_flags,x
         and     #$04
         bne     code_B1BF
         lda     $30
-        cmp     #$06
+        cmp     #PSTATE_DAMAGE
         beq     code_B1BF
-        cmp     #$0E
+        cmp     #PSTATE_DEATH
         beq     code_B1BF
         lda     ent_y_px
         pha
@@ -1845,7 +1845,7 @@ code_B1A7:  pla
         bne     code_B1BF               ; skip
         jsr     LFAE2                   ; AABB collision test
         bcs     code_B1BF               ; no collision → skip
-        lda     #$0E                    ; state → $0E (death)
+        lda     #PSTATE_DEATH                    ; state → $0E (death)
         sta     $30                     ; instant kill, no damage calc
 code_B1BF:  lda     ent_flags,x
         .byte   $09
@@ -1881,7 +1881,7 @@ code_B1DE:  jsr     LFAE2               ; is player touching teleporter?
         cmp     #$01
         beq     code_B20F               ; destination 1 = invalid? skip
         sta     $6C                     ; $6C = warp destination
-        lda     #$11                    ; state → $11 (warp_init)
+        lda     #PSTATE_WARP_INIT                    ; state → $11 (warp_init)
         sta     $30                     ; begin teleporter sequence
         lda     #$13                    ; player OAM $13 = teleport beam
         sta     ent_anim_id
@@ -2084,7 +2084,7 @@ code_B3A7:  jsr     LF797
         ldy     ent_var3
         sta     ent_status,y
         sta     ent_timer                   ; clear player timer
-        lda     #$0D                    ; state → $0D (teleport)
+        lda     #PSTATE_TELEPORT                    ; state → $0D (teleport)
         sta     $30                     ; player teleports away (end stage)
         lda     ent_flags
         and     #$FB

@@ -158,7 +158,7 @@ code_A0DD:  lda     #$05
         sta     ent_timer,x
         dec     ent_status,x
         lda     $30                     ; if player already dead ($0E),
-        cmp     #$0E                    ; don't reset state
+        cmp     #PSTATE_DEATH                    ; don't reset state
         beq     code_A0F4
         lda     #$00                    ; state → $00 (on_ground)
         sta     $30                     ; release player from Doc Robot
@@ -261,9 +261,9 @@ code_A1B6:  lda     LA1E4,y
 ; Triggered by Doc Flash Man's Time Stopper attack (Gemini Man Doc Robot stage).
 ; [confirmed via Mesen]
         lda     $30                     ; if player already dead ($0E),
-        cmp     #$0E                    ; don't overwrite with special_death
+        cmp     #PSTATE_DEATH                    ; don't overwrite with special_death
         beq     code_A1E3
-        lda     #$07                    ; state → $07 (special_death)
+        lda     #PSTATE_SPECIAL_DEATH                    ; state → $07 (special_death)
         sta     $30                     ; palette cycling kill effect
         lda     #$1E                    ; timer = 30 frames
         sta     ent_timer
@@ -575,7 +575,7 @@ code_A4EA:  ldy     #$1E
         lda     ent_timer,x
         bne     code_A504
         lda     $14
-        and     #$40
+        and     #BTN_B
         beq     code_A503
         inc     ent_status,x
         jsr     code_A599
@@ -591,7 +591,7 @@ code_A504:  dec     ent_var1,x
         rts
 
 code_A515:  lda     joy1_press
-        and     #$40
+        and     #BTN_B
         beq     code_A503
         inc     ent_status,x
         jsr     code_A599
@@ -828,7 +828,7 @@ code_A724:  dec     ent_timer,x
         rts
 
 code_A732:  lda     joy1_press
-        and     #$40
+        and     #BTN_B
         beq     code_A73B
         inc     ent_status,x
 code_A73B:  rts

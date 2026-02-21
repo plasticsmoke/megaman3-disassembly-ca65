@@ -53,7 +53,22 @@ src/
   bank1C_1D_entity_ai.asm    Sprite processing & entity AI (banks $1C-$1D)
   fixed/
     fixed_bank.asm            Fixed bank — main game logic (banks $1E-$1F)
+    camera.asm                Camera / scroll engine
+    collision_util.asm        Collision utility routines
+    entity_move.asm           Entity movement / physics
+    game_loop.asm             Main gameplay loop
+    nmi_irq.asm               NMI / IRQ handlers
+    player_states.asm         Player state machine (22 states)
+    ppu_util.asm              PPU utility routines
+    render_col.asm            Nametable column renderer
+    reset_bankswitch.asm      Reset vector + bank switching
+    sprite_anim.asm           Sprite animation engine
+    stage_load.asm            Stage loading / screen transitions
+    tile_collision.asm        Tile collision detection
   chr.asm                     CHR ROM (128KB pattern tables)
+include/
+  zeropage.inc                Zero-page variable definitions
+  constants.inc               Named constants (entity arrays, IDs, masks)
 cfg/
   nes.cfg                     ld65 linker configuration
 chr/

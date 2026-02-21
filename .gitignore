@@ -22,6 +22,9 @@ src/fixed/entity_move.asm
 src/fixed/collision_util.asm
 src/fixed/reset_bankswitch.asm
 
+# Tools (one-off conversion scripts, not part of the build)
+tools/
+
 # Python
 __pycache__/
 *.pyc
