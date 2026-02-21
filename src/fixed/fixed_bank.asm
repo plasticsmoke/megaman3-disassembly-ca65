@@ -1171,6 +1171,26 @@ wave_y_scroll_set:  .byte   $30,$60,$90 ; Y scroll for set_strip: 48/96/144
 wave_y_scroll_advance:  .byte   $40,$70,$A0 ; Y scroll for advance: 64/112/160
 
 ; ===========================================================================
+; PPU UTILITY ROUTINES — $C4F8-$C815
+; ===========================================================================
+; Contains:
+;   drain_ppu_buffer      — flush PPU write buffer at $0780 to nametable
+;   disable_nmi / enable_nmi — PPUCTRL NMI flag management
+;   rendering_off / rendering_on — PPUMASK rendering control + nmi_skip
+;   read_controllers      — read both joypads with DPCM-glitch mitigation
+;   fill_nametable        — fill a PPU nametable with a single tile
+;   prepare_oam_buffer    — clear unused OAM + draw overlay/scroll sprites
+;   clear_entity_table    — deactivate all non-player entity slots
+;   load_overlay_sprites  — copy ROM sprite data for stage transition overlays
+;   scroll_overlay_sprites — slide overlay sprites leftward each frame
+;   draw_scroll_sprites   — draw 8 camera-tracking sprites
+;   fade_palette_out/in   — blocking palette fade effects
+;   palette_fade_tick     — per-frame incremental palette fade
+;   indirect_dispatch     — jump through word table using A as index
+;   shift_register_tick   — 32-bit LFSR on $E4-$E7
+; ===========================================================================
+
+; ===========================================================================
 ; drain_ppu_buffer — write queued PPU updates from $0780 buffer
 ; ===========================================================================
 ; Called by NMI to flush pending nametable/attribute writes.
@@ -7403,6 +7423,30 @@ ppu_column_offsets:  .byte   $03
         .byte   $0B
         .byte   $0F
 
+; ===========================================================================
+; SPRITE ANIMATION ENGINE — $F034-$F57F
+; ===========================================================================
+; Per-frame entity rendering system:
+;   update_entity_sprites  — main loop, iterates 32 entity slots
+;   process_entity_display — screen culling, death/damage handling
+;   setup_sprite_render    — bank selection, animation state machine
+;   write_entity_oam       — assembles OAM entries from sprite definitions
+;   draw_energy_bars       — draws up to 3 HUD energy meters
+;
+; Entity slots 0-31 are processed in alternating order each frame
+; (forward on even frames, reverse on odd) for OAM priority fairness.
+;
+; Animation sequence format at ($00):
+;   byte 0 = total frames in sequence
+;   byte 1 = ticks per frame (duration)
+;   byte 2+ = sprite definition IDs per frame (0 = deactivate entity)
+;
+; Sprite definition format:
+;   byte 0 = sprite count (bit 7: use CHR bank $14 instead of $19)
+;   byte 1 = position offset table index (for Y/X offsets)
+;   byte 2+ = pairs of (CHR tile, OAM attribute) per sprite
+; ===========================================================================
+
 ; --- update_entity_sprites ---
 ; main per-frame entity rendering loop
 ; iterates all 32 entity slots (0-31), alternating direction each frame
@@ -7906,6 +7950,19 @@ bar_x_positions:  .byte   $10,$18,$28,$A0,$FB,$2A,$EC,$88
         .byte   $14
         .byte   $E2
         .byte   $50
+
+; ===========================================================================
+; ENTITY MOVEMENT ROUTINES — $F580-$F897
+; ===========================================================================
+; Directional movement with collision, raw position updates,
+; gravity/velocity system, animation reset, and facing logic.
+; Shared by player (slot 0) and enemies.
+;
+; Velocity convention:
+;   Y velocity: positive = rising, negative = falling
+;   Position -= velocity, so negative vel subtracts a negative = adds to Y
+;   Terminal velocity = $F9.00 (-7 px/frame)
+; ===========================================================================
 
 ; -----------------------------------------------
 ; move_right_collide — move right + set facing + tile collision
@@ -9240,6 +9297,25 @@ LFD44:  dey
         sta     $05
         ldx     $09                     ; restore X
         rts
+
+; ===========================================================================
+; RESET, BANK SWITCHING & COOPERATIVE SCHEDULER — $FD52-$FFFF
+; ===========================================================================
+; Contains:
+;   boss_frame_yield          — boss AI frame yield ($5A=active, skip player)
+;   process_frame_yield_full  — saves both banks, $97=$04 (includes player)
+;   process_frame_yield       — saves both banks, uses caller's $97
+;   call_bank0E_A006          — bank $0E trampoline, calls $A006 with X=$B8
+;   call_bank0E_A003          — bank $0E trampoline, calls $A003
+;   RESET                     — power-on initialization
+;   task_scheduler            — cooperative multitasking (4 task slots)
+;   task_register/kill/yield  — coroutine primitives
+;   update_CHR_banks          — flag CHR bank refresh for NMI
+;   select_CHR_banks          — write CHR bank registers to MMC3
+;   process_frame_and_yield   — run one frame of game logic, yield to NMI
+;   select_PRG_banks          — MMC3 PRG bank switch with race handling
+;   play_sounds               — drain circular sound buffer via bank $16/$17
+; ===========================================================================
 
 ; ===========================================================================
 ; Frame-yield trampolines — process one frame, yield to NMI, restore banks
