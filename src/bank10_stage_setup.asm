@@ -108,7 +108,7 @@ code_8006:  jsr     ensure_stage_bank           ; ensure stage PRG bank is selec
         lda     #$00
         sta     $078C               ; 0 extra bytes for attr write
         ; --- Play door close sound effect ---
-        lda     #$1D                ; sound ID $1D = door/shutter SFX
+        lda     #SFX_DOOR                ; sound ID $1D = door/shutter SFX
         jsr     submit_sound_ID
         lda     #$04                ; 4 columns to animate
         sta     $02
@@ -262,7 +262,7 @@ code_81F3:  jsr     ensure_stage_bank           ; ensure stage PRG bank is selec
         lda     #$00
         sta     $078A               ; 0 extra bytes for attr write
         ; --- Play door open sound effect ---
-        lda     #$1D                ; sound ID $1D = door/shutter SFX
+        lda     #SFX_DOOR                ; sound ID $1D = door/shutter SFX
         jsr     submit_sound_ID
         lda     #$04                ; 4 columns to animate
         sta     $02

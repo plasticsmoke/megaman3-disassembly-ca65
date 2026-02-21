@@ -36,9 +36,9 @@ stage_transition_entry:
 .include "include/zeropage.inc"
 .include "include/constants.inc"
 
-L9212           := $9212
+stage_select_proto_man_oam           := $9212
 L938B           := $938B
-L939E           := $939E
+write_ppu_data_from_table           := $939E
 LCBCE           := $CBCE
 apply_y_speed           := $F797
 submit_sound_ID_D9           := $F898
@@ -50,7 +50,7 @@ select_PRG_banks           := $FF6B
 
 .segment "BANK03"
 
-        lda     #$33                    ; play stage intro music
+        lda     #MUSIC_STAGE_START                    ; play stage intro music
         jsr     submit_sound_ID_D9
         lda     #$80                    ; mark entity slot $10 active
         sta     $0310                   ; (used for scroll entity)
@@ -658,11 +658,11 @@ code_A77C:  lda     camera_x_hi
         and     #$04
         sta     $10
         ldx     #$0F
-        jsr     L939E
+        jsr     write_ppu_data_from_table
         ldx     #$B4
         jsr     task_yield_x
         ldx     #$00
-        jsr     L939E
+        jsr     write_ppu_data_from_table
         ldy     #$04
         lda     #$F8
 code_A797:  sta     $0200,y
@@ -771,7 +771,7 @@ code_A869:  sta     $0200,y
         bne     code_A869
         lda     stage_select_page
         bmi     code_A879
-        jmp     L9212
+        jmp     stage_select_proto_man_oam
 
 code_A879:  pla
         pla

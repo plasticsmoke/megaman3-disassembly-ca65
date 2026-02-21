@@ -253,7 +253,7 @@ gemini_platform_spawn:  lda     $55
         lda     $55
         and     #$03
         bne     gemini_spawn_next
-        lda     #$27            ; sound: platform detach
+        lda     #SFX_PLATFORM            ; sound: platform detach
         jsr     submit_sound_ID
 gemini_spawn_next:  inc     $55
 per_frame_rts:  rts              ; shared RTS for early returns
@@ -518,7 +518,7 @@ stage_clear_spawn_loop:  jsr     find_enemy_freeslot_x
         inc     $66             ; next data entry
         dec     $00
         bpl     stage_clear_spawn_loop
-        lda     #$23            ; sound: debris spawn
+        lda     #SFX_DEBRIS            ; sound: debris spawn
         jsr     submit_sound_ID
         lda     #$3C
         sta     $65             ; reset timer for next wave

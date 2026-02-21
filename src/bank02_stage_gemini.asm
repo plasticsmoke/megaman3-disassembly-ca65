@@ -749,7 +749,7 @@ code_A46C:  lda     weapon_cursor       ; validate
 code_A477:  pla                         ; old cursor position
         cmp     weapon_cursor
         beq     code_A481              ; unchanged → no SFX
-        lda     #$1B                    ; cursor move SFX
+        lda     #SFX_CURSOR                    ; cursor move SFX
         jsr     submit_sound_ID
 ; ===========================================================================
 ; Build weapon name/icon nametable buffer (code_A481)

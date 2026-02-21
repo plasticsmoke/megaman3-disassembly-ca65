@@ -467,7 +467,7 @@ code_A333:  jsr     code_A3FC           ; face player
         cmp     #$01                    ; correct anim frame to fire?
         bne     code_A375
         jsr     code_A425               ; spawn Magnet Missile
-        lda     #$2A                    ; missile fire SFX
+        lda     #SFX_MAGNET_FIRE                    ; missile fire SFX
         jsr     submit_sound_ID
         inc     ent_var1,x              ; missile count++
         lda     ent_var1,x
@@ -1005,7 +1005,7 @@ code_A7B4:  lda     ent_anim_state,x   ; throw animation sequence
         bne     code_A7D7
         dec     ent_timer,x             ; pre-throw delay
         bne     code_A7CE
-        lda     #$2E                    ; blade throw SFX
+        lda     #SFX_SHADOW_FIRE                    ; blade throw SFX
         jsr     submit_sound_ID
         lda     #$01                    ; advance to throw frame
         sta     ent_anim_state,x

@@ -211,7 +211,7 @@ code_A128:  lda     ent_anim_state,x
         sta     ent_anim_state,x        ; hold on anim state 3
         lda     #$00
         sta     ent_anim_frame,x
-        lda     #$30
+        lda     #SFX_HARD_STOMP
         jsr     submit_sound_ID                   ; play stomp sound
         ldy     #$26
         jsr     move_down_collide                   ; move down with collision check
