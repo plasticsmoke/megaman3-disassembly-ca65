@@ -30,11 +30,11 @@ main_doc_bubble_j:
 L0000           := $0000
 L8003           := $8003
 move_right_collide           := $F580
-LF588           := $F588
+move_right_collide_no_face           := $F588
 move_left_collide           := $F5C4
-LF5CC           := $F5CC
-LF606           := $F606
-LF642           := $F642
+move_left_collide_no_face           := $F5CC
+move_down_collide           := $F606
+move_up_collide           := $F642
 move_vertical_gravity           := $F67C
 move_sprite_right           := $F71D
 move_sprite_left           := $F73B
@@ -48,8 +48,8 @@ entity_y_dist_to_player           := $F8B3
 entity_x_dist_to_player           := $F8C2
 find_enemy_freeslot_y           := $FC53
 calc_homing_velocity           := $FC63
-LFCEB           := $FCEB
-LFD11           := $FD11
+divide_8bit           := $FCEB
+divide_16bit           := $FD11
 
 .segment "BANK05"
 
@@ -110,7 +110,7 @@ LA037:  .byte   $A0,$A0                 ; phase handler pointers (high bytes)
         sta     L0000
         lda     #$03
         sta     $01
-        jsr     LFCEB                   ; divide_8bit: $E4 mod 3
+        jsr     divide_8bit                   ; divide_8bit: $E4 mod 3
         ldy     $03
         lda     LA1A6,y                 ; lookup delay from table
         sta     ent_timer,x             ; store as jump timer
@@ -229,7 +229,7 @@ code_A13A:  jsr     find_enemy_freeslot_y                   ; find free enemy sl
 code_A161:  sta     $01
         sta     $0C
         sty     $0D                     ; save child slot index
-        jsr     LFD11                   ; divide_16bit: compute X velocity
+        jsr     divide_16bit                   ; divide_16bit: compute X velocity
         ldy     $0D
         lda     $04
         sta     ent_xvel_sub,y          ; set X velocity sub-pixel
@@ -328,7 +328,7 @@ code_A1F8:  jsr     code_A252               ; face player + attack check
         ora     #$10                    ; flag: falling started
         sta     ent_var3,x
 code_A21B:  ldy     #$1E
-        jsr     LF606                   ; move down with collision
+        jsr     move_down_collide                   ; move down with collision
         bcc     code_A1DC               ; no floor hit — keep falling
         dec     ent_status,x            ; landed — back to phase 0
         lda     #$00
@@ -343,15 +343,15 @@ code_A21B:  ldy     #$1E
         rts
 
 code_A23C:  ldy     #$1F                    ; --- rising: move up ---
-        jsr     LF642                   ; move up with collision
+        jsr     move_up_collide                   ; move up with collision
         lda     ent_var3,x
         and     #$01                    ; drift direction flag
         bne     code_A24D
         ldy     #$21
-        jmp     LF5CC                   ; move left (no facing change)
+        jmp     move_left_collide_no_face                   ; move left (no facing change)
 
 code_A24D:  ldy     #$20
-        jmp     LF588                   ; move right (no facing change)
+        jmp     move_right_collide_no_face                   ; move right (no facing change)
 
 ; --- shared: face player, manage attack timer and bubble spawning ---
 code_A252:  jsr     face_player                   ; face player
@@ -412,7 +412,7 @@ code_A2C5:  lda     $E6                     ; PRNG: randomize bubble count
         sta     L0000
         lda     #$03
         sta     $01
-        jsr     LFCEB                   ; divide_8bit: mod 3
+        jsr     divide_8bit                   ; divide_8bit: mod 3
         lda     $03
         clc
         adc     #$02                    ; bubble count = 2..4
@@ -579,7 +579,7 @@ code_A3D8:  lda     $E4                     ; randomize jump velocity
 code_A40E:  bcs     code_A414
         lda     $04
         sta     $01
-code_A414:  jsr     LFD11                   ; divide_16bit: compute X velocity
+code_A414:  jsr     divide_16bit                   ; divide_16bit: compute X velocity
         lda     $04
         sta     ent_xvel_sub,x          ; set X velocity
         lda     $05
@@ -796,7 +796,7 @@ code_A5AB:  lda     $E4                     ; PRNG: randomize tornado pattern
         sta     L0000
         lda     #$05
         sta     $01
-        jsr     LFCEB                   ; divide_8bit: mod 5
+        jsr     divide_8bit                   ; divide_8bit: mod 5
         lda     $03                     ; result * 6 = table index
         asl     a
         sta     L0000
@@ -1076,7 +1076,7 @@ code_A833:  lda     ent_facing,x
         jmp     move_sprite_down
 
 code_A84B:  ldy     #$12                    ; move down with collision
-        jsr     LF606
+        jsr     move_down_collide
         lda     #$4B
         sta     ent_anim_id,x           ; anim: downward tornado
         jmp     code_A86F
@@ -1088,7 +1088,7 @@ code_A858:  lda     ent_timer,x            ; --- move up ---
         jmp     move_sprite_up
 
 code_A865:  ldy     #$13                    ; move up with collision
-        jsr     LF642
+        jsr     move_up_collide
 LA86A:  lda     #$4C                    ; anim: upward tornado
         sta     ent_anim_id,x
 code_A86F:  bcc     code_A879               ; no floor/ceiling collision
@@ -1129,13 +1129,13 @@ code_A8A9:  lda     ent_facing,x           ; vertical direction
         and     #$08
         bne     code_A8BD
         ldy     #$12                    ; bit 3 clear: move down
-        jsr     LF606                   ; move down with collision
+        jsr     move_down_collide                   ; move down with collision
         lda     #$53
         sta     ent_anim_id,x           ; anim: downward
         jmp     code_A8C7
 
 code_A8BD:  ldy     #$13                    ; bit 3 set: move up
-        jsr     LF642                   ; move up with collision
+        jsr     move_up_collide                   ; move up with collision
         lda     #$54
         sta     ent_anim_id,x           ; anim: upward
 code_A8C7:  bcs     code_A8F6               ; floor/ceiling hit

@@ -25,7 +25,7 @@
 
 ; --- fixed bank subroutines ---
 apply_y_speed           := $F797                ; apply_y_speed — apply Y velocity to entity
-LFD80           := $FD80                ; process_frame_yield — render frame + yield to NMI
+process_frame_yield           := $FD80                ; process_frame_yield — render frame + yield to NMI
 
 ; =============================================================================
 ; WILY 4 CREDITS — INITIALIZATION
@@ -207,7 +207,7 @@ code_A0F3:  lda     LA202,y                 ; sprite Y position (base)
         clc
         adc     #$03                    ; move stars downward 3px/frame
         sta     ent_var1
-        jsr     LFD80                   ; yield frame (process_frame_yield)
+        jsr     process_frame_yield                   ; yield frame (process_frame_yield)
         jmp     code_A01B               ; loop back to credits main
 
 ; ===========================================================================

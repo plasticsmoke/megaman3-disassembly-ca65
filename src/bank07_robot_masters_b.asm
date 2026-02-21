@@ -28,7 +28,7 @@ L0000           := $0000
 L8003           := $8003
 move_right_collide           := $F580
 move_left_collide           := $F5C4
-LF606           := $F606
+move_down_collide           := $F606
 move_vertical_gravity           := $F67C
 move_sprite_right           := $F71D
 move_sprite_left           := $F73B
@@ -214,7 +214,7 @@ code_A128:  lda     ent_anim_state,x
         lda     #$30
         jsr     submit_sound_ID                   ; play stomp sound
         ldy     #$26
-        jsr     LF606                   ; move down with collision check
+        jsr     move_down_collide                   ; move down with collision check
         bcc     code_A127
         lda     #$30
         jsr     reset_sprite_anim

@@ -28,8 +28,8 @@ main_doc_flash_j:
 L0000           := $0000
 move_right_collide           := $F580
 move_left_collide           := $F5C4
-LF606           := $F606
-LF642           := $F642
+move_down_collide           := $F606
+move_up_collide           := $F642
 move_vertical_gravity           := $F67C
 move_sprite_right           := $F71D
 move_sprite_left           := $F73B
@@ -814,11 +814,11 @@ code_A66E:  lda     ent_status,x
         and     #$08
         beq     code_A684
         ldy     #$13
-        jsr     LF642
+        jsr     move_up_collide
         jmp     code_A689
 
 code_A684:  ldy     #$12
-        jsr     LF606
+        jsr     move_down_collide
 code_A689:  bcs     code_A6B1
         lda     ent_facing,x
         and     #$01
