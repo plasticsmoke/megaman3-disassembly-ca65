@@ -83,7 +83,7 @@ subsys_stage_clear:  jmp     stage_clear_spawner       ; entry 1: $8003
 gemini_platform_update:  lda     stage_id
         cmp     #STAGE_SNAKE            ; Gemini Man stage?
         bne     gemini_platform_clear
-        ldy     $F9
+        ldy     camera_screen
         cpy     #$05            ; screen $05?
         beq     gemini_platform_active
         cpy     #$0E            ; screen $0E?
@@ -122,7 +122,7 @@ gemini_shift_cols:  lda     $0781,x ; shift each PPU entry address right by 8
         dec     $00
         bne     gemini_shift_cols
         lda     #$FF
-        sta     $19             ; flag: PPU buffer needs flush
+        sta     nametable_dirty             ; flag: PPU buffer needs flush
         ldx     #$18            ; attribute table offset
         jsr     gemini_write_attrs
         inc     $57             ; advance cycle counter
@@ -184,7 +184,7 @@ gemini_row_loop:  ldy     $00             ; tile index into lookup table
         bne     gemini_group_loop
         lda     #$FF
         sta     $07C2
-        sta     $19
+        sta     nametable_dirty
         ldx     #$1C
         jsr     gemini_write_attrs
         rts
@@ -275,7 +275,7 @@ gemini_spawn_y:  .byte   $B0,$D0,$F0,$B0,$D0,$F0,$F0,$F0
 item_drop_update:  lda     proto_man_flag
         bpl     per_frame_rts   ; bit 7 clear = no items pending
         and     #$0F            ; current item index
-        ldy     $22             ; stage ID
+        ldy     stage_id             ; stage ID
         clc
         adc     item_stage_offsets,y ; base offset for this stage
         tay
@@ -290,7 +290,7 @@ item_drop_update:  lda     proto_man_flag
         lda     #$00
         sta     $10
         jsr     queue_metatile_update ; clear the metatile from nametable
-        inc     $68             ; advance to next item
+        inc     proto_man_flag             ; advance to next item
         pla
         tay
         jsr     find_enemy_freeslot_x
@@ -307,7 +307,7 @@ item_drop_update:  lda     proto_man_flag
         sta     ent_y_scr,x
         sta     ent_hitbox,x
         sta     ent_timer,x
-        lda     $F9
+        lda     camera_screen
         sta     ent_x_scr,x         ; entity screen = current screen
         lda     item_spawn_x,y
         sta     ent_y_px,x         ; entity X position
@@ -319,8 +319,8 @@ item_drop_update:  lda     proto_man_flag
 ; --- All items done: clear active flag, handle stage-specific palette ---
 item_drop_done:  lda     proto_man_flag
         and     #$7F            ; clear bit 7 (no more items)
-        sta     $68
-        lda     $22
+        sta     proto_man_flag
+        lda     stage_id
         cmp     #STAGE_GEMINI            ; Gemini Man stage?
         bne     item_drop_rts
         lda     #$4E            ; Gemini stage: reload CHR banks
@@ -332,7 +332,7 @@ item_load_palette:  lda     $AABE,y ; load 16 bytes of new palette from bank dat
         sta     $0620,y         ; palette buffer 2
         dey
         bpl     item_load_palette
-        sty     $18             ; $18 = $FF: force palette update
+        sty     palette_dirty             ; $18 = $FF: force palette update
         ldx     #$00
         ldy     #$4C            ; offset into stage bank palette anim data
 item_init_pal_anim:  lda     $AA82,y ; load palette animation entry
@@ -379,10 +379,10 @@ item_spawn_y:  .byte   $18,$28,$FF,$70,$90,$70,$90,$70
 wily_camera_y_check:  lda     game_mode
         cmp     #$09            ; Y transition already active?
         beq     wily_camera_y_tick
-        lda     $22
+        lda     stage_id
         cmp     #STAGE_WILY3            ; Wily 2 stage?
         bne     wily_camera_y_rts
-        lda     $F9
+        lda     camera_screen
         cmp     #$09            ; screen $09?
         beq     wily_camera_y_init
         cmp     #$0A            ; screen $0A?
@@ -391,7 +391,7 @@ wily_camera_y_init:  lda     #$00
         sta     $69             ; clear Y transition counter
         sta     $73             ; clear transition state
         lda     #$09
-        sta     $F8             ; scroll mode = Y transition
+        sta     game_mode             ; scroll mode = Y transition
         lda     #$2F
         sta     $5E             ; camera Y target
         rts
@@ -410,7 +410,7 @@ wily_camera_y_rts:  rts
 docrobot_gemini_prep:  lda     stage_id
         cmp     #STAGE_DOC_NEEDLE            ; Doc Robot stage?
         bne     docrobot_rts
-        lda     $F9
+        lda     camera_screen
         cmp     #$15            ; screen $15?
         beq     docrobot_check_scroll
         cmp     #$1A            ; screen $1A?
@@ -421,8 +421,8 @@ docrobot_check_scroll:  lda     game_mode
         lda     $033F           ; entity[31] position
         cmp     #$FC            ; reached trigger position?
         bne     docrobot_rts
-        lda     $22
-        sta     $F5
+        lda     stage_id
+        sta     prg_bank
         jsr     select_PRG_banks ; swap in stage data bank
         lda     #$1F            ; metatile column $1F
         jsr     metatile_column_ptr_by_id
@@ -432,7 +432,7 @@ docrobot_check_scroll:  lda     game_mode
         lda     $70             ; $70 = columns remaining
         bne     docrobot_rts    ; still drawing?
         lda     #$03            ; done: set scroll mode $03
-        sta     $F8
+        sta     game_mode
 docrobot_rts:  rts
 
 ; ===========================================================================
@@ -575,12 +575,12 @@ clear_spawn_attr:  .byte   $01,$98,$40,$00,$88,$00,$58,$00
 wily3_entity_spawn:  lda     stage_id
         cmp     #STAGE_WILY4            ; Wily 3 stage?
         bne     wily3_rts
-        lda     $F9
+        lda     camera_screen
         cmp     #$08            ; screen $08?
         bne     wily3_rts
         lda     $031F           ; entity[31] flags
         bmi     wily3_rts       ; active → skip
-        lda     $30             ; game substate
+        lda     player_state             ; game substate
         cmp     #PSTATE_WARP_INIT
         beq     wily3_rts       ; state $11 → skip
         ldy     #$07            ; 8 entities (slots 24-31)
@@ -602,7 +602,7 @@ wily3_spawn_loop:  asl     $00   ; shift out next bit
         sta     $03F8,y
         lda     #$0B
         sta     $0498,y         ; entity_behavior[24+Y]
-        lda     $F9
+        lda     camera_screen
         sta     $0398,y         ; entity_screen[24+Y]
         lda     wily3_spawn_x,y
         sta     $0378,y         ; entity_x[24+Y]
@@ -640,11 +640,11 @@ palette_anim_update:  lda     $72
         bne     palette_anim_rts
         lda     #$03
         sta     $10             ; loop 4 slots (3 down to 0)
-        lda     $18
+        lda     palette_dirty
         and     #$01            ; save palette-update-needed flag
         sta     $11
         lda     #$00
-        sta     $18             ; clear palette update flag
+        sta     palette_dirty             ; clear palette update flag
 palette_slot_loop:  ldx     $10
         lda     $0100,x         ; slot active?
         bpl     palette_slot_next
@@ -652,7 +652,7 @@ palette_slot_loop:  ldx     $10
 palette_slot_next:  dec     $10
         bpl     palette_slot_loop
         lda     $11             ; restore palette update flag
-        sta     $18
+        sta     palette_dirty
 palette_anim_rts:  rts
 
 ; --- Process one palette animation slot ---

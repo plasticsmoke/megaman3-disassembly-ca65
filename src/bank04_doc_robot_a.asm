@@ -157,11 +157,11 @@ code_A0DD:  lda     #$05
         lda     #$60
         sta     ent_timer,x
         dec     ent_status,x
-        lda     $30                     ; if player already dead ($0E),
+        lda     player_state                     ; if player already dead ($0E),
         cmp     #PSTATE_DEATH                    ; don't reset state
         beq     code_A0F4
         lda     #$00                    ; state → $00 (on_ground)
-        sta     $30                     ; release player from Doc Robot
+        sta     player_state                     ; release player from Doc Robot
 code_A0F4:  rts
 
 code_A0F5:  jsr     LFC53
@@ -260,11 +260,11 @@ code_A1B6:  lda     LA1E4,y
 ; Copies explosion OAM data to sprite page, then sets palette-cycling kill.
 ; Triggered by Doc Flash Man's Time Stopper attack (Gemini Man Doc Robot stage).
 ; [confirmed via Mesen]
-        lda     $30                     ; if player already dead ($0E),
+        lda     player_state                     ; if player already dead ($0E),
         cmp     #PSTATE_DEATH                    ; don't overwrite with special_death
         beq     code_A1E3
         lda     #PSTATE_SPECIAL_DEATH                    ; state → $07 (special_death)
-        sta     $30                     ; palette cycling kill effect
+        sta     player_state                     ; palette cycling kill effect
         lda     #$1E                    ; timer = 30 frames
         sta     ent_timer
 code_A1E3:  rts
@@ -574,7 +574,7 @@ code_A4EA:  ldy     #$1E
         jsr     LF67C
         lda     ent_timer,x
         bne     code_A504
-        lda     $14
+        lda     joy1_press
         and     #BTN_B
         beq     code_A503
         inc     ent_status,x

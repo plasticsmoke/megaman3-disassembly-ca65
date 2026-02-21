@@ -82,11 +82,11 @@ code_804B:  ldx     L80D5,y
         sta     $0640,x
         lda     #$FF
         sta     $078E
-        sta     $19
+        sta     nametable_dirty
 code_8084:  lda     #$00
-        sta     $EE
+        sta     nmi_skip
         jsr     LFF21
-        inc     $EE
+        inc     nmi_skip
         inc     $95
         lda     $95
         and     #$03
@@ -118,7 +118,7 @@ code_8084:  lda     #$00
         jmp     code_804B
 
 code_80CC:  lda     stage_id
-        sta     $F5
+        sta     prg_bank
         jmp     LFF6B
 
 L80D3:  .byte   $21
@@ -203,11 +203,11 @@ code_8236:  ldx     L82B2,y
         sta     $0640,x
         lda     #$FF
         sta     $078C
-        sta     $19
+        sta     nametable_dirty
 code_8263:  lda     #$00
-        sta     $EE
+        sta     nmi_skip
         jsr     LFF21
-        inc     $EE
+        inc     nmi_skip
         inc     $95
         lda     $95
         and     #$03
@@ -238,7 +238,7 @@ code_8263:  lda     #$00
         jmp     code_8236
 
 code_82A9:  lda     stage_id
-        sta     $F5
+        sta     prg_bank
         jmp     LFF6B
 
 L82B0:  .byte   $20

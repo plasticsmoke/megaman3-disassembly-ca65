@@ -61,7 +61,7 @@ code_A03B:  lda     LA360,y
         inx
         cpx     #$08
         bne     code_A03B
-        stx     $18
+        stx     palette_dirty
         inc     ent_var2
         rts
 

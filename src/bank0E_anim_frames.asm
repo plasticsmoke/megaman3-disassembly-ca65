@@ -70,7 +70,7 @@ code_A046:  lda     ($B6),y
         sty     $0782
         dey
         sty     $0784
-        sty     $19
+        sty     nametable_dirty
         rts
 
 code_A05A:  lda     #$FF
@@ -96,7 +96,7 @@ code_A083:  sta     $0783,y
         bpl     code_A083
         lda     #$FF
         sta     $07C6
-        sta     $19
+        sta     nametable_dirty
         jsr     LFF21
         inx
         inx

@@ -49,10 +49,10 @@ code_A01B:  lda     ent_status
         lda     $95
         and     #$01
         bne     code_A077
-        lda     $FA
+        lda     scroll_y
         and     #$07
         bne     code_A077
-        lda     $FA
+        lda     scroll_y
         lsr     a
         lsr     a
         lsr     a
@@ -64,7 +64,7 @@ code_A01B:  lda     ent_status
         sta     $01
         ldy     #$00
         sty     $03
-        lda     $FA
+        lda     scroll_y
         and     #$F8
         asl     a
         rol     $03
@@ -88,7 +88,7 @@ code_A06C:  sta     $0783,y
         dey
         bpl     code_A06C
         sty     $07A3
-        sty     $19
+        sty     nametable_dirty
 code_A077:  jmp     code_A0C0
 
 code_A07A:  iny
@@ -124,7 +124,7 @@ code_A0AF:  sta     $0783,x
         bne     code_A0AF
         lda     #$FF
         sta     $07A3
-        sta     $19
+        sta     nametable_dirty
         inc     $B8
 code_A0C0:  lda     scroll_y
         bne     code_A0D4
@@ -139,12 +139,12 @@ code_A0C0:  lda     scroll_y
 code_A0D4:  lda     $95
         and     #$01
         bne     code_A0EF
-        inc     $FA
-        lda     $FA
+        inc     scroll_y
+        lda     scroll_y
         cmp     #$F0
         bne     code_A0EF
         lda     #$00
-        sta     $FA
+        sta     scroll_y
         lda     $B8
         cmp     #$3B
         bne     code_A0EF
@@ -170,7 +170,7 @@ code_A0F3:  lda     LA202,y
         ldx     #$20
         cpy     #$30
         bcc     code_A0F3
-        sty     $97
+        sty     oam_ptr
         lda     ent_timer
         clc
         adc     #$02
@@ -238,7 +238,7 @@ code_A18B:  lda     ent_anim_id
         sta     $0787
         lda     #$FF
         sta     $0788
-        sta     $19
+        sta     nametable_dirty
         inc     ent_var3
 code_A1CA:  lda     ent_x_px
         cmp     #$20
