@@ -5513,9 +5513,9 @@ LE28F:  lda     stage_id                     ; stage $0F (Wily Fortress 4)
         lda     camera_screen                     ; only on screen $08
         cmp     #$08
         bne     LE2A5
-        ldx     #$0F                    ; scan entity slots $10-$01
-LE29D:  lda     $0310,x                 ; if any slot $0310+x is active
-        bmi     LE23A                   ; (bit 7 = ???), block transition
+        ldx     #$0F                    ; scan enemy slots $1F-$10
+LE29D:  lda     $0310,x                 ; ent_status[$10+x]
+        bmi     LE23A                   ; bit 7 = active → block transition
         dex
         bpl     LE29D
 

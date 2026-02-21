@@ -1337,6 +1337,12 @@ code_8A6E:  bcc     code_8A78           ; no wall → done
         eor     #$0C                    ; (transition to wall climbing)
         sta     ent_facing,x
 code_8A78:  rts
+
+; ===========================================================================
+; main_spark_shock — Spark Shock weapon projectile
+; Travels horizontally in the direction fired. If it hits an enemy
+; (ent_status nonzero), freezes in place for ent_timer frames, then despawns.
+; ===========================================================================
 main_spark_shock:
 
         lda     ent_status,x                 ; sprite state nonzero?
@@ -1354,6 +1360,13 @@ L8A8D:  dec     ent_timer,x                 ; decrease shock timer
 L8A92:  lda     #$00                    ; on timer expiration,
         sta     ent_status,x                 ; despawn (set inactive)
 L8A97:  rts
+
+; ===========================================================================
+; main_shadow_blade — Shadow Blade weapon projectile
+; Moves in up to 8 directions using ent_facing bits 0-3 (R/L/D/U).
+; Horizontal and vertical movement handled independently. Returns to
+; Mega Man after ent_timer expires (boomerang behavior).
+; ===========================================================================
 main_shadow_blade:
 
         lda     ent_facing,x                 ; facing neither right nor left?
@@ -1751,15 +1764,14 @@ L8DC5:  brk
 ; child projectile AI: just apply Y speed ($99 projectile)
         jmp     apply_y_speed                   ; apply_y_speed
 
-; =============================================
-; Jamacy -- chain/spike ball enemy
-; =============================================
+; ===========================================================================
+; main_jamacy — Jamacy (chain/spike ball, Spark Man stage)
 ; Oscillates vertically at speed $00.C0/frame. Initial half-period
 ; is read from table at $8E12 based on AI routine index ($15->$60,
 ; $16->$70 frames). When the period counter expires, reverses Y
 ; direction and doubles the period (each swing longer than the last).
 ; ent_timer = current countdown, ent_var1 = base period (doubled each reversal)
-; =============================================
+; ===========================================================================
 main_jamacy:
 
         lda     ent_status,x                 ; check state (bits 0-3)
@@ -4807,7 +4819,7 @@ code_A60B:  lda     ent_status,x
         bcc     code_A626
         lda     #$71
         jsr     reset_sprite_anim                   ; reset_sprite_anim
-        lda     #$24
+        lda     #SFX_ATTACK
         jsr     submit_sound_ID                   ; submit_sound_ID
         inc     ent_status,x
 code_A626:  rts
@@ -4821,7 +4833,11 @@ code_A627:  lda     ent_anim_id,x
         lda     #$80
         jmp     reset_sprite_anim                   ; reset_sprite_anim
 
-; --- main_unknown_27 — unknown entity AI routine $27 ---
+; ===========================================================================
+; main_unknown_27 — Debris / explosion child entity
+; Spawned by breakable objects. Checks if break animation ($71) has
+; completed (anim_state $04), then switches to a secondary OAM ($92).
+; ===========================================================================
 main_unknown_27:
         lda     ent_anim_id,x
         cmp     #$71
@@ -5578,7 +5594,7 @@ code_ACB8:  lda     #$00
 
 code_ACBE:  lda     ent_var3,x
         bne     code_ACCB
-        lda     #$25
+        lda     #SFX_TURRET_FIRE
         jsr     submit_sound_ID                   ; submit_sound_ID
         inc     ent_var3,x
 code_ACCB:  lda     #$01
@@ -6001,7 +6017,7 @@ LB026:  lda     ent_status,x                 ; this bitflag on
         dec     ent_var1,x                 ; upward snap timer
         bne     LB00C                   ; not expired yet? return
         inc     ent_status,x
-        lda     #$22                    ; on expiration,
+        lda     #SFX_CLAMP                    ; on expiration,
         jsr     submit_sound_ID                   ; $02 -> state
         rts
 
@@ -6451,7 +6467,7 @@ code_B3DA:  lda     ent_var2,x
         bcc     code_B3E7
 code_B3E4:  jmp     move_sprite_right               ; move_sprite_right
 
-code_B3E7:  lda     #$26
+code_B3E7:  lda     #SFX_APPROACH
         jsr     submit_sound_ID                   ; submit_sound_ID
         lda     #$56
         jsr     reset_sprite_anim                   ; reset_sprite_anim
@@ -6701,7 +6717,11 @@ code_B5C6:  dec     ent_timer,x             ; decrement timer; when 0
         bne     code_B5CB               ; entity returns to invisible drift
 code_B5CB:  rts
 
-; --- state 0: parachute descent ---
+; ===========================================================================
+; main_parasyu — Parasyu (parachute bomb, Gemini Man stage)
+; Falls at 3.0 px/frame. When player is within 100 px X-distance,
+; drops the parachute and falls faster. Explodes on contact with ground.
+; ===========================================================================
 main_parasyu:
 
         lda     ent_status,x                 ; check entity state
@@ -7069,9 +7089,11 @@ LB8E7:  .byte   $04,$03,$05,$06,$02,$02,$08,$03 ; target anim_state per master
 LB8EF:  .byte   $1E,$1E,$00,$26,$1E,$00,$1E,$1E ; gravity floor offset per master
         .byte   $60
 
-; --- main_spinning_wheel — Shadow Man stage conveyor wheel ---
+; ===========================================================================
+; main_spinning_wheel — Spinning Wheel (Shadow Man stage conveyor)
 ; Checks player collision, then scrolls camera horizontally based on
 ; the OAM ID's low bit (left/right wheel direction).
+; ===========================================================================
 main_spinning_wheel:
         lda     ent_y_px,x
         pha
@@ -7099,9 +7121,11 @@ LB92B:  .byte   $80,$80
 LB92D:  .byte   $00,$FF
 LB92F:  .byte   $00,$FF
 
-; --- main_trap_platform — Shadow Man stage trap platform ---
+; ===========================================================================
+; main_trap_platform — Trap Platform (Shadow Man stage)
 ; Triggers when player is close (< $15 Y, < $18 X). Plays open animation,
 ; then closes after a delay. Toggles sprite flag bit 0 on completion.
+; ===========================================================================
 main_trap_platform:
         lda     ent_status,x
         and     #$0F
@@ -7155,9 +7179,11 @@ code_B98F:  lda     #$04
         sta     ent_status,x
         rts
 
-; --- main_breakable_wall — breakable wall segment (Hard Knuckle target) ---
+; ===========================================================================
+; main_breakable_wall — Breakable Wall (Hard Knuckle / Shadow Blade target)
 ; Checks weapon slots $01-$02 for Hard Knuckle ($AC) or Shadow Blade ($AF).
 ; If hit, plays explosion and changes AI routine to $19 (debris).
+; ===========================================================================
 main_breakable_wall:
 
         ldy     #$01

@@ -1840,7 +1840,7 @@ code_B1A7:  pla
 
 ; Gamma/fortress hazard — instant kill on contact
         lda     ent_spawn_id,x                 ; entity sub-type
-        cmp     #$0D                    ; $0D = ??? skip
+        cmp     #$0D                    ; sub-type $0D = Gamma fist (skip instant kill)
         beq     code_B1BF
         lda     invincibility_timer                     ; i-frames active?
         bne     code_B1BF               ; skip

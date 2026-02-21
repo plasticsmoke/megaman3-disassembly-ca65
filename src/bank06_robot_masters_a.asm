@@ -124,8 +124,8 @@ needle_man_throw:
         lda     #$29                    ; start animation sequence
         jsr     reset_sprite_anim                   ; for jumping before needle throw
         lda     #$02
-        sta     ent_anim_state,x                 ; set up animation frame
-        lda     #$00                    ; for ???
+        sta     ent_anim_state,x                 ; landing pose
+        lda     #$00                    ; reset frame counter
         sta     ent_anim_frame,x
         lda     #$08                    ; 8 frame timer for a brief pause
         sta     ent_var2,x
@@ -136,8 +136,8 @@ needle_man_throw:
 LA093:  lda     ent_yvel,x                 ; if he is moving down
         bmi     LA0A3
         lda     #$01
-        sta     ent_anim_state,x                 ; if not, set up animation
-        lda     #$00                    ; frame for ???
+        sta     ent_anim_state,x                 ; rising pose (moving upward)
+        lda     #$00                    ; reset frame counter
         sta     ent_anim_frame,x
         rts
 
@@ -149,19 +149,19 @@ LA0AD:  jsr     test_facing_change      ; handle facing change
         lda     ent_timer,x                 ; if first needle has
         bne     LA0C2                   ; been thrown, skip
         lda     ent_anim_state,x
-        cmp     #$01                    ; if animation frame is not ???
+        cmp     #$01                    ; first throw trigger frame
         bne     LA0D4
-        jsr     spawn_needle            ; else spawn a needle and set
+        jsr     spawn_needle            ; spawn needle and set
         inc     ent_timer,x                 ; "first needle thrown" flag
 LA0C2:  lda     ent_var1,x                 ; if second needle has
         bne     LA0D4                   ; been thrown, skip
         lda     ent_anim_state,x
-        cmp     #$03                    ; if animation frame is not ???
+        cmp     #$03                    ; second throw trigger frame
         bne     LA0D4
-        jsr     spawn_needle            ; else spawn a needle and set
+        jsr     spawn_needle            ; spawn needle and set
         inc     ent_var1,x                 ; "second needle thrown" flag
 LA0D4:  lda     ent_anim_state,x
-        cmp     #$03                    ; if animation frame is not ???
+        cmp     #$03                    ; throw animation complete
         bne     LA0F3
         lda     #$00
         sta     ent_timer,x                 ; clear needle thrown flags
@@ -179,12 +179,12 @@ LA0F3:  rts
 ; state $03: jump toward player (or pause)
 needle_man_jump_player:
 
-        lda     ent_anim_state,x                 ; if animation frame is ???
-        cmp     #$02                    ; this is to skip movement
-        beq     LA132                   ; if this is just a pause state
+        lda     ent_anim_state,x                 ; check current pose
+        cmp     #$02                    ; $02 = ground/pause state
+        beq     LA132                   ; skip movement if paused
         lda     #$01
-        sta     ent_anim_state,x                 ; set up animation frame
-        lda     #$00                    ; for ???
+        sta     ent_anim_state,x                 ; jumping pose
+        lda     #$00                    ; reset frame counter
         sta     ent_anim_frame,x
         lda     ent_facing,x
         and     #$01                    ; if he's not facing right
@@ -199,8 +199,8 @@ LA119:  ldy     #$1E
         jsr     move_vertical_gravity                   ; I believe this checks for his
         bcc     LA14F                   ; Y value to be back on ground?
         lda     #$02
-        sta     ent_anim_state,x                 ; set up animation frame
-        lda     #$00                    ; for ???
+        sta     ent_anim_state,x                 ; landing pose
+        lda     #$00                    ; reset frame counter
         sta     ent_anim_frame,x
         jsr     test_facing_change
         lda     #$08                    ; 8-frame timer
