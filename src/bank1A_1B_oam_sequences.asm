@@ -1,37 +1,48 @@
-; bank 1A handles animation sequence ID's $00~$7F
-; animation sequence data pointers (low byte)
 ; =============================================================================
-; MEGA MAN 3 (U) — BANKS $1A-$1B — OAM ANIMATION SEQUENCES
+; MEGA MAN 3 (U) — BANKS $1A/$1B — OAM ANIMATION SEQUENCES
 ; =============================================================================
-; OAM animation sequence tables and enemy spawn/check routines.
-; Bank $1A at $8000, Bank $1B at $A000.
 ;
-; Annotation: ~7% — 2 labels named, 99 inline comments
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANKS $1A-$1B — OAM ANIMATION SEQUENCES
-; =============================================================================
-; Mapped to $8000-$9FFF (one bank at a time). Contains animation sequence
-; definitions for all entity sprites. The sprite renderer in bank1E_1F
-; selects which bank based on the entity's OAM ID (ent_anim_id,x):
-;   OAM IDs $00-$7F → bank $1A
-;   OAM IDs $80-$FF → bank $1B
+; Two 8KB banks ($1A at $8000, $1B at $A000) containing all sprite animation
+; data for entity rendering, plus enemy spawning logic and per-stage enemy
+; placement tables used during gameplay scrolling.
 ;
-; Pointer tables at $8000/$8080 (low/high bytes): indexed by OAM ID.
-; Each sequence contains:
-;   byte 0 = frame count (total frames in animation loop)
-;   byte 1 = ticks per frame (animation speed)
-;   byte 2+ = sprite definition IDs per frame (0 = deactivate entity)
+; Both banks share an identical layout (mirrored structure):
 ;
-; Sprite definitions are further looked up via $8100/$8200 pointer tables
-; (in the same bank) to get tile/attribute data, then combined with
-; position offsets from banks $14/$19.
+;   $8000-$807F  Animation sequence pointer table — low bytes  (128 entries)
+;   $8080-$80FF  Animation sequence pointer table — high bytes (128 entries)
+;   $8100-$81FF  OAM sprite definition pointer table — low bytes  (256 entries)
+;   $8200-$82FF  OAM sprite definition pointer table — high bytes (256 entries)
+;   $8300+       Animation sequence data (variable-length records)
+;   $854E+       OAM sprite definition data (tile/attribute pairs)
+;   $9C00+       Enemy spawn check code + spawn routine (bank $1A only)
+;   $9D28+       Per-stage enemy placement bitmask/killed tracking data
+;   $AAFF+       Per-stage enemy screen/X/Y/ID placement tables
 ;
-; Bank $15 is the weapon-specific variant (loaded when $5A override set).
+; The sprite animation engine in the fixed bank selects which bank to map
+; based on the entity's animation ID (ent_anim_id,x):
+;   IDs $00-$7F  -->  bank $1A
+;   IDs $80-$FF  -->  bank $1B (ID masked to $00-$7F for table indexing)
 ;
-; Annotation: partial — check_new_enemies/spawn_enemy named, format documented
+; --- Animation Sequence Format ---
+;   byte 0:   frame_count  (N = number of animation frames minus 1;
+;                            $00 = single static frame)
+;   byte 1:   tick_speed   (frames per game tick before advancing)
+;   bytes 2+: sprite_def_IDs[frame_count+1]
+;             Each ID indexes into the $8100/$8200 pointer tables to select
+;             the OAM sprite definition for that animation frame.
+;             A sprite_def_ID of $00 = no sprites (entity invisible).
+;
+; --- OAM Sprite Definition Format ---
+;   byte 0:   sprite_count (N = number of hardware OAM sprites, high bits
+;                            encode Y-offset mode and palette info)
+;   byte 1:   meta flags   (position layout index into banks $14/$19)
+;   bytes 2+: pairs of (tile_id, attribute) for each hardware sprite
+;             attribute byte: bits 0-1 = palette, bit 5 = priority,
+;                             bit 6 = H-flip, bit 7 = V-flip
+;
+; Bank $15 is a weapon-specific variant bank loaded when ZP $5A override
+; is set, sharing the same table layout.
+;
 ; =============================================================================
 
         .setcpu "6502"
@@ -47,6 +58,12 @@ LFF6B           := $FF6B
 
 .segment "BANK1A"
 
+; ===========================================================================
+; BANK $1A — Animation sequence pointer table (low bytes)
+; ===========================================================================
+; 128 entries ($00-$7F): low byte of pointer to animation sequence data.
+; Indexed by animation ID. Combined with high bytes at $8080 to form
+; the full address of each animation sequence record.
         .byte   $00,$00,$0D,$10,$13,$19,$10,$1F
         .byte   $22,$25,$28,$2C,$2F,$32,$36,$3A
         .byte   $3E,$41,$4D,$53,$5A,$2C,$2F,$5D
@@ -64,7 +81,9 @@ LFF6B           := $FF6B
         .byte   $12,$16,$1E,$29,$2C,$30,$30,$37
         .byte   $3B,$3E,$41,$48,$4E,$4E,$4E,$4E
 
-; animation sequence data pointers (high byte)
+; --- Animation sequence pointer table (high bytes) ---
+; 128 entries ($00-$7F): high byte of pointer. All values fall in $83-$85
+; range, meaning sequence data resides at $8300-$85xx.
         .byte   $83,$83,$83,$83,$83,$83,$83,$83
         .byte   $83,$83,$83,$83,$83,$83,$83,$83
         .byte   $83,$83,$83,$83,$83,$83,$83,$83
@@ -82,7 +101,12 @@ LFF6B           := $FF6B
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
 
-; OAM tile & attribute data pointers (low byte)
+; ===========================================================================
+; OAM sprite definition pointer table (low bytes)
+; ===========================================================================
+; 256 entries ($00-$FF): low byte of pointer to OAM sprite definition data.
+; Each animation frame references a sprite definition ID which indexes here.
+; Combined with high bytes at $8200 to form the full address.
         .byte   $4E,$4E,$64,$7A,$8E,$9E,$AE,$BA
         .byte   $D0,$E4,$F6,$0A,$1E,$32,$4A,$5E
         .byte   $76,$8C,$A4,$AE,$C4,$CE,$D6,$DE
@@ -116,7 +140,9 @@ LFF6B           := $FF6B
         .byte   $12,$1C,$26,$30,$34,$38,$88,$DA
         .byte   $2A,$2E,$38,$42,$4C,$5A,$64,$72
 
-; OAM tile & attribute data pointers (high byte)
+; --- OAM sprite definition pointer table (high bytes) ---
+; 256 entries: high byte of pointer. Values span $85-$9A, meaning sprite
+; definition data resides at $854E-$9Axx (most of the bank's data area).
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $85,$85,$85,$86,$86,$86,$86,$86
         .byte   $86,$86,$86,$86,$86,$86,$86,$86
@@ -150,8 +176,16 @@ LFF6B           := $FF6B
         .byte   $99,$99,$99,$99,$99,$99,$99,$99
         .byte   $9A,$9A,$9A,$9A,$9A,$9A,$9A,$9A
 
-; pointers from $8000~$80FF
-; animation sequence data
+; ===========================================================================
+; Animation Sequence Data ($8300+)
+; ===========================================================================
+; Variable-length records, one per animation ID. Each record:
+;   byte 0 = frame_count (number of frames minus 1; $00 = static sprite)
+;   byte 1 = tick_speed  (game ticks per animation frame advance)
+;   byte 2+ = sprite_def_ID for each frame (frame_count+1 entries)
+;
+; The pointer tables at $8000/$8080 index into this data.
+; Animation IDs $00-$7F are defined here for bank $1A.
         .byte   $0A,$08,$0A,$0A,$0A,$0A,$0A,$0A
         .byte   $0A,$0A,$0A,$0A,$0B,$00,$08,$10
         .byte   $00,$08,$18,$03,$06,$07,$09,$08
@@ -225,6 +259,23 @@ LFF6B           := $FF6B
         .byte   $04,$0C,$64,$65,$64,$65,$6C,$01
         .byte   $04,$6D,$76,$00,$08,$77,$00,$08
         .byte   $78,$04,$02,$EF,$F0,$F1,$F2,$F3
+; ===========================================================================
+; OAM Sprite Definition Data ($854E+)
+; ===========================================================================
+; Variable-length records defining the hardware OAM sprite layout for each
+; sprite definition ID. Referenced by animation sequence frame entries.
+;
+; Each record begins with:
+;   byte 0 = sprite_count | flags  (low bits = count of OAM hardware sprites,
+;            high bits encode Y-offset group and palette shift)
+;   byte 1 = position_layout_id    (indexes position offset tables in
+;            banks $14/$19 for X/Y offsets of each sub-sprite)
+;   bytes 2+ = (tile_id, attribute) pairs, one per hardware sprite
+;              attribute: bits 0-1 = palette, bit 6 = H-flip, bit 7 = V-flip
+;
+; NOTE: The last animation sequence ($03,$06,$F9,$FA,$FB,$FA) ends in the
+; middle of the first .byte line below. OAM definition data begins at
+; offset $854E within the bank ($09,$00... = sprite def $00).
         .byte   $03,$06,$F9,$FA,$FB,$FA,$09,$00
         .byte   $00,$01,$01,$00,$02,$00,$4A,$00
         .byte   $12,$00,$13,$00,$4B,$00,$22,$00
@@ -953,8 +1004,17 @@ LFF6B           := $FF6B
         .byte   $00,$00,$00,$00,$80,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$20,$00
 
-; checks for new enemies spawning in on both
-; left and right side based on travel direction
+; ===========================================================================
+; Enemy Spawn Check — check_new_enemies ($9C00)
+; ===========================================================================
+; Called during scrolling to check if new enemies should spawn based on
+; the camera's current position. Compares the camera's left and right
+; screen edges against the per-stage enemy placement tables ($AB00-$AE00).
+;
+; Uses two pointers: $9E = rightmost spawned enemy stage ID,
+;                    $9F = leftmost spawned enemy stage ID.
+; When scrolling right, spawns enemies on the right edge and tracks left.
+; When scrolling left, spawns enemies on the left edge and tracks right.
 check_new_enemies:
         clc
         lda     camera_x_lo                     ; camera X left edge
@@ -1030,10 +1090,20 @@ L9C7A:  iny                             ; track new "last left enemy"
 L9C7D:  sty     $9F                     ; set new last left enemy ID
 L9C7F:  rts
 
-; spawn enemy routine
-; parameters:
-; Y: stage wide enemy ID
-
+; ===========================================================================
+; spawn_enemy — instantiate a stage enemy into an entity slot ($9C80)
+; ===========================================================================
+; Input: Y = stage-wide enemy ID (index into $AB00-$AE00 placement tables)
+; Process:
+;   1. Check if this stage ID is already spawned (skip if duplicate)
+;   2. Find a free entity slot ($10-$1F; slots $00-$0F are reserved)
+;   3. Check the "already killed" bitmask at $0150 (skip if killed)
+;   4. Read enemy placement data: screen ($AB00), X ($AC00), Y ($AD00),
+;      global enemy type ID ($AE00)
+;   5. Switch to bank $00 and read global enemy properties:
+;      flags ($A000), AI routine ($A100), hitbox ($A200),
+;      sprite ID ($A300), HP ($A400), speed ($A500-$A700)
+;   6. Initialize all entity state arrays for the new spawn
 spawn_enemy:  tya                       ; first, loop through all sprites
         ldx     #$1F                    ; besides reserved 00-0F
 L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
@@ -1116,6 +1186,23 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         sta     prg_bank                     ; switch $A000-$BFFF bank
         jmp     LFF6B                   ; back to stage's bank, return
 
+; ===========================================================================
+; Per-Stage Enemy Data — Bitmask and Placement Tables ($9D28+)
+; ===========================================================================
+; This region contains data used by check_new_enemies and spawn_enemy:
+;
+; $9D28-$9BFF: "Already killed" bitmask data — a bitfield consulted at
+;              $0150,y to suppress re-spawning enemies the player has
+;              already defeated. Each bit corresponds to a stage enemy ID.
+;
+; Farther below ($AAFF-$AFFF) are the per-stage enemy placement tables:
+;   LAAFF/LAB00 = screen number (X page) where each enemy appears
+;   LABFF/LAC00 = X pixel position within that screen
+;   LAD00       = Y pixel position
+;   LAE00       = global enemy type ID (indexes bank $00 tables)
+;
+; These tables are populated per-stage and define every enemy placement
+; for the currently loaded level.
         .byte   $00,$00,$00,$04,$00,$00,$00,$00
         .byte   $00,$01,$00,$00,$80,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$08,$00
@@ -1208,8 +1295,28 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         .byte   $00,$00,$00,$00,$20,$00,$80,$00
         .byte   $00,$00,$00,$00,$00,$01,$00,$10
 
+; =============================================================================
+; BANK $1B — OAM Animation Sequences (IDs $80-$FF)
+; =============================================================================
+; Identical layout to bank $1A but contains animation data for entity IDs
+; $80-$FF. When the animation engine encounters an ID >= $80, it maps bank
+; $1B to $8000 and masks the ID to $00-$7F for table indexing.
+;
+; The tables below mirror the same structure:
+;   $8000-$807F  Animation sequence pointers (low)
+;   $8080-$80FF  Animation sequence pointers (high)
+;   $8100-$81FF  OAM sprite definition pointers (low)
+;   $8200-$82FF  OAM sprite definition pointers (high)
+;   $8300+       Animation sequence data
+;   $8554+       OAM sprite definition data
+;
+; Labels LA000-LA700 correspond to bank $00 global enemy property tables
+; referenced during enemy spawning (mapped at $A000-$A7FF when bank $00
+; is selected). These labels are used by the spawn_enemy routine above.
+; =============================================================================
 .segment "BANK1B"
 
+; --- Animation sequence pointer table (low bytes) ---
 LA000:  .byte   $00,$13,$16,$1C,$22,$28,$2C,$2F
         .byte   $3B,$3F,$47,$4B,$4F,$55,$5B,$5F
         .byte   $62,$6E,$73,$77,$7B,$7E,$88,$8E
@@ -1226,6 +1333,7 @@ LA000:  .byte   $00,$13,$16,$1C,$22,$28,$2C,$2F
         .byte   $39,$39,$39,$39,$39,$39,$39,$39
         .byte   $39,$39,$39,$39,$39,$39,$39,$39
         .byte   $39,$39,$3D,$41,$45,$49,$4D,$50
+; --- Animation sequence pointer table (high bytes) ---
         .byte   $83,$83,$83,$83,$83,$83,$83,$83
         .byte   $83,$83,$83,$83,$83,$83,$83,$83
         .byte   $83,$83,$83,$83,$83,$83,$83,$83
@@ -1242,6 +1350,11 @@ LA000:  .byte   $00,$13,$16,$1C,$22,$28,$2C,$2F
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
+; --- OAM sprite definition pointer table (low bytes) ---
+; NOTE: Labels LA000-LA700 point to address $A000-$A7FF. This address range
+; is bank $1B's data when bank $1B is loaded, but also serves as the target
+; for spawn_enemy's reads of bank $00 global enemy properties (after the
+; PRG bank is switched to $00). The ca65 labels resolve to the same address.
 LA100:  .byte   $54,$54,$58,$5E,$66,$70,$7C,$88
         .byte   $94,$9A,$A8,$C2,$CC,$D6,$EA,$FE
         .byte   $16,$2E,$58,$82,$96,$A4,$AE,$B8
@@ -1274,6 +1387,8 @@ LA100:  .byte   $54,$54,$58,$5E,$66,$70,$7C,$88
         .byte   $CA,$CA,$CA,$CA,$CA,$CA,$CA,$CA
         .byte   $CA,$CA,$CA,$CA,$CA,$CA,$CA,$CA
         .byte   $CA,$CA,$CA,$CA,$CA,$CA,$CA,$CA
+; --- OAM sprite definition pointer table (high bytes) ---
+; (when bank $00 is loaded: enemy_shape_g — hitbox/collision shape)
 LA200:  .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $86,$86,$86,$86,$86,$86,$86,$86
@@ -1306,6 +1421,8 @@ LA200:  .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $93,$93,$93,$93,$93,$93,$93,$93
         .byte   $93,$93,$93,$93,$93,$93,$93,$93
         .byte   $93,$93,$93,$93,$93,$93,$93,$93
+; --- Animation sequence data ($8300+) ---
+; Variable-length records for animation IDs $80-$FF (same format as bank $1A).
 LA300:  .byte   $10,$03,$01,$02,$03,$04,$05,$06
         .byte   $07,$05,$06,$07,$05,$06,$04,$03
         .byte   $02,$01,$00,$00,$08,$1B,$03,$08
@@ -1338,6 +1455,7 @@ LA300:  .byte   $10,$03,$01,$02,$03,$04,$05,$06
         .byte   $00,$08,$72,$00,$08,$73,$02,$02
         .byte   $83,$84,$85,$09,$02,$98,$79,$98
         .byte   $79,$98,$79,$98,$7E,$98,$79,$02
+; (when bank $00: enemy_health_g — HP values)
 LA400:  .byte   $04,$87,$88,$89,$03,$04,$B6,$B7
         .byte   $B8,$B9,$03,$04,$B8,$B7,$B6,$B9
         .byte   $01,$08,$14,$13,$0B,$08,$17,$17
@@ -1370,6 +1488,7 @@ LA400:  .byte   $04,$87,$88,$89,$03,$04,$B6,$B7
         .byte   $98,$99,$98,$99,$98,$99,$98,$99
         .byte   $9A,$99,$1B,$03,$9B,$9C,$9B,$9C
         .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9B,$9C
+; (when bank $00: enemy_speed_ID_g — speed table index)
 LA500:  .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9B,$9C
         .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9D,$9C
         .byte   $01,$03,$9E,$9F,$00,$08,$A0,$01
@@ -1402,6 +1521,7 @@ LA500:  .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9B,$9C
         .byte   $79,$01,$08,$C6,$70,$00,$71,$00
         .byte   $72,$00,$73,$00,$74,$00,$75,$00
         .byte   $76,$00,$78,$01,$79,$01,$0A,$C8
+; (when bank $00: enemy_x_velocity_sub_g — X velocity subpixel)
 LA600:  .byte   $70,$00,$71,$00,$72,$00,$73,$00
         .byte   $74,$00,$75,$00,$76,$00,$77,$00
         .byte   $78,$00,$7D,$01,$7E,$01,$0A,$C8
@@ -1434,6 +1554,7 @@ LA600:  .byte   $70,$00,$71,$00,$72,$00,$73,$00
         .byte   $CA,$02,$CB,$02,$D9,$02,$DA,$02
         .byte   $DB,$02,$E9,$02,$EA,$02,$EB,$02
         .byte   $ED,$01,$09,$D0,$C0,$02,$A1,$02
+; (when bank $00: enemy_x_velocity_g — X velocity whole pixel)
 LA700:  .byte   $E5,$02,$E6,$02,$E7,$02,$E8,$02
         .byte   $F5,$02,$F6,$02,$EC,$02,$AD,$01
         .byte   $09,$D2,$C0,$02,$A1,$02,$E4,$02
@@ -1562,6 +1683,12 @@ LA700:  .byte   $E5,$02,$E6,$02,$E7,$02,$E8,$02
         .byte   $74,$C0,$73,$80,$73,$C0,$03,$60
         .byte   $DC,$03,$DA,$03,$DA,$43,$D9,$43
         .byte   $03,$2C,$70,$00,$71,$00,$71
+; --- Per-stage enemy placement tables ---
+; LAAFF/LAB00: enemy screen number (X page position), accessed Y-1 / Y
+; LABFF/LAC00: enemy X pixel position within screen
+; LAD00: enemy Y pixel position
+; LAE00: global enemy type ID (indexes bank $00 property tables)
+; These tables are loaded per-stage and contain OAM data interspersed.
 LAAFF:  .byte   $C0
 LAB00:  .byte   $70,$C0,$03,$2C,$72,$00,$73,$00
         .byte   $73,$C0,$72,$C0,$88,$02,$74,$00
@@ -1595,6 +1722,7 @@ LAB00:  .byte   $70,$C0,$03,$2C,$72,$00,$73,$00
         .byte   $00,$0E,$7E,$00,$07,$1E,$9D,$00
         .byte   $9E,$00,$8F,$00,$5E,$40,$5D,$40
         .byte   $8D,$00,$8E,$00,$9C,$01,$00
+; LABFF/LAC00: enemy X pixel position within screen
 LABFF:  .byte   $0E
 LAC00:  .byte   $7F,$00,$03,$2C,$7A,$00,$7B,$00
         .byte   $7C,$00,$7D,$00,$09,$14,$2F,$01
@@ -1628,6 +1756,7 @@ LAC00:  .byte   $7F,$00,$03,$2C,$7A,$00,$7B,$00
         .byte   $F7,$02,$F7,$42,$F7,$42,$F7,$82
         .byte   $F7,$82,$F7,$C2,$F7,$C2,$F7,$02
         .byte   $F7,$42,$F7,$82,$F7,$C2,$F6,$02
+; LAD00: enemy Y pixel position
 LAD00:  .byte   $F6,$42,$F6,$82,$F6,$C2,$17,$FD
         .byte   $F2,$42,$F3,$42,$F3,$02,$F2,$02
         .byte   $F2,$C2,$F3,$C2,$F3,$82,$F2,$82
@@ -1660,6 +1789,7 @@ LAD00:  .byte   $F6,$42,$F6,$82,$F6,$C2,$17,$FD
         .byte   $47,$00,$4B,$00,$4D,$00,$44,$00
         .byte   $45,$00,$78,$01,$4E,$00,$4F,$00
         .byte   $76,$00,$77,$00,$79,$01,$7A,$01
+; LAE00: global enemy type ID (indexes bank $00 property tables)
 LAE00:  .byte   $7D,$01,$00,$01,$49,$00,$4A,$00
         .byte   $8F,$0E,$47,$00,$70,$00,$5F,$00
         .byte   $44,$00,$45,$00,$78,$01,$74,$00

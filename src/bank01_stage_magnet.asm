@@ -1,7 +1,49 @@
-; ---------------------------------------------------------------------------
-; set_room_chr_and_palette — configure sprite CHR banks and palettes
-; ---------------------------------------------------------------------------
-; Called from load_room (bank1E_1F) with A = CHR/palette param from $AA60.
+; =============================================================================
+; MEGA MAN 3 (U) -- BANK $01 -- CHR/PALETTE INIT + MAGNET MAN STAGE DATA
+; =============================================================================
+; Mapped to $A000-$BFFF. Shared across all stages (CHR/palette init) and
+; also serves as Magnet Man's stage data bank ($22 = $01).
+;
+; Code:
+;   $A000:  set_room_chr_and_palette -- configures $EC/$ED sprite CHR banks
+;           and copies SP2/SP3 palettes into $0618/$0638 palette buffers.
+;           Called from load_room (fixed bank) with A = CHR/palette param
+;           read from $AA60 room config table.
+;
+; Shared data tables:
+;   $A030:  Sprite palette table (8 bytes per param: SP2 + SP3 palettes)
+;           Params $00-$11 = stage defaults (Needle..Wily6)
+;           Params $12+    = per-room variant palettes
+;   $A200:  Sprite CHR bank table (2 bytes per param: $EC, $ED pages)
+;           $EC = CHR bank for PPU $1800-$1BFF (sprite tiles $80-$BF)
+;           $ED = CHR bank for PPU $1C00-$1FFF (sprite tiles $C0-$FF)
+;
+; Magnet Man stage data layout ($AA00+):
+;   $AA00:  Screen metatile grid / room header data
+;   $AA60:  Room config table (CHR/palette param + bank per room)
+;   $AA80:  BG palette data
+;   $AB00:  Enemy placement -- screen numbers (terminated by $FF)
+;   $AC00:  Enemy placement -- X pixel positions
+;   $AD00:  Enemy placement -- Y pixel positions
+;   $AE00:  Enemy placement -- global enemy IDs
+;   $AF10:  Metatile column definitions (8 bytes per column, 8 rows)
+;   $B700:  Metatile CHR definitions (4 bytes per metatile: 2x2 tile IDs)
+;   $BB00:  Metatile CHR definitions (attribute/flip plane)
+;   $BF00:  Collision attribute table (upper nybble = collision type)
+; =============================================================================
+
+        .setcpu "6502"
+
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
+
+.segment "BANK01"
+
+; ===========================================================================
+; set_room_chr_and_palette -- configure sprite CHR banks and palettes
+; ===========================================================================
+; Called from load_room (fixed bank) with A = CHR/palette param from $AA60.
 ; The param indexes two tables:
 ;   $A200[param*2]:   $EC/$ED sprite CHR bank pages (tiles $80-$FF)
 ;   $A030[param*8]:   SP2/SP3 sprite palettes (8 NES color bytes)
@@ -9,38 +51,8 @@
 ; Params $00-$11 = stage defaults (Needle..Wily6), $12+ = room variants.
 ; Each room in a stage can select any param, allowing different enemy
 ; tilesets and palettes per room within the same stage.
-; ---------------------------------------------------------------------------
+; ===========================================================================
 set_room_chr_and_palette:
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $01 — CHR/PALETTE INIT + MAGNET MAN STAGE DATA
-; =============================================================================
-; CHR bank initialization, palette loading, and Magnet Man stage layout data.
-;
-; Annotation: 0% — unannotated da65 output
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $01 — CHR/PALETTE INIT + MAGNET MAN STAGE DATA
-; =============================================================================
-; Mapped to $A000-$BFFF. Contains the shared CHR/palette initialization
-; routine called by load_room (bank1E_1F), plus data tables:
-;   $A000:       set_room_chr_and_palette — sets $EC/$ED and SP2-SP3
-;   $A030+:      sprite palette table (8 bytes per param: SP2 + SP3)
-;   $A200+:      sprite CHR bank table (2 bytes per param: $EC, $ED)
-; Also doubles as Magnet Man stage data ($22=$01) for $AA00+ region.
-;
-; Annotation: partial — entry point named, CHR/palette tables explained
-; =============================================================================
-
-        .setcpu "6502"                  ; param * 2 → index into $A200
-
-.include "include/zeropage.inc"
-.include "include/constants.inc"
-
-
-.segment "BANK01"                       ; param * 2 → index into $A200
-
         asl     a                       ; param * 2 → index into $A200
         pha                             ; (save param*2 for palette calc)
         tax
@@ -69,26 +81,41 @@ LA01D:  lda     ($00),y                 ; copy 8 palette bytes (SP2 + SP3):
         stx     palette_dirty                     ; (NMI will copy to PPU)
         rts
 
-        .byte   $0F,$0F,$30,$27,$0F,$0F,$30,$15
-        .byte   $0F,$0F,$30,$16,$0F,$0F,$39,$19
-        .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$11
-        .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$11
-        .byte   $0F,$0F,$30,$27,$0F,$0F,$30,$11
-        .byte   $0F,$0F,$30,$27,$0F,$0F,$27,$15
-        .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$26
-        .byte   $0F,$0F,$30,$1C,$0F,$0F,$30,$29
-        .byte   $0F,$0F,$30,$19,$0F,$0F,$30,$16
-        .byte   $0F,$0F,$30,$27,$0F,$0F,$30,$15
-        .byte   $0F,$0F,$30,$19,$0F,$0F,$30,$15
-        .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$10
-        .byte   $0F,$0F,$30,$26,$0F,$0F,$30,$15
-        .byte   $0F,$0F,$10,$15,$0F,$0F,$00,$00
-        .byte   $0F,$0F,$10,$15,$0F,$0F,$00,$00
-        .byte   $0F,$0F,$27,$15,$0F,$0F,$27,$15
-        .byte   $0F,$0F,$27,$15,$0F,$0F,$27,$15
-        .byte   $0F,$0F,$27,$15,$0F,$0F,$27,$15
-        .byte   $0F,$0F,$27,$15,$0F,$0F,$27,$15
-        .byte   $00,$0F,$30,$11,$00,$0F,$30,$15
+; ===========================================================================
+; Sprite palette table ($A030) -- 8 bytes per param (SP2 + SP3)
+; ===========================================================================
+; Each entry defines two 4-color sprite palettes (SP2 and SP3) used for
+; enemy/object sprites in a given room. Format per entry:
+;   Bytes 0-3: SP2 palette (bg, color1, color2, color3)
+;   Bytes 4-7: SP3 palette (bg, color1, color2, color3)
+;
+; Params $00-$11 are stage defaults:
+;   $00=Needle, $01=Magnet, $02=Gemini, $03=Hard, $04=Top,
+;   $05=Snake, $06=Spark, $07=Shadow, $08=DocNeedle, $09=DocSpark,
+;   $0A=DocShadow, $0B=DocGemini, $0C=Wily1, $0D=Wily2,
+;   $0E=Wily3, $0F/$10/$11=Wily4-6
+; Params $12+ are per-room palette variants.
+; ---------------------------------------------------------------------------
+        .byte   $0F,$0F,$30,$27,$0F,$0F,$30,$15 ; $00: Needle Man
+        .byte   $0F,$0F,$30,$16,$0F,$0F,$39,$19 ; $01: Magnet Man
+        .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$11 ; $02: Gemini Man
+        .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$11 ; $03: Hard Man
+        .byte   $0F,$0F,$30,$27,$0F,$0F,$30,$11 ; $04: Top Man
+        .byte   $0F,$0F,$30,$27,$0F,$0F,$27,$15 ; $05: Snake Man
+        .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$26 ; $06: Spark Man
+        .byte   $0F,$0F,$30,$1C,$0F,$0F,$30,$29 ; $07: Shadow Man
+        .byte   $0F,$0F,$30,$19,$0F,$0F,$30,$16 ; $08: Doc Robot Needle
+        .byte   $0F,$0F,$30,$27,$0F,$0F,$30,$15 ; $09: Doc Robot Spark
+        .byte   $0F,$0F,$30,$19,$0F,$0F,$30,$15 ; $0A: Doc Robot Shadow
+        .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$10 ; $0B: Doc Robot Gemini
+        .byte   $0F,$0F,$30,$26,$0F,$0F,$30,$15 ; $0C: Wily 1
+        .byte   $0F,$0F,$10,$15,$0F,$0F,$00,$00 ; $0D: Wily 2
+        .byte   $0F,$0F,$10,$15,$0F,$0F,$00,$00 ; $0E: Wily 3
+        .byte   $0F,$0F,$27,$15,$0F,$0F,$27,$15 ; $0F: Wily 4
+        .byte   $0F,$0F,$27,$15,$0F,$0F,$27,$15 ; $10: Wily 5
+        .byte   $0F,$0F,$27,$15,$0F,$0F,$27,$15 ; $11: Wily 6
+        .byte   $0F,$0F,$27,$15,$0F,$0F,$27,$15 ; $12: room variant
+        .byte   $00,$0F,$30,$11,$00,$0F,$30,$15 ; $13: room variant
         .byte   $0F,$0F,$30,$27,$0F,$0F,$30,$11
         .byte   $0F,$0F,$30,$16,$0F,$0F,$39,$19
         .byte   $0F,$0F,$10,$15,$0F,$30,$10,$15
@@ -127,8 +154,17 @@ LA01D:  lda     ($00),y                 ; copy 8 palette bytes (SP2 + SP3):
         .byte   $0F,$35,$25,$15,$0F,$0F,$30,$11
         .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$11
         .byte   $0F,$0F,$30,$27,$0F,$0F,$30,$11
-LA200:  .byte   $08
-LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
+; ===========================================================================
+; Sprite CHR bank table ($A200) -- 2 bytes per param ($EC, $ED)
+; ===========================================================================
+; Indexed by the same param as the palette table above.
+; Each pair sets the MMC3 CHR bank pages for sprite tile ranges:
+;   Byte 0 → $EC: CHR bank for PPU $1800-$1BFF (sprite tiles $80-$BF)
+;   Byte 1 → $ED: CHR bank for PPU $1C00-$1FFF (sprite tiles $C0-$FF)
+; Entries $00-$11 are the stage defaults, $12+ per-room overrides.
+; ---------------------------------------------------------------------------
+LA200:  .byte   $08                             ; $00 Needle: $EC=$08
+LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needle $ED=$09, Magnet, Gemini...)
         .byte   $16,$11,$12,$13,$14,$32,$3A,$15
         .byte   $17,$0A,$18,$08,$19,$15,$1A,$08
         .byte   $19,$1D,$1E,$1D,$1F,$20,$21,$20
@@ -142,6 +178,13 @@ LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
         .byte   $25,$0C,$0D,$27,$10,$11,$16,$08
         .byte   $0D,$08,$35,$08,$3B,$08,$0E,$3C
         .byte   $3D,$13,$39,$3C,$37,$1B,$3B,$0A
+; =============================================================================
+; MAGNET MAN STAGE DATA -- Enemy spawn property tables ($A274+)
+; =============================================================================
+; Compressed enemy spawn property data. This region is used by the enemy
+; spawning system to determine behavior flags and properties for enemies
+; placed in Magnet Man's stage.
+; ---------------------------------------------------------------------------
         .byte   $0E,$32,$16,$BB,$F7,$F2,$FF,$EE
         .byte   $FF,$AE,$FF,$BB,$FF,$AA,$FF,$2A
         .byte   $FF,$BA,$FF,$EA,$DF,$BA,$BF,$AA
@@ -384,6 +427,26 @@ LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
         .byte   $00,$00,$59,$80,$02,$00,$00,$00
         .byte   $B8,$20,$AC,$00,$94,$01,$08,$08
         .byte   $24,$22,$66,$80,$48,$00,$0C,$00
+; =============================================================================
+; MAGNET MAN STAGE DATA -- Screen layout region ($AA00+)
+; =============================================================================
+; Standard stage data format. This region is loaded at $AA00 when Magnet
+; Man's stage is active. Contains:
+;
+; --- Screen index table ($AA00) ---
+; Lists screen IDs $00-$14 (21 screens total in Magnet Man's stage).
+; Screen $00 is the starting screen; higher numbers progress rightward.
+;
+; --- Room scroll/config data ($AA14+) ---
+; Per-screen scrolling parameters and room transition settings.
+;
+; --- Room CHR/palette config table ($AA60) ---
+; Two bytes per room: CHR/palette param (indexes shared table at $A030/$A200)
+; and bank number. Allows rooms to use different enemy sprite sets.
+;
+; --- BG palette data ($AA80) ---
+; Background palettes for the stage tileset.
+; ---------------------------------------------------------------------------
         .byte   $01,$02,$03,$04,$05,$06,$07,$08
         .byte   $09,$0A,$0B,$0C,$0D,$0E,$0F,$10
         .byte   $11,$12,$13,$14,$10,$82,$08,$00
@@ -416,6 +479,9 @@ LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
         .byte   $80,$20,$00,$80,$00,$20,$40,$06
         .byte   $0A,$00,$00,$02,$57,$00,$94,$0C
         .byte   $13,$FF,$00,$AA,$25,$00,$40,$01
+; --- Enemy placement: screen numbers ($AB00, terminated by $FF) ---
+; Each byte is the screen number where the corresponding enemy spawns.
+; Entries are sorted by screen number. Terminated by $FF sentinel.
         .byte   $01,$02,$02,$03,$03,$04,$05,$06
         .byte   $07,$08,$08,$09,$09,$09,$09,$0A
         .byte   $0A,$0A,$0B,$0B,$0B,$0B,$0D,$0D
@@ -448,6 +514,7 @@ LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
         .byte   $0A,$80,$21,$00,$C0,$28,$83,$00
         .byte   $38,$00,$54,$20,$0A,$80,$18,$00
         .byte   $48,$22,$D0,$08,$08,$82,$00,$48
+; --- Enemy placement: X pixel positions ($AC00, terminated by $FF) ---
         .byte   $C8,$78,$C8,$38,$A8,$68,$30,$A8
         .byte   $C8,$50,$70,$B0,$B0,$D8,$F8,$10
         .byte   $10,$28,$50,$70,$90,$B0,$90,$90
@@ -480,6 +547,7 @@ LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
         .byte   $00,$01,$00,$00,$00,$02,$00,$00
         .byte   $00,$48,$00,$00,$00,$26,$04,$00
         .byte   $00,$03,$00,$48,$00,$10,$00,$28
+; --- Enemy placement: Y pixel positions ($AD00, terminated by $FF) ---
         .byte   $68,$28,$28,$68,$28,$28,$04,$B0
         .byte   $B0,$38,$58,$B0,$B0,$88,$88,$80
         .byte   $80,$38,$3C,$3C,$3C,$3C,$90,$90
@@ -512,6 +580,11 @@ LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
         .byte   $00,$40,$01,$00,$00,$00,$00,$00
         .byte   $40,$00,$40,$20,$00,$05,$40,$00
         .byte   $00,$00,$00,$00,$00,$00,$10,$0F
+; --- Enemy placement: global enemy IDs ($AE00, terminated by $FF) ---
+; Each byte is the global enemy ID for the corresponding enemy slot.
+; The ID indexes into bank $00's enemy property tables for AI, sprite,
+; HP, and weapon vulnerability data. $0F = no enemy (empty slot).
+; Example IDs: $3E, $5C, $36, $25, $16, $51, $3D, $31, $53, $52, $50
         .byte   $0F,$0F,$0F,$0F,$0F,$0F,$3E,$5C
         .byte   $5C,$36,$36,$25,$16,$36,$36,$25
         .byte   $16,$36,$51,$51,$51,$51,$25,$16
@@ -544,6 +617,17 @@ LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
         .byte   $00,$00,$00,$04,$01,$08,$00,$00
         .byte   $00,$00,$00,$20,$00,$00,$00,$00
         .byte   $00,$00,$00,$04,$00,$81,$00,$00
+; ===========================================================================
+; Metatile column definitions ($AF00+)
+; ===========================================================================
+; Each screen is composed of columns of metatiles. The first 16 bytes
+; ($AF00-$AF0F) are padding/index data. Starting at $AF10, each set of
+; 8 bytes defines one column (8 rows of metatile IDs, top to bottom).
+; The metatile IDs reference the CHR definitions at $B700+ and the
+; collision attributes at $BF00.
+;
+; Screen layout variants follow for different room configurations.
+; ---------------------------------------------------------------------------
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$01
         .byte   $02,$03,$04,$01,$02,$03,$04,$05
@@ -800,6 +884,13 @@ LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$61
+; ===========================================================================
+; Metatile CHR definitions ($B700+) -- 4 bytes per metatile (2x2 tile IDs)
+; ===========================================================================
+; Defines the visual appearance of each metatile as 2x2 CHR tile IDs.
+; $400 bytes total ($B700-$BAFF). The tile IDs reference patterns in the
+; background CHR bank. Format details: verify in Mesen with render_col.
+; ---------------------------------------------------------------------------
         .byte   $61,$61,$61,$51,$52,$60,$60,$53
         .byte   $54,$60,$60,$55,$56,$60,$60,$57
         .byte   $60,$60,$60,$60,$60,$5A,$5B,$60
@@ -928,6 +1019,13 @@ LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; ===========================================================================
+; Metatile attribute data ($BB00+) -- tile attributes / flip flags
+; ===========================================================================
+; Additional metatile definition data. Four planes corresponding to each
+; of the 2x2 quadrant positions, providing attribute and flip information
+; for the background tiles. Works alongside the CHR definitions at $B700.
+; ---------------------------------------------------------------------------
         .byte   $02,$04,$06,$46,$44,$20,$02,$0A
         .byte   $22,$22,$40,$64,$66,$40,$22,$08
         .byte   $0E,$24,$20,$62,$66,$76,$A0,$0C
@@ -1056,6 +1154,17 @@ LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; ===========================================================================
+; Collision attribute table ($BF00) -- upper nybble = collision type
+; ===========================================================================
+; One byte per metatile. The upper nybble defines the collision behavior:
+;   $00 = empty/passable          $10 = solid
+;   $20 = ladder                  $30 = spikes (instant kill)
+;   $40 = water surface           $50 = force/conveyor
+;   $13 = semi-solid platform     $11 = solid (variant)
+;   $01 = breakable block         $02/$03 = (verify in Mesen)
+; Used by the tile collision system in the fixed bank.
+; ---------------------------------------------------------------------------
         .byte   $10,$10,$10,$10,$10,$10,$10,$10
         .byte   $10,$10,$10,$10,$40,$10,$10,$10
         .byte   $10,$10,$10,$10,$20,$13,$01,$10
@@ -1072,6 +1181,7 @@ LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F
         .byte   $01,$01,$00,$11,$11,$00,$00,$10
         .byte   $10,$10,$10,$00,$00,$00,$00,$10
         .byte   $10,$10,$10,$00,$00,$00,$00,$00
+; --- Unused padding ($BF80-$BFFF) ---
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
