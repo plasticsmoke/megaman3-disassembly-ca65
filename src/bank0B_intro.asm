@@ -1,21 +1,23 @@
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $0B — INTRO SEQUENCE + DOC ROBOT SHADOW STAGE
 ; =============================================================================
-; Opening intro cinematic sequence and Doc Robot Shadow Man stage data.
+; Mapped to $8000-$9FFF. Contains the game intro/opening cutscene and
+; the Doc Robot Shadow Man stage data (stage_id $16, bank pair $0B).
 ;
-; Annotation: 0% — unannotated da65 output
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $0B — INTRO SEQUENCE + DOC ROBOT SHADOW STAGE
-; =============================================================================
-; Mapped to $8000-$9FFF. Contains the game intro/opening cutscene:
-; palette fading, entity table setup, Mega Man landing animation,
-; sound init, and state machine for the intro sequence.
-; Also serves as Doc Robot Shadow Man stage data ($22=$0B) at $A000-$BFFF.
+; The intro sequence has three phases:
+;   Phase 1 ($8006): "Mountain top" — Mega Man falls from sky, Rush slides in,
+;       title music plays via bank $0E music driver, palette fade cycling.
+;   Phase 2 ($81B0): "Flying on Rush" — Proto Man scene: Mega Man rides Rush
+;       upward through star field, wind SFX ($28), palette flashing.
+;   Phase 3 ($8291): "Proto Man confrontation" — Mega Man descends, Proto Man
+;       appears with whistle ($5D), they meet, Proto Man departs.
 ;
-; Annotation: light — all labels auto-generated, intro sequence logic bare
+; After all three intro phases, jumps to Doc Robot stage entry ($8439)
+; which loads the Shadow Man stage nametable and runs the Doc Robot
+; cutscene showing boss selection sprites.
+;
+; Stage data (metatile columns, enemy/object layouts, tile attribute maps)
+; fills the $A000-$BFFF half of this bank pair.
 ; =============================================================================
 
         .setcpu "6502"
@@ -23,81 +25,97 @@
 .include "include/zeropage.inc"
 .include "include/constants.inc"
 
-LA000           := $A000
-LA003           := $A003
-LA006           := $A006
-LC5E9           := $C5E9
-LC628           := $C628
-LC74C           := $C74C
-LC752           := $C752
-LE8B4           := $E8B4
-LEF8C           := $EF8C
-LF797           := $F797
-LF835           := $F835
-LF898           := $F898
-LF89A           := $F89A
-LFD6E           := $FD6E
-LFD80           := $FD80
-LFF21           := $FF21
-LFF3C           := $FF3C
-LFF6B           := $FF6B
+; --- External references (fixed bank + swappable bank $0E) ---
+LA000           := $A000                ; init music driver (bank $0E)
+LA003           := $A003                ; continue music playback (bank $0E)
+LA006           := $A006                ; start music track X (bank $0E)
+LC5E9           := $C5E9                ; prepare OAM buffer
+LC628           := $C628                ; clear entity table
+LC74C           := $C74C                ; fade palette out (reveal)
+LC752           := $C752                ; fade palette in (to black)
+LE8B4           := $E8B4                ; init metatile column pointers
+LEF8C           := $EF8C                ; fill one nametable column
+LF797           := $F797                ; apply Y speed (gravity)
+LF835           := $F835                ; reset sprite animation (A=anim, X=entity)
+LF898           := $F898                ; submit sound ID (with $D9 prefix)
+LF89A           := $F89A                ; submit sound ID (direct)
+LFD6E           := $FD6E                ; process frame + yield (full entity update)
+LFD80           := $FD80                ; process frame + yield (sprites only)
+LFF21           := $FF21                ; task yield (wait for NMI)
+LFF3C           := $FF3C                ; update CHR banks via MMC3
+LFF6B           := $FF6B                ; select PRG banks
 
 .segment "BANK0B"
 
-        jmp     L8006
+; ===========================================================================
+; Entry point jump table
+; ===========================================================================
+; $8000: intro sequence (called from game mode handler)
+; $8003: Doc Robot Shadow Man stage entry
+; ===========================================================================
+        jmp     L8006                   ; entry: intro sequence
 
-        jmp     code_8439
+        jmp     code_8439               ; entry: Doc Robot stage
 
+; ===========================================================================
+; Phase 1 Init: "Mountain Top" — Mega Man falls, Rush slides in
+; ===========================================================================
+; Fade in, load stage $16 nametable, set up Mega Man (entity 0) and
+; Rush (entity 1) sprites, start title music, then enter main loop.
+; ===========================================================================
 L8006:  lda     #$00
-        sta     nmi_skip
-        jsr     LC752
+        sta     nmi_skip                ; disable NMI processing
+        jsr     LC752                   ; fade palette to black
         lda     #$04
-        sta     oam_ptr
-        jsr     LC5E9
-        jsr     LC628
-        jsr     LFF21
+        sta     oam_ptr                 ; OAM write position
+        jsr     LC5E9                   ; prepare OAM buffer
+        jsr     LC628                   ; clear entity table
+        jsr     LFF21                   ; wait for NMI (task yield)
         lda     #$F0
-        jsr     LF898
+        jsr     LF898                   ; submit sound $F0 (silence/init)
         lda     #$00
-        sta     $B1
+        sta     $B1                     ; clear music state vars
         sta     $B2
         sta     $B3
-        sta     $70
+        sta     $70                     ; nametable column progress counter
         sta     camera_x_hi
         sta     camera_x_lo
-        sta     $B8
+        sta     $B8                     ; music continuation flag
         lda     #$16
-        sta     stage_id
+        sta     stage_id                ; stage $16 = intro/Shadow Man stage
         lda     #$02
-        jsr     LE8B4
+        jsr     LE8B4                   ; init metatile column pointers
+; --- fill nametable progressively until complete ---
 code_8038:  lda     #$00
-        sta     $10
-        jsr     LEF8C
-        jsr     LFF21
+        sta     $10                     ; column direction = rightward
+        jsr     LEF8C                   ; draw one nametable column
+        jsr     LFF21                   ; wait for NMI
         lda     $70
-        bne     code_8038
+        bne     code_8038               ; loop until nametable fully drawn
+; --- load palette and CHR bank settings ---
         ldy     #$1F
-code_8048:  lda     L8655,y
-        sta     $0620,y
+code_8048:  lda     L8655,y             ; phase 1 palette (mountain top)
+        sta     $0620,y                 ; write to palette buffer
         dey
         bpl     code_8048
         ldy     #$05
-code_8053:  lda     L86B5,y
+code_8053:  lda     L86B5,y             ; phase 1 CHR bank assignments
         sta     $E8,y
         dey
         bpl     code_8053
-        jsr     LFF3C
+        jsr     LFF3C                   ; update CHR banks via MMC3
+; --- set up entities 0 (Mega Man) and 1 (Rush) ---
         ldy     #$01
 code_8061:  lda     #$80
-        sta     ent_status,y
+        sta     ent_status,y            ; entity active
         lda     #$90
-        sta     ent_flags,y
+        sta     ent_flags,y             ; facing left, palette 0
         lda     L86E3,y
-        sta     ent_anim_id,y
+        sta     ent_anim_id,y           ; anim: $13=Mega Man fall, $60=Rush
         lda     L86E5,y
-        sta     ent_x_px,y
+        sta     ent_x_px,y              ; x: $D8=MM, $58=Rush
         lda     L86E7,y
-        sta     ent_y_px,y
+        sta     ent_y_px,y              ; y: $00=MM (top), $A4=Rush (ground)
         lda     #$00
         sta     ent_x_scr,y
         sta     ent_anim_frame,y
@@ -108,581 +126,685 @@ code_8061:  lda     #$80
         sta     ent_var2
         sta     ent_var3
         lda     #$C0
-        sta     ent_yvel_sub,y
+        sta     ent_yvel_sub,y          ; initial upward velocity (sub)
         lda     #$FF
-        sta     ent_yvel,y
+        sta     ent_yvel,y              ; initial upward velocity = -1 (rises first frame)
         dey
         bpl     code_8061
+; --- load initial OAM sprite data (mountain scenery) ---
         ldy     #$07
 code_80A6:  lda     L86E9,y
-        sta     $0200,y
+        sta     $0200,y                 ; OAM buffer: mountain decoration sprites
         dey
         bpl     code_80A6
         lda     #$11
-        sta     game_mode
+        sta     game_mode               ; set game mode = intro cinematic
         lda     #$C0
-        sta     $5E
-        jsr     LFF21
-        jsr     LC74C
+        sta     $5E                     ; scroll limit
+        jsr     LFF21                   ; wait for NMI
+        jsr     LC74C                   ; fade palette out (reveal scene)
+; --- init phase 1 state variables ---
         lda     #$08
-        sta     ent_timer
+        sta     ent_timer               ; music track index
         lda     #$00
-        sta     $0104
-        sta     $95
-        sta     camera_screen
+        sta     $0104                   ; palette cycle index
+        sta     $95                     ; frame counter
+        sta     camera_screen           ; camera screen position
+; ===========================================================================
+; Phase 1 Main Loop: Mega Man falling + Rush sliding in
+; ===========================================================================
+; Mega Man (entity 0) falls with gravity until Y >= $A4 (ground level),
+; then plays landing anim. Rush (entity 1, anim $04) slides left until
+; X < $98, then changes to standing anim. Meanwhile, palette cycles
+; through sunset colors and title music plays track-by-track.
+; ===========================================================================
 code_80CB:  ldx     #$00
-        lda     ent_anim_id
+        lda     ent_anim_id             ; check Mega Man's current animation
         cmp     #$04
-        beq     code_80F9
+        beq     code_80F9               ; branch if Rush sliding anim (== $04)
         cmp     #$01
-        beq     code_811A
-        jsr     LF797
+        beq     code_811A               ; branch if standing idle (== $01)
+; --- Mega Man is still falling ---
+        jsr     LF797                   ; apply Y speed (gravity)
         lda     #$A4
-        cmp     ent_y_px
-        bcs     code_80F1
-        sta     ent_y_px
+        cmp     ent_y_px                ; has MM reached ground (Y=$A4)?
+        bcs     code_80F1               ; not yet, skip
+        sta     ent_y_px                ; clamp Y to ground level
         lda     #$04
-        cmp     ent_anim_state
+        cmp     ent_anim_state          ; check if landing anim complete
         bne     code_811A
-        lda     #$04
-        jsr     LF835
+        lda     #$04                    ; set anim $04 (landed/standing)
+        jsr     LF835                   ; reset sprite animation
 code_80F1:  lda     #$00
-        sta     ent_anim_frame
+        sta     ent_anim_frame          ; reset animation frame
         jmp     code_811A
-
+; --- Rush is sliding leftward ---
 code_80F9:  lda     ent_anim_id
         cmp     #$01
-        beq     code_811A
+        beq     code_811A               ; already standing, skip
         lda     ent_x_sub
         sec
-        sbc     #$80
+        sbc     #$80                    ; subtract 1.5 px per frame (sub)
         sta     ent_x_sub
         lda     ent_x_px
-        sbc     #$01
+        sbc     #$01                    ; subtract 1 px (whole)
         sta     ent_x_px
         cmp     #$98
-        bcs     code_811A
-        lda     #$01
-        jsr     LF835
-code_811A:  lda     $B8
+        bcs     code_811A               ; Rush hasn't reached target X yet
+        lda     #$01                    ; set anim $01 (standing)
+        jsr     LF835                   ; reset sprite animation
+; --- palette cycling for sunset sky effect ---
+code_811A:  lda     $B8                 ; music continuation flag
         bne     code_8121
-        sta     $05E1
+        sta     $05E1                   ; clear entity 1 anim frame if music idle
 code_8121:  lda     $95
-        and     #$03
+        and     #$03                    ; every 4 frames...
         bne     code_814E
-        lda     $0104
+        lda     $0104                   ; palette cycle index
         asl     a
-        adc     $0104
+        adc     $0104                   ; index * 3 = offset into palette table
         tay
         ldx     #$05
-code_8131:  lda     L86C7,y
-        sta     $0600,x
+code_8131:  lda     L86C7,y             ; load 3 bytes of cycling palette
+        sta     $0600,x                 ; write to palette BG color slots 5-7
         iny
         inx
         cpx     #$08
         bne     code_8131
-        stx     palette_dirty
+        stx     palette_dirty           ; mark palette for update
         inc     $0104
         lda     $0104
-        cmp     #$06
+        cmp     #$06                    ; 6 palette steps in cycle
         bne     code_814E
         lda     #$00
-        sta     $0104
+        sta     $0104                   ; reset cycle to beginning
+; --- process frame and run music driver ---
 code_814E:  lda     #$08
-        sta     oam_ptr
-        jsr     LFD80
+        sta     oam_ptr                 ; OAM write position past scenery
+        jsr     LFD80                   ; process frame + yield (sprites + NMI)
         lda     ent_anim_id
-        cmp     #$01
-        bne     code_81AD
-        lda     ent_var1
-        bne     code_8190
+        cmp     #$01                    ; Mega Man standing?
+        bne     code_81AD               ; no — loop back
+; --- title music playback state machine ---
+        lda     ent_var1                ; inter-track delay timer
+        bne     code_8190               ; counting down between tracks
         lda     $95
         and     #$03
-        bne     code_81AD
+        bne     code_81AD               ; only update music every 4 frames
         lda     #$0E
-        sta     prg_bank
-        jsr     LFF6B
-        lda     $B8
-        bne     code_817B
-        ldx     ent_timer
-        jsr     LA006
+        sta     prg_bank                ; bank $0E = music/sound driver
+        jsr     LFF6B                   ; select PRG banks
+        lda     $B8                     ; music continuation flag
+        bne     code_817B               ; track playing — continue it
+        ldx     ent_timer               ; track index (starts at $08)
+        jsr     LA006                   ; start new music track X
         jmp     code_81AD
-
-code_817B:  jsr     LA003
+; --- continue current music track ---
+code_817B:  jsr     LA003               ; continue music playback
         lda     $B8
-        cmp     #$FF
-        bne     code_81AD
-        inc     ent_timer
+        cmp     #$FF                    ; track finished?
+        bne     code_81AD               ; no — keep playing
+        inc     ent_timer               ; advance to next track
         lda     #$00
-        sta     $B8
+        sta     $B8                     ; clear music flag
         lda     #$B5
-        sta     ent_var1
-code_8190:  dec     ent_var1
+        sta     ent_var1                ; set inter-track delay ($B5 frames)
+code_8190:  dec     ent_var1            ; count down delay
         bne     code_81AD
         lda     ent_timer
-        cmp     #$0A
-        beq     code_81B0
+        cmp     #$0A                    ; played all tracks (up to $0A)?
+        beq     code_81B0               ; yes — transition to phase 2
         lda     #$0E
         sta     prg_bank
-        jsr     LFF6B
+        jsr     LFF6B                   ; select music bank
         lda     #$00
         sta     nmi_skip
-        jsr     LA000
-        jsr     LFF21
-code_81AD:  jmp     code_80CB
+        jsr     LA000                   ; init music driver for next track
+        jsr     LFF21                   ; wait for NMI
+code_81AD:  jmp     code_80CB           ; loop phase 1
 
+; ===========================================================================
+; Phase 2 Init: "Flying on Rush" — Mega Man rides Rush upward
+; ===========================================================================
+; Fade to black, load a new nametable (stage $08 via bank $13),
+; set up Mega Man riding Rush (anim $5F) moving right and upward.
+; Star field scrolls vertically to simulate flight.
+; ===========================================================================
 code_81B0:  lda     #$00
-        sta     nmi_skip
-        jsr     LC752
+        sta     nmi_skip                ; disable NMI
+        jsr     LC752                   ; fade palette to black
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9
-        jsr     LC628
-        jsr     LFF21
+        jsr     LC5E9                   ; prepare OAM buffer
+        jsr     LC628                   ; clear entity table
+        jsr     LFF21                   ; wait for NMI
         lda     #$00
-        sta     $70
-        sta     game_mode
+        sta     $70                     ; nametable column counter
+        sta     game_mode               ; game mode = 0 (reset for phase 2)
         lda     #$13
-        sta     prg_bank
-        jsr     LFF6B
+        sta     prg_bank                ; bank $13 for phase 2 stage tiles
+        jsr     LFF6B                   ; select PRG banks
         lda     #$08
-        jsr     LE8B4
+        jsr     LE8B4                   ; init metatile columns for stage $08
+; --- fill nametable progressively ---
 code_81D6:  lda     #$00
         sta     $10
-        jsr     LEF8C
-        jsr     LFF21
+        jsr     LEF8C                   ; draw one nametable column
+        jsr     LFF21                   ; wait for NMI
         lda     $70
-        bne     code_81D6
+        bne     code_81D6               ; loop until complete
+; --- load phase 2 palette and CHR banks ---
         ldy     #$1F
-code_81E6:  lda     L8675,y
-        sta     $0620,y
+code_81E6:  lda     L8675,y             ; phase 2 palette (night sky)
+        sta     $0620,y                 ; write to palette buffer
         dey
         bpl     code_81E6
         ldy     #$05
-code_81F1:  lda     L86BB,y
+code_81F1:  lda     L86BB,y             ; phase 2 CHR bank assignments
         sta     $E8,y
         dey
         bpl     code_81F1
-        jsr     LFF3C
+        jsr     LFF3C                   ; update CHR banks via MMC3
+; --- set up Mega Man on Rush (entity 0) ---
         lda     #$80
-        sta     ent_status
+        sta     ent_status              ; entity active
         lda     #$90
-        sta     ent_flags
+        sta     ent_flags               ; facing left
         lda     #$5F
-        sta     ent_anim_id
+        sta     ent_anim_id             ; anim $5F = riding Rush Jet
         lda     #$80
-        sta     ent_x_px
+        sta     ent_x_px                ; center-ish X
         lda     #$E8
-        sta     ent_y_px
+        sta     ent_y_px                ; near bottom of screen
         lda     #$00
         sta     ent_x_scr
         sta     ent_anim_frame
         sta     ent_anim_state
         sta     ent_y_scr
-        sta     $0104
-        sta     ent_var1
+        sta     $0104                   ; palette flash toggle
+        sta     ent_var1                ; movement phase
         sta     ent_xvel_sub
         lda     #$10
-        sta     ent_timer
+        sta     ent_timer               ; movement phase timer
         lda     #$04
-        sta     ent_xvel
-        jsr     LFF21
-        jsr     LC74C
+        sta     ent_xvel                ; horizontal speed = 4 px/frame
+        jsr     LFF21                   ; wait for NMI
+        jsr     LC74C                   ; fade palette out (reveal scene)
+; ===========================================================================
+; Phase 2 Main Loop: Flying upward on Rush Jet
+; ===========================================================================
+; Mega Man rises upward (code_8603 decrements Y) while moving rightward
+; with sinusoidal motion (code_861B). Star field sprites scroll.
+; Palette flashes between two night-sky color sets. Wind SFX ($28)
+; plays every 16 frames. Loop exits when ent_y_scr != 0 (scrolled off).
+; ===========================================================================
 code_823D:  lda     ent_y_scr
-        bne     code_8291
-        jsr     code_8603
+        bne     code_8291               ; scrolled past screen — phase 2 done
+        jsr     code_8603               ; move Rush upward + apply X velocity
+; --- palette flash effect (every 16 frames) ---
         lda     $95
         and     #$0F
-        bne     code_8269
-        lda     $0104
+        bne     code_8269               ; not time to flash
+        lda     $0104                   ; flash toggle (0 or 1)
         asl     a
-        adc     $0104
+        adc     $0104                   ; * 3 for table offset
         tay
         ldx     #$05
-code_8255:  lda     L86D9,y
-        sta     $0600,x
+code_8255:  lda     L86D9,y             ; night sky flash palette
+        sta     $0600,x                 ; BG palette bytes 5-7
         iny
         inx
         cpx     #$08
         bne     code_8255
         lda     $0104
-        eor     #$01
+        eor     #$01                    ; toggle between two palette states
         sta     $0104
+; --- star twinkle effect (every 8 frames) ---
 code_8269:  lda     $95
         and     #$07
         bne     code_827E
-        lda     $0105
+        lda     $0105                   ; star animation counter
         inc     $0105
-        and     #$03
+        and     #$03                    ; cycle through 4 star brightness levels
         tay
-        lda     L86DF,y
-        sta     $060D
+        lda     L86DF,y                 ; star color: $04, $14, $0F, $0F
+        sta     $060D                   ; sprite palette slot for stars
+; --- wind sound effect (every 16 frames) ---
 code_827E:  lda     $95
         and     #$0F
         bne     code_8289
         lda     #$28
-        jsr     LF89A
-code_8289:  inc     palette_dirty
-        jsr     LFD6E
-        jmp     code_823D
+        jsr     LF89A                   ; submit wind SFX $28
+code_8289:  inc     palette_dirty       ; mark palette for NMI upload
+        jsr     LFD6E                   ; process frame + yield (full)
+        jmp     code_823D               ; loop phase 2
 
+; ===========================================================================
+; Phase 3 Init: "Proto Man Confrontation"
+; ===========================================================================
+; Fade to black, reset entity 0 (Mega Man on Rush) for descent.
+; Copy sprite palette to BG palette, set BG palette to all black.
+; Re-use same nametable from phase 2.
+; ===========================================================================
 code_8291:  lda     #$00
-        sta     nmi_skip
-        jsr     LC752
+        sta     nmi_skip                ; disable NMI
+        jsr     LC752                   ; fade palette to black
         lda     #$00
-        sta     ent_y_scr
+        sta     ent_y_scr              ; reset screen position
         sta     ent_x_scr
-        sta     ent_var1
-        sta     ent_var2
-        sta     ent_var3
+        sta     ent_var1                ; movement phase
+        sta     ent_var2                ; star scroll offset
+        sta     ent_var3                ; frame counter for wind SFX
         sta     ent_yvel_sub
-        sta     ent_yvel
+        sta     ent_yvel                ; no vertical velocity initially
         sta     ent_xvel_sub
         lda     #$04
-        sta     ent_xvel
+        sta     ent_xvel                ; horizontal speed = 4 px/frame
         lda     #$10
-        sta     ent_timer
+        sta     ent_timer               ; movement phase duration
         lda     #$E8
-        sta     ent_y_px
+        sta     ent_y_px                ; start near bottom
         lda     #$80
-        sta     ent_x_px
+        sta     ent_x_px                ; center X
         lda     #$80
-        sta     ent_status
+        sta     ent_status              ; entity active
         lda     #$98
-        sta     ent_flags
+        sta     ent_flags               ; facing left, palette 2
+; --- set BG palette to black, copy sprite palette down ---
         ldy     #$0F
 code_82D2:  lda     #$0F
-        sta     $0620,y
-        lda     $0630,y
-        sta     $0610,y
+        sta     $0620,y                 ; BG palette = all black ($0F)
+        lda     $0630,y                 ; sprite palette
+        sta     $0610,y                 ; copy to BG sub-palette area
         dey
         bpl     code_82D2
-        sty     palette_dirty
+        sty     palette_dirty           ; mark palette dirty (Y=$FF)
+; ===========================================================================
+; Phase 3 Main Loop: Proto Man confrontation sequence
+; ===========================================================================
+; State machine controlled by ent_status low nibble and ent_x_scr:
+;   ent_x_scr != 0 → done, jump to Doc Robot stage entry
+;   status & $0F == 0 → Mega Man descending to Y=$60
+;   status & $0F != 0 → Proto Man sequence (appear, whistle, depart)
+; ===========================================================================
 code_82E2:  lda     ent_x_scr
         beq     code_82EA
-        jmp     code_8439
+        jmp     code_8439               ; phase 3 complete → Doc Robot stage
 
 code_82EA:  lda     ent_status
-        and     #$0F
-        beq     code_82F4
-        jmp     code_83A8
-
+        and     #$0F                    ; check sub-state
+        beq     code_82F4               ; 0 = still descending
+        jmp     code_83A8               ; nonzero = Proto Man sequence
+; --- Mega Man descending to Y=$60 ---
 code_82F4:  lda     ent_y_px
-        cmp     #$60
-        beq     code_8301
-        dec     ent_y_px
-        jmp     code_83E7
-
+        cmp     #$60                    ; reached target Y?
+        beq     code_8301               ; yes — transition
+        dec     ent_y_px                ; move up 1 pixel per frame
+        jmp     code_83E7               ; continue with movement
+; --- at Y=$60: change animation and spawn Proto Man ---
 code_8301:  lda     #$5E
-        cmp     ent_anim_id
-        bcs     code_8344
+        cmp     ent_anim_id             ; already changed anim?
+        bcs     code_8344               ; yes — skip spawn
+; --- change MM to standing anim, spawn Proto Man (entity 1) ---
         lda     #$5D
         ldx     #$00
-        jsr     LF835
-        lda     ent_status
-        sta     $0301
+        jsr     LF835                   ; MM anim $5D (standing on Rush)
+        lda     ent_status              ; copy MM's entity properties to entity 1
+        sta     $0301                   ; ent_status[1]
         lda     ent_flags
-        sta     $0581
+        sta     $0581                   ; ent_flags[1]
         lda     ent_x_scr
-        sta     $0381
+        sta     $0381                   ; ent_x_scr[1]
         lda     ent_y_scr
-        sta     $03E1
+        sta     $03E1                   ; ent_y_scr[1]
         lda     ent_x_px
-        sta     $0361
+        sta     $0361                   ; ent_x_px[1] = same X as MM
         lda     ent_y_px
-        sta     $03C1
+        sta     $03C1                   ; ent_y_px[1] = same Y as MM
         ldx     #$01
+        lda     #$5C                    ; Proto Man walking anim
+        jsr     LF835                   ; reset entity 1 sprite animation
         lda     #$5C
-        jsr     LF835
-        lda     #$5C
-        sta     $0501
+        sta     $0501                   ; ent_timer[1] = $5C (countdown)
         lda     #$B4
-        sta     $0521
-code_8344:  lda     $0501
+        sta     $0521                   ; ent_var1[1] = $B4 (approach timer)
+; --- Proto Man approach / whistle / depart state machine ---
+; ent_timer[1] ($0501) counts down: $5C..$22 = walking toward MM,
+; $21..$11 = standing (also moving Y), $10..$01 = whistle pause,
+; $00 = whistle done, Proto Man rises, then departs.
+code_8344:  lda     $0501               ; Proto Man timer
         cmp     #$21
-        bcs     code_8352
+        bcs     code_8352               ; >= $21: still approaching
         cmp     #$11
-        bcc     code_835C
-        dec     $03C1
+        bcc     code_835C               ; < $11: whistle / departure phase
+        dec     $03C1                   ; $11-$20: Proto Man rises (dec Y)
 code_8352:  lda     #$00
-        sta     $95
-        dec     $0501
+        sta     $95                     ; reset frame counter
+        dec     $0501                   ; decrement timer
         jmp     code_83EA
-
-code_835C:  lda     $0521
-        beq     code_8375
+; --- whistle / departure phase ---
+code_835C:  lda     $0521               ; ent_var1[1] = whistle delay
+        beq     code_8375               ; delay expired
         dec     $0521
         lda     $0521
-        cmp     #$78
+        cmp     #$78                    ; at $78: change to whistle anim
         bne     code_8372
         ldx     #$00
-        lda     #$5E
+        lda     #$5E                    ; anim $5E = Proto Man whistling
         jsr     LF835
 code_8372:  jmp     code_83EA
-
+; --- Proto Man departure: prepare MM for flight ---
 code_8375:  lda     #$00
         sta     $95
-        inc     $03C1
-        dec     $0501
+        inc     $03C1                   ; move Proto Man down 1 px
+        dec     $0501                   ; continue counting
         bne     code_83EA
         ldx     #$00
-        stx     $0301
+        stx     $0301                   ; deactivate Proto Man (entity 1)
         lda     #$5F
-        jsr     LF835
-        inc     ent_status
+        jsr     LF835                   ; MM anim $5F = riding Rush Jet
+        inc     ent_status              ; advance sub-state (start flight)
         lda     #$F0
-        sta     $0521
+        sta     $0521                   ; flight countdown timer
         lda     #$10
-        sta     ent_timer
+        sta     ent_timer               ; movement phase duration
         lda     #$00
         sta     ent_xvel_sub
-        sta     ent_var1
+        sta     ent_var1                ; reset movement phase
         lda     #$04
-        sta     ent_xvel
+        sta     ent_xvel                ; horizontal speed = 4
         jmp     code_83EA
 
-code_83A8:  lda     $0521
-        beq     code_83CC
+; --- flight departure: accelerate upward then fly off-screen ---
+code_83A8:  lda     $0521               ; flight countdown
+        beq     code_83CC               ; countdown done
         dec     $0521
-        lda     ent_yvel_sub
+        lda     ent_yvel_sub            ; accelerate upward
         clc
         adc     #$10
         sta     ent_yvel_sub
         lda     ent_yvel
         adc     #$00
         sta     ent_yvel
-        cmp     #$04
+        cmp     #$04                    ; cap vertical speed at 4
         bne     code_83EA
         lda     #$00
-        sta     ent_yvel_sub
+        sta     ent_yvel_sub            ; clamp sub-pixel
         beq     code_83EA
+; --- after countdown: fly left off screen ---
 code_83CC:  lda     ent_var1
-        cmp     #$01
+        cmp     #$01                    ; phase 1 = fly left
         bne     code_83E7
         lda     ent_x_px
         sec
-        sbc     #$04
+        sbc     #$04                    ; move left 4 px/frame
         sta     ent_x_px
         lda     ent_x_scr
-        sbc     #$00
-        sta     ent_x_scr
+        sbc     #$00                    ; borrow into screen position
+        sta     ent_x_scr              ; when this wraps, phase 3 ends
         jmp     code_83EA
 
-code_83E7:  jsr     code_861B
-code_83EA:  lda     ent_var2
+code_83E7:  jsr     code_861B           ; apply sinusoidal X movement
+; --- star field rendering and frame processing ---
+; Scrolls 10 star sprites vertically based on ent_yvel (vertical speed).
+; Stars flicker by alternating OAM start position each frame.
+code_83EA:  lda     ent_var2            ; star scroll accumulator
         clc
-        adc     ent_yvel
+        adc     ent_yvel                ; add vertical speed
         sta     ent_var2
         ldx     #$00
-code_83F6:  lda     L8735,x
+code_83F6:  lda     L8735,x             ; star Y position (base)
         sta     $0200,x
-        lda     L8736,x
+        lda     L8736,x                 ; star tile
         sta     $0201,x
-        lda     L8737,x
+        lda     L8737,x                 ; star attribute
         sta     $0202,x
-        lda     L8738,x
+        lda     L8738,x                 ; star X position (base)
         clc
-        adc     ent_var2
+        adc     ent_var2                ; add scroll offset
         sta     $0203,x
         inx
         inx
         inx
         inx
-        cpx     #$28
+        cpx     #$28                    ; 10 star sprites * 4 bytes
         bne     code_83F6
         lda     $95
-        and     #$01
+        and     #$01                    ; alternate OAM start for flicker
         beq     code_8422
-        ldx     #$04
+        ldx     #$04                    ; offset by one sprite
 code_8422:  stx     oam_ptr
         lda     ent_var3
-        and     #$0F
+        and     #$0F                    ; every 16 frames
         bne     code_8430
         lda     #$28
-        jsr     LF89A
-code_8430:  jsr     LFD80
-        inc     ent_var3
-        jmp     code_82E2
+        jsr     LF89A                   ; wind SFX $28
+code_8430:  jsr     LFD80               ; process frame + yield
+        inc     ent_var3                ; increment wind timer
+        jmp     code_82E2               ; loop phase 3
 
+; ===========================================================================
+; Doc Robot Shadow Man Stage Entry + Cutscene
+; ===========================================================================
+; Called after intro completes, or directly via $8003 jump.
+; Fades to black, plays title music ($36), loads stage $16 nametable
+; using bank $0E tile data, then runs the Doc Robot cutscene showing
+; which robot master will be fought. Ends by jumping to the selected
+; stage's PRG bank.
+; ===========================================================================
 code_8439:  lda     #$00
-        sta     nmi_skip
-        jsr     LC752
+        sta     nmi_skip                ; disable NMI
+        jsr     LC752                   ; fade palette to black
         lda     #$36
-        jsr     LF898
+        jsr     LF898                   ; submit music $36 (Doc Robot theme)
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9
-        jsr     LC628
-        jsr     LFF21
+        jsr     LC5E9                   ; prepare OAM buffer
+        jsr     LC628                   ; clear entity table
+        jsr     LFF21                   ; wait for NMI
         lda     #$16
-        sta     stage_id
+        sta     stage_id                ; stage $16 = Doc Robot Shadow Man
         lda     #$00
-        sta     $70
+        sta     $70                     ; nametable column counter
         lda     #$0E
-        sta     prg_bank
-        jsr     LFF6B
+        sta     prg_bank                ; bank $0E for stage tile data
+        jsr     LFF6B                   ; select PRG banks
         lda     #$00
-        jsr     LE8B4
+        jsr     LE8B4                   ; init metatile columns
+; --- fill nametable progressively ---
 code_8466:  lda     #$00
         sta     $10
-        jsr     LEF8C
-        jsr     LFF21
+        jsr     LEF8C                   ; draw one nametable column
+        jsr     LFF21                   ; wait for NMI
         lda     $70
-        bne     code_8466
+        bne     code_8466               ; loop until complete
+; --- load palette, CHR banks, and OAM scenery ---
         ldy     #$1F
-code_8476:  lda     L8695,y
+code_8476:  lda     L8695,y             ; Doc Robot stage palette
         sta     $0620,y
         dey
         bpl     code_8476
         ldy     #$05
-code_8481:  lda     L86C1,y
+code_8481:  lda     L86C1,y             ; Doc Robot CHR bank assignments
         sta     $E8,y
         dey
         bpl     code_8481
-        jsr     LFF3C
+        jsr     LFF3C                   ; update CHR banks via MMC3
+; --- load background sprite decoration ---
         ldy     #$27
-code_848F:  lda     L86F1,y
+code_848F:  lda     L86F1,y             ; 40 bytes of OAM sprites (scenery)
         sta     $0200,y
         dey
         bpl     code_848F
-        jsr     LC628
-        jsr     LFF21
-        jsr     LC74C
+        jsr     LC628                   ; clear entity table
+        jsr     LFF21                   ; wait for NMI
+        jsr     LC74C                   ; fade palette out (reveal scene)
+; --- load robot master portrait position sprites ---
         ldy     #$13
-code_84A3:  lda     L8719,y
-        sta     $0228,y
+code_84A3:  lda     L8719,y             ; 5 robot master icon positions
+        sta     $0228,y                 ; OAM: Y, tile, attr, X per icon
         dey
         bpl     code_84A3
+; --- set up Doc Robot entity (entity 0) ---
         lda     #$80
-        sta     ent_status
-        sta     ent_flags
+        sta     ent_status              ; active
+        sta     ent_flags               ; facing right
         lda     #$00
         sta     ent_anim_frame
         sta     ent_anim_state
         sta     ent_x_scr
         sta     ent_y_scr
         lda     #$60
-        sta     ent_x_px
+        sta     ent_x_px                ; X = $60
         lda     #$24
-        sta     ent_y_px
+        sta     ent_y_px                ; Y = $24 (top of screen)
         lda     #$7B
-        sta     ent_anim_id
+        sta     ent_anim_id             ; anim $7B = Doc Robot
         lda     #$00
-        sta     $95
+        sta     $95                     ; frame counter
         lda     #$20
-        sta     $10
+        sta     $10                     ; palette flash value
+; --- Doc Robot palette flash intro (48 frames) ---
 code_84D9:  lda     $95
-        and     #$07
+        and     #$07                    ; every 8 frames
         bne     code_84EC
         lda     $10
-        sta     $0610
+        sta     $0610                   ; set BG palette color
         inc     palette_dirty
         lda     $10
-        eor     #$2F
+        eor     #$2F                    ; toggle between $20 and $0F (flash)
         sta     $10
-code_84EC:  jsr     LFF21
+code_84EC:  jsr     LFF21               ; wait for NMI
         inc     $95
         lda     $95
-        cmp     #$30
+        cmp     #$30                    ; 48 frames of flashing
         bcc     code_84D9
-        jsr     code_854B
+; --- draw all robot master icons except the selected one ---
+        jsr     code_854B               ; place robot master icon sprites
         lda     #$00
         sta     nmi_skip
-        lda     #$3C
+; --- wait 60 frames (showing all icons) ---
+        lda     #$3C                    ; 60 frame delay
 code_8500:  pha
-        jsr     code_8525
+        jsr     code_8525               ; animate Doc Robot + process frame
         pla
         sec
         sbc     #$01
-        bne     code_8500
-        jsr     code_8591
+        bne     code_8500               ; loop for 60 frames
+; --- reveal selected robot master icon one sprite at a time ---
+        jsr     code_8591               ; animate reveal of selected boss
+; --- wait another 60 frames ---
         lda     #$3C
 code_850F:  pha
-        jsr     code_8525
+        jsr     code_8525               ; animate Doc Robot + process frame
         pla
         sec
         sbc     #$01
-        bne     code_850F
-        lda     $75
+        bne     code_850F               ; loop for 60 frames
+; --- transition to selected stage ---
+        lda     $75                     ; Doc Robot boss selection index
         clc
-        adc     #$0C
+        adc     #$0C                    ; stage bank = $0C + boss index
         sta     stage_id
         sta     prg_bank
-        jmp     LFF6B
+        jmp     LFF6B                   ; select PRG banks and run stage
 
+; ===========================================================================
+; Subroutine: Process one frame with Doc Robot animation
+; ===========================================================================
+; Saves registers, sets OAM pointer, animates the selected robot master
+; icon blinking (tile alternates between $02 and $03 every 8 frames),
+; then processes frame and yields. Skips blink if boss >= 4.
+; ===========================================================================
 code_8525:  txa
         pha
         tya
         pha
         lda     #$C8
-        sta     oam_ptr
-        ldy     $75
+        sta     oam_ptr                 ; OAM start position
+        ldy     $75                     ; boss selection index
         cpy     #$04
-        bcs     code_8543
-        ldx     L875E,y
+        bcs     code_8543               ; skip blink for bosses 4-5
+        ldx     L875E,y                 ; OAM offset for this boss's icon
         lda     $95
         lsr     a
         lsr     a
         lsr     a
-        and     #$01
+        and     #$01                    ; toggle every 8 frames
         clc
-        adc     #$02
-        sta     $0202,x
-code_8543:  jsr     LFD80
+        adc     #$02                    ; tile $02 or $03 (blink)
+        sta     $0202,x                 ; update icon tile
+code_8543:  jsr     LFD80               ; process frame + yield
         pla
         tay
         pla
         tax
         rts
 
+; ===========================================================================
+; Subroutine: Draw all robot master icons (except selected one)
+; ===========================================================================
+; Iterates through boss indices 0-5, skipping the one matching $75
+; (the selected boss). Each boss's icon is a group of OAM sprites
+; defined in L8774 (Y, tile, attr, X quads). Sprite data index and
+; count come from L8762/L8768 tables.
+; ===========================================================================
 code_854B:  lda     #$40
-        sta     $10
+        sta     $10                     ; OAM write cursor (starts at $40)
         lda     #$00
-        sta     ent_timer
+        sta     ent_timer               ; boss loop counter
 code_8554:  ldy     ent_timer
-        cpy     $75
-        beq     code_8590
-        ldx     L8762,y
-        lda     L8768,y
+        cpy     $75                     ; is this the selected boss?
+        beq     code_8590               ; yes — skip it (will be revealed later)
+        ldx     L8762,y                 ; sprite data offset for this boss
+        lda     L8768,y                 ; sprite count for this boss
         sta     $00
-        ldy     $10
-code_8565:  lda     L8774,x
+        ldy     $10                     ; OAM cursor
+code_8565:  lda     L8774,x             ; sprite Y
         sta     $0200,y
-        lda     L8775,x
+        lda     L8775,x                 ; sprite tile
         sta     $0201,y
-        lda     L8776,x
+        lda     L8776,x                 ; sprite attribute
         sta     $0202,y
-        lda     L8777,x
+        lda     L8777,x                 ; sprite X
         sta     $0203,y
         inx
         inx
         inx
-        inx
+        inx                             ; advance sprite data pointer
         iny
         iny
         iny
-        iny
+        iny                             ; advance OAM cursor
         sty     $10
-        dec     $00
+        dec     $00                     ; more sprites for this boss?
         bpl     code_8565
-        inc     ent_timer
+        inc     ent_timer               ; next boss
         bne     code_8554
 code_8590:  rts
 
-code_8591:  ldy     ent_timer
-        ldx     L8762,y
-        lda     L8768,y
+; ===========================================================================
+; Subroutine: Reveal selected robot master icon (animated)
+; ===========================================================================
+; Draws the selected boss's icon sprites one at a time with a sound
+; effect ($1C) and 4-frame delay between each sprite, creating a
+; sequential reveal animation. If boss 5 is selected, spawns a second
+; Doc Robot entity.
+; ===========================================================================
+code_8591:  ldy     ent_timer           ; selected boss index
+        ldx     L8762,y                 ; sprite data offset
+        lda     L8768,y                 ; sprite count
         sta     $0F
-        lda     L876E,y
+        lda     L876E,y                 ; OAM base offset for this boss
         tay
-code_85A0:  lda     L8774,x
-        sta     $0240,y
+code_85A0:  lda     L8774,x             ; copy one sprite to OAM
+        sta     $0240,y                 ; Y pos (at $0240+ for reveal area)
         lda     L8775,x
-        sta     $0241,y
+        sta     $0241,y                 ; tile
         lda     L8776,x
-        sta     $0242,y
+        sta     $0242,y                 ; attribute
         lda     L8777,x
-        sta     $0243,y
+        sta     $0243,y                 ; X pos
         inx
         inx
         inx
@@ -693,111 +815,153 @@ code_85A0:  lda     L8774,x
         iny
         sty     $10
         lda     #$1C
-        jsr     LF89A
+        jsr     LF89A                   ; reveal SFX $1C
+        jsr     code_8525               ; wait 4 frames (with Doc Robot anim)
         jsr     code_8525
         jsr     code_8525
         jsr     code_8525
-        jsr     code_8525
-        dec     $0F
+        dec     $0F                     ; more sprites to reveal?
         bpl     code_85A0
+; --- special case: boss 5 spawns second Doc Robot entity ---
         lda     $75
         cmp     #$05
-        bne     code_8602
+        bne     code_8602               ; not boss 5, skip
         lda     #$80
-        sta     $0301
-        sta     $0581
+        sta     $0301                   ; ent_status[1] = active
+        sta     $0581                   ; ent_flags[1] = active
         lda     #$00
-        sta     $0381
-        sta     $03E1
-        sta     $05E1
-        sta     $05A1
+        sta     $0381                   ; ent_x_scr[1]
+        sta     $03E1                   ; ent_y_scr[1]
+        sta     $05E1                   ; ent_anim_frame[1]
+        sta     $05A1                   ; ent_anim_state[1]
         lda     #$7B
-        sta     $05C1
+        sta     $05C1                   ; ent_anim_id[1] = Doc Robot
         lda     #$60
-        sta     $0361
+        sta     $0361                   ; ent_x_px[1] = $60
         lda     #$4C
-        sta     $03C1
+        sta     $03C1                   ; ent_y_px[1] = $4C
 code_8602:  rts
 
+; ===========================================================================
+; Subroutine: Move entity 0 upward and apply sinusoidal X velocity
+; ===========================================================================
+; code_8603: Decrements Y by 1 per frame. Falls through to code_861B
+;            when Y >= $60 (still on screen).
+; code_861B: Applies X velocity with sub-pixel precision, then adjusts
+;            X velocity using a 4-phase acceleration table (L872D/L8731)
+;            to create a sinusoidal left-right weaving motion.
+;            Each phase lasts $10 frames, cycling through 4 directions.
+; ===========================================================================
 code_8603:  lda     ent_y_px
         sec
-        sbc     #$01
+        sbc     #$01                    ; move up 1 pixel
         sta     ent_y_px
         lda     ent_y_scr
-        sbc     #$00
+        sbc     #$00                    ; borrow into screen
         sta     ent_y_scr
         lda     ent_y_px
-        cmp     #$60
-        bcs     code_8654
+        cmp     #$60                    ; still below Y=$60?
+        bcs     code_8654               ; yes — skip X movement
+; --- apply X velocity with sub-pixel precision ---
 code_861B:  lda     ent_x_sub
         clc
-        adc     ent_xvel_sub
+        adc     ent_xvel_sub            ; add velocity sub-pixel
         sta     ent_x_sub
         lda     ent_x_px
-        adc     ent_xvel
+        adc     ent_xvel                ; add velocity whole pixel
         sta     ent_x_px
-        lda     ent_var1
+; --- update X velocity (sinusoidal acceleration) ---
+        lda     ent_var1                ; movement phase (0-3)
         and     #$03
         tay
         lda     ent_xvel_sub
         clc
-        adc     L872D,y
+        adc     L872D,y                 ; acceleration sub-pixel
         sta     ent_xvel_sub
         lda     ent_xvel
-        adc     L8731,y
+        adc     L8731,y                 ; acceleration whole: FF,FF,00,00
         sta     ent_xvel
-        dec     ent_timer
+        dec     ent_timer               ; phase duration countdown
         bne     code_8654
-        inc     ent_var1
+        inc     ent_var1                ; next phase
         lda     #$10
-        sta     ent_timer
-code_8654:  .byte   $60
+        sta     ent_timer               ; reset phase timer ($10 frames)
+code_8654:  .byte   $60                 ; RTS ($60 opcode)
+; ===========================================================================
+; Data Tables
+; ===========================================================================
+
+; --- Phase 1 palette: mountain top / sunset sky (32 bytes) ---
 L8655:  .byte   $0F,$20,$2C,$1C,$0F,$1C,$27,$16
         .byte   $0F,$3B,$2B,$1B,$0F,$32,$22,$12
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
         .byte   $0F,$35,$25,$15,$0F,$0F,$30,$11
+; --- Phase 2 palette: night sky / flying on Rush (32 bytes) ---
 L8675:  .byte   $0F,$20,$1B,$0B,$0F,$1C,$11,$01
         .byte   $0F,$28,$18,$08,$0F,$04,$13,$03
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$27
+; --- Doc Robot stage palette (32 bytes) ---
 L8695:  .byte   $0F,$20,$27,$17,$0F,$3B,$2A,$1A
         .byte   $0F,$3C,$2C,$1C,$0F,$33,$23,$17
         .byte   $0F,$2A,$27,$17,$0F,$3C,$2C,$1C
         .byte   $0F,$0F,$30,$37,$0F,$0F,$30,$27
+; --- CHR bank assignments (6 bytes each: banks for $0000-$17FF) ---
+; Phase 1 CHR banks
 L86B5:  .byte   $78,$7A,$00,$01,$1B,$3B
+; Phase 2 CHR banks
 L86BB:  .byte   $50,$52,$39,$25,$36,$17
+; Doc Robot stage CHR banks
 L86C1:  .byte   $70,$72,$09,$39,$36,$35
+; --- Phase 1 sunset palette cycle (6 steps x 3 bytes) ---
 L86C7:  .byte   $1C,$27,$16,$0F,$1C,$1A,$16,$0F
         .byte   $0F,$0F,$1A,$16,$17,$0F,$0F,$1A
         .byte   $16,$0F
+; --- Phase 2 night sky palette flash (2 steps x 3 bytes) ---
 L86D9:  .byte   $1C,$11,$01,$11,$1C,$01
+; --- Star twinkle colors (4 brightness levels) ---
 L86DF:  .byte   $04,$14,$0F,$0F
-L86E3:  .byte   $13,$60
-L86E5:  .byte   $D8,$58
-L86E7:  .byte   $00,$A4
+; --- Phase 1 entity init: anim ID, X, Y for entities 0-1 ---
+L86E3:  .byte   $13,$60                 ; anim: $13=MM falling, $60=Rush run
+L86E5:  .byte   $D8,$58                 ; x: $D8=Mega Man, $58=Rush
+L86E7:  .byte   $00,$A4                 ; y: $00=top (MM), $A4=ground (Rush)
+; --- Phase 1 mountain decoration OAM sprites (2 sprites x 4 bytes) ---
 L86E9:  .byte   $68,$BE,$02,$18,$68,$BF,$02,$20
+; --- Doc Robot stage scenery OAM sprites (10 sprites x 4 bytes) ---
 L86F1:  .byte   $40,$9D,$01,$70,$B8,$9B,$00,$C0
         .byte   $88,$97,$00,$78,$88,$98,$00,$80
         .byte   $90,$99,$00,$78,$90,$9A,$00,$80
         .byte   $48,$9C,$01,$80,$68,$9C,$01,$78
         .byte   $68,$9C,$01,$80,$68,$9C,$01,$88
+; --- Doc Robot cutscene: robot master portrait position sprites ---
+; 5 icon positions (Y, tile, attr, X) at OAM offset $0228
 L8719:  .byte   $C8,$0F,$03,$D8,$A0,$0F,$03,$C8
         .byte   $78,$0F,$03,$C8,$58,$0F,$03,$B0
         .byte   $30,$0F,$03,$88
-L872D:  .byte   $C0,$C0,$40,$40
-L8731:  .byte   $FF,$FF,$00,$00
-L8735:  .byte   $78
-L8736:  .byte   $F1
-L8737:  .byte   $00
+; --- Sinusoidal X acceleration table (4 phases) ---
+; Phase 0,1: decelerate (sub=$C0, whole=$FF = -$40)
+; Phase 2,3: accelerate (sub=$40, whole=$00 = +$40)
+L872D:  .byte   $C0,$C0,$40,$40         ; sub-pixel acceleration per phase
+L8731:  .byte   $FF,$FF,$00,$00         ; whole-pixel acceleration per phase
+; --- Star field sprite data (10 stars x 4 bytes: Y, tile, attr, X) ---
+; Each star is tile $F1, attribute $00. X values are offset by scroll.
+L8735:  .byte   $78                     ; star 0 Y
+L8736:  .byte   $F1                     ; star 0 tile
+L8737:  .byte   $00                     ; star 0 attr
 L8738:  .byte   $10,$18,$F1,$00,$20,$D0,$F1,$00
         .byte   $30,$38,$F1,$00,$48,$A0,$F1,$00
         .byte   $68,$18,$F1,$00,$98,$60,$F1,$00
         .byte   $B8,$B8,$F1,$00,$D0,$28,$F1,$00
         .byte   $E0,$88,$F1,$00,$E8,$28
+; --- OAM offsets for boss icon blink animation (bosses 0-3) ---
 L875E:  .byte   $2C,$30,$34,$38
-L8762:  .byte   $00,$18,$28,$40,$64,$7C
-L8768:  .byte   $05,$03,$05,$08,$05,$03
+; --- Robot master icon sprite data indices and counts ---
+L8762:  .byte   $00,$18,$28,$40,$64,$7C ; sprite data offset per boss (into L8774)
+L8768:  .byte   $05,$03,$05,$08,$05,$03 ; sprite count per boss (0-indexed)
+; --- OAM base offset for reveal animation per boss ---
 L876E:  .byte   $00,$18,$28,$40,$64,$7C
+; --- Robot master icon sprite data (Y, tile, attr, X quads) ---
+; 6 bosses, variable sprite counts. Used by code_854B and code_8591.
 L8774:  .byte   $C0
 L8775:  .byte   $7F
 L8776:  .byte   $03
@@ -818,6 +982,14 @@ L8777:  .byte   $D8,$B8,$7F,$03,$D8,$B0,$7F,$03
         .byte   $78,$20,$7E,$03,$70,$20,$7E,$03
         .byte   $68,$2C,$7F,$03,$5C,$34,$7F,$03
         .byte   $5C,$3C,$7F,$03,$5C,$44,$7F,$03
+; =============================================================================
+; Doc Robot Shadow Man Stage Data ($8800-$9FFF)
+; =============================================================================
+; Metatile column data, enemy/object spawn lists, tile attribute maps,
+; and stage layout data for the Doc Robot Shadow Man stage.
+; This data is accessed when stage_id = $16 (bank pair $0B at $A000).
+; The data fills the remainder of this 8KB bank.
+; =============================================================================
         .byte   $5C,$80,$24,$00,$60,$08,$46,$00
         .byte   $20,$02,$14,$00,$00,$88,$00,$00
         .byte   $A1,$00,$01,$00,$28,$00,$08,$00
@@ -1586,6 +1758,7 @@ L8777:  .byte   $D8,$B8,$7F,$03,$D8,$B0,$7F,$03
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00
+; --- end padding ---
         brk
         brk
         brk

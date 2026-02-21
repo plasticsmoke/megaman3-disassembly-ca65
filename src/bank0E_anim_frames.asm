@@ -1,21 +1,35 @@
 ; =============================================================================
-; MEGA MAN 3 (U) — BANK $0E — ANIMATION FRAME MANAGEMENT
+; MEGA MAN 3 (U) — BANK $0E — NAMETABLE STREAMING + WILY 6 STAGE DATA
 ; =============================================================================
-; Sprite animation frame sequencing and management routines.
+; Mapped to $A000-$BFFF via MMC3 bank swap.
 ;
-; Annotation: 0% — unannotated da65 output
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $0E — ANIMATION FRAME MANAGEMENT
-; =============================================================================
-; Mapped to $A000-$BFFF. Contains animation frame advancement logic:
-; pointer table lookups for frame data, frame transfer, increment/loop.
-; Called via trampoline at $1FFDB2 (bank $0E entry at $A003).
-; Also serves as stage data for stage $16 (special) via stage_to_bank.
+; This bank contains two functional areas:
 ;
-; Annotation: light — all labels auto-generated, frame management logic bare
+;   1. Nametable streaming routines ($A000-$A0C0)
+;      - Entry at $A000: full-column nametable initialization (4 column pairs)
+;      - Entry at $A003: advance to next row in PPU update buffer
+;      - Entry at $A006: stream nametable data by index X from pointer table
+;      Streams data into the $0780 PPU update buffer, which the NMI handler
+;      (drain_ppu_buffer) writes to VRAM each frame.
+;
+;   2. Nametable text data ($A0C1-$A32C)
+;      - Robot master name strings for the stage select screen
+;      - Password screen text strings
+;      Uses $FE as "set new PPU address" command, $FF as end-of-string.
+;
+;   3. Wily 6 stage data ($A32D-$BFFF)
+;      - Compressed RLE level layout, metatile definitions, attribute tables,
+;        palette data, and enemy/object placement for stage $16 (Wily 6).
+;      - This bank doubles as stage data via stage_to_bank mapping.
+;
+; PPU buffer format ($0780):
+;   $0780 = PPU address high byte
+;   $0781 = PPU address low byte
+;   $0782 = byte count
+;   $0783+ = tile data bytes
+;   $07A3-$07C6 = second buffer for paired column/attribute writes
+;
+; Annotation: annotated
 ; =============================================================================
 
         .setcpu "6502"
@@ -27,91 +41,169 @@ LFF21           := $FF21
 
 .segment "BANK0E"
 
-        jmp     code_A05F
+; ===========================================================================
+; Entry point table — three JMP vectors at the start of the bank
+; ===========================================================================
+; $A000: JMP to nametable_init_columns — full-screen column initialization
+; $A003: JMP to nametable_advance_row — increment PPU low address by 1 row
+; $A006: fall-through to nametable_stream_by_index
+; ===========================================================================
 
-        jmp     code_A026
+        jmp     code_A05F               ; $A000: init nametable columns
 
-        lda     LA0A5,x
+        jmp     code_A026               ; $A003: advance PPU addr (next row)
+
+; ===========================================================================
+; nametable_stream_by_index — stream nametable data for string index X
+; ===========================================================================
+; Input:  X = string index (0-13), selects pointer from LA0A5/LA0B3 table
+; Output: one tile written to PPU buffer, or PPU address changed, or stream ended
+;
+; Uses $B6/$B7 as pointer to the string data, $B8 as stream byte offset.
+; On first call ($B8=0), loads PPU address from first 2 bytes of string.
+; Subsequent calls read tile data byte-by-byte into the PPU buffer.
+;
+; String data format:
+;   Byte $FE = set new PPU address (next 2 bytes = high, low)
+;   Byte $FF = end of string (marks stream complete)
+;   Other    = tile ID to write to nametable
+; ===========================================================================
+
+        lda     LA0A5,x                 ; load string pointer low byte
         sta     $B6
-        lda     LA0B3,x
+        lda     LA0B3,x                 ; load string pointer high byte
         sta     $B7
         lda     #$00
-        sta     $B8
+        sta     $B8                     ; reset stream offset to 0
         ldy     #$00
-        lda     ($B6),y
+        lda     ($B6),y                 ; first byte = PPU address high
         sta     $0780
         iny
-        lda     ($B6),y
+        lda     ($B6),y                 ; second byte = PPU address low
         sta     $0781
         iny
-        sty     $B8
-        bne     code_A029
-code_A026:  inc     $0781
+        sty     $B8                     ; offset now at 2 (first tile data)
+        bne     code_A029               ; always taken (Y=2)
+; --- advance row: increment PPU address low byte by 1 ---
+code_A026:  inc     $0781               ; next nametable row
+; --- resume streaming from current offset ---
 code_A029:  ldy     $B8
-        cpy     #$FF
-        beq     code_A05E
-        lda     ($B6),y
-        cmp     #$FF
+        cpy     #$FF                    ; stream already finished?
+        beq     code_A05E              ; yes — return immediately
+        lda     ($B6),y                 ; read next byte from string data
+        cmp     #$FF                    ; $FF = end-of-string marker
         beq     code_A05A
-        cmp     #$FE
+        cmp     #$FE                    ; $FE = set-new-PPU-address command
         bne     code_A046
         iny
-        lda     ($B6),y
+        lda     ($B6),y                 ; new PPU address high byte
         sta     $0780
         iny
-        lda     ($B6),y
+        lda     ($B6),y                 ; new PPU address low byte
         sta     $0781
         iny
-code_A046:  lda     ($B6),y
-        sta     $0783
+; --- write one tile to the PPU buffer ---
+code_A046:  lda     ($B6),y             ; tile ID byte
+        sta     $0783                   ; store in PPU buffer data area
         iny
-        sty     $B8
+        sty     $B8                     ; save updated offset
         ldy     #$00
-        sty     $0782
-        dey
-        sty     $0784
-        sty     nametable_dirty
+        sty     $0782                   ; byte count = 0 (single tile write)
+        dey                             ; Y = $FF
+        sty     $0784                   ; terminator byte in buffer
+        sty     nametable_dirty         ; signal NMI to flush PPU buffer
         rts
 
+; --- end of string: mark stream as finished ---
 code_A05A:  lda     #$FF
-        sta     $B8
+        sta     $B8                     ; $FF = "stream complete" sentinel
 code_A05E:  rts
 
-code_A05F:  ldx     #$00
-code_A061:  lda     LA0A1,x
+; ===========================================================================
+; nametable_init_columns — clear 4 pairs of nametable columns
+; ===========================================================================
+; Writes 4 pairs of 32-byte blank columns to the nametable via the PPU
+; buffer. Each pair uses both buffers ($0780 and $07A3) to write two
+; columns simultaneously. Calls task_yield ($FF21) between each pair so
+; the NMI handler can drain the PPU buffer.
+;
+; Uses LA09D/LA09E for PPU address low bytes (column offsets $20/$40/$60/$80)
+; and LA0A1/LA0A2 for PPU address high bytes ($23 for all = nametable $2300).
+; ===========================================================================
+code_A05F:  ldx     #$00                ; column pair index (0, 2)
+code_A061:  lda     LA0A1,x             ; PPU addr high for buffer 1
         sta     $0780
-        lda     LA0A2,x
+        lda     LA0A2,x                 ; PPU addr high for buffer 2
         sta     $07A3
-        lda     LA09D,x
+        lda     LA09D,x                 ; PPU addr low for buffer 1
         sta     $0781
-        lda     LA09E,x
+        lda     LA09E,x                 ; PPU addr low for buffer 2
         sta     $07A4
-        ldy     #$1F
-        sty     $0782
-        sty     $07A5
-        lda     #$00
-code_A083:  sta     $0783,y
-        sta     $07A6,y
+        ldy     #$1F                    ; 32 bytes per column
+        sty     $0782                   ; buffer 1 byte count
+        sty     $07A5                   ; buffer 2 byte count
+        lda     #$00                    ; fill with blank tiles ($00)
+code_A083:  sta     $0783,y             ; clear buffer 1 tile data
+        sta     $07A6,y                 ; clear buffer 2 tile data
         dey
         bpl     code_A083
         lda     #$FF
-        sta     $07C6
-        sta     nametable_dirty
-        jsr     LFF21
+        sta     $07C6                   ; terminator after buffer 2 data
+        sta     nametable_dirty         ; signal NMI to flush PPU buffer
+        jsr     LFF21                   ; task_yield — wait for NMI drain
         inx
-        inx
-        cpx     #$04
+        inx                             ; advance to next column pair
+        cpx     #$04                    ; done all 4 pairs? (2 pairs x 2 cols)
         bne     code_A061
         rts
 
-LA09D:  .byte   $20
-LA09E:  .byte   $40,$60,$80
-LA0A1:  .byte   $23
-LA0A2:  .byte   $23,$23,$23
+; ===========================================================================
+; Nametable address tables for column initialization
+; ===========================================================================
+; PPU address low bytes for column pairs (nametable column offsets)
+LA09D:  .byte   $20                     ; col pair 0, buffer 1: $2320
+LA09E:  .byte   $40,$60,$80             ; col pair 0 buf2, pair 1 buf1/buf2
+; PPU address high bytes for column pairs (all $23 = attribute area)
+LA0A1:  .byte   $23                     ; buffer 1 high byte
+LA0A2:  .byte   $23,$23,$23             ; buffer 2 / pairs 1-2
+
+; ===========================================================================
+; String pointer table — low bytes and high bytes for 14 text strings
+; ===========================================================================
+; Index X selects which string to stream. Used for robot master names
+; on the stage select screen and password screen text.
+; Each string begins with a 2-byte PPU address, then tile IDs,
+; with $FE for address changes and $FF for end-of-string.
+; --- pointer low bytes (14 entries) ---
 LA0A5:  .byte   $C1,$EC,$11,$3C,$62,$88,$B1,$D9
         .byte   $03,$3C,$5A,$85,$DC,$01
+; --- pointer high bytes (14 entries) ---
 LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
-        .byte   $A2,$A2,$A2,$A2,$A2,$A3,$21,$8F
+        .byte   $A2,$A2,$A2,$A2,$A2,$A3
+
+; =============================================================================
+; NAMETABLE TEXT DATA — ROBOT MASTER NAMES + PASSWORD SCREEN STRINGS
+; =============================================================================
+; Each entry is a variable-length string of PPU nametable tile IDs.
+;   $FE xx yy = change PPU write address to $xxyy
+;   $FF       = end of string
+;
+; String  0 ($A0C1): "NO. 107 NEEDLE MAN  NOBUEHIKO TAKATSUKA"
+; String  1 ($A0EC): "NO. 108 MAGNET MAN  NAGASHIKI KEE"
+; String  2 ($A111): "NO. 109 GEMINI MAN  YOSHIHIDE HATTORI"
+; String  3 ($A13C): "NO. 200 HARD MAN    KAWAHIKO OGURO"
+; String  4 ($A162): "NO. 201 TOP MAN     YASUSHIKI KONFEKI"  (Konkeki)
+; String  5 ($A188): "NO. 202 SNAKE MAN   YUHFERO ESHETANE"   (Yuhfero Eshetane)
+; String  6 ($A1B1): "NO. 203 SPARK MAN   MEKEHERO SUZUKI"    (Mekehero Suzuki)
+; String  7 ($A1D9): "NO. 204 SHADOW MAN  TAKUMENI YOSHEDA"   (Takumeni Yosheda)
+; String  8 ($A203): password screen decorative text / scores
+; String  9 ($A23C): password screen text 2
+; String 10 ($A25A): password screen text 3
+; String 11 ($A285): password screen text 4
+; String 12 ($A2DC): password screen text 5
+; String 13 ($A301): password screen text 6
+; =============================================================================
+        .byte   $21,$8F
         .byte   $17,$18,$26,$01,$07,$FE,$21,$AF
         .byte   $17,$0E,$0E,$0D,$15,$0E,$25,$16
         .byte   $0A,$17,$FE,$21,$EF,$17,$18,$0B
@@ -189,7 +281,25 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $13,$1E,$00,$17,$1F,$1D,$1E,$FE
         .byte   $23,$46,$12,$0B,$20,$0F,$00,$0C
         .byte   $0F,$0F,$18,$00,$1A,$1C,$19,$1E
-        .byte   $19,$00,$17,$0B,$18,$28,$FF,$B2
+        .byte   $19,$00,$17,$0B,$18,$28,$FF  ; end of last text string
+
+; =============================================================================
+; WILY 6 (STAGE $16) — COMPRESSED STAGE DATA
+; =============================================================================
+; This region contains the complete level data for Wily fortress stage 6:
+;   - RLE-compressed nametable/metatile layout data
+;   - Metatile definitions (16x16 pixel tile groups)
+;   - Attribute table data (palette assignments per 32x32 area)
+;   - Color palette entries
+;   - Enemy/object spawn lists with X/Y positions
+;
+; This data is loaded when stage_id = $16 via the stage_to_bank mapping,
+; which maps this bank ($0E) as the stage data source.
+;
+; The data runs from $A32D through $BFFF, with large zero-filled regions
+; representing unused screen slots or padding.
+; =============================================================================
+        .byte   $B2
         .byte   $FF,$AA,$FF,$AF,$FF,$AB,$FF,$EF
         .byte   $BF,$EF,$FF,$FE,$FF,$AA,$DE,$A2
         .byte   $FB,$AE,$7E,$8A,$FF,$AB,$FE,$AB
@@ -824,6 +934,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- metatile definitions: 16x16 tile IDs (4 CHR tiles per metatile) ---
         .byte   $00,$00,$00,$00,$A4,$A0,$00,$A0
         .byte   $00,$00,$A0,$A1,$00,$A3,$00,$00
         .byte   $A1,$A4,$00,$00,$09,$02,$03,$0A
@@ -847,6 +958,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $3D,$36,$37,$3E,$3F,$70,$71,$78
         .byte   $79,$54,$55,$5C,$5D,$56,$57,$5E
         .byte   $5F,$08,$00,$22,$30,$00,$00,$00
+; --- metatile attribute table: palette assignment per metatile ---
         .byte   $A7,$A0,$00,$A4,$A1,$00,$00,$A2
         .byte   $00,$00,$00,$A7,$A7,$A6,$A4,$00
         .byte   $A6,$00,$00,$A7,$00,$00,$A0,$00
@@ -863,7 +975,9 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$A7,$00,$00,$A7,$A4,$A1,$00
         .byte   $A0,$00,$00,$00,$A1,$00,$00,$A5
         .byte   $A2,$A6,$A7,$00,$A6,$00,$A4,$00
-        .byte   $9F,$00,$A4,$00,$00,$6E,$6E,$65
+        .byte   $9F,$00,$A4,$00,$00
+; --- metatile collision/type table ---
+        .byte   $6E,$6E,$65
         .byte   $6C,$6E,$6E,$6E,$6E,$6A,$6E,$6A
         .byte   $6E,$6E,$9B,$6E,$9B,$9A,$9A,$9A
         .byte   $9A,$65,$6C,$6E,$6E,$6B,$6E,$6E
@@ -951,6 +1065,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- screen data block A: layout + attributes + palette + enemy spawns ---
         .byte   $00,$00,$00,$00,$00,$00,$40,$00
         .byte   $34,$5E,$60,$C1,$A1,$6E,$82,$84
         .byte   $85,$00,$03,$C1,$A9,$00,$A4,$C9
@@ -983,6 +1098,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- screen data block B: layout + attributes + palette + enemy spawns ---
         .byte   $00,$00,$00,$00,$00,$00,$41,$33
         .byte   $00,$5F,$61,$C1,$A2,$C0,$83,$84
         .byte   $86,$32,$04,$A8,$AA,$A1,$A4,$A6
@@ -1015,6 +1131,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- screen data block C: layout + attributes + palette + enemy spawns ---
         .byte   $00,$00,$00,$00,$00,$00,$50,$00
         .byte   $6B,$6E,$70,$00,$B1,$1F,$92,$94
         .byte   $95,$00,$CA,$00,$B9,$B0,$B2,$B5
@@ -1047,6 +1164,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- screen data block D: layout + attributes + palette + enemy spawns ---
         .byte   $00,$00,$00,$00,$00,$00,$51,$6A
         .byte   $00,$6F,$61,$B0,$B2,$6F,$93,$94
         .byte   $96,$C3,$14,$B8,$BA,$B1,$B4,$B6
@@ -1079,6 +1197,7 @@ LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; --- stage palette/attribute assignment table ---
         .byte   $00,$00,$00,$00,$00,$00,$00,$01
         .byte   $01,$03,$00,$00,$00,$03,$02,$02
         .byte   $02,$02,$02,$00,$00,$03,$03,$03
