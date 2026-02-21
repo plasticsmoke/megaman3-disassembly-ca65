@@ -41,9 +41,9 @@
 .include "include/constants.inc"
 
 LC8A0           := $C8A0            ; ensure_stage_bank
-LF89A           := $F89A            ; submit_sound_ID
-LFF21           := $FF21            ; task_yield (wait for NMI)
-LFF6B           := $FF6B            ; select_PRG_banks
+submit_sound_ID           := $F89A            ; submit_sound_ID
+task_yield           := $FF21            ; task_yield (wait for NMI)
+select_PRG_banks           := $FF6B            ; select_PRG_banks
 
 .segment "BANK10"
 
@@ -91,7 +91,7 @@ code_8006:  jsr     LC8A0           ; ensure stage PRG bank is selected
         sta     $078C               ; 0 extra bytes for attr write
         ; --- Play door close sound effect ---
         lda     #$1D                ; sound ID $1D = door/shutter SFX
-        jsr     LF89A
+        jsr     submit_sound_ID
         lda     #$04                ; 4 columns to animate
         sta     $02
 ; --- Write one column of door tiles ---
@@ -120,7 +120,7 @@ code_804B:  ldx     L80D5,y         ; metatile sub-index for this column
 ; --- Wait 4 frames between columns (animation delay) ---
 code_8084:  lda     #$00
         sta     nmi_skip            ; allow NMI processing
-        jsr     LFF21               ; task_yield — wait for next frame
+        jsr     task_yield               ; task_yield — wait for next frame
         inc     nmi_skip            ; re-lock NMI
         inc     $95                 ; increment frame counter
         lda     $95
@@ -158,7 +158,7 @@ code_8084:  lda     #$00
 ; --- Door close complete: restore stage bank and return ---
 code_80CC:  lda     stage_id
         sta     prg_bank
-        jmp     LFF6B               ; select_PRG_banks and return
+        jmp     select_PRG_banks               ; select_PRG_banks and return
 
 ; ===========================================================================
 ; DOOR CLOSE DATA TABLES
@@ -245,7 +245,7 @@ code_81F3:  jsr     LC8A0           ; ensure stage PRG bank is selected
         sta     $078A               ; 0 extra bytes for attr write
         ; --- Play door open sound effect ---
         lda     #$1D                ; sound ID $1D = door/shutter SFX
-        jsr     LF89A
+        jsr     submit_sound_ID
         lda     #$04                ; 4 columns to animate
         sta     $02
 ; --- Write one column of open-door tiles ---
@@ -270,7 +270,7 @@ code_8236:  ldx     L82B2,y         ; metatile sub-index for this column
 ; --- Wait 4 frames between columns (animation delay) ---
 code_8263:  lda     #$00
         sta     nmi_skip            ; allow NMI processing
-        jsr     LFF21               ; task_yield — wait for next frame
+        jsr     task_yield               ; task_yield — wait for next frame
         inc     nmi_skip            ; re-lock NMI
         inc     $95                 ; increment frame counter
         lda     $95
@@ -307,7 +307,7 @@ code_8263:  lda     #$00
 ; --- Door open complete: restore stage bank and return ---
 code_82A9:  lda     stage_id
         sta     prg_bank
-        jmp     LFF6B               ; select_PRG_banks and return
+        jmp     select_PRG_banks               ; select_PRG_banks and return
 
 ; ===========================================================================
 ; DOOR OPEN DATA TABLES

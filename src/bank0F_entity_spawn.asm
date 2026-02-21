@@ -24,7 +24,7 @@
 .include "include/constants.inc"
 
 ; --- fixed bank subroutines ---
-LF797           := $F797                ; apply_y_speed — apply Y velocity to entity
+apply_y_speed           := $F797                ; apply_y_speed — apply Y velocity to entity
 LFD80           := $FD80                ; process_frame_yield — render frame + yield to NMI
 
 ; =============================================================================
@@ -298,7 +298,7 @@ code_A1E8:  lda     #$7C                    ; ground level Y position
         inc     ent_y_px                ; nudge below ground (trigger landing)
         bcc     code_A1FF               ; continue to sprite render
 code_A1F7:  ldx     #$00                    ; entity slot 0
-        jsr     LF797                   ; apply_y_speed (gravity)
+        jsr     apply_y_speed                   ; apply_y_speed (gravity)
         inc     ent_x_px               ; drift right slightly while falling
 code_A1FF:  jmp     code_A0EF               ; back to star sprite render loop
 

@@ -37,7 +37,7 @@
 .include "include/zeropage.inc"
 .include "include/constants.inc"
 
-LFF21           := $FF21
+task_yield           := $FF21
 
 .segment "BANK0E"
 
@@ -150,7 +150,7 @@ code_A083:  sta     $0783,y             ; clear buffer 1 tile data
         lda     #$FF
         sta     $07C6                   ; terminator after buffer 2 data
         sta     nametable_dirty         ; signal NMI to flush PPU buffer
-        jsr     LFF21                   ; task_yield — wait for NMI drain
+        jsr     task_yield                   ; task_yield — wait for NMI drain
         inx
         inx                             ; advance to next column pair
         cpx     #$04                    ; done all 4 pairs? (2 pairs x 2 cols)

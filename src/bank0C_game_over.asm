@@ -32,21 +32,21 @@ LA006           := $A006
 LC531           := $C531
 LC53B           := $C53B
 LC59D           := $C59D
-LC5E9           := $C5E9
-LC628           := $C628
-LC74C           := $C74C
-LC752           := $C752
+prepare_oam_buffer           := $C5E9
+clear_entity_table           := $C628
+fade_palette_out           := $C74C
+fade_palette_in           := $C752
 LE8B4           := $E8B4
 LEEAB           := $EEAB
 LEF8C           := $EF8C
-LF835           := $F835
-LF898           := $F898
+reset_sprite_anim           := $F835
+submit_sound_ID_D9           := $F898
 LFD6E           := $FD6E
 LFD80           := $FD80
-LFF1A           := $FF1A
-LFF21           := $FF21
-LFF3C           := $FF3C
-LFF6B           := $FF6B
+task_yield_x           := $FF1A
+task_yield           := $FF21
+update_CHR_banks           := $FF3C
+select_PRG_banks           := $FF6B
 
 .segment "BANK0C"
 
@@ -63,15 +63,15 @@ LFF6B           := $FF6B
         lda     #$00
         sta     nmi_skip                ; disable NMI processing
         ldx     #$B4                    ; delay $B4 frames
-        jsr     LFF1A
-        jsr     LC752                   ; fade palette to black
+        jsr     task_yield_x
+        jsr     fade_palette_in                   ; fade palette to black
         lda     #$04
         sta     oam_ptr                 ; set OAM write pointer
-        jsr     LC5E9                   ; prepare OAM buffer (clear sprites)
-        jsr     LC628                   ; clear entity table
-        jsr     LFF21                   ; wait for NMI (yield one frame)
+        jsr     prepare_oam_buffer                   ; prepare OAM buffer (clear sprites)
+        jsr     clear_entity_table                   ; clear entity table
+        jsr     task_yield                   ; wait for NMI (yield one frame)
         lda     #$F0
-        jsr     LF898                   ; submit sound command $F0 (silence all)
+        jsr     submit_sound_ID_D9                   ; submit sound command $F0 (silence all)
         lda     #$00
         sta     $B1                     ; clear music state variables
         sta     $B2
@@ -100,22 +100,22 @@ code_804A:  lda     L8626,y             ; load CHR bank mapping table
         bpl     code_804A
         lda     #$66                    ; override first CHR bank slot
         sta     $E8
-        jsr     LFF3C                   ; apply CHR bank configuration
-        jsr     LFF21                   ; yield one frame
+        jsr     update_CHR_banks                   ; apply CHR bank configuration
+        jsr     task_yield                   ; yield one frame
 ; --- write "GAME OVER" text to nametable ---
         lda     #$0D
         sta     prg_bank                ; select PRG bank $0D (nametable data source)
-        jsr     LFF6B                   ; apply bank switch
+        jsr     select_PRG_banks                   ; apply bank switch
         ldx     #$12                    ; PPU write buffer index $12
         lda     #$00
         sta     $10                     ; no flags for write mode
         jsr     code_85F3              ; load PPU write buffer (writes "GAME OVER" text)
-        jsr     LFF21                   ; yield to let NMI process the buffer
+        jsr     task_yield                   ; yield to let NMI process the buffer
 ; --- set up background stage for falling animation ---
-        jsr     LC74C                   ; fade palette out (prepare for stage bg)
+        jsr     fade_palette_out                   ; fade palette out (prepare for stage bg)
         ldx     #$F0                    ; delay $F0 frames
-        jsr     LFF1A
-        jsr     LC752                   ; fade palette back in
+        jsr     task_yield_x
+        jsr     fade_palette_in                   ; fade palette back in
         lda     #$16
         sta     stage_id                ; stage $16 = game over background stage
         lda     #$02
@@ -124,13 +124,13 @@ code_804A:  lda     L8626,y             ; load CHR bank mapping table
 code_8084:  lda     #$00
         sta     $10                     ; no special flags
         jsr     LEF8C                   ; fill nametable progressively (column by column)
-        jsr     LFF21                   ; yield one frame
+        jsr     task_yield                   ; yield one frame
         lda     $70                     ; check if fill is complete
         bne     code_8084               ; loop until done ($70 = 0)
 ; --- update CHR for Mega Man sprite ---
         lda     #$78
         sta     $E8                     ; set CHR bank for Mega Man sprite tiles
-        jsr     LFF3C                   ; apply CHR bank update
+        jsr     update_CHR_banks                   ; apply CHR bank update
 
 ; ===========================================================================
 ; GAME OVER ANIMATION — MEGA MAN FALLING ($809B)
@@ -172,8 +172,8 @@ code_80D0:  lda     L869E,y             ; 8 bytes of OAM data (2 sprites for "GE
         sta     game_mode               ; game mode $11 = game over animation
         lda     #$C0
         sta     $5E                     ; set PPU control mirror (enable NMI, etc.)
-        jsr     LFF21                   ; yield one frame
-        jsr     LC74C                   ; fade palette out
+        jsr     task_yield                   ; yield one frame
+        jsr     fade_palette_out                   ; fade palette out
         lda     #$00
         sta     $0104                   ; palette cycle index = 0
         sta     ent_var1                ; clear entity variable (delay counter)
@@ -192,7 +192,7 @@ code_80F6:  lda     ent_x_px
         cmp     ent_anim_id             ; is anim already set to falling ($13)?
         beq     code_810C               ; yes — skip anim change
         ldx     #$00
-        jsr     LF835                   ; set entity 0 to falling animation
+        jsr     reset_sprite_anim                   ; set entity 0 to falling animation
         inc     ent_anim_state          ; signal animation changed
 code_810C:  lda     ent_anim_state
         bne     code_813C               ; if nonzero, skip gravity update
@@ -226,7 +226,7 @@ code_813F:  lda     ent_var1
         cmp     ent_timer               ; have all RM tracks played? (timer >= $0E)
         beq     code_8193               ; yes — start walking phase
         sta     prg_bank                ; select bank $0E (music engine)
-        jsr     LFF6B
+        jsr     select_PRG_banks
         lda     $95                     ; frame counter
         and     #$03                    ; only process every 4th frame
         bne     code_81AA
@@ -237,7 +237,7 @@ code_813F:  lda     ent_var1
         cpx     #$0C                    ; is this the first RM? ($0C = Needle Man)
         bne     code_8166
         lda     #$12
-        jsr     LF898                   ; submit sound $12 (game over jingle)
+        jsr     submit_sound_ID_D9                   ; submit sound $12 (game over jingle)
 code_8166:  jsr     LA006               ; start playing RM music track
         jmp     code_81AA
 ; --- tick music playback ---
@@ -264,7 +264,7 @@ code_8193:  inc     ent_x_px             ; move Mega Man right 1 pixel
         cmp     ent_anim_id             ; already set to walking anim ($04)?
         beq     code_81AA               ; yes — skip
         ldx     #$00
-        jsr     LF835                   ; set entity 0 to walking animation
+        jsr     reset_sprite_anim                   ; set entity 0 to walking animation
         lda     ent_flags
         ora     #$40                    ; set horizontal flip (face right)
         sta     ent_flags
@@ -306,12 +306,12 @@ code_81D7:  lda     #$08
 
 code_81E1:  lda     #$00
         sta     nmi_skip                ; re-enable NMI
-        jsr     LC752                   ; fade palette to black
+        jsr     fade_palette_in                   ; fade palette to black
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9                   ; prepare OAM buffer (clear sprites)
-        jsr     LC628                   ; clear entity table
-        jsr     LFF21                   ; yield one frame
+        jsr     prepare_oam_buffer                   ; prepare OAM buffer (clear sprites)
+        jsr     clear_entity_table                   ; clear entity table
+        jsr     task_yield                   ; yield one frame
         lda     #$00
         sta     LA000                   ; clear music init flag
 ; --- load results screen palette ---
@@ -330,7 +330,7 @@ code_81FC:  lda     L865E,y             ; 16-byte palette for results screen
 code_8213:  lda     #$04
         sta     $10                     ; set nametable base ($2400)
         jsr     LEF8C                   ; fill nametable progressively
-        jsr     LFF21
+        jsr     task_yield
         lda     $70
         bne     code_8213               ; loop until complete
         lda     #$01
@@ -338,7 +338,7 @@ code_8213:  lda     #$04
 code_8226:  lda     #$00
         sta     $10                     ; set nametable base ($2000)
         jsr     LEF8C                   ; fill nametable progressively
-        jsr     LFF21
+        jsr     task_yield
         lda     $70
         bne     code_8226               ; loop until complete
 ; --- set CHR banks for results screen ---
@@ -347,7 +347,7 @@ code_8236:  lda     L862C,y             ; results screen CHR bank config
         sta     $E8,y
         dey
         bpl     code_8236
-        jsr     LFF3C                   ; apply CHR banks
+        jsr     update_CHR_banks                   ; apply CHR banks
 ; --- initialize Mega Man entity for walking ---
         lda     #$34
         sta     ent_y_px                ; Y position = $34 (near top)
@@ -357,7 +357,7 @@ code_8236:  lda     L862C,y             ; results screen CHR bank config
         sta     ent_flags               ; entity flags (active, no flip)
         ldx     #$00
         lda     #$04
-        jsr     LF835                   ; set walking animation
+        jsr     reset_sprite_anim                   ; set walking animation
 ; --- set up scrolling parameters ---
         lda     #$05
         sta     camera_x_hi            ; camera starts at screen 5
@@ -369,21 +369,21 @@ code_8236:  lda     L862C,y             ; results screen CHR bank config
 ; --- write nametable update data for results screen ---
         lda     #$0D
         sta     prg_bank
-        jsr     LFF6B                   ; switch to bank $0D
+        jsr     select_PRG_banks                   ; switch to bank $0D
         lda     #$04
         sta     $10                     ; nametable $2400
         ldx     #$00                    ; PPU write buffer index 0
         jsr     code_85F3              ; load nametable data
-        jsr     LFF21
+        jsr     task_yield
         ldx     #$01                    ; buffer index 1
         jsr     code_85F3
-        jsr     LFF21
+        jsr     task_yield
         ldx     #$10                    ; buffer index $10
         jsr     code_85F3
-        jsr     LFF21
+        jsr     task_yield
         ldx     #$11                    ; buffer index $11
         jsr     code_85F3
-        jsr     LFF21
+        jsr     task_yield
         ldx     #$06                    ; buffer index 6 (attribute table)
         jsr     code_85F3
 ; --- start scrolling animation ---
@@ -398,8 +398,8 @@ code_8236:  lda     L862C,y             ; results screen CHR bank config
         sta     ent_var1                ; clear entity vars
         sta     ent_var2
         sta     ent_var3
-        jsr     LFF21                   ; yield one frame
-        jsr     LC74C                   ; fade palette out
+        jsr     task_yield                   ; yield one frame
+        jsr     fade_palette_out                   ; fade palette out
 ; --- main scrolling loop ---
 ; Mega Man walks left while the camera scrolls. Every 4 pixels of scroll,
 ; a new metatile column is loaded. Music sections play at intervals.
@@ -419,7 +419,7 @@ code_82C9:  lda     camera_x_lo
 ; --- scroll complete — transition to standing pose ---
         ldx     #$00
         lda     #$64                    ; standing/victory pose animation
-        jsr     LF835                   ; set entity 0 animation
+        jsr     reset_sprite_anim                   ; set entity 0 animation
         jmp     code_836D               ; jump to pose + fly-by sequence
 ; --- scroll camera left ---
 code_82D9:  dec     $69                  ; decrement fine scroll counter
@@ -458,7 +458,7 @@ code_82F9:  lda     ent_timer
         sta     ent_timer               ; delay $A1 frames between sections
         lda     #$0D
         sta     prg_bank
-        jsr     LFF6B                   ; switch to bank $0D
+        jsr     select_PRG_banks                   ; switch to bank $0D
         jsr     LA000                   ; reinit music
         lda     #$00
         sta     ent_var1                ; clear column counter
@@ -513,7 +513,7 @@ code_836D:  lda     ent_var3
         lda     #$00
         sta     ent_anim_frame          ; reset frame
         ldx     #$78                    ; hold pose for $78 frames
-        jsr     LFF1A
+        jsr     task_yield_x
 ; --- screen split / wipe effect ---
         lda     #$10
         sta     game_mode               ; game mode $10
@@ -547,7 +547,7 @@ code_839F:  lda     #$01
 code_83AF:  lda     #$08
         sta     $10                     ; nametable flags
         jsr     LEF8C                   ; fill nametable progressively
-        jsr     LFF21
+        jsr     task_yield
         lda     $70
         bne     code_83AF               ; loop until complete
 ; --- vertical scroll to reveal credits ---
@@ -644,26 +644,26 @@ code_8460:  jsr     LFD6E               ; process frame yield (full)
 ; ===========================================================================
 
 code_8466:  ldx     #$F0                ; hold for $F0 frames
-        jsr     LFF1A
+        jsr     task_yield_x
         lda     #$00
         sta     nmi_skip
-        jsr     LC752                   ; fade palette to black
+        jsr     fade_palette_in                   ; fade palette to black
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9                   ; clear OAM buffer
-        jsr     LC628                   ; clear entity table
-        jsr     LFF21
+        jsr     prepare_oam_buffer                   ; clear OAM buffer
+        jsr     clear_entity_table                   ; clear entity table
+        jsr     task_yield
         lda     #$00
         sta     LA000                   ; clear music init
         sta     ent_status              ; deactivate player entity
 ; --- play password screen music ---
         lda     #$0F
-        jsr     LF898                   ; submit sound ID $0F (password screen music)
+        jsr     submit_sound_ID_D9                   ; submit sound ID $0F (password screen music)
 ; --- load password/continue screen nametable ---
         lda     #$13
         sta     prg_bank                ; bank $13 = password screen data
         sta     stage_id                ; stage $13 = password screen
-        jsr     LFF6B                   ; apply bank switch
+        jsr     select_PRG_banks                   ; apply bank switch
         lda     #$03
         jsr     LE8B4                   ; load metatile column pointers
         lda     #$00
@@ -671,7 +671,7 @@ code_8466:  ldx     #$F0                ; hold for $F0 frames
 code_849E:  lda     #$00
         sta     $10
         jsr     LEF8C                   ; fill nametable progressively
-        jsr     LFF21
+        jsr     task_yield
         lda     $70
         bne     code_849E               ; loop until complete
 ; --- prepare secondary nametable ---
@@ -681,14 +681,14 @@ code_849E:  lda     #$00
         ldy     #$00                    ; attribute = $00
         jsr     LC59D                   ; fill nametable
         jsr     LC53B                   ; rendering on
-        jsr     LFF21
+        jsr     task_yield
 ; --- set CHR banks for password screen ---
         ldy     #$05
 code_84C0:  lda     L8632,y             ; password screen CHR config
         sta     $E8,y
         dey
         bpl     code_84C0
-        jsr     LFF3C                   ; apply CHR banks
+        jsr     update_CHR_banks                   ; apply CHR banks
 ; --- load password screen palette ---
         ldy     #$0F
 code_84CE:  lda     L866E,y             ; 16-byte palette for password screen
@@ -706,10 +706,10 @@ code_84CE:  lda     L866E,y             ; 16-byte palette for password screen
         sta     $10
         ldx     #$13                    ; PPU write buffer index $13
         jsr     code_85F3              ; load nametable text data
-        jsr     LFF21
-        jsr     LC74C                   ; fade palette out
+        jsr     task_yield
+        jsr     fade_palette_out                   ; fade palette out
         ldx     #$B4                    ; hold $B4 frames
-        jsr     LFF1A
+        jsr     task_yield_x
         lda     #$00
         sta     ent_timer               ; reset robot master index
 ; ===========================================================================
@@ -739,11 +739,11 @@ code_850F:  lda     #$00
         sta     $0310                   ; temporarily hide portrait entity
         ldx     #$14                    ; PPU write buffer index $14 (portrait frame)
         jsr     code_85F3              ; write portrait border nametable data
-        jsr     LFF21
+        jsr     task_yield
 ; --- load robot master portrait ---
         lda     #$01
         sta     prg_bank                ; bank $01 = robot master portrait data
-        jsr     LFF6B
+        jsr     select_PRG_banks
         ldx     ent_timer               ; current RM index (0-7)
         lda     L86B8,x                 ; portrait animation ID
         sta     $05D0                   ; ent_anim_id[$10]
@@ -752,7 +752,7 @@ code_850F:  lda     #$00
         sta     $05B0                   ; ent_anim_state[$10] = 0
         lda     L86C0,x                 ; RM music/init parameter
         jsr     LA000                   ; init portrait (via bank $01 routine)
-        jsr     LFF3C                   ; apply CHR banks
+        jsr     update_CHR_banks                   ; apply CHR banks
         lda     #$80
         sta     $0310                   ; show portrait entity
 ; --- wait for portrait animation to reach target frame ---
@@ -766,21 +766,21 @@ code_8544:  jsr     LFD6E               ; process frame yield (full)
         sta     nmi_skip
         lda     #$0E
         sta     prg_bank                ; bank $0E = music engine
-        jsr     LFF6B
+        jsr     select_PRG_banks
         ldx     ent_timer               ; RM index
         jsr     LA006                   ; start RM music
-        jsr     LFF21
+        jsr     task_yield
 ; --- tick music until complete ---
 code_8566:  jsr     LA003               ; tick music engine
         lda     $B8
         cmp     #$FF                    ; music finished?
         beq     code_8577
         ldx     #$04                    ; wait 4 frames between ticks
-        jsr     LFF1A
+        jsr     task_yield_x
         jmp     code_8566
 ; --- advance to next robot master ---
 code_8577:  ldx     #$B4                ; pause $B4 frames between portraits
-        jsr     LFF1A
+        jsr     task_yield_x
         inc     ent_timer               ; next RM index
         lda     ent_timer
         cmp     #$08                    ; all 8 done?
@@ -806,10 +806,10 @@ code_8598:  lda     L8638,y             ; CHR bank config for continue screen
         sta     $E8,y
         dey
         bpl     code_8598
-        jsr     LFF3C                   ; apply CHR banks
+        jsr     update_CHR_banks                   ; apply CHR banks
         lda     #$04
         sta     oam_ptr
-        jsr     LC5E9                   ; clear OAM buffer
+        jsr     prepare_oam_buffer                   ; clear OAM buffer
         lda     #$00
         sta     $B8                     ; clear music state
         lda     #$01
@@ -817,7 +817,7 @@ code_8598:  lda     L8638,y             ; CHR bank config for continue screen
 ; --- jump to continue/password handler ---
         lda     #$0F
         sta     prg_bank                ; bank $0F = password/continue logic
-        jsr     LFF6B                   ; apply bank switch
+        jsr     select_PRG_banks                   ; apply bank switch
         jmp     LA000                   ; jump to password handler (does not return)
 
 ; ===========================================================================
