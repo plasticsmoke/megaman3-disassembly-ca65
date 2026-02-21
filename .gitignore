@@ -1,0 +1,19 @@
+# Build artifacts
+build/
+*.o
+
+# ROM files (not distributable)
+mm3.nes
+
+# CHR binary (extracted from ROM)
+chr/chr.bin
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
