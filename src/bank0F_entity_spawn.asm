@@ -19,6 +19,9 @@
 
         .setcpu "6502"
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 LF797           := $F797
 LFD80           := $FD80
 
@@ -41,7 +44,7 @@ LA006:  ldy     #$85
         brk
         .byte   $03
         sta     $0310
-code_A01B:  lda     $0300
+code_A01B:  lda     ent_status
         bmi     code_A077
         lda     $95
         and     #$01
@@ -123,12 +126,12 @@ code_A0AF:  sta     $0783,x
         sta     $07A3
         sta     $19
         inc     $B8
-code_A0C0:  lda     $FA
+code_A0C0:  lda     scroll_y
         bne     code_A0D4
         lda     $B8
         cmp     #$3B
         bne     code_A0D4
-        lda     $0540
+        lda     ent_var2
         cmp     #$02
         bne     code_A0D4
         jmp     code_A137
@@ -145,12 +148,12 @@ code_A0D4:  lda     $95
         lda     $B8
         cmp     #$3B
         bne     code_A0EF
-        inc     $0540
+        inc     ent_var2
 code_A0EF:  ldy     #$00
         ldx     #$00
 code_A0F3:  lda     LA202,y
         clc
-        adc     $0500,x
+        adc     ent_timer,x
         sta     $0200,y
         lda     LA203,y
         sta     $0201,y
@@ -168,32 +171,32 @@ code_A0F3:  lda     LA202,y
         cpy     #$30
         bcc     code_A0F3
         sty     $97
-        lda     $0500
+        lda     ent_timer
         clc
         adc     #$02
-        sta     $0500
-        lda     $0520
+        sta     ent_timer
+        lda     ent_var1
         clc
         adc     #$03
-        sta     $0520
+        sta     ent_var1
         jsr     LFD80
         jmp     code_A01B
 
-code_A137:  lda     $0300
+code_A137:  lda     ent_status
         bmi     code_A181
         ldx     #$01
 code_A13E:  lda     #$80
-        sta     $0300,x
-        sta     $0580,x
+        sta     ent_status,x
+        sta     ent_flags,x
         lda     LA232,x
-        sta     $05C0,x
+        sta     ent_anim_id,x
         lda     LA234,x
-        sta     $03C0,x
+        sta     ent_y_px,x
         lda     #$F8
-        sta     $0360,x
+        sta     ent_x_px,x
         lda     #$00
-        sta     $05E0,x
-        sta     $05A0,x
+        sta     ent_anim_frame,x
+        sta     ent_anim_state,x
         dex
         bpl     code_A13E
         lda     #$25
@@ -207,26 +210,26 @@ code_A13E:  lda     #$80
         lda     #$00
         sta     $0782
         sta     $0786
-        sta     $0500
+        sta     ent_timer
 code_A181:  dec     $0361
         bne     code_A18B
         lda     #$00
         sta     $0301
-code_A18B:  lda     $05C0
+code_A18B:  lda     ent_anim_id
         cmp     #$07
         beq     code_A1E8
-        dec     $0360
-        lda     $0360
+        dec     ent_x_px
+        lda     ent_x_px
         and     #$07
         bne     code_A1CA
-        lda     $0360
+        lda     ent_x_px
         cmp     #$B1
         bcs     code_A1CA
         cmp     #$50
         bcc     code_A1CA
         dec     $0781
         dec     $0785
-        ldx     $0560
+        ldx     ent_var3
         cpx     #$0C
         beq     code_A1CA
         lda     LA236,x
@@ -236,28 +239,28 @@ code_A18B:  lda     $05C0
         lda     #$FF
         sta     $0788
         sta     $19
-        inc     $0560
-code_A1CA:  lda     $0360
+        inc     ent_var3
+code_A1CA:  lda     ent_x_px
         cmp     #$20
         bne     code_A1FF
         lda     #$44
-        sta     $0440
+        sta     ent_yvel_sub
         lda     #$03
-        sta     $0460
+        sta     ent_yvel
         lda     #$07
-        sta     $05C0
+        sta     ent_anim_id
         lda     #$00
-        sta     $05A0
-        sta     $05E0
+        sta     ent_anim_state
+        sta     ent_anim_frame
 code_A1E8:  lda     #$7C
-        cmp     $03C0
+        cmp     ent_y_px
         bcs     code_A1F7
-        sta     $03C0
-        inc     $03C0
+        sta     ent_y_px
+        inc     ent_y_px
         bcc     code_A1FF
 code_A1F7:  ldx     #$00
         jsr     LF797
-        inc     $0360
+        inc     ent_x_px
 code_A1FF:  jmp     code_A0EF
 
 LA202:  .byte   $28

@@ -35,6 +35,9 @@ set_room_chr_and_palette:
 
         .setcpu "6502"                  ; param * 2 → index into $A200
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 
 .segment "BANK01"                       ; param * 2 → index into $A200
 

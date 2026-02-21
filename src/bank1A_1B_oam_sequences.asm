@@ -15,7 +15,7 @@
 ; =============================================================================
 ; Mapped to $8000-$9FFF (one bank at a time). Contains animation sequence
 ; definitions for all entity sprites. The sprite renderer in bank1E_1F
-; selects which bank based on the entity's OAM ID ($05C0,x):
+; selects which bank based on the entity's OAM ID (ent_anim_id,x):
 ;   OAM IDs $00-$7F → bank $1A
 ;   OAM IDs $80-$FF → bank $1B
 ;
@@ -35,6 +35,9 @@
 ; =============================================================================
 
         .setcpu "6502"
+
+.include "include/zeropage.inc"
+.include "include/constants.inc"
 
 LF81B           := $F81B
 LF835           := $F835
@@ -1033,7 +1036,7 @@ L9C7F:  rts
 
 spawn_enemy:  tya                       ; first, loop through all sprites
         ldx     #$1F                    ; besides reserved 00-0F
-L9C83:  cmp     $04C0,x                 ; if this ID is already here
+L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         beq     L9C7F                   ; don't spawn
         dex
         cpx     #$0F                    ; stop at $0F
@@ -1043,7 +1046,7 @@ L9C83:  cmp     $04C0,x                 ; if this ID is already here
         jsr     LFC43                   ; find a slot, if none found
         bcs     L9C7F                   ; don't spawn
         tya                             ; store new stage ID
-        sta     $04C0,x
+        sta     ent_spawn_id,x
         pha
         and     #$07                    ; stage ID & #$07
         tay                             ; index into ??? bitmask
@@ -1065,13 +1068,13 @@ L9C83:  cmp     $04C0,x                 ; if this ID is already here
 ;   $AE00,y = global enemy ID (indexes into bank $00 enemy data tables)
 ; then switch to bank $00 to read global enemy properties:
 ;   enemy_flags_g ($A000) / enemy_main_ID_g ($A100) / etc.
-        ldy     $04C0,x                 ; load stage enemy ID for data
+        ldy     ent_spawn_id,x                 ; load stage enemy ID for data
         lda     LAB00,y                 ; enemy screen number
-        sta     $0380,x
+        sta     ent_x_scr,x
         lda     LAC00,y                 ; enemy X pixel position
-        sta     $0360,x
+        sta     ent_x_px,x
         lda     LAD00,y                 ; enemy Y pixel position
-        sta     $03C0,x
+        sta     ent_y_px,x
         lda     LAE00,y                 ; global enemy ID
         pha
         stx     $05                     ; preserve X
@@ -1082,33 +1085,33 @@ L9C83:  cmp     $04C0,x                 ; if this ID is already here
         pla                             ; Y = global enemy ID
         tay                             ; for initial data lookup
         lda     #$80                    ; mark entity active
-        sta     $0300,x
+        sta     ent_status,x
         lda     LA000,y                 ; sprite flags from $A000,y
-        sta     $0580,x
+        sta     ent_flags,x
         lda     LA100,y                 ; AI routine ID from $A100,y
-        sta     $0320,x
+        sta     ent_routine,x
         lda     LA200,y                 ; hitbox/shape from $A200,y
-        sta     $0480,x
+        sta     ent_hitbox,x
         lda     LA300,y                 ; sprite graphic ID
         jsr     LF835
         jsr     LF869                   ; face toward player
         lda     LA400,y                 ; HP from $A400,y
-        sta     $04E0,x
+        sta     ent_hp,x
         lda     LA500,y                 ; Y = speed ID
         tay
         lda     LA600,y                 ; X velocity subpixel
-        sta     $0400,x
+        sta     ent_xvel_sub,x
         lda     LA700,y                 ; X velocity pixel
-        sta     $0420,x
+        sta     ent_xvel,x
         jsr     LF81B                   ; Y velocity
         lda     #$00
-        sta     $03E0,x                 ; clear Y screen,
-        sta     $0340,x                 ; X subpixel,
-        sta     $03A0,x                 ; Y subpixel,
-        sta     $0500,x
-        sta     $0520,x                 ; and all 4 wildcards
-        sta     $0540,x
-        sta     $0560,x
+        sta     ent_y_scr,x                 ; clear Y screen,
+        sta     ent_x_sub,x                 ; X subpixel,
+        sta     ent_y_sub,x                 ; Y subpixel,
+        sta     ent_timer,x
+        sta     ent_var1,x                 ; and all 4 wildcards
+        sta     ent_var2,x
+        sta     ent_var3,x
         lda     $22
         sta     $F5                     ; switch $A000-$BFFF bank
         jmp     LFF6B                   ; back to stage's bank, return

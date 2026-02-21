@@ -27,6 +27,9 @@
 
         .setcpu "6502"
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 L00C1           := $00C1
 
 .segment "BANK16"

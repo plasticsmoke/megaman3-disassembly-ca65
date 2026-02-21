@@ -23,8 +23,8 @@ enemy_flags_g:
 ;   $A000: enemy_flags_g     — entity flags (bit 7=active, bit 4=invincible, etc.)
 ;   $A100: enemy_main_ID_g   — main routine index for bank1C_1D dispatch
 ;   $A200: enemy_shape_g     — hitbox shape ID (bit 7=contact damage)
-;   $A300: enemy_OAM_ID_g    — OAM animation ID ($05C0 value)
-;   $A400: enemy_health_g    — starting HP ($04E0 value)
+;   $A300: enemy_OAM_ID_g    — OAM animation ID (ent_anim_id value)
+;   $A400: enemy_health_g    — starting HP (ent_hp value)
 ;   (remaining tables at $A500+: speed, velocity data, etc.)
 ;
 ; $AA00+ region: may contain additional data, but this bank is NOT used
@@ -35,6 +35,9 @@ enemy_flags_g:
 ; =============================================================================
 
         .setcpu "6502"
+
+.include "include/zeropage.inc"
+.include "include/constants.inc"
 
 
 .segment "BANK00"

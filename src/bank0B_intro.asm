@@ -20,6 +20,9 @@
 
         .setcpu "6502"
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 LA000           := $A000
 LA003           := $A003
 LA006           := $A006
@@ -86,28 +89,28 @@ code_8053:  lda     L86B5,y
         jsr     LFF3C
         ldy     #$01
 code_8061:  lda     #$80
-        sta     $0300,y
+        sta     ent_status,y
         lda     #$90
-        sta     $0580,y
+        sta     ent_flags,y
         lda     L86E3,y
-        sta     $05C0,y
+        sta     ent_anim_id,y
         lda     L86E5,y
-        sta     $0360,y
+        sta     ent_x_px,y
         lda     L86E7,y
-        sta     $03C0,y
+        sta     ent_y_px,y
         lda     #$00
-        sta     $0380,y
-        sta     $05E0,y
-        sta     $05A0,y
-        sta     $03E0,y
-        sta     $0500
-        sta     $0520
-        sta     $0540
-        sta     $0560
+        sta     ent_x_scr,y
+        sta     ent_anim_frame,y
+        sta     ent_anim_state,y
+        sta     ent_y_scr,y
+        sta     ent_timer
+        sta     ent_var1
+        sta     ent_var2
+        sta     ent_var3
         lda     #$C0
-        sta     $0440,y
+        sta     ent_yvel_sub,y
         lda     #$FF
-        sta     $0460,y
+        sta     ent_yvel,y
         dey
         bpl     code_8061
         ldy     #$07
@@ -122,41 +125,41 @@ code_80A6:  lda     L86E9,y
         jsr     LFF21
         jsr     LC74C
         lda     #$08
-        sta     $0500
+        sta     ent_timer
         lda     #$00
         sta     $0104
         sta     $95
         sta     $F9
 code_80CB:  ldx     #$00
-        lda     $05C0
+        lda     ent_anim_id
         cmp     #$04
         beq     code_80F9
         cmp     #$01
         beq     code_811A
         jsr     LF797
         lda     #$A4
-        cmp     $03C0
+        cmp     ent_y_px
         bcs     code_80F1
-        sta     $03C0
+        sta     ent_y_px
         lda     #$04
-        cmp     $05A0
+        cmp     ent_anim_state
         bne     code_811A
         lda     #$04
         jsr     LF835
 code_80F1:  lda     #$00
-        sta     $05E0
+        sta     ent_anim_frame
         jmp     code_811A
 
-code_80F9:  lda     $05C0
+code_80F9:  lda     ent_anim_id
         cmp     #$01
         beq     code_811A
-        lda     $0340
+        lda     ent_x_sub
         sec
         sbc     #$80
-        sta     $0340
-        lda     $0360
+        sta     ent_x_sub
+        lda     ent_x_px
         sbc     #$01
-        sta     $0360
+        sta     ent_x_px
         cmp     #$98
         bcs     code_811A
         lda     #$01
@@ -188,10 +191,10 @@ code_8131:  lda     L86C7,y
 code_814E:  lda     #$08
         sta     $97
         jsr     LFD80
-        lda     $05C0
+        lda     ent_anim_id
         cmp     #$01
         bne     code_81AD
-        lda     $0520
+        lda     ent_var1
         bne     code_8190
         lda     $95
         and     #$03
@@ -201,7 +204,7 @@ code_814E:  lda     #$08
         jsr     LFF6B
         lda     $B8
         bne     code_817B
-        ldx     $0500
+        ldx     ent_timer
         jsr     LA006
         jmp     code_81AD
 
@@ -209,14 +212,14 @@ code_817B:  jsr     LA003
         lda     $B8
         cmp     #$FF
         bne     code_81AD
-        inc     $0500
+        inc     ent_timer
         lda     #$00
         sta     $B8
         lda     #$B5
-        sta     $0520
-code_8190:  dec     $0520
+        sta     ent_var1
+code_8190:  dec     ent_var1
         bne     code_81AD
-        lda     $0500
+        lda     ent_timer
         cmp     #$0A
         beq     code_81B0
         lda     #$0E
@@ -262,30 +265,30 @@ code_81F1:  lda     L86BB,y
         bpl     code_81F1
         jsr     LFF3C
         lda     #$80
-        sta     $0300
+        sta     ent_status
         lda     #$90
-        sta     $0580
+        sta     ent_flags
         lda     #$5F
-        sta     $05C0
+        sta     ent_anim_id
         lda     #$80
-        sta     $0360
+        sta     ent_x_px
         lda     #$E8
-        sta     $03C0
+        sta     ent_y_px
         lda     #$00
-        sta     $0380
-        sta     $05E0
-        sta     $05A0
-        sta     $03E0
+        sta     ent_x_scr
+        sta     ent_anim_frame
+        sta     ent_anim_state
+        sta     ent_y_scr
         sta     $0104
-        sta     $0520
-        sta     $0400
+        sta     ent_var1
+        sta     ent_xvel_sub
         lda     #$10
-        sta     $0500
+        sta     ent_timer
         lda     #$04
-        sta     $0420
+        sta     ent_xvel
         jsr     LFF21
         jsr     LC74C
-code_823D:  lda     $03E0
+code_823D:  lda     ent_y_scr
         bne     code_8291
         jsr     code_8603
         lda     $95
@@ -319,7 +322,7 @@ code_827E:  lda     $95
         bne     code_8289
         lda     #$28
         jsr     LF89A
-code_8289:  inc     $18
+code_8289:  inc     palette_dirty
         jsr     LFD6E
         jmp     code_823D
 
@@ -327,26 +330,26 @@ code_8291:  lda     #$00
         sta     $EE
         jsr     LC752
         lda     #$00
-        sta     $03E0
-        sta     $0380
-        sta     $0520
-        sta     $0540
-        sta     $0560
-        sta     $0440
-        sta     $0460
-        sta     $0400
+        sta     ent_y_scr
+        sta     ent_x_scr
+        sta     ent_var1
+        sta     ent_var2
+        sta     ent_var3
+        sta     ent_yvel_sub
+        sta     ent_yvel
+        sta     ent_xvel_sub
         lda     #$04
-        sta     $0420
+        sta     ent_xvel
         lda     #$10
-        sta     $0500
+        sta     ent_timer
         lda     #$E8
-        sta     $03C0
+        sta     ent_y_px
         lda     #$80
-        sta     $0360
+        sta     ent_x_px
         lda     #$80
-        sta     $0300
+        sta     ent_status
         lda     #$98
-        sta     $0580
+        sta     ent_flags
         ldy     #$0F
 code_82D2:  lda     #$0F
         sta     $0620,y
@@ -355,38 +358,38 @@ code_82D2:  lda     #$0F
         dey
         bpl     code_82D2
         sty     $18
-code_82E2:  lda     $0380
+code_82E2:  lda     ent_x_scr
         beq     code_82EA
         jmp     code_8439
 
-code_82EA:  lda     $0300
+code_82EA:  lda     ent_status
         and     #$0F
         beq     code_82F4
         jmp     code_83A8
 
-code_82F4:  lda     $03C0
+code_82F4:  lda     ent_y_px
         cmp     #$60
         beq     code_8301
-        dec     $03C0
+        dec     ent_y_px
         jmp     code_83E7
 
 code_8301:  lda     #$5E
-        cmp     $05C0
+        cmp     ent_anim_id
         bcs     code_8344
         lda     #$5D
         ldx     #$00
         jsr     LF835
-        lda     $0300
+        lda     ent_status
         sta     $0301
-        lda     $0580
+        lda     ent_flags
         sta     $0581
-        lda     $0380
+        lda     ent_x_scr
         sta     $0381
-        lda     $03E0
+        lda     ent_y_scr
         sta     $03E1
-        lda     $0360
+        lda     ent_x_px
         sta     $0361
-        lda     $03C0
+        lda     ent_y_px
         sta     $03C1
         ldx     #$01
         lda     #$5C
@@ -426,50 +429,50 @@ code_8375:  lda     #$00
         stx     $0301
         lda     #$5F
         jsr     LF835
-        inc     $0300
+        inc     ent_status
         lda     #$F0
         sta     $0521
         lda     #$10
-        sta     $0500
+        sta     ent_timer
         lda     #$00
-        sta     $0400
-        sta     $0520
+        sta     ent_xvel_sub
+        sta     ent_var1
         lda     #$04
-        sta     $0420
+        sta     ent_xvel
         jmp     code_83EA
 
 code_83A8:  lda     $0521
         beq     code_83CC
         dec     $0521
-        lda     $0440
+        lda     ent_yvel_sub
         clc
         adc     #$10
-        sta     $0440
-        lda     $0460
+        sta     ent_yvel_sub
+        lda     ent_yvel
         adc     #$00
-        sta     $0460
+        sta     ent_yvel
         cmp     #$04
         bne     code_83EA
         lda     #$00
-        sta     $0440
+        sta     ent_yvel_sub
         beq     code_83EA
-code_83CC:  lda     $0520
+code_83CC:  lda     ent_var1
         cmp     #$01
         bne     code_83E7
-        lda     $0360
+        lda     ent_x_px
         sec
         sbc     #$04
-        sta     $0360
-        lda     $0380
+        sta     ent_x_px
+        lda     ent_x_scr
         sbc     #$00
-        sta     $0380
+        sta     ent_x_scr
         jmp     code_83EA
 
 code_83E7:  jsr     code_861B
-code_83EA:  lda     $0540
+code_83EA:  lda     ent_var2
         clc
-        adc     $0460
-        sta     $0540
+        adc     ent_yvel
+        sta     ent_var2
         ldx     #$00
 code_83F6:  lda     L8735,x
         sta     $0200,x
@@ -479,7 +482,7 @@ code_83F6:  lda     L8735,x
         sta     $0202,x
         lda     L8738,x
         clc
-        adc     $0540
+        adc     ent_var2
         sta     $0203,x
         inx
         inx
@@ -491,14 +494,14 @@ code_83F6:  lda     L8735,x
         and     #$01
         beq     code_8422
         ldx     #$04
-code_8422:  stx     $97
-        lda     $0560
+code_8422:  stx     oam_ptr
+        lda     ent_var3
         and     #$0F
         bne     code_8430
         lda     #$28
         jsr     LF89A
 code_8430:  jsr     LFD80
-        inc     $0560
+        inc     ent_var3
         jmp     code_82E2
 
 code_8439:  lda     #$00
@@ -551,19 +554,19 @@ code_84A3:  lda     L8719,y
         dey
         bpl     code_84A3
         lda     #$80
-        sta     $0300
-        sta     $0580
+        sta     ent_status
+        sta     ent_flags
         lda     #$00
-        sta     $05E0
-        sta     $05A0
-        sta     $0380
-        sta     $03E0
+        sta     ent_anim_frame
+        sta     ent_anim_state
+        sta     ent_x_scr
+        sta     ent_y_scr
         lda     #$60
-        sta     $0360
+        sta     ent_x_px
         lda     #$24
-        sta     $03C0
+        sta     ent_y_px
         lda     #$7B
-        sta     $05C0
+        sta     ent_anim_id
         lda     #$00
         sta     $95
         lda     #$20
@@ -635,8 +638,8 @@ code_8543:  jsr     LFD80
 code_854B:  lda     #$40
         sta     $10
         lda     #$00
-        sta     $0500
-code_8554:  ldy     $0500
+        sta     ent_timer
+code_8554:  ldy     ent_timer
         cpy     $75
         beq     code_8590
         ldx     L8762,y
@@ -662,11 +665,11 @@ code_8565:  lda     L8774,x
         sty     $10
         dec     $00
         bpl     code_8565
-        inc     $0500
+        inc     ent_timer
         bne     code_8554
 code_8590:  rts
 
-code_8591:  ldy     $0500
+code_8591:  ldy     ent_timer
         ldx     L8762,y
         lda     L8768,y
         sta     $0F
@@ -716,38 +719,38 @@ code_85A0:  lda     L8774,x
         sta     $03C1
 code_8602:  rts
 
-code_8603:  lda     $03C0
+code_8603:  lda     ent_y_px
         sec
         sbc     #$01
-        sta     $03C0
-        lda     $03E0
+        sta     ent_y_px
+        lda     ent_y_scr
         sbc     #$00
-        sta     $03E0
-        lda     $03C0
+        sta     ent_y_scr
+        lda     ent_y_px
         cmp     #$60
         bcs     code_8654
-code_861B:  lda     $0340
+code_861B:  lda     ent_x_sub
         clc
-        adc     $0400
-        sta     $0340
-        lda     $0360
-        adc     $0420
-        sta     $0360
-        lda     $0520
+        adc     ent_xvel_sub
+        sta     ent_x_sub
+        lda     ent_x_px
+        adc     ent_xvel
+        sta     ent_x_px
+        lda     ent_var1
         and     #$03
         tay
-        lda     $0400
+        lda     ent_xvel_sub
         clc
         adc     L872D,y
-        sta     $0400
-        lda     $0420
+        sta     ent_xvel_sub
+        lda     ent_xvel
         adc     L8731,y
-        sta     $0420
-        dec     $0500
+        sta     ent_xvel
+        dec     ent_timer
         bne     code_8654
-        inc     $0520
+        inc     ent_var1
         lda     #$10
-        sta     $0500
+        sta     ent_timer
 code_8654:  .byte   $60
 L8655:  .byte   $0F,$20,$2C,$1C,$0F,$1C,$27,$16
         .byte   $0F,$3B,$2B,$1B,$0F,$32,$22,$12

@@ -15,7 +15,7 @@
 ; 1) WEAPON DAMAGE DATA ($A000-$A9FF):
 ;   Loaded explicitly by check_player_hit and check_weapon_hit in bank1C_1D
 ;   via hardcoded `LDA #$0A / STA $F5`. Contains 10 damage tables, each 256
-;   bytes, indexed by entity main routine ID ($0320,x):
+;   bytes, indexed by entity main routine ID (ent_routine,x):
 ;     $A000: unnamed table — base/contact damage (read via LDA $A000,y)
 ;     $A100: buster_damage_table   — Mega Buster ($A0=00)
 ;     $A200: needle_damage_table   — Needle Cannon ($A0=02)
@@ -39,6 +39,9 @@
 ; =============================================================================
 
         .setcpu "6502"
+
+.include "include/zeropage.inc"
+.include "include/constants.inc"
 
 
 .segment "BANK0A"

@@ -20,10 +20,13 @@
 
         .setcpu "6502"
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 
 .segment "BANK0D"
 
-        ldy     $0540
+        ldy     ent_var2
         lda     LA04D,y
         sta     $00
         lda     LA056,y
@@ -44,9 +47,9 @@ code_A00F:  lda     ($00),y
         sta     $0200,y
         iny
         bne     code_A00F
-code_A02D:  sty     $97
-        sty     $0560
-        lda     $0540
+code_A02D:  sty     oam_ptr
+        sty     ent_var3
+        lda     ent_var2
         asl     a
         asl     a
         asl     a
@@ -59,7 +62,7 @@ code_A03B:  lda     LA360,y
         cpx     #$08
         bne     code_A03B
         stx     $18
-        inc     $0540
+        inc     ent_var2
         rts
 
 LA04D:  .byte   $5F,$BC,$01,$56,$A3,$04,$55,$A2

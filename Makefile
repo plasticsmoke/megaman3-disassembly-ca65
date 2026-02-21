@@ -2,7 +2,7 @@
 # Mega Man 3 (U) — ca65 Disassembly Build System
 # =============================================================================
 
-CA65    = ca65
+CA65    = ca65 -I .
 LD65    = ld65
 CFG     = cfg/nes.cfg
 ROM_OUT = build/mm3_built.nes

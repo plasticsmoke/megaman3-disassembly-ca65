@@ -15,7 +15,7 @@
 ; renderer when $5A (weapon sprite bank override) is nonzero.
 ;
 ; Pointer tables at $8000/$8080 (low/high bytes): animation sequence
-; pointers indexed by OAM ID ($05C0). Each sequence has:
+; pointers indexed by OAM ID (ent_anim_id). Each sequence has:
 ;   byte 0 = total frames
 ;   byte 1 = ticks per frame
 ;   byte 2+ = sprite definition IDs per frame
@@ -26,6 +26,9 @@
 ; =============================================================================
 
         .setcpu "6502"
+
+.include "include/zeropage.inc"
+.include "include/constants.inc"
 
 
 .segment "BANK15"
