@@ -413,7 +413,7 @@ code_A5A5:  lda     LA6FF,y
         dey
         bpl     code_A5A5
 code_A5C3:  lda     joy1_press
-        and     #$80
+        and     #BTN_A
         bne     code_A603
         lda     $14
         and     #$03
@@ -458,7 +458,7 @@ code_A60C:  lda     $10
         sta     $11
         beq     code_A66D
 code_A61C:  lda     joy1_press
-        and     #$40
+        and     #BTN_B
         beq     code_A62D
         lda     #$24
         sta     $10
@@ -467,7 +467,7 @@ code_A61C:  lda     joy1_press
         jmp     code_A5C3
 
 code_A62D:  lda     joy1_press
-        and     #$80
+        and     #BTN_A
         beq     code_A66D
         lda     $10
         clc

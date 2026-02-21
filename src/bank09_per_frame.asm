@@ -81,7 +81,7 @@ subsys_stage_clear:  jmp     stage_clear_spawner       ; entry 1: $8003
 ; State: $55=spawn counter, $56=anim frame, $57=anim cycle
 ; ===========================================================================
 gemini_platform_update:  lda     stage_id
-        cmp     #$05            ; Gemini Man stage?
+        cmp     #STAGE_SNAKE            ; Gemini Man stage?
         bne     gemini_platform_clear
         ldy     $F9
         cpy     #$05            ; screen $05?
@@ -321,7 +321,7 @@ item_drop_done:  lda     proto_man_flag
         and     #$7F            ; clear bit 7 (no more items)
         sta     $68
         lda     $22
-        cmp     #$02            ; Gemini Man stage?
+        cmp     #STAGE_GEMINI            ; Gemini Man stage?
         bne     item_drop_rts
         lda     #$4E            ; Gemini stage: reload CHR banks
         sta     $E9
@@ -380,7 +380,7 @@ wily_camera_y_check:  lda     game_mode
         cmp     #$09            ; Y transition already active?
         beq     wily_camera_y_tick
         lda     $22
-        cmp     #$0E            ; Wily 2 stage?
+        cmp     #STAGE_WILY3            ; Wily 2 stage?
         bne     wily_camera_y_rts
         lda     $F9
         cmp     #$09            ; screen $09?
@@ -408,7 +408,7 @@ wily_camera_y_rts:  rts
 ; Gemini-style section of the Doc Robot stage.
 ; ===========================================================================
 docrobot_gemini_prep:  lda     stage_id
-        cmp     #$08            ; Doc Robot stage?
+        cmp     #STAGE_DOC_NEEDLE            ; Doc Robot stage?
         bne     docrobot_rts
         lda     $F9
         cmp     #$15            ; screen $15?
@@ -446,9 +446,9 @@ docrobot_rts:  rts
 ; State: $64=zone, $65=timer, $66=data index, $67=cycle counter
 ; ===========================================================================
 stage_clear_spawner:  lda     stage_id
-        cmp     #$0C            ; Wily 1 / Break Man stage?
+        cmp     #STAGE_WILY1            ; Wily 1 / Break Man stage?
         beq     stage_clear_wily1
-        cmp     #$01            ; stage $01?
+        cmp     #STAGE_MAGNET            ; stage $01?
         bne     stage_clear_reset
         lda     ent_x_scr           ; player screen (camera hi)
         cmp     #$0C            ; past screen $0C?
@@ -573,7 +573,7 @@ clear_spawn_attr:  .byte   $01,$98,$40,$00,$88,$00,$58,$00
 ; Skipped when entity[31] is active ($031F bit 7) or game state = $11.
 ; ===========================================================================
 wily3_entity_spawn:  lda     stage_id
-        cmp     #$0F            ; Wily 3 stage?
+        cmp     #STAGE_WILY4            ; Wily 3 stage?
         bne     wily3_rts
         lda     $F9
         cmp     #$08            ; screen $08?
@@ -581,7 +581,7 @@ wily3_entity_spawn:  lda     stage_id
         lda     $031F           ; entity[31] flags
         bmi     wily3_rts       ; active → skip
         lda     $30             ; game substate
-        cmp     #$11
+        cmp     #PSTATE_WARP_INIT
         beq     wily3_rts       ; state $11 → skip
         ldy     #$07            ; 8 entities (slots 24-31)
         lda     $6E             ; spawn bitmask

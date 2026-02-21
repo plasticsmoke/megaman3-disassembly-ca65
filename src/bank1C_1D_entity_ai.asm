@@ -207,15 +207,15 @@ check_player_hit:  lda     ent_anim_id        ; check player animation
         lda     $39                     ; i-frames timer
         bne     code_80F9               ; skip if invincible
         lda     $30                     ; check player state
-        cmp     #$06                    ; already taking damage?
+        cmp     #PSTATE_DAMAGE                    ; already taking damage?
         beq     code_80F9               ; skip
-        cmp     #$0E                    ; already dead?
+        cmp     #PSTATE_DEATH                    ; already dead?
         beq     code_80F9               ; skip
-        cmp     #$0C                    ; victory cutscene?
+        cmp     #PSTATE_VICTORY                    ; victory cutscene?
         beq     code_80F9               ; skip
         jsr     LFAE2                   ; AABB overlap test
         bcs     code_80F9               ; no collision → skip
-        lda     #$06                    ; --- CONTACT HIT ---
+        lda     #PSTATE_DAMAGE                    ; --- CONTACT HIT ---
         sta     $30                     ; state → $06 (damage)
         lda     #$16                    ; SFX $16 = damage sound
         jsr     LF89A
@@ -235,7 +235,7 @@ check_player_hit:  lda     ent_anim_id        ; check player animation
         bcs     code_80F9               ; HP > 0 → survived, done
 L80E7:  lda     #$80                    ; --- PLAYER KILLED ---
         sta     $A2                     ; HP = 0 with dirty flag
-        lda     #$0E                    ; state → $0E (death)
+        lda     #PSTATE_DEATH                    ; state → $0E (death)
         sta     $30
         lda     #$F2                    ; SFX $F2 = stop music
         jsr     LF89A
@@ -303,7 +303,7 @@ L8144:  lda     #$18                    ; play damage sound
         jmp     L824D
 
 L8170:  lda     current_weapon                     ; if weapon is
-        cmp     #$08                    ; anything but spark
+        cmp     #WPN_SPARK                    ; anything but spark
         bne     L81B6                   ; apply normal damage
         lda     (L0000),y               ; if damage value is zero,
         beq     L81B3                   ; don't do anything
@@ -385,21 +385,21 @@ L8207:  lda     ent_hp,x                 ; health zero?
         sta     ent_hp,x                 ; (prevents double-damage this frame)
         bne     L822F
 L821D:  lda     stage_id                     ; if stage == Wily 4
-        cmp     #$0F                    ; or < Wily 1
+        cmp     #STAGE_WILY4                    ; or < Wily 1
         beq     L8227                   ; this means robot master
-        cmp     #$0C                    ; or doc robot bosses
+        cmp     #STAGE_WILY1                    ; or doc robot bosses
         bcs     L822F
 L8227:  lda     ent_hp,x
         ora     #$E0                    ; for doc/robot masters,
         sta     ent_hp,x                 ; set all hit-ack flags (bits 7/6/5)
 L822F:  lda     current_weapon
-        cmp     #$05                    ; if weapon is top spin
+        cmp     #WPN_TOP                    ; if weapon is top spin
         beq     L824D                   ; no shot to despawn
         ldy     $10
         lda     #$00                    ; despawn the shot
         sta     ent_status,y
         lda     $A0
-        cmp     #$01
+        cmp     #WPN_GEMINI
         bne     L824D                   ; if weapon is gemini laser,
         lda     #$00                    ; despawn all three shots
         sta     $0301
@@ -440,7 +440,7 @@ L825E:  lda     ent_hitbox,x                 ; shot tink flag also
         lda     #$00                    ; clamp to 0
 L8290:  ora     #$80                    ; set dirty flag
         sta     $A7
-        lda     #$0A                    ; state → $0A (Top Spin recoil)
+        lda     #PSTATE_TOP_SPIN                    ; state → $0A (Top Spin recoil)
         sta     $30                     ; player bounces back from contact
         lda     #$08                    ; recoil timer = 8 frames
         sta     ent_timer
@@ -495,7 +495,7 @@ code_82CE:  jsr     LF846
         cpy     #$0F
         bne     code_82C4
         lda     $22
-        cmp     #$03
+        cmp     #STAGE_HARD
         bne     code_831E
         lda     #$00
         sta     $FA
@@ -505,12 +505,12 @@ code_831E:  lda     #$00
         sta     $0303
         sta     ent_var1
         lda     $22                     ; current stage
-        cmp     #$0F                    ; stage $0F = Wily 4 (refights)
+        cmp     #STAGE_WILY4                    ; stage $0F = Wily 4 (refights)
         beq     L8360                   ; special handling for refights
         lda     $30                     ; check player state
-        cmp     #$0E                    ; if player is dead ($0E),
+        cmp     #PSTATE_DEATH                    ; if player is dead ($0E),
         beq     code_83AD               ; don't start victory cutscene
-        lda     #$0C                    ; state → $0C (victory)
+        lda     #PSTATE_VICTORY                    ; state → $0C (victory)
         sta     $30                     ; begin boss defeated cutscene
         lda     #$00
         sta     $32                     ; clear sub-state
@@ -532,7 +532,7 @@ L835E:  clc
 ; spawn the "boss defeated" entity at the boss's position
 
 L8360:  lda     player_state
-        cmp     #$0F                    ; if player was stunned ($0F),
+        cmp     #PSTATE_STUNNED                    ; if player was stunned ($0F),
         bne     code_836A
         lda     #$00                    ; release to on_ground ($00)
         sta     $30
@@ -666,7 +666,7 @@ code_85D9:  cpx     #$10                ; only weapon/player slots break blocks
         ldy     #$06                    ; check tile at foot height ahead
         jsr     LE8D6
         lda     $41                     ; tile type = breakable block ($70)?
-        cmp     #$70
+        cmp     #TILE_DISAPPEAR
         bne     code_8627               ; no → return
         lda     ent_x_px,x                 ; entity X - camera X
         sec                             ; = screen-relative position
@@ -817,7 +817,7 @@ code_86E4:  inc     ent_status,x             ; advance state (wall blocked)
         rts
 
 code_86F0:  lda     current_weapon                 ; current weapon = Rush Marine ($09)?
-        cmp     #$09
+        cmp     #WPN_RUSH_MARINE
         bne     code_86FC               ; no → set weapon OAM
         lda     $41                     ; tile type = water ($80)?
         cmp     #$80
@@ -2142,7 +2142,7 @@ code_90EF:  lda     ent_anim_id,x             ; check current OAM ID
         jsr     LF67C                   ; apply $99 + move (C=1 if landed)
         ror     L0000                   ; save carry (landed flag) into $00 bit 7
         lda     $41                     ; tile ID at feet (below entity)
-        cmp     #$40                    ; special trigger tile?
+        cmp     #TILE_LADDER_TOP                    ; special trigger tile?
         beq     code_9107               ; yes -> check horizontal tiles
         lda     L0000                   ; no special tile: check if landed
         bpl     code_9164               ; not landed (bit 7 clear) -> done
@@ -2150,7 +2150,7 @@ code_9107:  lda     ent_facing,x             ; check facing direction
         and     #$01                    ; bit 0 = facing right
         beq     code_9116               ; facing left -> check left tile
         lda     $43                     ; facing right: check tile to right
-        cmp     #$40                    ; is it the trigger tile?
+        cmp     #TILE_LADDER_TOP                    ; is it the trigger tile?
         bne     code_9142               ; no -> walk horizontally
         beq     code_911C               ; yes -> transition to rising
 code_9116:  lda     $42                 ; facing left: check tile to left
@@ -3333,9 +3333,9 @@ L9ACB:  jsr     LF8B3                   ; check player proximity
         cmp     #$10                    ; too far away?
         bcs     L9B2B
         lda     $30                     ; only mount if state < $02
-        cmp     #$02                    ; (on_ground or airborne)
+        cmp     #PSTATE_SLIDE                    ; (on_ground or airborne)
         bcs     L9B08
-        lda     #$05                    ; state → $05 (entity_ride)
+        lda     #PSTATE_ENTITY_RIDE                    ; state → $05 (entity_ride)
         sta     $30
         stx     $34                     ; $34 = ridden entity slot
         lda     #$07                    ; player OAM $07 (riding anim)
@@ -3355,7 +3355,7 @@ L9ACB:  jsr     LF8B3                   ; check player proximity
         rts
 
 L9B08:  lda     player_state
-        cmp     #$05                    ; if not in entity_ride, skip
+        cmp     #PSTATE_ENTITY_RIDE                    ; if not in entity_ride, skip
         bne     code_9B43
         cpx     $34                     ; if riding different entity, skip
         bne     code_9B43
@@ -3372,7 +3372,7 @@ L9B08:  lda     player_state
         rts
 
 L9B2B:  lda     player_state                     ; if player is riding ($05)
-        cmp     #$05
+        cmp     #PSTATE_ENTITY_RIDE
         bne     code_9B43               ; and it's THIS entity
         cpx     $34
         bne     code_9B43
@@ -4188,7 +4188,7 @@ code_A1C4:  jsr     LF779
         lda     ent_routine,x                 ; entity routine index
         cmp     #$53                    ; $53 = Hard Man stage Proto Man
         bne     code_A1DD               ; $52 = normal → skip, set $68
-        lda     #$13                    ; state → $13 (teleport_beam)
+        lda     #PSTATE_TELEPORT_BEAM                    ; state → $13 (teleport_beam)
         sta     $30                     ; Proto Man defeated → player beams out
         rts
 
@@ -4208,7 +4208,7 @@ main_proto_man_gemini_cutscene:
         jsr     cutscene_init           ; cutscene init/whistle
         lda     ent_var3,x                 ; phase flag
         beq     code_A1E1               ; not started yet → return
-        lda     #$0F                    ; state → $0F (stunned)
+        lda     #PSTATE_STUNNED                    ; state → $0F (stunned)
         sta     $30                     ; freeze player during cutscene
         lda     ent_status,x
         and     #$0F
@@ -4258,7 +4258,7 @@ cutscene_init:  lda     ent_var3,x         ; if phase already started,
         lda     ent_anim_id                   ; player OAM ID
         cmp     #$13                    ; $13 = teleporting? skip
         beq     code_A292
-        lda     #$0F                    ; state → $0F (stunned)
+        lda     #PSTATE_STUNNED                    ; state → $0F (stunned)
         sta     $30                     ; freeze player for cutscene
 code_A25D:  lda     #$11
         cmp     $D9
@@ -6782,7 +6782,7 @@ code_B7D9:  lda     #$00
 ; $B0 = boss HP meter position, $B3 = HP fill target ($8E = 28 HP).
 ; ---------------------------------------------------------------------------
 
-init_boss_wait:  lda     #$09           ; state → $09 (boss_wait)
+init_boss_wait:  lda     #PSTATE_BOSS_WAIT           ; state → $09 (boss_wait)
         sta     $30                     ; freeze player
         lda     #$80                    ; init boss HP display
         sta     $B0                     ; $B0 = HP bar position

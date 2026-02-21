@@ -204,7 +204,7 @@ code_A139:  lda     LA641,y
         cpx     #$03
         bne     code_A139
         stx     $18
-        lda     #$04
+        lda     #PSTATE_REAPPEAR
         sta     $30
         ldx     #$00
         lda     #$13
@@ -524,7 +524,7 @@ code_A3A8:  lda     $1F
         sta     $1F
         bne     code_A3A5
         lda     $16
-        and     #$01
+        and     #BTN_RIGHT
         beq     code_A3EC
 code_A3B7:  lda     weapon_cursor
         bpl     code_A3C5
@@ -555,7 +555,7 @@ code_A3DE:  lda     weapon_cursor
         jmp     code_A477
 
 code_A3EC:  lda     joy1_held
-        and     #$02
+        and     #BTN_LEFT
         beq     code_A41D
 code_A3F2:  lda     weapon_cursor
         bpl     code_A400
@@ -583,7 +583,7 @@ code_A40F:  lda     weapon_cursor
 code_A41D:  lda     weapon_cursor
         bmi     code_A477
         lda     $16
-        and     #$08
+        and     #BTN_UP
         beq     code_A44C
 code_A427:  lda     weapon_cursor
         bne     code_A431
@@ -605,7 +605,7 @@ code_A43F:  lda     weapon_cursor
         bpl     code_A427
         bmi     code_A477
 code_A44C:  lda     joy1_held
-        and     #$04
+        and     #BTN_DOWN
         beq     code_A477
 code_A452:  lda     weapon_cursor
         cmp     #$04

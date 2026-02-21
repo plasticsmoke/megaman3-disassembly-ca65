@@ -1393,7 +1393,7 @@ LC5E6:  ldx     $01                     ; restore X = fill byte
 ; ---------------------------------------------------------------------------
 
 prepare_oam_buffer:  lda     player_state        ; state $07 = special_death:
-        cmp     #$07                    ; force $97=$6C (keep 27 sprites,
+        cmp     #PSTATE_SPECIAL_DEATH                    ; force $97=$6C (keep 27 sprites,
         bne     LC5F5                   ; clear rest)
         ldx     #$6C
         stx     $97
@@ -2013,9 +2013,9 @@ code_C9B3:  lda     #$9C                ; $A2 = $9C (full HP: 28 bars)
         lda     $F9                     ; if not starting at screen 0: skip
         bne     code_C9D3
         lda     $22                     ; stages $02 (Gemini) and $09 (DR-Gemini)
-        cmp     #$02                    ; use horizontal scroll mode
+        cmp     #STAGE_GEMINI                    ; use horizontal scroll mode
         beq     code_C9CB               ; (start scrolling right from screen 0)
-        cmp     #$09
+        cmp     #STAGE_DOC_GEMINI
         bne     code_C9D3
 code_C9CB:  lda     #$9F                ; $5E = $9F (Gemini scroll end marker)
         sta     $5E
@@ -2104,7 +2104,7 @@ code_CA15:  sta     $0200,x             ; hide sprite: Y = $F8
         ldx     #$00                    ; slot 0 (player): set OAM $13 = teleport beam
         lda     #$13
         jsr     reset_sprite_anim
-        lda     #$04                    ; $30 = $04 (player state = reappear)
+        lda     #PSTATE_REAPPEAR                    ; $30 = $04 (player state = reappear)
         sta     $30
         lda     #$80                    ; $B2 = $80 (stage initialization complete)
         sta     $B2
@@ -2123,14 +2123,14 @@ code_CA15:  sta     $0200,x             ; hide sprite: Y = $F8
 ;   8. Check exit conditions ($59=boss done, $3C=death, $74=stage clear)
 ; ---------------------------------------------------------------------------
 gameplay_frame_loop:  lda     joy1_press       ; Start button pressed?
-        and     #$10                    ; ($14 = new button presses this frame)
+        and     #BTN_START                    ; ($14 = new button presses this frame)
         beq     gameplay_no_pause
         lda     $30                     ; skip pause if player state is:
-        cmp     #$04                    ; $04 = reappear
+        cmp     #PSTATE_REAPPEAR                    ; $04 = reappear
         beq     gameplay_no_pause       ; $07 = special_death
-        cmp     #$07                    ; $09+ = boss_wait and above
+        cmp     #PSTATE_SPECIAL_DEATH                    ; $09+ = boss_wait and above
         beq     gameplay_no_pause
-        cmp     #$09
+        cmp     #PSTATE_BOSS_WAIT
         bcs     gameplay_no_pause
 
 ; --- pause check: despawn Rush (slot 1) when switching from Rush weapon ---
@@ -2486,7 +2486,7 @@ code_CD34:  lda     ent_xvel               ; if X speed whole == $02 (slide spee
         cmp     #$02                    ; and state == $02 (sliding):
         bne     code_CD41               ; preserve slide speed
         lda     $30
-        cmp     #$02
+        cmp     #PSTATE_SLIDE
         beq     code_CD4B
 code_CD41:  lda     #$4C                ; reset walk speed to $01.4C
         sta     ent_xvel_sub
@@ -2513,7 +2513,7 @@ code_CD5A:  lda     invincibility_timer                 ; $39 = invincibility ti
 
 ; --- charge shot: Needle Cannon auto-fire ($1F counter) ---
 code_CD6A:  lda     joy1_held                 ; B button held?
-        and     #$40
+        and     #BTN_B
         bne     code_CD76               ; yes → increment charge
         lda     #$E0                    ; not held: reset charge to $E0
         sta     $1F                     ; (high value = "not charging")
@@ -2524,10 +2524,10 @@ code_CD76:  lda     $1F                 ; increment charge counter by $20
         sta     $1F
         bne     code_CD8B               ; not wrapped → dispatch state
         lda     $A0                     ; if weapon == $02 (Needle Cannon):
-        cmp     #$02                    ; auto-fire when charge wraps
+        cmp     #WPN_NEEDLE                    ; auto-fire when charge wraps
         bne     code_CD8B
         lda     $14                     ; set B-button-pressed flag
-        ora     #$40                    ; (triggers weapon_fire in state handler)
+        ora     #BTN_B                    ; (triggers weapon_fire in state handler)
         sta     $14
 code_CD8B:  ldy     player_state
         lda     LCD9A,y                 ; grab player state
@@ -2581,7 +2581,7 @@ code_CDEC:  lda     ent_flags               ; save player sprite flags
         lda     $38
         sta     ent_xvel
         ldy     $30                     ; Y = collision offset:
-        cpy     #$02                    ; if sliding (state $02), use slide hitbox
+        cpy     #PSTATE_SLIDE                    ; if sliding (state $02), use slide hitbox
         beq     code_CE0A               ; otherwise Y = 0 (standing hitbox)
         ldy     #$00
 code_CE0A:  lda     $36                 ; push direction: bit 0 = right
@@ -2660,18 +2660,18 @@ LCE88:  lda     ent_anim_id
         cmp     #$10                    ; player sliding?
         bne     LCE9E
         lda     $14
-        and     #$80                    ; if so,
+        and     #BTN_A                    ; if so,
         beq     code_CE35               ; newpressing A
         lda     $16                     ; and not holding down?
-        and     #$04                    ; return, else go on
+        and     #BTN_DOWN                    ; return, else go on
         beq     code_CE35               ; return (no slide)
         jmp     slide_initiate          ; initiate slide
 
 LCE9E:  lda     joy1_press
-        and     #$80                    ; newpressing A
+        and     #BTN_A                    ; newpressing A
         beq     code_CECD               ; and not holding down
         lda     $16                     ; means jumping
-        and     #$04                    ; holding down → slide instead
+        and     #BTN_DOWN                    ; holding down → slide instead
         beq     LCEAD
         jmp     slide_initiate          ; initiate slide
 
@@ -2777,7 +2777,7 @@ code_CF4B:  lda     walk_flag                 ; if shooting: skip idle anim rese
 ; --- common ground exit: check slide/crouch + B button ---
 code_CF59:  jsr     code_D355           ; slide/crouch/ladder input check
         lda     $14                     ; B button pressed → fire weapon
-        and     #$40
+        and     #BTN_B
         beq     code_CF65
         jsr     weapon_fire
 code_CF65:  rts
@@ -2796,7 +2796,7 @@ code_CF65:  rts
         and     #$7F
         sta     $05E1
 code_CF7B:  lda     joy1_press                 ; A button → jump
-        and     #$80
+        and     #BTN_A
         beq     code_CF84
         jmp     LCEAD
 
@@ -2837,7 +2837,7 @@ code_CFC7:  lda     ent_y_px               ; slot 1 Y = player Y + $0E
         jsr     reset_gravity           ; clear $99 after manual climb
 code_CFD3:  jsr     code_D355           ; process slide/crouch input
         lda     $14                     ; B button → fire weapon
-        and     #$40
+        and     #BTN_B
         beq     code_CFDF
         jsr     weapon_fire
 code_CFDF:  rts
@@ -2857,7 +2857,7 @@ code_CFDF:  rts
         lda     #$05                    ; $EB = CHR page 5 (Rush Marine tiles)
         sta     $EB
         jsr     update_CHR_banks
-        lda     #$08                    ; $30 = $08 (player state = Rush Marine)
+        lda     #PSTATE_RUSH_MARINE                    ; $30 = $08 (player state = Rush Marine)
         sta     $30
         lda     #$DA
         jmp     reset_sprite_anim
@@ -2869,7 +2869,7 @@ player_airborne:  lda     ent_yvel         ; if Y speed negative (rising): skip
         lda     $3A                     ; if $3A nonzero (forced fall, e.g. Rush bounce):
         bne     code_D01D               ; skip variable jump
         lda     $16                     ; if A button held: keep rising
-        and     #$80
+        and     #BTN_A
         bne     code_D019
         jsr     reset_gravity           ; A released → clamp Y speed to 0 (variable jump)
 code_D019:  lda     #$00                ; clear forced-fall flag
@@ -2948,15 +2948,15 @@ code_D0A6:  rts
 ; --- still airborne: dispatch by current state ---
 
 code_D0A7:  lda     player_state                 ; if on ladder (state $03): just return
-        cmp     #$03
+        cmp     #PSTATE_LADDER
         beq     code_D0D8
-        cmp     #$01                    ; if already airborne: walk+shoot
+        cmp     #PSTATE_AIRBORNE                    ; if already airborne: walk+shoot
         beq     code_D0C1
 
 ; --- first airborne frame: set jump animation ---
         lda     #$07                    ; OAM $07 = jump/fall animation
         jsr     reset_sprite_anim
-        lda     #$01                    ; $30 = 1 (state = airborne)
+        lda     #PSTATE_AIRBORNE                    ; $30 = 1 (state = airborne)
         sta     $30
         lda     $32                     ; if shooting: set shoot OAM variant
         beq     code_D0C1
@@ -2971,7 +2971,7 @@ code_D0C1:  lda     joy1_held                 ; D-pad L/R held?
         jsr     code_CF3D               ; move L/R with collision
 code_D0CC:  jsr     code_D355           ; shoot timer tick
         lda     $14                     ; B button pressed → fire weapon
-        and     #$40
+        and     #BTN_B
         beq     code_D0D8
         jsr     weapon_fire
 code_D0D8:  clc                         ; carry clear = still airborne (for caller)
@@ -3173,7 +3173,7 @@ init_hard_knuckle:
         lda     $0301                   ; slot 1 already active?
         bmi     code_D292               ; if so, can't fire
         ldy     $30                     ; player state >= $04 (reappear etc)?
-        cpy     #$04
+        cpy     #PSTATE_REAPPEAR
         bcs     code_D292               ; can't fire in those states
         lda     LD293,y                 ; OAM ID for this state ($00 = skip)
         beq     code_D292               ; state $02(slide): no Hard Knuckle
@@ -3196,7 +3196,7 @@ code_D271:  lda     #$00                ; zero X/Y speeds for slot 1
         sta     ent_timer                   ; (restore when Hard Knuckle ends)
         lda     #$10                    ; slot 1 AI routine = $10
         sta     ent_var1                   ; (Hard Knuckle movement handler)
-        lda     #$0B                    ; set player state $0B = hard_knuckle_ride
+        lda     #PSTATE_WEAPON_RECOIL                    ; set player state $0B = hard_knuckle_ride
         sta     $30                     ; (D-pad steers the projectile)
 code_D292:  .byte   $60
 
@@ -3208,7 +3208,7 @@ LD297:  .byte   $01,$07,$00,$0A,$FC,$FF
         brk
 init_top_spin:
         lda     $30
-        cmp     #$01                    ; if player not in air,
+        cmp     #PSTATE_AIRBORNE                    ; if player not in air,
         bne     LD2D2                   ; return
         lda     #$A3
         cmp     ent_anim_id                   ; if Mega Man already spinning,
@@ -3317,7 +3317,7 @@ code_D36F:  rts
 code_D370:  pha                         ; preserve A
         inc     ent_anim_id                   ; OAM += 1 (shoot variant)
         lda     $A0                     ; if weapon == $0A (Shadow Blade):
-        cmp     #$0A                    ; OAM += 2 (two-handed throw anim)
+        cmp     #WPN_SHADOW                    ; OAM += 2 (two-handed throw anim)
         bne     code_D37D
         inc     ent_anim_id
 code_D37D:  pla                         ; restore A
@@ -3328,7 +3328,7 @@ code_D37D:  pla                         ; restore A
 code_D37F:  pha
         dec     ent_anim_id                   ; OAM -= 1
         lda     $A0                     ; if Shadow Blade: OAM -= 2
-        cmp     #$0A
+        cmp     #WPN_SHADOW
         bne     code_D38C
         dec     ent_anim_id
 code_D38C:  pla
@@ -3355,7 +3355,7 @@ LD39F:  jsr     check_tile_horiz        ; check for wall ahead at slide height
 
 ; slide confirmed — set up player state and dust cloud
 
-LD3A9:  lda     #$02                    ; state $02 = player_slide
+LD3A9:  lda     #PSTATE_SLIDE                    ; state $02 = player_slide
         sta     $30
         lda     #$14                    ; slide timer = 20 frames
         sta     $33
@@ -3423,7 +3423,7 @@ code_D425:  lda     $10                 ; hit a wall?
         cmp     #$0C
         bcs     code_D43D               ; yes → uncancellable, keep sliding
         lda     $14                     ; A button pressed? (cancellable phase)
-        and     #$80
+        and     #BTN_A
         bne     code_D43E               ; yes → cancel into slide jump
 code_D43D:  rts
 
@@ -3438,7 +3438,7 @@ code_D43E:  ldy     #$01                ; check ground at standing height
         sta     $33                     ; clear timer and state
         sta     $30
         lda     $14                     ; A button held?
-        and     #$80
+        and     #BTN_A
         bne     code_D471               ; yes → slide jump
         beq     code_D45D               ; no → fall from slide
 code_D455:  lda     #$00                ; clear timer
@@ -3466,20 +3466,20 @@ code_D471:  lda     #$4C                ; walk speed X = $01.4C
 code_D47E:  lda     ent_y_scr               ; if Y screen != 0 (off main screen),
         bne     code_D4C7               ; skip ladder check
         lda     $16                     ; pressing Up?
-        and     #$08                    ; (Up = bit 3)
+        and     #BTN_UP                    ; (Up = bit 3)
         beq     code_D4C8               ; no → check Down instead
         php                             ; save flags (carry = came from slide?)
 check_ladder_entry:  ldy     #$04
         jsr     check_tile_collision
         lda     $44                     ; check both foot tiles
-        cmp     #$20                    ; for ladder ($20) or
+        cmp     #TILE_LADDER                    ; for ladder ($20) or
         beq     code_D4A3               ; ladder top ($40)
-        cmp     #$40
+        cmp     #TILE_LADDER_TOP
         beq     code_D4A3
         lda     $43                     ; same check on other foot
-        cmp     #$20
+        cmp     #TILE_LADDER
         beq     code_D4A3
-        cmp     #$40
+        cmp     #TILE_LADDER_TOP
         bne     code_D4C6
 
 ; --- enter ladder (from Up press) ---
@@ -3492,7 +3492,7 @@ code_D4A3:  plp                         ; restore flags
 
 ; --- enter_ladder_common: set state $03 and reset Y speed ---
 code_D4AF:  jsr     reset_sprite_anim   ; set OAM animation (A = OAM ID)
-        lda     #$03                    ; player state = $03 (on ladder)
+        lda     #PSTATE_LADDER                    ; player state = $03 (on ladder)
         sta     $30
         lda     #$4C                    ; Y speed = $01.4C (climb speed)
         sta     ent_yvel_sub                   ; (same as walk speed)
@@ -3509,11 +3509,11 @@ code_D4C7:  rts
 ; --- check Down+ladder entry (drop through ladder top) ---
 
 code_D4C8:  lda     joy1_held                 ; pressing Down?
-        and     #$04                    ; (Down = bit 2)
+        and     #BTN_DOWN                    ; (Down = bit 2)
         beq     code_D4C7               ; no → return
         php                             ; save flags
         lda     $43                     ; foot tile = $40 (ladder top)?
-        cmp     #$40                    ; if not, fall through to normal
+        cmp     #TILE_LADDER_TOP                    ; if not, fall through to normal
         bne     check_ladder_entry      ; ladder check (check both feet)
         plp                             ; ladder top confirmed
         lda     ent_x_px                   ; center X on ladder (AND $F0 ORA $08)
@@ -3534,7 +3534,7 @@ player_ladder:
 
 ; --- B button: fire weapon on ladder ---
         lda     $14                     ; B button pressed?
-        and     #$40
+        and     #BTN_B
         beq     code_D50B               ; no → skip shooting
         lda     $16                     ; D-pad L/R while shooting?
         and     #$03                    ; (aim direction on ladder)
@@ -3554,7 +3554,7 @@ code_D50B:  lda     walk_flag                 ; if shooting: return to shoot-on-
         and     #$0C
         bne     code_D521               ; yes → climb
         lda     $14                     ; A button → jump off ladder
-        and     #$80
+        and     #BTN_A
         bne     code_D51E
         jmp     code_D5B4               ; no input → idle on ladder (freeze anim)
 
@@ -3590,14 +3590,14 @@ code_D53B:  ldy     #$00                ; move down with collision
 code_D54D:  ldy     #$04                ; check tile collision at feet
         jsr     check_tile_collision
         lda     $44                     ; $44/$43 = tile type at check point
-        cmp     #$20                    ; $20 = ladder top
+        cmp     #TILE_LADDER                    ; $20 = ladder top
         beq     code_D5B9               ; $40 = ladder body
-        cmp     #$40                    ; if ladder found: stay on ladder
+        cmp     #TILE_LADDER_TOP                    ; if ladder found: stay on ladder
         beq     code_D5B9
         lda     $43                     ; check other collision point too
-        cmp     #$20
+        cmp     #TILE_LADDER
         beq     code_D5B9
-        cmp     #$40
+        cmp     #TILE_LADDER_TOP
         beq     code_D5B9
         bne     code_D5AD               ; no ladder → detach
 
@@ -3619,14 +3619,14 @@ code_D57A:  lda     ent_y_px               ; if Y < $10: stay on ladder
         ldy     #$04                    ; check tile collision
         jsr     check_tile_collision
         lda     $44                     ; $20 = ladder top, $40 = ladder body
-        cmp     #$20                    ; if ladder tile found: stay
+        cmp     #TILE_LADDER                    ; if ladder tile found: stay
         beq     code_D5B9
-        cmp     #$40
+        cmp     #TILE_LADDER_TOP
         beq     code_D5B9
         lda     $43
-        cmp     #$20
+        cmp     #TILE_LADDER
         beq     code_D5B9
-        cmp     #$40
+        cmp     #TILE_LADDER_TOP
         beq     code_D5B9
 
 ; --- reached top of ladder: dismount ---
@@ -3664,7 +3664,7 @@ player_reappear:
 
 ; --- phase 1: constant-speed fall until reaching Y threshold ---
         lda     $22                     ; Shadow Man stage ($07)?
-        cmp     #$07
+        cmp     #STAGE_SHADOW
         beq     code_D5D2               ; yes → use lower landing Y
         lda     ent_y_px                   ; normal stages: Y >= $68 → switch to $99
         cmp     #$68
@@ -3756,7 +3756,7 @@ code_D656:  lda     ent_yvel_sub               ; if Y speed nonzero (being pulle
         ora     ent_yvel                   ; skip jump/walk checks
         bne     code_D67E
         lda     $14                     ; A button → jump off Mag Fly
-        and     #$80
+        and     #BTN_A
         beq     code_D667
         jmp     LCEAD
 
@@ -4058,7 +4058,7 @@ code_D893:  ldy     #$00                ; apply $99
         jsr     move_vertical_gravity
         bcc     code_D8AF               ; airborne → check horizontal input
         lda     $14                     ; A button pressed? (bit 7)
-        and     #$80
+        and     #BTN_A
         beq     code_D910               ; no → skip to weapon check
 code_D8A0:  lda     #$E5                ; y_speed = $04.E5 (jump velocity, same as normal)
         sta     ent_yvel_sub
@@ -4076,7 +4076,7 @@ code_D8AF:  lda     joy1_held                 ; $16 bits 0-1 = d-pad left/right
 ; --- water physics: slow sink + A=thrust, d-pad U/D ---
 
 code_D8BD:  lda     joy1_press                 ; A button pressed?
-        and     #$80
+        and     #BTN_A
         beq     code_D8CE               ; no → slow sink
         ldy     #$01                    ; check tile above (Y=$01)
         jsr     check_tile_horiz
@@ -4126,7 +4126,7 @@ code_D910:  lda     ent_anim_id               ; save current OAM (Rush Marine sp
         pha
         jsr     code_D355               ; handle facing direction change
         lda     $14                     ; B button pressed? (bit 6)
-        and     #$40
+        and     #BTN_B
         beq     code_D920               ; no → skip
         jsr     weapon_fire             ; fire weapon (changes OAM to shoot pose)
 code_D920:  lda     #$00                ; clear shoot timer
@@ -4161,7 +4161,7 @@ player_boss_wait:
 
 ; --- Wily4 special: draw boss arena nametable progressively ---
 code_D942:  lda     stage_id                 ; stage $10 = Wily4 (boss refight arena)
-        cmp     #$10
+        cmp     #STAGE_WILY5
         bne     code_D973               ; not Wily4 → skip to HP fill
         ldy     #$26                    ; $52 = $26 (set viewport for Wily4 arena)
         cpy     $52                     ; already set?
@@ -4314,7 +4314,7 @@ code_DA03:  lda     #$31                ; sound $31 = weapon get jingle
         sta     $F5
         jsr     select_PRG_banks
         jsr     LA000                   ; update HUD for new weapon
-        lda     #$0D                    ; $30 = state $0D (teleport away)
+        lda     #PSTATE_TELEPORT                    ; $30 = state $0D (teleport away)
         sta     $30
         lda     #$80                    ; player type = $80 (active)
         sta     ent_status
@@ -4323,7 +4323,7 @@ code_DA03:  lda     #$31                ; sound $31 = weapon get jingle
 ; --- victory phase 0: $99 + palette flash + walk to center ---
 
 code_DA31:  lda     stage_id                 ; Wily stages ($22 >= $10): palette flash effect
-        cmp     #$10
+        cmp     #STAGE_WILY5
         bcc     code_DA55               ; not Wily → skip flash
         lda     $95                     ; flash every 8 frames
         and     #$07
@@ -4355,7 +4355,7 @@ code_DA6C:  rol     $0F                 ; $0F bit 0 = grounded this frame
 ; --- wait for boss explosion entities (slots $10-$1F) to finish ---
         ldy     #$0F
 code_DA70:  lda     stage_id                 ; Wily5 ($22=$11): skip checking slot $10
-        cmp     #$11                    ; (slot $10 may be reused)
+        cmp     #STAGE_WILY6                    ; (slot $10 may be reused)
         bne     code_DA7A
         cpy     #$00                    ; at Y=0 (slot $10) → skip to next phase
         beq     code_DA82
@@ -4366,9 +4366,9 @@ code_DA7A:  lda     $0310,y             ; check if slot still active
 
 ; --- all explosions done: determine stage-specific exit behavior ---
 code_DA82:  lda     stage_id                 ; Doc Robot stages ($08-$0B)?
-        cmp     #$08
+        cmp     #STAGE_DOC_NEEDLE
         bcc     code_DA92
-        cmp     #$0C
+        cmp     #STAGE_WILY1
         bcs     code_DA92
         lda     $F9                     ; camera screen < $18? → skip music
         cmp     #$18                    ; (Doc Robot in early part of stage)
@@ -4376,7 +4376,7 @@ code_DA82:  lda     stage_id                 ; Doc Robot stages ($08-$0B)?
 
 ; --- play victory music ---
 code_DA92:  lda     stage_id                 ; Wily5 ($11) → music $37 (special victory)
-        cmp     #$11
+        cmp     #STAGE_WILY6
         bne     code_DAA6
         lda     #$37                    ; already playing?
         cmp     $D9
@@ -4398,14 +4398,14 @@ code_DAB4:  lda     ent_var1               ; timer done?
         dec     ent_var1                   ; decrement music timer
         bne     code_DB2B               ; not zero → wait (walk to center)
         lda     $22                     ; Wily stages ($22 >= $10): reset nametable
-        cmp     #$10
+        cmp     #STAGE_WILY5
         bcc     code_DAC8
         lda     #$00                    ; $FD = 0 (reset scroll)
         sta     $FD
 
 ; --- determine exit type based on stage ---
 code_DAC8:  lda     stage_id                 ; stages $00-$07 (robot master): walk to center
-        cmp     #$08
+        cmp     #STAGE_DOC_NEEDLE
         bcc     code_DAD1               ; → walk to X=$80
         jmp     code_DB89               ; stages $08+ → alternate exit
 
@@ -4513,9 +4513,9 @@ code_DB88:  rts
 ; --- alternate exit paths for non-RM stages ---
 
 code_DB89:  lda     stage_id                 ; Wily stages ($22 >= $10)?
-        cmp     #$10
+        cmp     #STAGE_WILY5
         bcs     code_DBB5               ; → Wily exit
-        cmp     #$0C                    ; Wily1-3 ($0C-$0F)?
+        cmp     #STAGE_WILY1                    ; Wily1-3 ($0C-$0F)?
         bcs     code_DBA6               ; → teleport exit
         lda     $F9                     ; Doc Robot: camera screen >= $18?
         cmp     #$18                    ; (deep in stage = Doc Robot area)
@@ -4535,7 +4535,7 @@ code_DBA6:  lda     #$81                ; player type = $81 (teleport state)
         sta     ent_status
         lda     #$00                    ; clear phase counter
         sta     ent_timer
-        lda     #$0D                    ; $30 = state $0D (teleport)
+        lda     #PSTATE_TELEPORT                    ; $30 = state $0D (teleport)
         sta     $30
         rts
 
@@ -4645,7 +4645,7 @@ code_DC2C:  lda     ent_anim_state               ; anim state $02 = beam fully f
         lda     $22                     ; stage $00 (Needle Man):
         cmp     #$00                    ; awards Rush Jet
         beq     LDC6F
-        cmp     #$07                    ; stage $07 (Shadow Man):
+        cmp     #STAGE_SHADOW                    ; stage $07 (Shadow Man):
         bne     code_DC73               ; awards Rush Marine
         lda     #$9C                    ; fill Rush Marine energy ($AB)
         sta     $AB                     ; $9C = full
@@ -4882,7 +4882,7 @@ code_DE40:  jsr     task_yield          ; yield for one more frame
         ldx     #$00                    ; set player OAM = $13 (teleport beam)
         lda     #$13
         jsr     reset_sprite_anim
-        lda     #$12                    ; $30 = state $12 (warp_anim)
+        lda     #PSTATE_WARP_ANIM                    ; $30 = state $12 (warp_anim)
         sta     $30
         rts
 
@@ -4938,7 +4938,7 @@ LDEC2:  .byte   $01,$02,$04,$08,$10,$20,$40,$80
 
         .byte   $80
 decrease_ammo:  lda     current_weapon
-        cmp     #$06                    ; if current weapon < 6
+        cmp     #WPN_SNAKE                    ; if current weapon < 6
         bcc     LDED8                   ; or is even
         and     #$01                    ; excludes Rush weapons
         bne     LDF1A
@@ -5168,7 +5168,7 @@ LE07D:  lda     #$81                    ; player type = $81 (inactive marker)
         sta     ent_status
         lda     #$00                    ; clear timer
         sta     ent_timer
-        lda     #$0D                    ; player state = $0D (teleport)
+        lda     #PSTATE_TELEPORT                    ; player state = $0D (teleport)
         sta     $30
 LE08B:  rts
 
@@ -5462,7 +5462,7 @@ LE24A:  ldy     $2B                     ; current room entry
         beq     LE23A
         sta     L0000                   ; $00 = $20 (next room scroll flags)
         lda     $22                     ; stage-specific transition blocks:
-        cmp     #$08                    ; stage $08 (Doc Robot Needle)
+        cmp     #STAGE_DOC_NEEDLE                    ; stage $08 (Doc Robot Needle)
         bne     LE27A                   ; skip if not stage $08
         lda     $F9                     ; Rush Marine water boundary screens
         cmp     #$15                    ; $15 and $1A have special gate
@@ -5480,10 +5480,10 @@ LE27A:  lda     camera_screen                     ; screens from room start:
         lda     $031F                   ; entity slot $1F active (bit 7 clear)?
         bmi     LE23A                   ; active → boss shutter blocks transition
         lda     $30                     ; player state >= $0C (victory)?
-        cmp     #$0C                    ; block if in cutscene state
+        cmp     #PSTATE_VICTORY                    ; block if in cutscene state
         bcs     LE23A
 LE28F:  lda     stage_id                     ; stage $0F (Wily Fortress 4)
-        cmp     #$0F                    ; special check
+        cmp     #STAGE_WILY4                    ; special check
         bne     LE2A5
         lda     $F9                     ; only on screen $08
         cmp     #$08
@@ -5585,7 +5585,7 @@ check_vertical_transition:  lda     ent_y_px ; player Y pixel
         cmp     #$09                    ; < $09? → at top of screen
         bcs     scroll_engine_rts       ; $09-$E7 = normal range, RTS
         lda     $30                     ; must be climbing (state $03)
-        cmp     #$03                    ; to transition upward
+        cmp     #PSTATE_LADDER                    ; to transition upward
         bne     scroll_engine_rts
         lda     #$80                    ; $10 = $80 (upward direction)
         sta     $10
@@ -6333,9 +6333,9 @@ metatile_chr_exit:  rts
 ; ---------------------------------------------------------------------------
 
 breakable_block_override:  lda     stage_id  ; current stage number
-        cmp     #$02                    ; Gemini Man?
+        cmp     #STAGE_GEMINI                    ; Gemini Man?
         beq     LE83E                   ; yes → check
-        cmp     #$09                    ; Doc Robot (Gemini Man stage)?
+        cmp     #STAGE_DOC_GEMINI                    ; Doc Robot (Gemini Man stage)?
         bne     metatile_chr_exit       ; no → skip (shared RTS above)
 LE83E:  lda     $BF00,y                 ; attribute byte upper nibble
         and     #$F0
@@ -6572,16 +6572,16 @@ LE9BA:  cpx     #$00                    ; only check damage for player (slot 0)
         lda     $3D                     ; skip if damage already pending
         bne     LE9E0
         lda     $30                     ; skip if player in damage state ($06)
-        cmp     #$06
+        cmp     #PSTATE_DAMAGE
         beq     LE9E0
-        cmp     #$0E                    ; skip if player in death state ($0E)
+        cmp     #PSTATE_DEATH                    ; skip if player in death state ($0E)
         beq     LE9E0
         ldy     #$06                    ; Y = damage state
         lda     $41                     ; $30 = damage tile?
-        cmp     #$30
+        cmp     #TILE_DAMAGE
         beq     LE9DE                   ; → set $3D = $06
         ldy     #$0E                    ; Y = death state
-        cmp     #$50                    ; $50 = spike tile?
+        cmp     #TILE_SPIKES                    ; $50 = spike tile?
         bne     LE9E0                   ; no hazard → skip
 LE9DE:  sty     hazard_pending                     ; set pending damage/death transition
 LE9E0:  jmp     tile_check_cleanup      ; restore bank and return
@@ -6748,14 +6748,14 @@ LEAE9:  cpx     #$00                    ; only check damage for player (slot 0)
         lda     $3D                     ; skip if damage already pending
         bne     LEB09
         lda     $30                     ; skip if player in damage state ($06)
-        cmp     #$06
+        cmp     #PSTATE_DAMAGE
         beq     LEB09
-        cmp     #$0E                    ; skip if player in death state ($0E)
+        cmp     #PSTATE_DEATH                    ; skip if player in death state ($0E)
         beq     LEB09
         lda     $41                     ; $50 = spike tile → instant kill
-        cmp     #$50
+        cmp     #TILE_SPIKES
         bne     LEB09
-        lda     #$0E                    ; set pending death transition
+        lda     #PSTATE_DEATH                    ; set pending death transition
         sta     $3D
 LEB09:  jmp     tile_check_cleanup      ; restore bank and return
 
@@ -6817,9 +6817,9 @@ breakable_block_collision:  sta     $06 ; save tile type
         cmp     #$70                    ; only handle $70 (breakable block)
         bne     LEB68
         lda     $22                     ; only on Gemini Man stages
-        cmp     #$02                    ; ($02 = Robot Master,
+        cmp     #STAGE_GEMINI                    ; ($02 = Robot Master,
         beq     LEB42                   ; $09 = Doc Robot)
-        cmp     #$09
+        cmp     #STAGE_DOC_GEMINI
         bne     LEB68
 LEB42:  lda     $13                     ; compute array index (same as
         and     #$01                    ; breakable_block_override):
@@ -6857,9 +6857,9 @@ LEB68:  lda     $06                     ; return tile type (maybe overridden)
 ; ---------------------------------------------------------------------------
 
 clear_destroyed_blocks:  lda     stage_id    ; only on Gemini Man stages
-        cmp     #$02
+        cmp     #STAGE_GEMINI
         beq     LEB77
-        cmp     #$09
+        cmp     #STAGE_DOC_GEMINI
         bne     LEB81
 LEB77:  lda     #$00                    ; zero $0110..$014F (64 bytes)
         ldy     #$3F                    ; = 64 block slots
@@ -7499,7 +7499,7 @@ LF0D8:  rts
 LF0D9:  lda     ent_y_scr                   ; Y screen = 1? (landed from above)
         cmp     #$01
         bne     LF0EE
-        lda     #$01                    ; set player state = $01 (airborne)
+        lda     #PSTATE_AIRBORNE                    ; set player state = $01 (airborne)
         sta     $30
         lda     #$10                    ; set Y subpixel speed = $10
         sta     ent_yvel_sub
@@ -7691,7 +7691,7 @@ LF20C:  ldy     #$01                    ; byte 1 = position offset table index
 LF230:  lda     #$F0                    ; default Y clip boundary = $F0
         sta     L0000
         lda     $22                     ; stage $08 = Rush Marine underwater?
-        cmp     #$08
+        cmp     #STAGE_DOC_NEEDLE
         bne     LF248
         lda     $F9                     ; check specific screens ($15 or $1A)
         cmp     #$15                    ; for reduced Y clip boundary
@@ -8091,7 +8091,7 @@ LF6AC:  jsr     apply_gravity           ; increase downward velocity
         cpx     #$00                    ; player?
         bne     LF6BF
         lda     $41                     ; tile type = ladder top ($40)?
-        cmp     #$40                    ; player lands on ladder top
+        cmp     #TILE_LADDER_TOP                    ; player lands on ladder top
         beq     LF6C5
 LF6BF:  lda     $10                     ; bit 4 = solid tile?
         and     #$10
@@ -8855,9 +8855,9 @@ compare_y:  sec                         ; compare: $02/$03 - entity_Y
 check_player_collision:
 
         lda     $30
-        cmp     #$0E                    ; is player dead
+        cmp     #PSTATE_DEATH                    ; is player dead
         beq     LFB3A                   ; or teleporting in?
-        cmp     #$04                    ; return
+        cmp     #PSTATE_REAPPEAR                    ; return
         beq     LFB3A
         sec
         lda     ent_flags,x
@@ -8924,9 +8924,9 @@ hitbox_mega_man_widths:  .byte   $0F,$14,$14,$14,$10,$20,$18,$14
 ; $10: sprite slot of weapon collided with (if carry off)
 check_sprite_weapon_collision:
         lda     $30
-        cmp     #$0E                    ; is player dead
+        cmp     #PSTATE_DEATH                    ; is player dead
         beq     LFBD0                   ; or teleporting in?
-        cmp     #$04                    ; return carry on
+        cmp     #PSTATE_REAPPEAR                    ; return carry on
         beq     LFBD0
         lda     #$03                    ; start loop through
         sta     $10                     ; all 3 weapon slots

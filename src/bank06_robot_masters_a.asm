@@ -103,7 +103,7 @@ needle_man_wait_B:
         rts
 
 LA05E:  lda     joy1_press
-        and     #$40                    ; if player presses B,
+        and     #BTN_B                    ; if player presses B,
         beq     LA067                   ; go to next state
         inc     ent_status,x
 LA067:  rts

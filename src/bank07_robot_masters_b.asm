@@ -164,11 +164,11 @@ code_A0DE:  ldy     #$26
 
 ; Hard Man ground slam — stun the player
         lda     $30                     ; check player state
-        cmp     #$0E                    ; if dead, don't stun
+        cmp     #PSTATE_DEATH                    ; if dead, don't stun
         beq     code_A165
-        cmp     #$0F                    ; if already stunned, skip
+        cmp     #PSTATE_STUNNED                    ; if already stunned, skip
         beq     code_A165
-        lda     #$0F                    ; state → $0F (stunned)
+        lda     #PSTATE_STUNNED                    ; state → $0F (stunned)
         sta     $30                     ; player frozen in midair
         rts
 
@@ -209,11 +209,11 @@ code_A128:  lda     ent_anim_state,x
 
 ; Hard Man body slam — stun the player (second attack variant)
         lda     $30                     ; check player state
-        cmp     #$0E                    ; if dead, don't stun
+        cmp     #PSTATE_DEATH                    ; if dead, don't stun
         beq     code_A165
-        cmp     #$0F                    ; if already stunned, skip
+        cmp     #PSTATE_STUNNED                    ; if already stunned, skip
         beq     code_A165
-        lda     #$0F                    ; state → $0F (stunned)
+        lda     #PSTATE_STUNNED                    ; state → $0F (stunned)
         sta     $30                     ; player frozen in midair
 code_A165:  rts
 
@@ -252,9 +252,9 @@ code_A1A0:  ldy     #$26                ; collision check
         jsr     LF67C                   ; is Hard Man near ground?
         bcc     code_A1BA               ; no → still falling
         lda     $30                     ; if player dead ($0E),
-        cmp     #$0E                    ; don't launch
+        cmp     #PSTATE_DEATH                    ; don't launch
         beq     code_A1B1
-        lda     #$01                    ; state → $01 (airborne)
+        lda     #PSTATE_AIRBORNE                    ; state → $01 (airborne)
         sta     $30                     ; player bounced into the air
 code_A1B1:  inc     ent_status,x
         lda     #$10
@@ -907,7 +907,7 @@ code_A787:  lda     $E6
         rts
 
 code_A795:  lda     joy1_press
-        and     #$40
+        and     #BTN_B
         beq     code_A7A6
         jsr     LF869
         jsr     LF883
@@ -983,7 +983,7 @@ code_A837:  jsr     code_A745
         bcc     code_A83F
         jsr     code_A3D6
 code_A83F:  lda     joy1_press
-        and     #$40
+        and     #BTN_B
         beq     code_A87F
         lda     #$AB
         sta     ent_yvel_sub,x
