@@ -82,7 +82,8 @@ src/
   chr.asm                       CHR ROM (128 KB pattern tables)
 include/
   zeropage.inc                  Zero-page variable definitions (~50 vars)
-  constants.inc                 Named constants (entity arrays, stage/weapon IDs, masks)
+  constants.inc                 Named constants (entity arrays, stage/weapon IDs,
+                                button masks, tile types, music/SFX IDs)
 cfg/
   nes.cfg                       ld65 linker configuration
 chr/
@@ -91,7 +92,7 @@ chr/
 
 ## Annotation Progress
 
-The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. 1,465 auto-labels have been replaced with descriptive function names across all files.
+The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. ~1,495 auto-labels have been replaced with descriptive function names across all files. Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, and 45 music/SFX IDs.
 
 | Bank | File | Annotation |
 |------|------|------------|
@@ -107,19 +108,19 @@ The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files hav
 | $0C | bank0C_game_over.asm | ~73% — 85 labels, 601 comments |
 | $06 | bank06_robot_masters_a.asm | ~70% — 93 labels |
 | $0B | bank0B_intro.asm | ~68% — 94 labels, 543 comments |
-| $03 | bank03_stage_hard.asm | ~65% — 69 labels |
+| $03 | bank03_stage_hard.asm | ~65% — 71 labels |
 | $0A | bank0A_damage_tables.asm | ~60% — 9 labels, 322 inline annotations |
 | $00 | bank00_enemy_data.asm | ~55% — 8 labels, 243 comments |
+| $18 | bank18_stage_select.asm | ~55% — 96 labels, 331 comments |
 | $10 | bank10_stage_setup.asm | ~50% — 21 labels |
 | $0F | bank0F_entity_spawn.asm | ~45% — 31 labels |
 | $01 | bank01_stage_magnet.asm | ~45% — 4 labels |
-| $18 | bank18_stage_select.asm | ~41% — 68 labels, 331 comments |
 | $0E | bank0E_anim_frames.asm | ~40% — 14 labels |
 | $0D | bank0D_oam_sprites.asm | ~35% — 6 labels |
 | $1A/$1B | bank1A_1B_oam_sequences.asm | ~28% — 30 labels |
 | Data | banks 08, 11, 13-15, 17, 19 | Section headers only |
 
-Next steps: Mesen-verified label renaming and detailed comments on remaining unknowns.
+Next steps: Mesen-verified label renaming and detailed comments on remaining unknowns (~445 internal auto-labels, 12 `???` markers).
 
 ## Technical Notes
 
