@@ -1,3 +1,4 @@
+process_sprites_j:
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANKS $1C-$1D — SPRITE PROCESSING & ENTITY AI
 ; =============================================================================
@@ -5,7 +6,50 @@
 ; and AI routines for all standard enemies and mini-bosses.
 ; Bank $1C at $8000, Bank $1D at $A000.
 ;
-; Annotation: 0% — unannotated da65 output
+; Annotation: ~77% — 674 labels named, 1984 inline comments
+; =============================================================================
+
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANKS $1C-$1D — SPRITE PROCESSING & ENTITY AI
+; =============================================================================
+; Swappable bank pair mapped to $8000-$BFFF. Contains:
+;   - process_sprites: main entity processing loop (iterates all 32 slots)
+;   - check_player_hit: contact damage from entity to player
+;   - check_weapon_hit: weapon-entity collision and damage
+;   - 75+ named enemy/weapon main routines (main_*)
+;   - sprite_main_ptr_lo/hi: dispatch tables for routine indices
+;
+; Entity Dispatch Mechanism (differs from MM4's page-based system):
+;   Each entity has a "main routine index" at $0320,x.
+;   process_sprites reads $0320,x, selects the appropriate PRG bank:
+;     Indices $00-$9F → bank $1D (this bank pair)
+;     Indices $A0-$AF → bank $04 (Doc Robot: Flash/Wood/Crash/Metal)
+;     Indices $B0-$BF → bank $05 (Doc Robot: Bubble/Heat/Quick/Air)
+;     Indices $C0-$CF → bank $06 (Robot Masters: Needle/Magnet/Top/Shadow)
+;     Indices $D0-$DF → bank $07 (Robot Masters: Hard/Spark/Snake/Gemini)
+;     Indices $E0-$FF → bank $12 (Fortress bosses + special entities)
+;   Then jumps through sprite_main_ptr_lo/hi tables to the routine.
+;
+; Entity Slot Layout:
+;   Slot $00       = Mega Man (player, skipped in loop)
+;   Slots $01-$0F  = weapons / projectiles
+;   Slots $10-$1F  = enemies / items / bosses
+;   Only slots >= $10 get weapon-hit checks.
+;   Slot bit 7 of $0480,x = causes player contact damage.
+;
+; Spark Freeze: $5B/$5C hold frozen entity slot indices.
+;   Frozen entities skip AI, get constant weapon-collision re-checks.
+;   Animation counter $05E0,x held at 0 to freeze sprite frame.
+;
+; See bank1E_1F.asm header for full entity memory map.
+;
+; MM4 cross-reference:
+;   process_sprites ($1C800C) → code_3A8014 (24 slots, $18 stride in MM4)
+;   check_player_hit ($1C8097) → code_3A81CC
+;   check_weapon_hit ($1C8102) → code_3FF95D
+;
+; Annotation: partial — all 75+ entity entry points named, 662 auto labels remain
 ; =============================================================================
 
         .setcpu "6502"
@@ -50,322 +94,352 @@ LFF6B           := $FF6B
 
 .segment "BANK1C"
 
-        jmp     L800C
+        jmp     process_sprites
 
-L8003:  jmp     L8109
+code_8003:  jmp     L8109
 
         jmp     L82B8
 
-        jmp     L8097
+        jmp     check_player_hit
 
-L800C:  lda     #$55
-        sta     $99
-        ldx     #$01
-        stx     $EF
+process_sprites:  lda     #$55          ; gravity = $00.55 (0.332 px/frame²)
+        sta     $99                     ; set each frame for gameplay physics
+        ldx     #$01                    ; start at weapons
+        stx     $EF                     ; (skip mega man)
 L8014:  ldy     #$01
         cpx     $5B
+        beq     L8060                   ; if this sprite slot
+        iny                             ; is spark frozen,
+        cpx     $5C                     ; skip regular processing
         beq     L8060
-        iny
-        cpx     $5C
-        beq     L8060
-        lda     $0300,x
-        bpl     L808B
-        ldy     #$1D
-        lda     $0320,x
-        cmp     #$E0
+        lda     $0300,x                 ; if sprite inactive,
+        bpl     L808B                   ; continue loop
+        ldy     #$1D                    ; select $A000~$BFFF bank
+        lda     $0320,x                 ; bank $1D for main routine
+        cmp     #$E0                    ; indices $00~$9F
         bcc     L8031
-        ldy     #$12
+        ldy     #$12                    ; bank $12 for $E0~$FF
         bne     L803D
 L8031:  lsr     a
-        lsr     a
-        lsr     a
-        lsr     a
-        cmp     #$0A
-        bcc     L803D
-        sec
+        lsr     a                       ; in between $9F and $E0,
+        lsr     a                       ; index >> 4 - $06
+        lsr     a                       ; meaning bank $04 for $A0~$AF,
+        cmp     #$0A                    ; $05 for $B0~$BF,
+        bcc     L803D                   ; $06 for $C0~$CF,
+        sec                             ; $07 for $D0~$DF
         sbc     #$06
         tay
 L803D:  cpy     $F5
-        beq     L804A
+        beq     L804A                   ; if not already selected,
         sty     $F5
-        txa
-        pha
-        jsr     LFF6B
+        txa                             ; preserve X
+        pha                             ; select new $A000~$BFFF bank
+        jsr     LFF6B                   ; restore X
         pla
         tax
 L804A:  ldy     $0320,x
-        lda     L83C7,y
-        sta     L0000
-        lda     L84C7,y
+        lda     sprite_main_ptr_lo,y
+        sta     L0000                   ; load sprite main routine
+        lda     sprite_main_ptr_hi,y    ; pointer (low then high)
         sta     $01
         lda     #$80
+        pha                             ; return address
+        lda     #$76                    ; (skips some code below)
         pha
-        lda     #$76
-        pha
-        jmp     (L0000)
+        jmp     (L0000)                 ; jump to sprite main
 
-L8060:  lda     #$00
-        sta     $5A,y
-        jsr     LFB7B
+; if spark freeze effect active
+
+L8060:  lda     #$00                    ; clear spark freeze slot
+        sta     $5A,y                   ; recheck weapon collision
+        jsr     LFB7B                   ; if none, spark cleared
         bcs     L8083
-        txa
-        ldy     $10
+        txa                             ; if so, reapply
+        ldy     $10                     ; spark freeze slot
         sta     $5A,y
-        lda     #$00
-        sta     $05E0,x
-        beq     L8083
+        lda     #$00                    ; constantly reset
+        sta     $05E0,x                 ; animation counter
+        beq     L8083                   ; to keep sprite from animating
         cpx     #$10
-        bcc     L808B
-        lda     $0320,x
-        beq     L808B
-        jsr     L8102
-L8083:  lda     $0480,x
-        bpl     L808B
-        jsr     L8097
+        bcc     L808B                   ; check being hit by weapon
+        lda     $0320,x                 ; only for enemies with
+        beq     L808B                   ; nonzero main indices
+        jsr     check_weapon_hit
+L8083:  lda     $0480,x                 ; if this sprite can
+        bpl     L808B                   ; cause player damage,
+        jsr     check_player_hit        ; check for that
 L808B:  inc     $EF
-        ldx     $EF
-        cpx     #$20
-        beq     L8096
+        ldx     $EF                     ; go to next sprite
+        cpx     #$20                    ; in X as well as $EF
+        beq     L8096                   ; stop at $20
         jmp     L8014
 
 L8096:  rts
 
-L8097:  lda     $05C0
-        cmp     #$A4
+; checks if a sprite is damaging Mega Man
+; applies damage if so
+; parameters:
+; X: sprite slot
+; ---------------------------------------------------------------------------
+; check_player_hit — contact damage from entity to player
+; Called from process_sprites for entities with bit 7 of $0480,x set.
+; Checks AABB collision between entity X and player, applies damage.
+; State transitions: → $06 (damage) on hit, → $0E (death) if HP depleted.
+; Immune during: $06 (already damaged), $0E (dead), $0C (victory).
+; Also immune if $39 != 0 (i-frames / invincibility timer).
+; $A2 = player HP (low 5 bits = current HP, bit 7 = death flag)
+; Damage amount comes from table at $A000 indexed by entity routine $0320,x.
+; ---------------------------------------------------------------------------
+
+check_player_hit:  lda     $05C0        ; check player animation
+        cmp     #$A4                    ; $A4 = death/invincible anim (skip)
         beq     L8096
-        stx     $0F
-        lda     $F5
+        stx     $0F                     ; save entity slot
+        lda     $F5                     ; save current bank
         pha
-        lda     #$0A
-        sta     $F5
+        lda     #$0A                    ; switch to bank $0A
+        sta     $F5                     ; (damage tables at $A000)
         jsr     LFF6B
-        ldx     $0F
-        lda     $39
-        bne     L80F9
-        lda     $30
-        cmp     #$06
-        beq     L80F9
-        cmp     #$0E
-        beq     L80F9
-        cmp     #$0C
-        beq     L80F9
-        jsr     LFAE2
-        bcs     L80F9
-        lda     #$06
-        sta     $30
-        lda     #$16
+        ldx     $0F                     ; restore entity slot
+        lda     $39                     ; i-frames timer
+        bne     code_80F9               ; skip if invincible
+        lda     $30                     ; check player state
+        cmp     #$06                    ; already taking damage?
+        beq     code_80F9               ; skip
+        cmp     #$0E                    ; already dead?
+        beq     code_80F9               ; skip
+        cmp     #$0C                    ; victory cutscene?
+        beq     code_80F9               ; skip
+        jsr     LFAE2                   ; AABB overlap test
+        bcs     code_80F9               ; no collision → skip
+        lda     #$06                    ; --- CONTACT HIT ---
+        sta     $30                     ; state → $06 (damage)
+        lda     #$16                    ; SFX $16 = damage sound
         jsr     LF89A
-        lda     $A2
-        and     #$1F
-        beq     L80F9
-        ldy     $0320,x
-        lda     $A2
+        lda     $A2                     ; player HP
+        and     #$1F                    ; isolate HP value (0-28)
+        beq     code_80F9               ; already 0 → skip damage calc
+        ldy     $0320,x                 ; entity routine index
+        lda     $A2                     ; current HP
         and     #$1F
         sec
-        sbc     LA000,y
-        php
-        ora     #$80
+        sbc     LA000,y                 ; subtract damage from table
+        php                             ; save carry (underflow = dead)
+        ora     #$80                    ; set bit 7 (HP dirty flag)
         sta     $A2
         plp
-        beq     L80E7
-        bcs     L80F9
-L80E7:  lda     #$80
-        sta     $A2
-        lda     #$0E
+        beq     L80E7                   ; HP == 0 → dead
+        bcs     code_80F9               ; HP > 0 → survived, done
+L80E7:  lda     #$80                    ; --- PLAYER KILLED ---
+        sta     $A2                     ; HP = 0 with dirty flag
+        lda     #$0E                    ; state → $0E (death)
         sta     $30
-        lda     #$F2
+        lda     #$F2                    ; SFX $F2 = stop music
         jsr     LF89A
-        lda     #$17
+        lda     #$17                    ; SFX $17 = death sound
         jsr     LF89A
-L80F9:  pla
+code_80F9:  pla                         ; restore bank
         sta     $F5
         jsr     LFF6B
-        ldx     $0F
+        ldx     $0F                     ; restore entity slot
         rts
 
-L8102:  lda     $0480,x
-        and     #$60
-        beq     L8142
+; checks for and applies effects/damage
+; from a sprite being hit by a weapon
+; parameters:
+; X: sprite slot
+
+check_weapon_hit:  lda     $0480,x      ; if vulnerable & shot tink
+        and     #$60                    ; flags BOTH off,
+        beq     L8142                   ; return
 L8109:  lda     $05C0
-        cmp     #$A3
-        bne     L8113
+        cmp     #$A3                    ; if Mega Man OAM ID == $A3
+        bne     L8113                   ; he is top spinning
         jmp     L825E
 
-L8113:  jsr     LFB7B
-        bcs     L8142
+L8113:  jsr     LFB7B                   ; if no weapon collision
+        bcs     L8142                   ; return
         lda     $0480,x
-        and     #$20
-        beq     L8144
-L811F:  lda     #$19
+        and     #$20                    ; if shot tink flag on,
+        beq     L8144                   ; bounce diagonally up
+L811F:  lda     #$19                    ; play tink sound
         jsr     LF89A
-        ldy     $10
+        ldy     $10                     ; y = tinked weapon slot
         lda     $04A0,y
-        eor     #$03
+        eor     #$03                    ; flip horizontal facing
         sta     $04A0,y
         lda     #$00
-        sta     $0440,y
-        lda     #$FC
+        sta     $0440,y                 ; 4 pixel per frame
+        lda     #$FC                    ; upward speed
         sta     $0460,y
-        lda     #$00
+        lda     #$00                    ; clear hitbox flags
         sta     $0480,y
-        lda     #$0F
+        lda     #$0F                    ; tinked shot routine
         sta     $0320,y
-L8142:  sec
+L8142:  sec                             ; return carry on
         rts
 
-L8144:  lda     #$18
+L8144:  lda     #$18                    ; play damage sound
         jsr     LF89A
         lda     $F5
-        pha
-        stx     $0F
+        pha                             ; preserve and select
+        stx     $0F                     ; $0A as $A000~$BFFF bank
         lda     #$0A
         sta     $F5
         jsr     LFF6B
-        ldx     $0F
+        ldx     $0F                     ; restore X (sprite slot)
         ldy     $A0
-        lda     L83AF,y
-        sta     L0000
-        lda     L83BB,y
+        lda     weapon_damage_ptr_lo,y  ; grab damage table pointer for
+        sta     L0000                   ; currently equipped weapon
+        lda     weapon_damage_ptr_hi,y
         sta     $01
-        ldy     $0320,x
-        lda     (L0000),y
+        ldy     $0320,x                 ; if damage for main routine index
+        lda     (L0000),y               ; is nonzero, do stuff
         bne     L8170
-        jsr     L811F
+        jsr     L811F                   ; else tink shot
         jmp     L824D
 
-L8170:  lda     $A0
-        cmp     #$08
-        bne     L81B6
-        lda     (L0000),y
-        beq     L81B3
-        cmp     #$58
-        bne     L81B6
-        txa
-        ldy     $10
-        sta     $5A,y
+L8170:  lda     $A0                     ; if weapon is
+        cmp     #$08                    ; anything but spark
+        bne     L81B6                   ; apply normal damage
+        lda     (L0000),y               ; if damage value is zero,
+        beq     L81B3                   ; don't do anything
+        cmp     #$58                    ; if damage isn't magic number $58,
+        bne     L81B6                   ; apply normal damage
+
+; apply spark freeze effect
+        txa                             ; Y = spark slot
+        ldy     $10                     ; set shot sprite slot
+        sta     $5A,y                   ; for this weapon slot
         lda     $0300,y
-        ora     #$01
-        sta     $0300,y
-        lda     #$9D
-        cmp     $05C0,y
-        beq     L81B3
+        ora     #$01                    ; turn on freeze state for
+        sta     $0300,y                 ; spark shot
+        lda     #$9D                    ; if OAM ID is already
+        cmp     $05C0,y                 ; electric shocking, don't
+        beq     L81B3                   ; bother resetting it up
+
+; initialize spark freeze animation & position
         sta     $05C0,y
-        lda     #$00
-        sta     $05A0,y
-        sta     $05E0,y
+        lda     #$00                    ; set OAM ID to $9D (shocking),
+        sta     $05A0,y                 ; reset animation frame & counter
+        sta     $05E0,y                 ; & reset shock timer
         sta     $0500,y
         lda     $0360,x
         sta     $0360,y
-        lda     $0380,x
-        sta     $0380,y
+        lda     $0380,x                 ; set shock position same
+        sta     $0380,y                 ; as shot sprite's position
         lda     $03C0,x
         sta     $03C0,y
 L81B3:  jmp     L824D
 
-L81B6:  lda     $04E0,x
-        and     #$E0
-        beq     L81C0
-        jmp     L822F
+L81B6:  lda     $04E0,x                 ; if any hit-ack flags set
+        and     #$E0                    ; (bits 7/6/5 = already hit)
+        beq     L81C0                   ; skip — already took damage
+        jmp     L822F                   ; else don't
 
 L81C0:  ldy     $0320,x
-        lda     $04E0,x
-        sec
-        sbc     (L0000),y
-        bcs     L81CD
-        lda     #$00
-L81CD:  sta     $04E0,x
-        bne     L8207
+        lda     $04E0,x                 ; subtract health by
+        sec                             ; damage table value
+        sbc     (L0000),y               ; indexed by main routine index
+        bcs     L81CD                   ; minimum health is 00
+        lda     #$00                    ; (no negatives)
+L81CD:  sta     $04E0,x                 ; store new health value
+        bne     L8207                   ; if nonzero, we're still alive
+
+; dead
         lda     $0320,x
-        cmp     #$52
-        beq     L8207
-        cmp     #$53
-        beq     L8207
+        cmp     #$52                    ; if Proto Man ($52 or $53)
+        beq     L8207                   ; don't do normal death —
+        cmp     #$53                    ; Proto Man has his own
+        beq     L8207                   ; fly-away exit in main_proto_man
         lda     $5A
-        bpl     L81E5
-        lda     #$59
+        bpl     L81E5                   ; $5A<0: boss active → OAM $71
+        lda     #$59                    ; $5A>=0: normal → OAM $59
         bne     L81E7
 L81E5:  lda     #$71
-L81E7:  jsr     LF835
-        lda     #$00
+L81E7:  jsr     LF835                   ; animate enemy's death
+        lda     #$00                    ; turn off collision
         sta     $0480,x
         lda     $0320,x
-        cmp     #$30
+        cmp     #$30                    ; if not bolton and nutton
         bne     L81FD
-        lda     #$00
-        sta     $0320,x
+        lda     #$00                    ; use $00 death routine index
+        sta     $0320,x                 ; for bolton and nutton
         beq     L8202
-L81FD:  lda     #$7A
-        sta     $0320,x
+L81FD:  lda     #$7A                    ; for everything else,
+        sta     $0320,x                 ; use $7A routine
 L8202:  lda     #$90
         sta     $0580,x
-L8207:  lda     $04E0,x
-        beq     L822F
+L8207:  lda     $04E0,x                 ; health zero?
+        beq     L822F                   ; don't set boss flags
+
+; not dead
         lda     $0300,x
-        and     #$40
+        and     #$40                    ; if sprite is a boss
         bne     L821D
         lda     $04E0,x
-        ora     #$20
-        sta     $04E0,x
+        ora     #$20                    ; set bit 5 = hit-ack flag
+        sta     $04E0,x                 ; (prevents double-damage this frame)
         bne     L822F
-L821D:  lda     $22
-        cmp     #$0F
-        beq     L8227
-        cmp     #$0C
+L821D:  lda     $22                     ; if stage == Wily 4
+        cmp     #$0F                    ; or < Wily 1
+        beq     L8227                   ; this means robot master
+        cmp     #$0C                    ; or doc robot bosses
         bcs     L822F
 L8227:  lda     $04E0,x
-        ora     #$E0
-        sta     $04E0,x
+        ora     #$E0                    ; for doc/robot masters,
+        sta     $04E0,x                 ; set all hit-ack flags (bits 7/6/5)
 L822F:  lda     $A0
-        cmp     #$05
-        beq     L824D
+        cmp     #$05                    ; if weapon is top spin
+        beq     L824D                   ; no shot to despawn
         ldy     $10
-        lda     #$00
+        lda     #$00                    ; despawn the shot
         sta     $0300,y
         lda     $A0
         cmp     #$01
-        bne     L824D
-        lda     #$00
+        bne     L824D                   ; if weapon is gemini laser,
+        lda     #$00                    ; despawn all three shots
         sta     $0301
         sta     $0302
         sta     $0303
 L824D:  pla
-        sta     $F5
-        jsr     LFF6B
+        sta     $F5                     ; restore bank
+        jsr     LFF6B                   ; and sprite slot
         ldx     $0F
         clc
         lda     $0300,x
-        and     #$40
+        and     #$40                    ; is sprite a boss?
         bne     L82AA
-L825D:  rts
+L825D:  rts                             ; if not, return
 
-L825E:  lda     $0480,x
-        and     #$20
-        bne     L825D
-        jsr     LFAE2
-        bcs     L825D
-        stx     $0F
+L825E:  lda     $0480,x                 ; shot tink flag also
+        and     #$20                    ; implies invulnerable
+        bne     L825D                   ; to top spin, return
+        jsr     LFAE2                   ; check if enemy collidiog with
+        bcs     L825D                   ; player, if not return
+        stx     $0F                     ; preserve X
         lda     $F5
-        pha
-        lda     #$0A
+        pha                             ; preserve $A000-$BFFF bank
+        lda     #$0A                    ; select $0A as new bank
         sta     $F5
         jsr     LFF6B
-        ldx     $0F
-        ldy     $0320,x
-        lda     L83AF
+        ldx     $0F                     ; restore X
+        ldy     $0320,x                 ; y = main ID
+        lda     weapon_damage_ptr_lo
         sta     L0000
-        lda     L83BB
+        lda     weapon_damage_ptr_hi
         sta     $01
-        lda     $A7
-        and     #$1F
+        lda     $A7                     ; Top Spin ammo
+        and     #$1F                    ; isolate ammo count
         sec
-        sbc     (L0000),y
+        sbc     (L0000),y               ; subtract cost from damage table
         bcs     L8290
-        lda     #$00
-L8290:  ora     #$80
+        lda     #$00                    ; clamp to 0
+L8290:  ora     #$80                    ; set dirty flag
         sta     $A7
-        lda     #$0A
-        sta     $30
-        lda     #$08
+        lda     #$0A                    ; state → $0A (Top Spin recoil)
+        sta     $30                     ; player bounces back from contact
+        lda     #$08                    ; recoil timer = 8 frames
         sta     $0500
         lda     L83B4
         sta     L0000
@@ -373,25 +447,25 @@ L8290:  ora     #$80
         sta     $01
         jmp     L81B6
 
-L82AA:  lda     $04E0,x
-        and     #$1F
-        ora     #$80
-        sta     $B0
-        and     #$7F
+L82AA:  lda     $04E0,x                 ; boss health bits
+        and     #$1F                    ; mask to HP (low 5 bits)
+        ora     #$80                    ; set bit 7 = "boss was hit" flag
+        sta     $B0                     ; store to boss HP mirror
+        and     #$7F                    ; did boss die?
         beq     L82B8
-        rts
+        rts                             ; if not, return
 
-L82B8:  lda     #$F2
+L82B8:  lda     #$F2                    ; SFX $F2 = stop music
         jsr     LF898
-        lda     #$17
+        lda     #$17                    ; SFX $17 = boss death sound
         jsr     LF89A
         ldy     #$1F
-L82C4:  lda     $5A
-        bmi     L82CC
+code_82C4:  lda     $5A
+        bmi     code_82CC
         lda     #$7A
-        bne     L82CE
-L82CC:  lda     #$5B
-L82CE:  jsr     LF846
+        bne     code_82CE
+code_82CC:  lda     #$5B
+code_82CE:  jsr     LF846
         lda     #$80
         sta     $0300,y
         lda     #$90
@@ -416,47 +490,50 @@ L82CE:  jsr     LF846
         sta     $0460,y
         dey
         cpy     #$0F
-        bne     L82C4
+        bne     code_82C4
         lda     $22
         cmp     #$03
-        bne     L831E
+        bne     code_831E
         lda     #$00
         sta     $FA
-L831E:  lda     #$00
+code_831E:  lda     #$00
         sta     $0301
         sta     $0302
         sta     $0303
         sta     $0520
-        lda     $22
-        cmp     #$0F
-        beq     L8360
-        lda     $30
-        cmp     #$0E
-        beq     L83AD
-        lda     #$0C
-        sta     $30
+        lda     $22                     ; current stage
+        cmp     #$0F                    ; stage $0F = Wily 4 (refights)
+        beq     L8360                   ; special handling for refights
+        lda     $30                     ; check player state
+        cmp     #$0E                    ; if player is dead ($0E),
+        beq     code_83AD               ; don't start victory cutscene
+        lda     #$0C                    ; state → $0C (victory)
+        sta     $30                     ; begin boss defeated cutscene
         lda     #$00
-        sta     $32
-        sta     $0500
-        sta     $0301
+        sta     $32                     ; clear sub-state
+        sta     $0500                   ; clear player timer
+        sta     $0301                   ; despawn weapon slots 1-3
         sta     $0302
         sta     $0303
-        lda     #$01
-        cmp     $05C0
-        beq     L835E
+        lda     #$01                    ; set player OAM to $01 (standing)
+        cmp     $05C0                   ; already standing?
+        beq     L835E                   ; skip animation reset
         sta     $05C0
         lda     #$00
-        sta     $05A0
-        sta     $05E0
+        sta     $05A0                   ; reset animation frame
+        sta     $05E0                   ; reset animation counter
 L835E:  clc
         rts
 
+; Wily 4 (stage $0F) boss refight — no victory cutscene, just unstun and
+; spawn the "boss defeated" entity at the boss's position
+
 L8360:  lda     $30
-        cmp     #$0F
-        bne     L836A
-        lda     #$00
+        cmp     #$0F                    ; if player was stunned ($0F),
+        bne     code_836A
+        lda     #$00                    ; release to on_ground ($00)
         sta     $30
-L836A:  lda     #$80
+code_836A:  lda     #$80
         sta     $030F
         lda     #$90
         sta     $058F
@@ -480,12 +557,16 @@ L836A:  lda     #$80
         lda     #$64
         sta     $032F
         jsr     LE11A
-L83AD:  .byte   $18,$60
-L83AF:  .byte   $00,$00,$00,$00,$00
-L83B4:  .byte   $00,$00,$00,$00,$00,$00,$00
-L83BB:  .byte   $A1,$A4,$A2,$A5,$A3
-L83C0:  .byte   $A6,$A7,$A1,$A8,$A1,$A9,$A1
-L83C7:  .byte   $C7,$C9,$FB,$58,$DE,$B4,$FD,$7C
+code_83AD:  .byte   $18,$60
+
+; weapon damage table pointers, low then high
+weapon_damage_ptr_lo:  .byte   $00,$00,$00,$00,$00 ; Mega Buster
+L83B4:  .byte   $00,$00,$00,$00,$00,$00,$00 ; Top Spin
+weapon_damage_ptr_hi:  .byte   $A1,$A4,$A2,$A5,$A3 ; Mega Buster
+L83C0:  .byte   $A6,$A7,$A1,$A8,$A1,$A9,$A1 ; Top Spin
+
+; low bytes of sprite main routine pointers
+sprite_main_ptr_lo:  .byte   $C7,$C9,$FB,$58,$DE,$B4,$FD,$7C
         .byte   $D3,$C8,$14,$49,$12,$C5,$83,$85
         .byte   $0E,$09,$B3,$9B,$8A,$CB,$CB,$E2
         .byte   $E2,$60,$BB,$C9,$C8,$E0,$6B,$44
@@ -517,7 +598,9 @@ L83C7:  .byte   $C7,$C9,$FB,$58,$DE,$B4,$FD,$7C
         .byte   $18,$1B,$1E,$21,$24,$27,$2A,$2D
         .byte   $30,$33,$36,$39,$3C,$3F,$42,$45
         .byte   $48,$4B,$4E,$51,$54,$57,$5A,$5D
-L84C7:  .byte   $85,$85,$8A,$8B,$8B,$9D,$8B,$B4
+
+; high bytes of sprite main routine pointers
+sprite_main_ptr_hi:  .byte   $85,$85,$8A,$8B,$8B,$9D,$8B,$B4
         .byte   $8C,$8D,$8E,$9F,$9F,$96,$97,$98
         .byte   $94,$94,$98,$99,$8F,$8D,$8D,$90
         .byte   $90,$A9,$9A,$85,$85,$AA,$A6,$9B
@@ -551,1105 +634,1291 @@ L84C7:  .byte   $85,$85,$8A,$8B,$8B,$9D,$8B,$B4
         .byte   $A0,$A0,$A0,$A0,$A0
         ldy     #$A0
         ldy     #$60
+main_ret_B:
         rts
 
-        lda     $04A0,x
-        and     #$01
-        beq     L85D6
-        jsr     LF71D
-        jmp     L85D9
+; ===========================================================================
+; main_unknown_1B — Breakable block projectile walker
+;\
+; | Moves horizontally (left/right per $04A0 direction flags).
+; | For weapon slots (X < $10): checks for breakable tiles ($70 type)
+; | ahead. If found, queues a metatile clear to erase the block from the
+; | nametable, spawns a debris child entity (OAM $71, routine $27), and
+; | marks the block as destroyed in the $0110 bitfield so collision
+; | checks treat it as passthrough. Max 3 debris entities at once.
+; | Used on Gemini Man stages for breakable block destruction.
+; /
+; ===========================================================================
+main_unknown_1B:
 
-L85D6:  jsr     LF73B
-L85D9:  cpx     #$10
-        bcs     L8627
-        ldy     #$06
+        lda     $04A0,x                 ; check direction flags
+        and     #$01                    ; bit 0 = moving right
+        beq     code_85D6
+        jsr     LF71D                   ; move right (unchecked)
+        jmp     code_85D9
+
+code_85D6:  jsr     LF73B               ; move left (unchecked)
+code_85D9:  cpx     #$10                ; only weapon/player slots break blocks
+        bcs     code_8627               ; enemy slots ($10+) → return
+        ldy     #$06                    ; check tile at foot height ahead
         jsr     LE8D6
-        lda     $41
+        lda     $41                     ; tile type = breakable block ($70)?
         cmp     #$70
-        bne     L8627
-        lda     $0360,x
-        sec
+        bne     code_8627               ; no → return
+        lda     $0360,x                 ; entity X - camera X
+        sec                             ; = screen-relative position
         sbc     $FC
-        cmp     #$10
-        bcc     L8627
-        cmp     #$F0
-        bcs     L8627
-        jsr     LEE57
-        bcs     L8627
-        jsr     LFC53
-        bcc     L8628
-L8600:  lda     #$71
+        cmp     #$10                    ; < $10 → off left edge
+        bcc     code_8627
+        cmp     #$F0                    ; >= $F0 → off right edge
+        bcs     code_8627               ; must be visible to break
+        jsr     LEE57                   ; erase 2x2 metatile from nametable
+        bcs     code_8627               ; carry set = buffer full, abort
+        jsr     LFC53                   ; find free slot for debris entity
+        bcc     code_8628               ; found → spawn debris
+
+; --- no free slot or max debris: become explosion in place ---
+code_8600:  lda     #$71                ; OAM $71 = small explosion sprite
         jsr     LF835
-        lda     #$00
+        lda     #$00                    ; routine $00 = idle dispatch
         sta     $0320,x
-        lda     $0360,x
-        and     #$F0
+        lda     $0360,x                 ; snap X to metatile grid center
+        and     #$F0                    ; (16px boundary + 8)
         ora     #$08
         sta     $0360,x
-        lda     $0380,x
-        sta     $0380,x
-        lda     $03C0,x
+        lda     $0380,x                 ; preserve X screen
+        sta     $0380,x                 ; (no-op write)
+        lda     $03C0,x                 ; snap Y to metatile grid center
         and     #$F0
         ora     #$08
         sta     $03C0,x
-        jmp     L867C
+        jmp     code_867C               ; mark block destroyed in bitfield
 
-L8627:  rts
+code_8627:  rts
 
-L8628:  sty     $01
-        lda     #$00
+; --- free slot found: count existing debris, then spawn child ---
+
+code_8628:  sty     $01                 ; save free slot index
+        lda     #$00                    ; debris counter = 0
         sta     L0000
-        ldy     #$1F
-L8630:  lda     $0300,y
-        bpl     L863E
-        lda     $0320,y
+        ldy     #$1F                    ; scan enemy slots $10-$1F
+code_8630:  lda     $0300,y             ; skip inactive slots
+        bpl     code_863E
+        lda     $0320,y                 ; is this a debris entity (routine $27)?
         cmp     #$27
-        bne     L863E
-        inc     L0000
-L863E:  dey
+        bne     code_863E               ; no → skip
+        inc     L0000                   ; count++
+code_863E:  dey                         ; loop $1F down to $10
         cpy     #$0F
-        bne     L8630
-        ldy     $01
-        lda     L0000
+        bne     code_8630
+        ldy     $01                     ; restore free slot
+        lda     L0000                   ; already 3 debris on screen?
         cmp     #$03
-        beq     L8600
-        lda     #$71
+        beq     code_8600               ; yes → just explode, no child
+        lda     #$71                    ; spawn child with OAM $71 (explosion)
         jsr     LF846
-        lda     #$27
-        sta     $0320,y
-        lda     $0360,x
+        lda     #$27                    ; child AI routine = $27
+        sta     $0320,y                 ; (falling debris handler)
+        lda     $0360,x                 ; snap child X to metatile grid center
         and     #$F0
         ora     #$08
         sta     $0360,y
-        lda     $0380,x
+        lda     $0380,x                 ; copy X screen to child
         sta     $0380,y
-        lda     $03C0,x
+        lda     $03C0,x                 ; snap child Y to metatile grid center
         and     #$F0
         ora     #$08
         sta     $03C0,y
-        lda     #$00
+        lda     #$00                    ; child has no damage flags (harmless)
         sta     $0480,y
-        sta     $0300,x
-        lda     #$FF
+        sta     $0300,x                 ; deactivate parent (breaker entity)
+        lda     #$FF                    ; $04C0 = $FF (cleanup marker)
         sta     $04C0,x
-L867C:  stx     L0000
-        lda     $13
-        and     #$01
+
+; --- mark block destroyed in $0110 bitfield ---
+code_867C:  stx     L0000               ; save entity slot
+        lda     $13                     ; nametable page (bit 0) << 5
+        and     #$01                    ; → $00 or $20 (page offset)
         asl     a
         asl     a
         asl     a
         asl     a
         asl     a
         sta     $01
-        lda     $28
-        pha
-        lsr     a
+        lda     $28                     ; $28 = metatile column index
+        pha                             ; column >> 1 | page_offset
+        lsr     a                       ; → Y = byte index into $0110
         ora     $01
         tay
-        pla
-        asl     a
-        asl     a
-        and     #$04
+        pla                             ; column << 2 AND $04
+        asl     a                       ; → bit pair selector
+        asl     a                       ; ORA $03 (metatile sub-pos)
+        and     #$04                    ; → X = bit index for bitmask_table
         ora     $03
         tax
-        lda     $0110,y
-        ora     $EB82,x
+        lda     $0110,y                 ; set destroyed bit via
+        ora     $EB82,x                 ; bitmask_table ($80,$40,...,$01)
         sta     $0110,y
-        ldx     L0000
+        ldx     L0000                   ; restore entity slot
         rts
 
-        lda     $0300,x
+; ===========================================================================
+; Routine $80 — Item drop / weapon capsule falling
+;\
+; | State 0: apply initial Y speed (thrown upward), wait until Y+$10
+; |   passes player Y → advance to state 1.
+; | State 1: fall with gravity. On landing (anim frame 4), switch to
+; |   routine $81 (item waiting). Check tile ahead: if solid wall,
+; |   advance state and clear Y speed. Otherwise, select OAM based on
+; |   current weapon ($A0): Snake=$D8, Spark=$D9, Shadow=$D7,
+; |   RushCoil=$81, RushMarine=$82, RushJet=$83.
+; |   Special case: Rush Marine ($A0=$09) in water ($41=$80) → skip.
+; /
+; ===========================================================================
+
+        lda     $0300,x                 ; check state
         and     #$0F
-        bne     L86BC
-        jsr     LF797
-        lda     $03C0,x
+        bne     code_86BC               ; state 1+ → gravity fall
+
+; --- state 0: initial upward toss ---
+        jsr     LF797                   ; apply initial Y velocity
+        lda     $03C0,x                 ; entity Y + $10
         clc
-        adc     #$10
-        cmp     $03C0
-        bcc     L8712
-        inc     $0300,x
-L86BC:  ldy     #$00
+        adc     #$10                    ; if below player Y →
+        cmp     $03C0                   ; still rising, freeze anim
+        bcc     code_8712
+        inc     $0300,x                 ; → state 1 (gravity fall)
+
+; --- state 1: fall with gravity ---
+code_86BC:  ldy     #$00                ; apply gravity + move down
         jsr     LF67C
-        bcc     L8712
-        lda     $05A0,x
-        cmp     #$04
-        bne     L8717
-        lda     #$81
-        sta     $0320,x
-        lda     #$80
+        bcc     code_8712               ; no landing → freeze anim
+        lda     $05A0,x                 ; landed: check anim frame
+        cmp     #$04                    ; must be frame 4 (final bounce)
+        bne     code_8717               ; not ready → return
+        lda     #$81                    ; switch to routine $81
+        sta     $0320,x                 ; (item waiting on ground)
+        lda     #$80                    ; active, state 0
         sta     $0300,x
-        lda     #$00
+        lda     #$00                    ; clear timer
         sta     $0500,x
-        ldy     #$03
+        ldy     #$03                    ; check tile at mid-height ahead
         jsr     LE8D6
-        lda     $10
+        lda     $10                     ; solid wall? (bit 4)
         and     #$10
-        beq     L86F0
-L86E4:  inc     $0300,x
-        lda     #$00
+        beq     code_86F0               ; no wall → check weapon type
+code_86E4:  inc     $0300,x             ; advance state (wall blocked)
+        lda     #$00                    ; clear Y speed
         sta     $0440,x
         sta     $0460,x
         rts
 
-L86F0:  lda     $A0
+code_86F0:  lda     $A0                 ; current weapon = Rush Marine ($09)?
         cmp     #$09
-        bne     L86FC
-        lda     $41
+        bne     code_86FC               ; no → set weapon OAM
+        lda     $41                     ; tile type = water ($80)?
         cmp     #$80
-        bne     L86E4
-L86FC:  lda     $0580,x
-        ora     #$01
+        bne     code_86E4               ; not water → wall-blocked path
+code_86FC:  lda     $0580,x             ; set sprite flag bit 0
+        ora     #$01                    ; (direction/visibility)
         sta     $0580,x
-        lda     $A0
-        sec
-        sbc     #$06
+        lda     $A0                     ; weapon_id - 6, >> 1 = table index
+        sec                             ; $06→0, $08→1, $0A→2,
+        sbc     #$06                    ; $07→0, $09→1, $0B→2
         lsr     a
         tay
-        lda     L8718,y
-        jsr     LF835
+        lda     L8718,y                 ; OAM from weapon_oam_table
+        jsr     LF835                   ; set sprite animation
         rts
 
-L8712:  lda     #$00
-        sta     $05E0,x
-L8717:  .byte   $60
+code_8712:  lda     #$00                ; freeze animation timer
+        sta     $05E0,x                 ; (keep current frame)
+code_8717:  .byte   $60
+
+; weapon_oam_table: OAM IDs indexed by (weapon_id - 6) >> 1
+; $D8=Search Snake, $D9=Spark Shock, $D7=Shadow Blade
+; $81=Rush Coil, $82=Rush Marine, $83=Rush Jet
 L8718:  .byte   $D8,$D9,$D7
         sta     ($82,x)
         .byte   $83
-        lda     $0300,x
+
+; ===========================================================================
+; Routine $81 — Item sitting on ground / teleport rise
+;\
+; | State 0: count down $0500 timer. While timer > 0, item sits on
+; |   ground. If OAM $D8 (Search Snake), freeze anim until frame 0.
+; |   When timer < $88, set anim bit 7 (flicker/flash effect).
+; |   When timer expires → state 1: become teleport beam.
+; | State 1: OAM $13 (teleport beam), accelerate upward using gravity
+; |   constant $99, move up each frame. When Y screen != 0 → deactivate.
+; /
+; ===========================================================================
+        lda     $0300,x                 ; check state
         and     #$0F
-        bne     L876B
-        dec     $0500,x
-        beq     L874B
-        lda     $05C0,x
+        bne     code_876B               ; state 1 → rising
+
+; --- state 0: item sitting on ground, timer countdown ---
+        dec     $0500,x                 ; decrement wait timer
+        beq     code_874B               ; timer done → become beam
+        lda     $05C0,x                 ; if OAM = $D8 (Search Snake item)
         cmp     #$D8
-        bne     L873B
-        lda     #$00
+        bne     code_873B               ; other → skip freeze
+        lda     #$00                    ; freeze anim timer
         sta     $05E0,x
-        lda     $05A0,x
-        bne     L8795
-L873B:  lda     $0500,x
-        cmp     #$88
-        bcs     L8795
-        lda     $05E0,x
-        ora     #$80
-        sta     $05E0,x
+        lda     $05A0,x                 ; if anim frame != 0 → return
+        bne     code_8795               ; (wait for idle frame)
+code_873B:  lda     $0500,x             ; timer >= $88?
+        cmp     #$88                    ; (still early in wait)
+        bcs     code_8795               ; → normal display, return
+        lda     $05E0,x                 ; set bit 7 of anim timer
+        ora     #$80                    ; (flicker/flash effect
+        sta     $05E0,x                 ; when about to expire)
         rts
 
-L874B:  inc     $0300,x
-        lda     #$00
+; --- timer expired: become teleport beam rising ---
+
+code_874B:  inc     $0300,x             ; advance to state 1
+        lda     #$00                    ; clear Y speed
         sta     $0440,x
         sta     $0460,x
-        sta     $0480,x
-        lda     $0580,x
+        sta     $0480,x                 ; clear damage flags
+        lda     $0580,x                 ; clear direction bits 0-1
         and     #$FC
         sta     $0580,x
-        lda     #$13
+        lda     #$13                    ; OAM $13 = teleport beam
         jsr     LF835
-        lda     #$04
-        sta     $05A0,x
-L876B:  lda     $05A0,x
-        cmp     #$02
-        bne     L8795
-        lda     #$00
+        lda     #$04                    ; set anim frame to 4
+        sta     $05A0,x                 ; (beam animation start)
+
+; --- state 1: accelerate upward and rise off screen ---
+code_876B:  lda     $05A0,x             ; wait for anim frame 2
+        cmp     #$02                    ; (beam fully formed)
+        bne     code_8795               ; not yet → return
+        lda     #$00                    ; freeze anim at frame 2
         sta     $05E0,x
-        lda     $0440,x
-        clc
+        lda     $0440,x                 ; Y speed += gravity ($99)
+        clc                             ; accelerate upward
         adc     $99
         sta     $0440,x
         lda     $0460,x
         adc     #$00
         sta     $0460,x
-        jsr     LF779
-        lda     $03E0,x
-        beq     L8795
-        lda     #$00
+        jsr     LF779                   ; move up (unchecked)
+        lda     $03E0,x                 ; if Y screen != 0
+        beq     code_8795               ; (off-screen) → deactivate
+        lda     #$00                    ; deactivate entity
         sta     $0300,x
-L8795:  rts
+code_8795:  rts
 
-        lda     $0360
+; ===========================================================================
+; Routine $82 — Horizontal player chaser
+;\
+; | Computes X distance from entity to player (16-bit).
+; | Moves toward player at min(distance, 3) px/frame with collision.
+; | After moving, copies player facing direction to slot 1 ($0581).
+; /
+; ===========================================================================
+
+        lda     $0360                   ; player_X - entity_X (16-bit)
         sec
         sbc     $0360,x
-        pha
-        lda     $0380
+        pha                             ; save low byte
+        lda     $0380                   ; screen page subtraction
         sbc     $0380,x
         pla
-        bcs     L87AC
-        eor     #$FF
+        bcs     code_87AC               ; player is to the right
+        eor     #$FF                    ; negate: absolute distance
         adc     #$01
-        clc
-L87AC:  php
-        cmp     #$03
-        bcc     L87B3
+        clc                             ; carry clear = player left
+code_87AC:  php                         ; save direction (carry)
+        cmp     #$03                    ; clamp speed to max 3 px/frame
+        bcc     code_87B3
         lda     #$03
-L87B3:  plp
-        sta     $0420,x
-        lda     #$00
+code_87B3:  plp                         ; restore direction
+        sta     $0420,x                 ; set X speed = clamped distance
+        lda     #$00                    ; sub-pixel = 0
         sta     $0400,x
-        bcc     L87C6
-        ldy     #$08
+        bcc     code_87C6               ; player left → move left
+        ldy     #$08                    ; move right with collision
         jsr     LF580
-        jmp     L87CB
+        jmp     code_87CB
 
-L87C6:  ldy     #$09
+code_87C6:  ldy     #$09                ; move left with collision
         jsr     LF5C4
-L87CB:  lda     $0580
-        and     #$40
+code_87CB:  lda     $0580               ; copy player facing (bit 6)
+        and     #$40                    ; to slot 1 entity
         sta     L0000
-        lda     $0581
-        and     #$BF
+        lda     $0581                   ; clear old bit 6
+        and     #$BF                    ; set to player's facing
         ora     L0000
         sta     $0581
         rts
 
-        lda     $04A0,x
-        and     #$03
-        beq     L884B
-        lda     #$97
-        cmp     $05C0,x
-        beq     L87EE
-        sta     $05C0,x
-L87EE:  lda     $04A0,x
-        and     #$01
-        beq     L87FB
-        jsr     LF71D
-        jmp     L87FE
+; ===========================================================================
+; main_magnet_missile — Magnet Missile weapon AI
+;\
+; | Fires horizontally at 4.0 px/frame (set by init_weapon).
+; | While traveling, scans enemy slots $10-$1F each frame.
+; | If an active hittable enemy is within 8 pixels X-distance,
+; | the missile turns 90 degrees toward that enemy (up or down),
+; | transferring its horizontal speed to vertical speed.
+; | After turning, accelerates vertically by $00.20/frame
+; | up to 6.0 px/frame terminal velocity. Despawns off-screen.
+; |
+; | $04A0 direction flags:
+; |   bit 0 ($01) = moving right  (horizontal phase)
+; |   bit 1 ($02) = moving left   (horizontal phase)
+; |   bit 2 ($04) = moving down   (vertical phase)
+; |   bit 3 ($08) = moving up     (vertical phase)
+; |   $00 = entered vertical phase (bits 0-1 cleared)
+; |
+; | OAM IDs: $97=horizontal, $9A=vertical up, $9B=vertical down
+; /
+main_magnet_missile:
 
-L87FB:  jsr     LF73B
-L87FE:  ldy     #$1F
-L8800:  lda     $0300,y
-        bpl     L8845
-        lda     $0480,y
-        and     #$40
-        beq     L8845
+        lda     $04A0,x
+        and     #$03                    ; check horizontal direction bits
+        beq     code_884B               ; if neither L/R set, vertical phase
+        lda     #$97
+        cmp     $05C0,x                 ; set horizontal OAM sprite ($97)
+        beq     code_87EE               ; (skip write if already set)
+        sta     $05C0,x
+code_87EE:  lda     $04A0,x
+        and     #$01                    ; bit 0 = moving right
+        beq     code_87FB
+        jsr     LF71D                   ; move missile right
+        jmp     code_87FE               ; skip left branch
+
+code_87FB:  jsr     LF73B               ; move missile left
+code_87FE:  ldy     #$1F                ; Y = slot 31 (start of enemy scan)
+code_8800:  lda     $0300,y             ; scan enemy slots $1F down to $10
+        bpl     code_8845               ; skip if slot inactive (bit 7 clear)
+        lda     $0480,y                 ; check if entity is hittable
+        and     #$40                    ; ($40 = can be hit by weapons)
+        beq     code_8845               ; skip if not hittable
         lda     $0360,x
-        sec
-        sbc     $0360,y
-        pha
-        lda     $0380,x
-        sbc     $0380,y
-        pla
-        bcs     L8821
-        eor     #$FF
-        adc     #$01
-L8821:  cmp     #$08
-        bcs     L8845
-        lda     $0400,x
-        sta     $0440,x
-        lda     $0420,x
-        sta     $0460,x
-        lda     #$08
-        sta     $04A0,x
-        lda     $03C0,x
-        sec
+        sec                             ; 16-bit X distance:
+        sbc     $0360,y                 ; missile.X - enemy.X
+        pha                             ; save low byte of difference
+        lda     $0380,x                 ; subtract screen bytes
+        sbc     $0380,y                 ; (carry propagates from pixel sub)
+        pla                             ; restore low byte; carry = sign
+        bcs     code_8821               ; positive (missile >= enemy)? skip
+        eor     #$FF                    ; negative: negate to get |distance
+        adc     #$01                    ; (carry was clear from BCS fall-thru)
+code_8821:  cmp     #$08                ; X distance| < 8 pixels?
+        bcs     code_8845               ; no: skip this enemy
+        lda     $0400,x                 ; enemy found within range!
+        sta     $0440,x                 ; copy X speed (sub) → Y speed (sub)
+        lda     $0420,x                 ; copy X speed (whole) → Y speed
+        sta     $0460,x                 ; (vertical speed = 4.0 px/frame)
+        lda     #$08                    ; default: direction = up ($08)
+        sta     $04A0,x                 ; (clears horizontal bits)
+        lda     $03C0,x                 ; compare Y positions:
+        sec                             ; missile.Y - enemy.Y
         sbc     $03C0,y
-        bcs     L884A
-        lda     #$04
-        sta     $04A0,x
+        bcs     code_884A               ; missile below enemy? up is correct, done
+        lda     #$04                    ; missile above enemy:
+        sta     $04A0,x                 ; change direction to down ($04)
         rts
 
-L8845:  dey
-        cpy     #$0F
-        bne     L8800
-L884A:  rts
+code_8845:  dey                         ; next enemy slot
+        cpy     #$0F                    ; loop until Y < $10 (slot 15)
+        bne     code_8800               ; (scans slots $1F down to $10)
+code_884A:  rts                         ; no enemy in range, keep flying
 
-L884B:  lda     $0460,x
-        cmp     #$06
-        beq     L8863
+code_884B:  lda     $0460,x             ; --- vertical phase ---
+        cmp     #$06                    ; check if at terminal velocity
+        beq     code_8863               ; (6.0 px/frame); skip accel if so
         lda     $0440,x
-        clc
-        adc     #$20
+        clc                             ; accelerate: Y speed += $00.20
+        adc     #$20                    ; ($0.125 px/frame per frame)
         sta     $0440,x
-        lda     $0460,x
+        lda     $0460,x                 ; add carry to whole byte
         adc     #$00
         sta     $0460,x
-L8863:  lda     $04A0,x
-        and     #$08
-        beq     L8875
-        lda     #$9A
+code_8863:  lda     $04A0,x             ; check vertical direction
+        and     #$08                    ; bit 3 ($08) = moving up
+        beq     code_8875               ; not set? moving down
+        lda     #$9A                    ; OAM $9A = vertical up sprite
         sta     $05C0,x
-        jsr     LF779
-        jmp     L887D
+        jsr     LF779                   ; move missile upward
+        jmp     code_887D               ; skip down branch
 
-L8875:  jsr     LF759
-        lda     #$9B
+code_8875:  jsr     LF759               ; move missile downward
+        lda     #$9B                    ; OAM $9B = vertical down sprite
         sta     $05C0,x
-L887D:  lda     $03E0,x
-        beq     L8887
-        lda     #$00
-        sta     $0300,x
-L8887:  rts
+code_887D:  lda     $03E0,x             ; check Y screen position
+        beq     code_8887               ; if Y screen == 0, still on-screen
+        lda     #$00                    ; otherwise despawn missile
+        sta     $0300,x                 ; (clear active flag)
+code_8887:  rts
 
-        lda     $0500,x
-        beq     L8899
-        dec     $0500,x
-        lda     $0500,x
-        cmp     L8943,x
-        bcc     L8899
-        rts
+; ===========================================================================
+; main_gemini_laser — weapon $01: Gemini Laser bouncing projectile
+; ===========================================================================
+; 3 shots spawned (slots 1-3), each bounces off walls/floors/ceilings.
+; $0500,x = bounce timer (init $B4, counts down). While >0: collision-checked
+; movement with wall/floor bouncing. At 0: free movement, no collision.
+; $04A0,x direction flags: bit0=right, bit1=left, bit2=down, bit3=up.
+; Speed set to 3.0 px/frame on both axes after first wall bounce.
+main_gemini_laser:
 
-L8899:  lda     $04A0,x
-        and     #$01
-        beq     L88BB
-        lda     $0500,x
-        beq     L88AD
-        ldy     #$1E
-        jsr     LF580
-        jmp     L88D6
+        lda     $0500,x                 ; bounce timer
+        beq     code_8899               ; 0 = free movement phase
+        dec     $0500,x                 ; decrement bounce timer
+        lda     $0500,x                 ; compare against stagger threshold
+        cmp     code_8943,x             ; ($B4/$B2/$B0 for slots 1/2/3)
+        bcc     code_8899               ; below threshold → start moving
+        rts                             ; still waiting (staggered spawn delay)
 
-L88AD:  lda     $0580,x
-        ora     #$40
-        sta     $0580,x
-        jsr     LF71D
-        jmp     L88FD
+code_8899:  lda     $04A0,x             ; check horizontal direction
+        and     #$01                    ; bit 0 = moving right?
+        beq     code_88BB               ; no → moving left
+        lda     $0500,x                 ; bounce timer active?
+        beq     code_88AD               ; 0 → free movement (no collision)
+        ldy     #$1E                    ; collision point: right edge
+        jsr     LF580                   ; move right with wall detection
+        jmp     code_88D6               ; → check if wall was hit
 
-L88BB:  lda     $0500,x
-        beq     L88C8
-        ldy     #$1F
-        jsr     LF5C4
-        jmp     L88D6
+code_88AD:  lda     $0580,x             ; set facing right (bit 6)
+        ora     #$40                    ; (free phase: set manually since
+        sta     $0580,x                 ; move_sprite doesn't set facing)
+        jsr     LF71D                   ; move right, no collision
+        jmp     code_88FD               ; → vertical movement
 
-L88C8:  lda     $0580,x
+code_88BB:  lda     $0500,x             ; bounce timer active?
+        beq     code_88C8               ; 0 → free movement
+        ldy     #$1F                    ; collision point: left edge
+        jsr     LF5C4                   ; move left with wall detection
+        jmp     code_88D6               ; → check if wall was hit
+
+code_88C8:  lda     $0580,x             ; clear facing (bit 6 = 0 → left)
         and     #$BF
         sta     $0580,x
-        jsr     LF73B
-        jmp     L88FD
+        jsr     LF73B                   ; move left, no collision
+        jmp     code_88FD               ; → vertical movement
 
-L88D6:  bcc     L88FD
-        lda     #$00
-        sta     $0440,x
-        sta     $0400,x
-        lda     #$03
-        sta     $0460,x
-        sta     $0420,x
-        lda     $04A0,x
-        eor     #$03
+; --- wall bounce handler (after horizontal collision-checked move) ---
+
+code_88D6:  bcc     code_88FD           ; C=0: no wall hit → vertical movement
+        lda     #$00                    ; zero sub-pixel speeds
+        sta     $0440,x                 ; Y speed sub = 0
+        sta     $0400,x                 ; X speed sub = 0
+        lda     #$03                    ; set both speeds to 3.0 px/frame
+        sta     $0460,x                 ; Y speed whole = 3
+        sta     $0420,x                 ; X speed whole = 3
+        lda     $04A0,x                 ; flip horizontal direction
+        eor     #$03                    ; (swap bits 0↔1: right↔left)
         sta     $04A0,x
-        and     #$0C
-        bne     L8943
-        lda     $04A0,x
-        ora     #$08
+        and     #$0C                    ; already has vertical component?
+        bne     code_8943               ; yes → done (keep existing V dir)
+        lda     $04A0,x                 ; first bounce: add upward direction
+        ora     #$08                    ; (bit 3 = up)
         sta     $04A0,x
         rts
 
-L88FD:  lda     $04A0,x
-        and     #$0C
-        beq     L8943
-        .byte   $29
+; --- vertical movement (after horizontal move, no wall hit) ---
+
+code_88FD:  lda     $04A0,x             ; check vertical direction bits
+        and     #$0C                    ; (bits 2-3)
+        beq     code_8943               ; no vertical component → done
+        .byte   $29                     ; bit 2 = moving down?
 L8905:  .byte   $04
-        beq     L8922
-        lda     $0500,x
-        beq     L891A
-        ldy     #$12
-        jsr     LF606
-        lda     #$A0
+        beq     code_8922               ; no → moving up
+        lda     $0500,x                 ; bounce timer active?
+        beq     code_891A               ; 0 → free movement
+        ldy     #$12                    ; collision point: bottom edge
+        jsr     LF606                   ; move down with floor detection
+        lda     #$A0                    ; OAM = $A0 (angled down)
         sta     $05C0,x
-        jmp     L8939
+        jmp     code_8939               ; → check if floor was hit
 
-L891A:  lda     #$A0
+code_891A:  lda     #$A0                ; OAM = $A0 (angled down)
         sta     $05C0,x
-        jmp     LF759
+        jmp     LF759                   ; move down, no collision
 
-L8922:  lda     $0500,x
-        bne     L892F
-        lda     #$A1
+code_8922:  lda     $0500,x             ; bounce timer active?
+        bne     code_892F               ; nonzero → collision-checked move
+        lda     #$A1                    ; OAM = $A1 (angled up)
         sta     $05C0,x
-        jmp     LF779
+        jmp     LF779                   ; move up, no collision
 
-L892F:  ldy     #$13
-        jsr     LF642
-        lda     #$A1
+code_892F:  ldy     #$13                ; collision point: top edge
+        jsr     LF642                   ; move up with ceiling detection
+        lda     #$A1                    ; OAM = $A1 (angled up)
         sta     $05C0,x
-L8939:  bcc     L8943
-        lda     $04A0,x
-        eor     #$0C
+
+; --- floor/ceiling bounce handler ---
+code_8939:  bcc     code_8943           ; C=0: no hit → done
+        lda     $04A0,x                 ; flip vertical direction
+        eor     #$0C                    ; (swap bits 2↔3: down↔up)
         sta     $04A0,x
-L8943:  .byte   $60
-        ldy     $B2,x
+code_8943:  .byte   $60
+        ldy     $B2,x                   ; stagger thresholds per slot (1/2/3)
         bcs     L8905
         cpy     #$05
-        cmp     #$71
-        beq     L8961
-        cmp     #$AC
-        beq     L8956
-        cmp     #$AE
-        bne     L896D
-L8956:  lda     $05E0,x
-        bne     L89C1
-        lda     #$71
+        cmp     #$71                    ; $71 = fist opening?
+        beq     code_8961               ; → check if opening done
+        cmp     #$AC                    ; $AC = launch anim frame 1?
+        beq     code_8956               ; → wait for anim timer
+        cmp     #$AE                    ; $AE = launch anim frame 2?
+        bne     code_896D               ; neither → already flying, skip to movement
+code_8956:  lda     $05E0,x             ; launch anim: wait for timer to expire
+        bne     code_89C1               ; nonzero = still animating
+        lda     #$71                    ; timer done → switch to fist opening
         sta     $05C0,x
         rts
 
-L8961:  lda     $05A0,x
-        cmp     #$04
-        bne     L89C1
-        lda     #$AF
+code_8961:  lda     $05A0,x             ; fist opening ($71): wait for frame 4
+        cmp     #$04                    ; (fist fully open)
+        bne     code_89C1               ; not yet → return
+        lda     #$AF                    ; done → switch to flying fist anim
         jsr     LF835
-L896D:  lda     $0420,x
-        cmp     #$03
-        beq     L8985
-        lda     $0400,x
-        clc
+code_896D:  lda     $0420,x             ; flying phase: accelerate X speed
+        cmp     #$03                    ; already at max $03.00?
+        beq     code_8985               ; yes → skip acceleration
+        lda     $0400,x                 ; X speed sub += $20
+        clc                             ; ($00.20 = 0.125 px/frame per frame)
         adc     #$20
         sta     $0400,x
-        lda     $0420,x
+        lda     $0420,x                 ; carry into whole byte
         adc     #$00
         sta     $0420,x
-L8985:  lda     $04A0,x
-        and     #$01
-        beq     L8992
+code_8985:  lda     $04A0,x             ; move horizontally based on facing
+        and     #$01                    ; bit 0: 1=right, 0=left
+        beq     code_8992
         jsr     LF71D
-        jmp     L8995
+        jmp     code_8995
 
-L8992:  jsr     LF73B
-L8995:  lda     $95
-        and     #$01
-        beq     L89A1
-        inc     $03C0,x
-        jmp     L89A4
+code_8992:  jsr     LF73B
+code_8995:  lda     $95                 ; Y wobble via frame parity
+        and     #$01                    ; $95 = global frame counter
+        beq     code_89A1               ; even frame → Y-1
+        inc     $03C0,x                 ; odd frame: Y += 1 (nudge down)
+        jmp     code_89A4
 
-L89A1:  dec     $03C0,x
-L89A4:  lda     $16
-        and     #$0C
-        beq     L89C1
-        and     #$08
-        beq     L89B4
-        jsr     LF779
-        jmp     L89B7
+code_89A1:  dec     $03C0,x             ; even frame: Y -= 1 (nudge up)
+code_89A4:  lda     $16                 ; D-pad steering: check Up/Down held
+        and     #$0C                    ; ($08=Up, $04=Down)
+        beq     code_89C1               ; neither → return
+        and     #$08                    ; Up held?
+        beq     code_89B4               ; no → Down
+        jsr     LF779                   ; steer upward
+        jmp     code_89B7
 
-L89B4:  jsr     LF759
-L89B7:  lda     $03E0,x
-        beq     L89C1
-        lda     #$00
+code_89B4:  jsr     LF759               ; steer downward
+code_89B7:  lda     $03E0,x             ; offscreen check after vertical steer
+        beq     code_89C1               ; Y screen 0 = on-screen → return
+        lda     #$00                    ; offscreen: despawn
         sta     $0300,x
-L89C1:  rts
+code_89C1:  rts
 
-        lda     $0300,x
+; ===========================================================================
+; main_search_snake — Search Snake weapon AI ($06)
+; ===========================================================================
+; State 0: falling with gravity to find a surface (horizontal timer $0500).
+; State 1: crawling along surfaces (floor→wall→ceiling), wraps around corners.
+; $04A0 direction: bit0=right, bit1=left, bit2=down, bit3=up.
+; Crawl speed: 3.0 px/frame. OAM: $A5=horiz, $A6=descend, $A7=ascend.
+main_search_snake:
+
+        lda     $0300,x                 ; entity state bits 0-3
         and     #$0F
-        bne     L89F6
-        ldy     #$12
-        jsr     LF67C
-        bcs     L89DB
-        lda     $0500,x
-        beq     L8A47
-        dec     $0500,x
-        jmp     L8A80
+        bne     code_89F6               ; nonzero → state 1: crawling
 
-L89DB:  lda     #$00
+; --- state 0: falling (searching for floor) ---
+        ldy     #$12                    ; hitbox index for gravity
+        jsr     LF67C                   ; apply gravity; C=1 if landed
+        bcs     code_89DB               ; landed → begin crawling
+        lda     $0500,x                 ; horizontal move timer
+        beq     code_8A47               ; expired → stop moving, RTS
+        dec     $0500,x                 ; decrement timer
+        jmp     L8A80                   ; move horizontally (shared code)
+
+; --- landed: set crawl speed and transition to state 1 ---
+
+code_89DB:  lda     #$00                ; zero sub-pixel speeds
         sta     $0400,x
         sta     $0440,x
-        lda     #$03
+        lda     #$03                    ; crawl speed = 3.0 px/frame both axes
         sta     $0420,x
         sta     $0460,x
-        lda     $04A0,x
+        lda     $04A0,x                 ; add "down" to direction (pressing floor)
         ora     #$04
         sta     $04A0,x
-        inc     $0300,x
-L89F6:  lda     $04A0,x
-        and     #$08
-        bne     L8A0A
-        ldy     #$12
-        jsr     LF606
-        lda     #$A6
-        sta     $05C0,x
-        jmp     L8A14
+        inc     $0300,x                 ; state 0 → 1
 
-L8A0A:  ldy     #$13
-        jsr     LF642
-        lda     #$A7
+; --- state 1: crawl on surface ---
+code_89F6:  lda     $04A0,x             ; bit 3 = moving up?
+        and     #$08
+        bne     code_8A0A               ; yes → climb upward
+        ldy     #$12                    ; move downward with collision
+        jsr     LF606                   ; C=1 if hit solid below
+        lda     #$A6                    ; OAM $A6 = descending wall
         sta     $05C0,x
-L8A14:  lda     $03E0,x
-        bne     L8A92
-        bcs     L8A48
-        lda     $04A0,x
+        jmp     code_8A14
+
+code_8A0A:  ldy     #$13                ; move upward with collision
+        jsr     LF642                   ; C=1 if hit solid above
+        lda     #$A7                    ; OAM $A7 = ascending wall
+        sta     $05C0,x
+code_8A14:  lda     $03E0,x             ; Y screen nonzero = offscreen
+        bne     L8A92                   ; → despawn
+        bcs     code_8A48               ; C=1: hit solid vertically
+
+; --- no vertical contact: at surface edge, try corner wrap ---
+        lda     $04A0,x                 ; isolate vertical direction
         and     #$0C
-        tay
-        lda     $04A0,x
+        tay                             ; Y = $04(down) or $08(up)
+        lda     $04A0,x                 ; save original direction
         pha
-        cpy     #$08
-        beq     L8A2E
-        eor     #$03
-        sta     $04A0,x
-L8A2E:  lda     $05C0,x
+        cpy     #$08                    ; moving up? don't flip horizontal
+        beq     code_8A2E
+        eor     #$03                    ; moving down: flip horizontal
+        sta     $04A0,x                 ; (reverse to probe around floor edge)
+code_8A2E:  lda     $05C0,x             ; save OAM
         pha
-        jsr     L8A55
-        pla
+        jsr     code_8A55               ; probe horizontal move
+        pla                             ; restore OAM
         sta     $05C0,x
-        pla
+        pla                             ; restore original direction
         sta     $04A0,x
-        bcs     L8A78
-        lda     $04A0,x
-        eor     #$0C
+        bcs     code_8A78               ; C=1: hit wall → corner wrap done
+        lda     $04A0,x                 ; no wall: flip vertical (wrap edge)
+        eor     #$0C                    ; down↔up
         sta     $04A0,x
-L8A47:  rts
+code_8A47:  rts
 
-L8A48:  lda     $04A0,x
+; --- hit solid vertically ---
+
+code_8A48:  lda     $04A0,x             ; moving up and hit ceiling?
         and     #$08
-        beq     L8A55
-        lda     #$00
+        beq     code_8A55               ; no → hit floor, move horizontal
+        lda     #$00                    ; up + ceiling = dead end: despawn
         sta     $0300,x
         rts
 
-L8A55:  lda     #$A5
+; --- move horizontally along surface ---
+
+code_8A55:  lda     #$A5                ; OAM $A5 = horizontal
         sta     $05C0,x
-        lda     $04A0,x
+        lda     $04A0,x                 ; bit 0 = moving right?
         and     #$01
-        beq     L8A69
-        ldy     #$1E
+        beq     code_8A69               ; no → move left
+        ldy     #$1E                    ; move right with wall detection
         jsr     LF580
-        jmp     L8A6E
+        jmp     code_8A6E
 
-L8A69:  ldy     #$1F
+code_8A69:  ldy     #$1F                ; move left with wall detection
         jsr     LF5C4
-L8A6E:  bcc     L8A78
-        lda     $04A0,x
-        eor     #$0C
+code_8A6E:  bcc     code_8A78           ; no wall → done
+        lda     $04A0,x                 ; hit wall: flip vertical direction
+        eor     #$0C                    ; (transition to wall climbing)
         sta     $04A0,x
-L8A78:  rts
+code_8A78:  rts
+main_spark_shock:
 
-        lda     $0300,x
-        and     #$0F
+        lda     $0300,x                 ; sprite state nonzero?
+        and     #$0F                    ; shocking an enemy
         bne     L8A8D
-L8A80:  lda     $04A0,x
-        and     #$01
+L8A80:  lda     $04A0,x                 ; facing left?
+        and     #$01                    ; move left
         beq     L8A8A
-        jmp     LF71D
+        jmp     LF71D                   ; else move right
 
 L8A8A:  jmp     LF73B
 
-L8A8D:  dec     $0500,x
-        bne     L8A97
-L8A92:  lda     #$00
-        sta     $0300,x
+L8A8D:  dec     $0500,x                 ; decrease shock timer
+        bne     L8A97                   ; return if not expired
+L8A92:  lda     #$00                    ; on timer expiration,
+        sta     $0300,x                 ; despawn (set inactive)
 L8A97:  rts
+main_shadow_blade:
 
-        lda     $04A0,x
-        and     #$03
+        lda     $04A0,x                 ; facing neither right nor left?
+        and     #$03                    ; skip horizontal movement
         beq     L8AAC
-        and     #$01
+        and     #$01                    ; facing left? move left
         beq     L8AA9
-        jsr     LF71D
+        jsr     LF71D                   ; else move right
         jmp     L8AAC
 
 L8AA9:  jsr     LF73B
-L8AAC:  lda     $04A0,x
-        and     #$0C
+L8AAC:  lda     $04A0,x                 ; facing neither up nor down?
+        and     #$0C                    ; skip vertical movement
         beq     L8AC0
-        and     #$08
+        and     #$08                    ; facing down? move down
         beq     L8ABD
-        jsr     LF779
+        jsr     LF779                   ; else move up
         jmp     L8AC0
 
 L8ABD:  jsr     LF759
-L8AC0:  lda     $03E0,x
-        bne     L8AD1
-        dec     $0500,x
-        bne     L8AFA
-        lda     $0300,x
-        and     #$0F
-        beq     L8AD7
-L8AD1:  lda     #$00
+L8AC0:  lda     $03E0,x                 ; offscreen vertically?
+        bne     L8AD1                   ; despawn
+        dec     $0500,x                 ; movement timer not expired?
+        bne     L8AFA                   ; return
+        lda     $0300,x                 ; on timer expired, check if
+        and     #$0F                    ; state == $00, or blade hasn't
+        beq     L8AD7                   ; flipped yet, if it has return
+L8AD1:  lda     #$00                    ; set to inactive
         sta     $0300,x
         rts
 
-L8AD7:  inc     $0300,x
-        lda     #$14
+L8AD7:  inc     $0300,x                 ; indicate flipped state
+        lda     #$14                    ; reset movement timer
         sta     $0500,x
-        lda     $04A0,x
-        and     #$0C
+        lda     $04A0,x                 ; if not facing up or down,
+        and     #$0C                    ; only flip horizontal
         beq     L8AF2
-        lda     $04A0,x
-        eor     #$0C
+        lda     $04A0,x                 ; flip vertical
+        eor     #$0C                    ; facing direction
         sta     $04A0,x
         and     #$03
         beq     L8AFA
-L8AF2:  lda     $04A0,x
-        eor     #$03
+L8AF2:  lda     $04A0,x                 ; flip horizontal
+        eor     #$03                    ; facing direction
         sta     $04A0,x
 L8AFA:  rts
 
-        lda     $0300,x
+; ===========================================================================
+; main_dada — Dada (bouncing robot, Hard Man stage)
+; ===========================================================================
+; Walks horizontally with gravity, bouncing in 3 progressively higher arcs.
+; Re-faces player every 3 bounces. $0500=bounce index (0-2), $0520=face timer.
+main_dada:
+
+        lda     $0300,x                 ; state 0: init
         and     #$0F
-        bne     L8B0A
-        inc     $0300,x
-        lda     #$03
+        bne     code_8B0A               ; already init'd → skip
+        inc     $0300,x                 ; state → 1
+        lda     #$03                    ; face-player countdown = 3 bounces
         sta     $0520,x
-L8B0A:  lda     $04A0,x
+code_8B0A:  lda     $04A0,x             ; walk horizontally with wall collision
         and     #$01
-        beq     L8B19
+        beq     code_8B19               ; bit 0 clear → move left
         ldy     #$0A
         jsr     LF580
-        jmp     L8B1E
+        jmp     code_8B1E
 
-L8B19:  ldy     #$0B
+code_8B19:  ldy     #$0B
         jsr     LF5C4
-L8B1E:  ldy     #$0A
+code_8B1E:  ldy     #$0A                ; apply gravity; C=1 if landed
         jsr     LF67C
-        bcc     L8B51
-        lda     $0500,x
-        tay
-        lda     L8B52,y
+        bcc     code_8B51               ; still airborne → return
+        lda     $0500,x                 ; on landing: load bounce Y speed
+        tay                             ; from table indexed by bounce#
+        lda     L8B52,y                 ; Y speed sub (3 entries)
         sta     $0440,x
-        lda     L8B55,y
+        lda     L8B55,y                 ; Y speed whole (3 entries)
         sta     $0460,x
-        dec     $0520,x
-        bne     L8B42
-        jsr     LF869
-        lda     #$03
+        dec     $0520,x                 ; decrement face-player counter
+        bne     code_8B42               ; not zero → skip re-facing
+        jsr     LF869                   ; re-face toward player
+        lda     #$03                    ; reset counter to 3
         sta     $0520,x
-L8B42:  inc     $0500,x
+code_8B42:  inc     $0500,x             ; advance bounce index
         lda     $0500,x
-        cmp     #$03
-        bcc     L8B51
+        cmp     #$03                    ; wrap at 3 (cycle 0→1→2→0)
+        bcc     code_8B51
         lda     #$00
         sta     $0500,x
-L8B51:  .byte   $60
+code_8B51:  .byte   $60
+
+; bounce Y speeds: sub={$44,$44,$EA}, whole={$03,$03,$07}
+; bounce 0: $03.44, bounce 1: $03.44, bounce 2: $07.EA (big hop)
 L8B52:  .byte   $44,$44,$EA
 L8B55:  .byte   $03
         .byte   $03
         .byte   $07
-        lda     $05C0,x
+
+; ===========================================================================
+; main_potton — Potton (helicopter dropper, Snake Man stage)
+; ===========================================================================
+; Flies horizontally, reverses on wall hit. When player is within 4 screens
+; X-distance, stops and drops a bomb (Copipi child). OAM $23=flying, $24=bomb bay open.
+main_potton:
+        lda     $05C0,x                 ; OAM $23 = flying with propeller
         cmp     #$23
-        beq     L8B73
-        lda     $04A0,x
+        beq     code_8B73               ; already dropping → skip movement
+        lda     $04A0,x                 ; horizontal movement with wall collision
         and     #$01
-        beq     L8B6E
+        beq     code_8B6E
         ldy     #$08
         jsr     LF580
-        jmp     L8B73
+        jmp     code_8B73
 
-L8B6E:  ldy     #$09
+code_8B6E:  ldy     #$09
         jsr     LF5C4
-L8B73:  bcc     L8B7D
+code_8B73:  bcc     code_8B7D           ; hit wall → reverse direction
         lda     $04A0,x
         eor     #$03
         sta     $04A0,x
-L8B7D:  lda     $0300,x
+code_8B7D:  lda     $0300,x             ; state check
         and     #$0F
-        bne     L8B92
-        jsr     LF8C2
-        cmp     #$04
-        bcs     L8BA8
-        inc     $0300,x
-        lda     #$23
-        bne     L8BA5
-L8B92:  lda     $05C0,x
+        bne     code_8B92               ; state 1+ → check bomb drop anim
+        jsr     LF8C2                   ; state 0: check range to player
+        cmp     #$04                    ; < 4 screens away?
+        bcs     code_8BA8               ; no → return
+        inc     $0300,x                 ; state → 1 (stop and drop)
+        lda     #$23                    ; set OAM $23 (propeller stop anim)
+        bne     code_8BA5               ; → reset_sprite_anim
+code_8B92:  lda     $05C0,x             ; already showing bomb bay ($24)?
         cmp     #$24
-        beq     L8BA8
-        lda     $05A0,x
+        beq     code_8BA8               ; yes → done
+        lda     $05A0,x                 ; anim frame == 6? (propeller stop done)
         cmp     #$06
-        bne     L8BA8
-        jsr     L8BA9
-        lda     #$24
-L8BA5:  jsr     LF835
-L8BA8:  rts
+        bne     code_8BA8               ; not yet → wait
+        jsr     code_8BA9               ; spawn bomb child (Copipi)
+        lda     #$24                    ; OAM $24 = bomb bay open
+code_8BA5:  jsr     LF835
+code_8BA8:  rts
 
-L8BA9:  jsr     LFC53
-        bcs     L8BDD
-        lda     $04A0,x
+; --- spawn_copipi: drop bomb child below Potton ---
+
+code_8BA9:  jsr     LFC53               ; find free enemy slot
+        bcs     code_8BDD               ; none → return
+        lda     $04A0,x                 ; copy parent facing to child
         sta     $04A0,y
-        lda     $0360,x
+        lda     $0360,x                 ; copy X position
         sta     $0360,y
         lda     $0380,x
         sta     $0380,y
-        lda     $03C0,x
+        lda     $03C0,x                 ; Y = parent Y + $11 (below)
         clc
         adc     #$11
         sta     $03C0,y
-        lda     #$01
+        lda     #$01                    ; HP = 1
         sta     $04E0,y
-        lda     #$25
+        lda     #$25                    ; OAM $25 = Copipi (bomb)
         jsr     LF846
-        lda     #$04
+        lda     #$04                    ; AI routine = $04 (falling bomb)
         sta     $0320,y
-        lda     #$C0
+        lda     #$C0                    ; dmg flags: $C0 = hurts player + hittable
         sta     $0480,y
-L8BDD:  rts
+code_8BDD:  rts
 
         lda     $0300,x
         and     #$0F
-        bne     L8BEB
+        bne     code_8BEB
         jsr     LF81B
         inc     $0300,x
-L8BEB:  ldy     #$08
+code_8BEB:  ldy     #$08
         jsr     LF67C
-        bcc     L8BFC
+        bcc     code_8BFC
         lda     #$71
         jsr     LF835
         lda     #$00
         sta     $0320,x
-L8BFC:  rts
+code_8BFC:  rts
 
-        lda     $0300,x
+; ===========================================================================
+; main_hammer_joe — Hammer Joe (shielded enemy, throws hammers)
+; ===========================================================================
+; Cycle: shield up (invulnerable, timer $0500=$1E) → shield open (OAM $27,
+; vulnerable) → throw hammer at anim frame $0A → shield close → repeat.
+; Tracks player facing. $0520 = opened-once flag (toggles vulnerability).
+main_hammer_joe:
+
+        lda     $0300,x                 ; state 0: init
         and     #$0F
-        bne     L8C12
-        sta     $0520,x
-        lda     #$1E
+        bne     code_8C12               ; already init'd → skip
+        sta     $0520,x                 ; clear opened flag
+        lda     #$1E                    ; shield timer = $1E (30 frames)
         sta     $0500,x
-        jsr     LF883
-        inc     $0300,x
-L8C12:  lda     $0500,x
-        bne     L8C2A
-        lda     $05E0,x
-        ora     $05A0,x
-        bne     L8C2D
-        lda     #$27
-        cmp     $05C0,x
-        beq     L8C42
-        sta     $05C0,x
+        jsr     LF883                   ; face player
+        inc     $0300,x                 ; state → 1
+code_8C12:  lda     $0500,x             ; shield timer active?
+        bne     code_8C2A               ; yes → count down
+        lda     $05E0,x                 ; anim still playing?
+        ora     $05A0,x                 ; (frame timer or seq index nonzero)
+        bne     code_8C2D               ; yes → track player + continue
+        lda     #$27                    ; OAM $27 = shield open (visor up)
+        cmp     $05C0,x                 ; already set?
+        beq     code_8C42               ; yes → process open state
+        sta     $05C0,x                 ; set it
         rts
 
-L8C2A:  dec     $0500,x
-L8C2D:  lda     $04A0,x
+code_8C2A:  dec     $0500,x             ; decrement shield timer
+code_8C2D:  lda     $04A0,x             ; save old facing, re-face player
         pha
         jsr     LF869
-        pla
-        cmp     $04A0,x
-        beq     L8C42
+        pla                             ; if facing changed,
+        cmp     $04A0,x                 ; flip sprite horizontally
+        beq     code_8C42
         lda     $0580,x
         eor     #$40
         sta     $0580,x
-L8C42:  lda     $05C0,x
+code_8C42:  lda     $05C0,x             ; only act when shield is open ($27)
         cmp     #$27
-        bne     L8C7F
-        lda     $0520,x
-        bne     L8C59
-        lda     $0480,x
-        eor     #$60
+        bne     code_8C7F               ; closed → return
+        lda     $0520,x                 ; first time opening this cycle?
+        bne     code_8C59               ; no → skip vulnerability toggle
+        lda     $0480,x                 ; toggle vulnerability bits ($60)
+        eor     #$60                    ; now hittable + hurts player
         sta     $0480,x
-        inc     $0520,x
-L8C59:  lda     $05A0,x
+        inc     $0520,x                 ; mark as opened
+code_8C59:  lda     $05A0,x             ; anim frame == $0A? (throw frame)
         cmp     #$0A
-        bne     L8C69
-        lda     $05E0,x
-        bne     L8C69
-        jsr     L8C80
+        bne     code_8C69               ; not yet → check for close
+        lda     $05E0,x                 ; frame timer == 0? (exact moment)
+        bne     code_8C69               ; no → wait
+        jsr     code_8C80               ; spawn hammer projectile
         rts
 
-L8C69:  lda     $05E0,x
-        ora     $05A0,x
-        bne     L8C7F
-        dec     $05C0,x
-        dec     $0300,x
-        lda     $0480,x
-        eor     #$60
+code_8C69:  lda     $05E0,x             ; anim fully complete?
+        ora     $05A0,x                 ; (both zero = anim done)
+        bne     code_8C7F               ; still playing → return
+        dec     $05C0,x                 ; close shield: OAM $27→$26
+        dec     $0300,x                 ; state back to 0 (re-init timer)
+        lda     $0480,x                 ; toggle vulnerability off
+        eor     #$60                    ; (shield closed = invulnerable)
         sta     $0480,x
-L8C7F:  rts
+code_8C7F:  rts
 
-L8C80:  jsr     LFC53
-        bcs     L8CCE
-        sty     L0000
-        lda     $04A0,x
+; --- spawn_hammer: create thrown hammer projectile ---
+
+code_8C80:  jsr     LFC53               ; find free enemy slot
+        bcs     code_8CCE               ; none → return
+        sty     L0000                   ; save child slot
+        lda     $04A0,x                 ; copy facing to hammer
         sta     $04A0,y
-        and     #$02
+        and     #$02                    ; index: 0=facing right, 2=facing left
         tay
-        lda     $0360,x
-        clc
+        lda     $0360,x                 ; hammer X = Joe X + offset
+        clc                             ; (+$13 if right, -$13 if left)
         adc     L8CCF,y
         pha
-        lda     $0380,x
+        lda     $0380,x                 ; with screen carry
         adc     L8CD0,y
         ldy     L0000
         sta     $0380,y
         pla
         sta     $0360,y
-        lda     $03C0,x
+        lda     $03C0,x                 ; hammer Y = Joe Y - 6 (arm height)
         sec
         sbc     #$06
         sta     $03C0,y
-        lda     #$33
+        lda     #$33                    ; hammer X speed = $03.33 (3.2 px/f)
         sta     $0400,y
         lda     #$03
         sta     $0420,y
-        lda     #$28
+        lda     #$28                    ; OAM $28 = hammer sprite
         jsr     LF846
-        lda     #$2D
+        lda     #$2D                    ; AI routine = $2D (arcing projectile)
         sta     $0320,y
-        lda     #$C0
+        lda     #$C0                    ; dmg flags: hurts player + hittable
         sta     $0480,y
-        lda     #$01
+        lda     #$01                    ; HP = 1
         sta     $04E0,y
-L8CCE:  .byte   $60
+code_8CCE:  .byte   $60
+
+; hammer X offset: right=$0013, left=$FFED (-19)
 L8CCF:  .byte   $13
 L8CD0:  brk
         sbc     LA0FF
         brk
-        jsr     LF67C
-        rol     $0F
-        lda     $05C0,x
-        cmp     #$6A
-        beq     L8D03
-        lda     $0520,x
-        beq     L8CEF
-        lda     $0500,x
-        beq     L8CEF
-        dec     $0500,x
+        jsr     LF67C                   ; carry=1 if landed
+        rol     $0F                     ; save landed flag in $0F bit 0
+        lda     $05C0,x                 ; if OAM ID == $6A (crouch anim),
+        cmp     #$6A                    ; skip horizontal movement
+        beq     code_8D03               ; (crouching before jump)
+        lda     $0520,x                 ; if $0520 == 0, skip walk timer
+        beq     code_8CEF               ; (not in post-land walk phase)
+        lda     $0500,x                 ; if walk timer > 0,
+        beq     code_8CEF               ; decrement and wait
+        dec     $0500,x                 ; (post-land walk delay)
         rts
 
-L8CEF:  lda     $04A0,x
-        and     #$01
-        beq     L8CFE
-        ldy     #$00
+code_8CEF:  lda     $04A0,x             ; check facing direction
+        and     #$01                    ; bit 0 = facing right
+        beq     code_8CFE
+        ldy     #$00                    ; move right with wall collision
         jsr     LF580
-        jmp     L8D03
+        jmp     code_8D03
 
-L8CFE:  ldy     #$01
+code_8CFE:  ldy     #$01                ; move left with wall collision
         jsr     LF5C4
-L8D03:  bcc     L8D0D
-        lda     $04A0,x
-        eor     #$03
+code_8D03:  bcc     code_8D0D           ; if no wall hit, skip
+        lda     $04A0,x                 ; hit wall: flip direction
+        eor     #$03                    ; toggle bits 0+1 (left/right)
         sta     $04A0,x
-L8D0D:  lda     $0300,x
-        and     #$0F
-        bne     L8D23
-        jsr     LF8C2
-        cmp     #$40
-        bcs     L8D23
-        inc     $0300,x
-        lda     #$6A
+code_8D0D:  lda     $0300,x             ; check state (bits 0-3)
+        and     #$0F                    ; if already in jump state,
+        bne     code_8D23               ; skip proximity trigger
+        jsr     LF8C2                   ; get X distance to player
+        cmp     #$40                    ; if distance >= $40 pixels,
+        bcs     code_8D23               ; stay in walk state
+        inc     $0300,x                 ; state 0 -> 1 (enter jump)
+        lda     #$6A                    ; switch to crouch anim ($6A)
+        jsr     LF835                   ; (pre-jump windup)
+code_8D23:  lda     $05C0,x             ; if current OAM != $6A (crouch),
+        cmp     #$6A                    ; not ready to jump yet
+        bne     code_8D9C
+        lda     $05A0,x                 ; wait until anim reaches frame 2
+        cmp     #$02                    ; (crouch anim finished)
+        bne     code_8D9C
+        lda     #$6B                    ; switch to jump anim ($6B)
         jsr     LF835
-L8D23:  lda     $05C0,x
-        cmp     #$6A
-        bne     L8D9C
-        lda     $05A0,x
-        cmp     #$02
-        bne     L8D9C
-        lda     #$6B
-        jsr     LF835
-        lda     $0480,x
-        eor     #$60
+        lda     $0480,x                 ; toggle damage flags bits 5-6
+        eor     #$60                    ; (change vulnerability during jump)
         sta     $0480,x
-        lda     $03C0,x
-        sec
-        sbc     #$10
+        lda     $03C0,x                 ; nudge Y position up by $10
+        sec                             ; (offset sprite above ground
+        sbc     #$10                    ; before applying upward velocity)
         sta     $03C0,x
-        lda     #$4D
-        sta     $0440,x
+        lda     #$4D                    ; set Y speed = $07.4D upward
+        sta     $0440,x                 ; (strong jump)
         lda     #$07
         sta     $0460,x
-        jsr     LFC53
-        bcs     L8D9C
-        sty     L0000
-        lda     $04A0,x
-        and     #$02
+        jsr     LFC53                   ; find free slot for child projectile
+        bcs     code_8D9C               ; no free slot, skip spawn
+        sty     L0000                   ; save child slot in $00
+        lda     $04A0,x                 ; use facing to index X offset table
+        and     #$02                    ; y=0 if right, y=2 if left
         tay
-        lda     $0360,x
-        clc
+        lda     $0360,x                 ; child X = parent X + offset
+        clc                             ; (16-bit add from table at $8DC4)
         adc     L8DC4,y
         pha
         lda     $0380,x
         adc     L8DC5,y
-        ldy     L0000
-        sta     $0380,y
+        ldy     L0000                   ; restore child slot
+        sta     $0380,y                 ; child X.screen
         pla
-        sta     $0360,y
-        lda     $03C0,x
+        sta     $0360,y                 ; child X.pixel
+        lda     $03C0,x                 ; child Y = parent Y
         sta     $03C0,y
-        lda     #$01
+        lda     #$01                    ; child HP = 1
         sta     $04E0,y
-        lda     #$6C
-        jsr     LF846
-        lda     #$C2
-        sta     $0480,y
-        lda     #$44
-        sta     $0440,y
+        lda     #$6C                    ; init child entity with OAM $6C
+        jsr     LF846                   ; (projectile sprite)
+        lda     #$C2                    ; child damage flags = $C2
+        sta     $0480,y                 ; (hurts player + hittable + invincible)
+        lda     #$44                    ; child Y speed = $03.44
+        sta     $0440,y                 ; (falling arc projectile)
         lda     #$03
         sta     $0460,y
-        lda     #$09
-        sta     $0320,y
-        jmp     L8DC3
+        lda     #$09                    ; child AI routine = $09
+        sta     $0320,y                 ; (gravity projectile handler)
+        jmp     code_8DC3               ; done
 
-L8D9C:  lda     $05C0,x
-        cmp     #$6B
-        bne     L8DC3
-        lda     $0F
-        and     #$01
-        beq     L8DC3
-        lda     #$6D
+code_8D9C:  lda     $05C0,x             ; if OAM != $6B (jump anim),
+        cmp     #$6B                    ; skip landing logic
+        bne     code_8DC3
+        lda     $0F                     ; check landed flag (saved from
+        and     #$01                    ; move_vertical_gravity earlier)
+        beq     code_8DC3               ; not landed yet, keep falling
+        lda     #$6D                    ; switch to walk-toward anim ($6D)
         jsr     LF835
-        jsr     LF869
-        lda     #$00
-        sta     $0400,x
+        jsr     LF869                   ; face player after landing
+        lda     #$00                    ; set X speed = $02.00
+        sta     $0400,x                 ; (walk toward player)
         lda     #$02
         sta     $0420,x
-        lda     #$10
-        sta     $0500,x
-        inc     $0520,x
-L8DC3:  rts
+        lda     #$10                    ; set walk timer = $10 frames
+        sta     $0500,x                 ; (walk toward player briefly)
+        inc     $0520,x                 ; set post-land walk flag ($0520=1)
+code_8DC3:  rts
+
+; bubukan child projectile X offset table (read as data at $8DC4)
+; also serves as auto_walk_spawn_done trampoline for child entity
 
 L8DC4:  .byte   $20
 L8DC5:  brk
         cpx     #$FF
+
+; child projectile AI: just apply Y speed (gravity projectile)
         jmp     LF797
 
-        lda     $0300,x
-        and     #$0F
-        bne     L8DED
-L8DD2:  sta     $0460,x
-        lda     #$C0
+; =============================================
+; Jamacy -- chain/spike ball enemy
+; =============================================
+; Oscillates vertically at speed $00.C0/frame. Initial half-period
+; is read from table at $8E12 based on AI routine index ($15->$60,
+; $16->$70 frames). When the period counter expires, reverses Y
+; direction and doubles the period (each swing longer than the last).
+; $0500 = current countdown, $0520 = base period (doubled each reversal)
+; =============================================
+main_jamacy:
+
+        lda     $0300,x                 ; check state (bits 0-3)
+        and     #$0F                    ; if already initialized,
+        bne     code_8DED               ; skip init
+L8DD2:  sta     $0460,x                 ; set Y speed = $00.C0
+        lda     #$C0                    ; (slow vertical drift; A=0 from AND)
         sta     $0440,x
-        lda     $0320,x
-        sec
+        lda     $0320,x                 ; AI routine index - $15 = table offset
+        sec                             ; (routine $15 -> y=0, $16 -> y=1)
         sbc     #$15
         tay
-        lda     L8E12,y
-        sta     $0500,x
-        sta     $0520,x
-        inc     $0300,x
-L8DED:  lda     $04A0,x
-        and     #$01
-        beq     L8DFA
-        jsr     LF779
-        jmp     L8DFD
+        lda     L8E12,y                 ; load initial half-period from table
+        sta     $0500,x                 ; set as current countdown
+        sta     $0520,x                 ; save as base period for doubling
+        inc     $0300,x                 ; state 0 -> 1 (oscillating)
+code_8DED:  lda     $04A0,x             ; check direction bit 0
+        and     #$01                    ; bit 0 set = moving up
+        beq     code_8DFA
+        jsr     LF779                   ; move up at current Y speed
+        jmp     code_8DFD
 
-L8DFA:  jsr     LF759
-L8DFD:  dec     $0500,x
-        bne     L8E11
-        lda     $04A0,x
-        eor     #$03
+code_8DFA:  jsr     LF759               ; move down at current Y speed
+code_8DFD:  dec     $0500,x             ; decrement period counter
+        bne     code_8E11               ; if not expired, done
+        lda     $04A0,x                 ; reverse Y direction
+        eor     #$03                    ; toggle bits 0+1
         sta     $04A0,x
-        lda     $0520,x
-        asl     a
-        sta     $0500,x
-L8E11:  rts
+        lda     $0520,x                 ; double the base period and reload
+        asl     a                       ; (note: $0520 is NOT updated, so
+        sta     $0500,x                 ; it always doubles from initial value)
+code_8E11:  rts
+
+; jamacy initial half-period table: routine $15=$60, $16=$70 frames
 
 L8E12:  rts
 
         bvs     L8DD2
         brk
         .byte   $03
-        and     #$0F
-        bne     L8E29
-        inc     $0300,x
-        lda     #$00
-        sta     $0500,x
-        sta     $0520,x
-        jsr     LF883
-L8E29:  lda     $0300,x
-        and     #$02
-        beq     L8E33
-        jmp     L8ED3
+        and     #$0F                    ; if already initialized,
+        bne     code_8E29               ; skip init
+        inc     $0300,x                 ; state 0 -> 1 (flying)
+        lda     #$00                    ; clear speed countdown and
+        sta     $0500,x                 ; table index (start at entry 0,
+        sta     $0520,x                 ; load speeds immediately)
+        jsr     LF883                   ; set sprite flip from facing
+code_8E29:  lda     $0300,x             ; if state bit 1 set (state >= 2),
+        and     #$02                    ; jump to walking bomb / homing
+        beq     code_8E33
+        jmp     code_8ED3               ; -> state 2+ handler
 
-L8E33:  lda     $0500,x
-        bne     L8E86
-        ldy     $0520,x
-        lda     L8F3C,y
-        asl     a
+code_8E33:  lda     $0500,x             ; if speed countdown > 0,
+        bne     code_8E86               ; skip to movement (use current speeds)
+        ldy     $0520,x                 ; load table index -> indirection table
+        lda     L8F3C,y                 ; $8F3C[idx] = speed pair index
+        asl     a                       ; * 2 for 16-bit entries
         tay
-        lda     L8F4A,y
-        sta     $0440,x
+        lda     L8F4A,y                 ; load Y speed (16-bit signed)
+        sta     $0440,x                 ; from table at $8F4A
         lda     L8F4B,y
         sta     $0460,x
-        lda     L8F6A,y
-        sta     $0400,x
+        lda     L8F6A,y                 ; load X speed (16-bit signed)
+        sta     $0400,x                 ; from table at $8F6A
         lda     L8F6B,y
         sta     $0420,x
-        lda     $0420,x
-        bpl     L8E72
-        lda     $0400,x
-        eor     #$FF
-        clc
-        adc     #$01
+        lda     $0420,x                 ; if X speed is positive (moving right),
+        bpl     code_8E72               ; skip negation
+        lda     $0400,x                 ; negate X speed (16-bit two's complement)
+        eor     #$FF                    ; for leftward-facing entities, table
+        clc                             ; values are mirrored so both directions
+        adc     #$01                    ; use the same sinusoidal curve
         sta     $0400,x
         lda     $0420,x
         eor     #$FF
         adc     #$00
         sta     $0420,x
-L8E72:  inc     $0520,x
-        lda     $0520,x
+code_8E72:  inc     $0520,x             ; advance table index
+        lda     $0520,x                 ; wrap at 14 entries (0-13)
         cmp     #$0E
-        bne     L8E81
+        bne     code_8E81
         lda     #$00
         sta     $0520,x
-L8E81:  lda     #$05
-        sta     $0500,x
-L8E86:  dec     $0500,x
-        lda     $03A0,x
-        clc
-        adc     $0440,x
+code_8E81:  lda     #$05                ; reset speed countdown = 5 frames
+        sta     $0500,x                 ; (hold each speed for 5 frames)
+code_8E86:  dec     $0500,x             ; decrement speed countdown
+        lda     $03A0,x                 ; apply Y speed manually (16-bit)
+        clc                             ; Y.sub += Yspd.sub
+        adc     $0440,x                 ; Y.pixel += Yspd.whole + carry
         sta     $03A0,x
         lda     $03C0,x
         adc     $0460,x
         sta     $03C0,x
-        lda     $04A0,x
-        and     #$02
-        bne     L8EAA
-        jsr     LF71D
-        bcs     L8EAD
-        bcc     L8EAD
-L8EAA:  jsr     LF73B
-L8EAD:  lda     $0320,x
-        cmp     #$0A
-        bne     L8F04
-        jsr     LFB7B
-        bcs     L8ED2
-        ldy     $10
-        lda     #$00
+        lda     $04A0,x                 ; apply X movement based on facing
+        and     #$02                    ; bit 1 = facing left
+        bne     code_8EAA
+        jsr     LF71D                   ; move right at X speed
+        bcs     code_8EAD               ; unconditional jump
+        bcc     code_8EAD               ; (BCS+BCC = always)
+code_8EAA:  jsr     LF73B               ; move left at X speed
+code_8EAD:  lda     $0320,x             ; if AI routine != $0A (not PenPen),
+        cmp     #$0A                    ; skip to bomb flier proximity check
+        bne     code_8F04
+        jsr     LFB7B                   ; check if player weapon hit PenPen
+        bcs     code_8ED2               ; no hit, return
+        ldy     $10                     ; destroy the weapon that hit us
+        lda     #$00                    ; ($10 = weapon slot from collision)
         sta     $0300,y
-        inc     $0300,x
-        lda     #$80
-        sta     $0400,x
+        inc     $0300,x                 ; state 1 -> 2 (walking bomb)
+        lda     #$80                    ; set X speed = $02.80
+        sta     $0400,x                 ; (walking bomb speed)
         lda     #$02
         sta     $0420,x
-        lda     #$48
+        lda     #$48                    ; switch to walking bomb anim ($48)
         jsr     LF835
-L8ED2:  rts
+code_8ED2:  rts
 
-L8ED3:  lda     $0320,x
-        cmp     #$0A
-        bne     L8F1F
-        lda     $05C0,x
-        cmp     #$49
-        beq     L8EF7
-        lda     $05E0,x
-        ora     $05A0,x
-        bne     L8EF6
-        lda     #$49
+code_8ED3:  lda     $0320,x             ; if AI routine != $0A (not PenPen),
+        cmp     #$0A                    ; skip to bomb flier homing movement
+        bne     code_8F1F
+        lda     $05C0,x                 ; if already on walking anim ($49),
+        cmp     #$49                    ; go straight to walking movement
+        beq     code_8EF7
+        lda     $05E0,x                 ; wait for current anim to finish
+        ora     $05A0,x                 ; (timer=0 AND frame=0)
+        bne     code_8EF6               ; still animating, return
+        lda     #$49                    ; switch to walking bomb anim ($49)
         jsr     LF835
-        lda     $0480,x
-        ora     #$C3
-        sta     $0480,x
-L8EF6:  rts
+        lda     $0480,x                 ; set damage flags: hurts player +
+        ora     #$C3                    ; hittable + invincible ($C3)
+        sta     $0480,x                 ; (walking bomb is dangerous)
+code_8EF6:  rts
 
-L8EF7:  lda     $04A0,x
-        and     #$01
-        beq     L8F01
-        jmp     LF71D
+code_8EF7:  lda     $04A0,x             ; walk in facing direction
+        and     #$01                    ; bit 0 = right
+        beq     code_8F01
+        jmp     LF71D                   ; walk right
 
-L8F01:  jmp     LF73B
+code_8F01:  jmp     LF73B               ; walk left
 
-L8F04:  jsr     LF8C2
-        cmp     #$30
-        bcs     L8EF6
-        lda     #$00
-        sta     $02
-        lda     #$02
+code_8F04:  jsr     LF8C2               ; get X distance to player
+        cmp     #$30                    ; if distance >= $30 pixels,
+        bcs     code_8EF6               ; too far, return (keep flying)
+        lda     #$00                    ; set homing speed = $02.00
+        sta     $02                     ; ($02/$03 = speed params for
+        lda     #$02                    ; calc_homing_velocity)
         sta     $03
-        jsr     LFC63
-        lda     $0C
+        jsr     LFC63                   ; calculate homing direction + speed
+        lda     $0C                     ; set direction flags from homing result
         sta     $04A0,x
-        inc     $0300,x
+        inc     $0300,x                 ; advance state (-> homing flight)
         rts
 
-L8F1F:  lda     $04A0,x
-        and     #$01
-        beq     L8F2C
-        jsr     LF71D
-        jmp     L8F2F
+code_8F1F:  lda     $04A0,x             ; move horizontally based on direction
+        and     #$01                    ; bit 0 = right
+        beq     code_8F2C
+        jsr     LF71D                   ; move right
+        jmp     code_8F2F
 
-L8F2C:  jsr     LF73B
-L8F2F:  lda     $04A0,x
-        and     #$08
-        beq     L8F39
-        jmp     LF779
+code_8F2C:  jsr     LF73B               ; move left
+code_8F2F:  lda     $04A0,x             ; move vertically based on direction
+        and     #$08                    ; bit 3 = up
+        beq     code_8F39
+        jmp     LF779                   ; move up
 
-L8F39:  .byte   $4C,$59,$F7
+code_8F39:  .byte   $4C,$59,$F7         ; move down
+
+; sinusoidal speed indirection table (14 entries, indexes into Y/X speed tables)
 L8F3C:  .byte   $09,$0A,$0B,$0C,$0D,$0E,$0F,$01
         .byte   $02,$03,$04,$05,$06,$07
+
+; Y speed table (16 signed 16-bit values, indexed by indirection * 2)
 L8F4A:  .byte   $CD
 L8F4B:  .byte   $FE,$E5,$FE,$27,$FF,$8B,$FF,$00
         .byte   $00,$75,$00,$D9,$00,$1B,$01,$33
         .byte   $01,$1B,$01,$D9,$00,$75,$00,$00
         .byte   $00,$8B,$FF,$27,$FF,$E5,$FE
+
+; X speed table (16 signed 16-bit values, indexed by indirection * 2)
 L8F6A:  .byte   $00
 L8F6B:  .byte   $00,$75,$00,$D9,$00,$1B,$01,$33
         .byte   $01,$1B,$01,$D9,$00,$75,$00,$00
@@ -1658,450 +1927,554 @@ L8F6B:  .byte   $00,$75,$00,$D9,$00,$1B,$01,$33
         .byte   $FF
         .byte   $8B
         .byte   $FF
-        lda     $0300,x
-        and     #$0F
-        bne     L8FCF
-        jsr     LFAF6
-        bcc     L8F97
-        rts
 
-L8F97:  inc     $0300,x
-        lda     #$CC
-        sta     $0440,x
+; -----------------------------------------------
+; main_cloud_platform — Cloud platform (Snake Man stage)
+; -----------------------------------------------
+; Rideable platform that rises upward while zigzagging horizontally.
+; State 0: idle — wait for player to stand on it.
+; State 1: active — fly upward, move left/right in a repeating pattern.
+;   $0500 = horizontal movement timer (frames per direction segment)
+;   $0520 = direction table index (cycles 0-3, table at $9030)
+;   $0540 = lifetime timer — when expired, spawns a clone and despawns
+;   $0560 = saved X position (metatile-aligned) for child spawn
+;   $0580 bit 5 ($20) = tile collision check flag
+; Direction table at $9030: $02,$01,$01,$02 = left, right, right, left
+; -----------------------------------------------
+main_cloud_platform:
+        lda     $0300,x                 ; get entity state
+        and     #$0F                    ; isolate state bits
+        bne     code_8FCF               ; state 1+: already active, skip to movement
+        jsr     LFAF6                   ; state 0: check if player standing on platform
+        bcc     code_8F97               ; player on top -> activate
+        rts                             ; not standing on it -> wait
+
+code_8F97:  inc     $0300,x             ; advance to state 1 (active flying)
+        lda     #$CC                    ; Y speed sub = $CC
+        sta     $0440,x                 ; rise speed $00.CC (~0.8 px/frame upward)
         lda     #$00
-        sta     $0460,x
-        lda     #$02
+        sta     $0460,x                 ; Y speed whole = $00
+        lda     #$02                    ; initial direction = left ($02)
         sta     $04A0,x
-        lda     #$10
+        lda     #$10                    ; movement timer = 16 frames (first segment)
         sta     $0500,x
-        lda     #$B4
+        lda     #$B4                    ; lifetime timer = 180 frames ($B4)
         sta     $0540,x
-        lda     #$E8
+        lda     #$E8                    ; Y position = $E8 (start near bottom of screen)
         sta     $03C0,x
-        lda     $0360,x
-        and     #$F0
-        ora     #$08
-        sta     $0560,x
+        lda     $0360,x                 ; save X aligned to 16px metatile boundary
+        and     #$F0                    ; mask off low nibble
+        ora     #$08                    ; center within metatile (+8)
+        sta     $0560,x                 ; store saved X for child spawn position
         lda     #$00
-        sta     $0340,x
-        lda     $0580,x
+        sta     $0340,x                 ; clear X sub-pixel
+        lda     $0580,x                 ; clear sprite flag bit 2
         and     #$FB
         sta     $0580,x
-L8FCF:  jsr     LF779
-        lda     $0580,x
+code_8FCF:  jsr     LF779               ; rise upward (apply Y speed)
+        lda     $0580,x                 ; check tile collision flag (bit 5)
         and     #$20
-        beq     L8FEC
-        ldy     #$06
-        jsr     LE8D6
-        lda     $10
-        and     #$10
-        bne     L9018
-        lda     $0580,x
+        beq     code_8FEC               ; not set -> skip tile check
+        ldy     #$06                    ; Y offset for tile check (center of platform)
+        jsr     LE8D6                   ; check tile at current horizontal position
+        lda     $10                     ; tile result flags
+        and     #$10                    ; bit 4 = solid tile
+        bne     code_9018               ; solid -> skip horizontal movement
+        lda     $0580,x                 ; no longer in solid: clear tile check flag
         and     #$DF
         sta     $0580,x
-L8FEC:  lda     $04A0,x
-        and     #$01
-        beq     L8FF9
-        jsr     LF71D
-        jmp     L8FFC
+code_8FEC:  lda     $04A0,x             ; check direction
+        and     #$01                    ; bit 0 = right
+        beq     code_8FF9               ; not right -> move left
+        jsr     LF71D                   ; move right
+        jmp     code_8FFC
 
-L8FF9:  jsr     LF73B
-L8FFC:  dec     $0500,x
-        bne     L9018
-        inc     $0520,x
+code_8FF9:  jsr     LF73B               ; move left
+code_8FFC:  dec     $0500,x             ; decrement movement timer
+        bne     code_9018               ; not expired -> skip direction change
+        inc     $0520,x                 ; advance direction table index
         lda     $0520,x
-        and     #$03
+        and     #$03                    ; wrap index to 0-3
         sta     $0520,x
         tay
-        lda     L9030,y
-        sta     $04A0,x
-        lda     #$0E
+        lda     L9030,y                 ; load direction from table (L,R,R,L)
+        sta     $04A0,x                 ; set new direction
+        lda     #$0E                    ; reset timer = 14 frames for next segment
         sta     $0500,x
-L9018:  lda     $0540,x
-        beq     L9025
-        dec     $0540,x
-        bne     L902F
-        jsr     L9034
-L9025:  lda     $03E0,x
-        beq     L902F
-        lda     #$00
+code_9018:  lda     $0540,x             ; check lifetime timer
+        beq     code_9025               ; already expired -> check offscreen
+        dec     $0540,x                 ; decrement lifetime
+        bne     code_902F               ; not zero yet -> done for this frame
+        jsr     code_9034               ; timer just hit 0: spawn replacement platform
+code_9025:  lda     $03E0,x             ; check Y screen (high byte)
+        beq     code_902F               ; still on screen 0 -> keep alive
+        lda     #$00                    ; scrolled offscreen: deactivate entity
         sta     $0300,x
-L902F:  .byte   $60
+code_902F:  .byte   $60
+
+; Cloud platform direction table: left, right, right, left (zigzag)
 L9030:  .byte   $02
         ora     ($01,x)
         .byte   $02
-L9034:  jsr     LFC53
-        bcs     L9095
-        lda     #$70
-        jsr     LF846
-        lda     #$14
+
+; -----------------------------------------------
+; spawn_cloud_platform_clone
+; -----------------------------------------------
+; Spawns a replacement cloud platform at the saved X position ($0560)
+; and bottom of screen (Y=$E8). The child starts in state 1 (already
+; active) with the same rise speed, direction pattern, and lifetime.
+; OAM $70, AI routine $14 (main_cloud_platform).
+; Damage flags = $0F (invulnerable -- rideable platform).
+; -----------------------------------------------
+code_9034:  jsr     LFC53               ; find free enemy slot -> Y
+        bcs     code_9095               ; no free slot -> abort
+        lda     #$70                    ; OAM ID = $70 (cloud platform sprite)
+        jsr     LF846                   ; initialize child entity in slot Y
+        lda     #$14                    ; AI routine = $14 (main_cloud_platform)
         sta     $0320,y
-        lda     #$81
+        lda     #$81                    ; active ($80) + state 1 (already flying)
         sta     $0300,y
-        lda     $0580,y
+        lda     $0580,y                 ; set sprite flags: bit 5 (tile check) + bit 0
         ora     #$21
         sta     $0580,y
-        lda     #$0F
+        lda     #$0F                    ; damage flags = $0F (invulnerable platform)
         sta     $0480,y
-        lda     $0560,x
-        sta     $0360,y
-        sta     $0560,y
-        lda     $0380,x
+        lda     $0560,x                 ; copy saved X from parent
+        sta     $0360,y                 ; set child X position
+        sta     $0560,y                 ; propagate saved X for future clones
+        lda     $0380,x                 ; copy X screen from parent
         sta     $0380,y
-        lda     #$00
+        lda     #$00                    ; reset direction index to 0
         sta     $0520,y
-        sta     $03E0,y
-        sta     $0460,y
-        sta     $0420,y
-        lda     #$CC
+        sta     $03E0,y                 ; Y screen = 0
+        sta     $0460,y                 ; Y speed whole = 0
+        sta     $0420,y                 ; X speed whole = 0
+        lda     #$CC                    ; Y speed sub = $CC (rise speed $00.CC)
         sta     $0440,y
-        lda     #$80
+        lda     #$80                    ; X speed sub = $80
         sta     $0400,y
-        lda     #$E8
+        lda     #$E8                    ; Y position = $E8 (bottom of screen)
         sta     $03C0,y
-        lda     #$02
+        lda     #$02                    ; initial direction = left ($02)
         sta     $04A0,y
-        lda     #$10
+        lda     #$10                    ; movement timer = 16 frames
         sta     $0500,y
-        lda     #$B4
+        lda     #$B4                    ; lifetime timer = 180 frames ($B4)
         sta     $0540,y
-        lda     #$E8
+        lda     #$E8                    ; Y position = $E8 (redundant store)
         sta     $03C0,y
-L9095:  rts
+code_9095:  rts
 
-        lda     $0500,x
-        bne     L90DE
-        jsr     LFC53
-        bcs     L90D6
-        lda     $04A0,x
+; -----------------------------------------------
+; main_unknown_14 -- Entity spawner
+; -----------------------------------------------
+; Periodically spawns a child entity every $F0 (240) frames.
+; The child uses OAM $4E, AI routine $18, and has X speed $01.80.
+; The spawner faces the player after each spawn cycle.
+; Child HP = 1, damage flags = $C0 (bit 7 = hurts player, bit 6 set).
+; -----------------------------------------------
+main_unknown_14:
+
+        lda     $0500,x                 ; check spawn cooldown timer
+        bne     code_90DE               ; timer active -> decrement and wait
+        jsr     LFC53                   ; find free enemy slot -> Y
+        bcs     code_90D6               ; no free slot -> reset timer, skip spawn
+        lda     $04A0,x                 ; copy parent direction to child
         sta     $04A0,y
-        lda     $0360,x
+        lda     $0360,x                 ; copy parent X position to child
         sta     $0360,y
-        lda     $0380,x
+        lda     $0380,x                 ; copy parent X screen to child
         sta     $0380,y
-        lda     $03C0,x
+        lda     $03C0,x                 ; copy parent Y position to child
         sta     $03C0,y
-        lda     #$01
+        lda     #$01                    ; child HP = 1
         sta     $04E0,y
-        lda     #$18
+        lda     #$18                    ; child AI routine = $18
         sta     $0320,y
-        lda     #$4E
-        jsr     LF846
-        lda     #$C0
+        lda     #$4E                    ; child OAM ID = $4E
+        jsr     LF846                   ; init child entity
+        lda     #$C0                    ; damage flags = $C0 (hurts player)
         sta     $0480,y
-        lda     #$80
-        sta     $0400,y
+        lda     #$80                    ; X speed sub = $80
+        sta     $0400,y                 ; child X speed = $01.80 (1.5 px/frame)
         lda     #$01
-        sta     $0420,y
-L90D6:  lda     #$F0
+        sta     $0420,y                 ; X speed whole = $01
+code_90D6:  lda     #$F0                ; spawn cooldown = 240 frames ($F0)
         sta     $0500,x
-        jmp     LF869
+        jmp     LF869                   ; turn toward player
 
-L90DE:  dec     $0500,x
+code_90DE:  dec     $0500,x             ; decrement spawn cooldown
         rts
 
-        lda     $0300,x
-        and     #$0F
-        bne     L90EF
-        jsr     LF81B
-        inc     $0300,x
-L90EF:  lda     $05C0,x
-        cmp     #$4E
-        bne     L912C
-        ldy     #$08
-        jsr     LF67C
-        ror     L0000
-        lda     $41
-        cmp     #$40
-        beq     L9107
-        lda     L0000
-        bpl     L9164
-L9107:  lda     $04A0,x
-        and     #$01
-        beq     L9116
-        lda     $43
-        cmp     #$40
-        bne     L9142
-        beq     L911C
-L9116:  lda     $42
-        cmp     #$40
-        bne     L9142
-L911C:  lda     #$4F
-        jsr     LF835
-        lda     #$80
-        sta     $0440,x
+; -----------------------------------------------
+; main_unknown_0C -- Falling entity with physics (also used as AI $0D)
+; -----------------------------------------------
+; A falling projectile/entity that interacts with tile properties.
+; Two OAM modes: $4E (falling/grounded) and $4F (rising after tile trigger).
+;
+; OAM $4E (falling/grounded state):
+;   Falls with gravity. On landing (tile $40 below), checks adjacent
+;   horizontal tiles. If the tile in the facing direction is also $40,
+;   transitions to rising mode (OAM $4F, Y speed $01.80 upward).
+;   Otherwise, walks horizontally and bounces off walls.
+;
+; OAM != $4E (initial drop state):
+;   Moves downward with collision. On landing, resets to OAM $4E,
+;   faces player, and enters the grounded/falling state.
+;
+; Tile ID $40 = special trigger tile (e.g. lava/spikes/water surface).
+; $41 = tile below, $42 = tile to left, $43 = tile to right.
+; -----------------------------------------------
+main_unknown_0C:
+
+        lda     $0300,x                 ; get entity state
+        and     #$0F                    ; isolate state bits
+        bne     code_90EF               ; state 1+: skip init
+        jsr     LF81B                   ; state 0: zero Y speed
+        inc     $0300,x                 ; advance to state 1
+code_90EF:  lda     $05C0,x             ; check current OAM ID
+        cmp     #$4E                    ; OAM $4E = grounded/falling mode
+        bne     code_912C               ; different OAM -> initial drop state
+        ldy     #$08                    ; gravity strength index
+        jsr     LF67C                   ; apply gravity + move (C=1 if landed)
+        ror     L0000                   ; save carry (landed flag) into $00 bit 7
+        lda     $41                     ; tile ID at feet (below entity)
+        cmp     #$40                    ; special trigger tile?
+        beq     code_9107               ; yes -> check horizontal tiles
+        lda     L0000                   ; no special tile: check if landed
+        bpl     code_9164               ; not landed (bit 7 clear) -> done
+code_9107:  lda     $04A0,x             ; check facing direction
+        and     #$01                    ; bit 0 = facing right
+        beq     code_9116               ; facing left -> check left tile
+        lda     $43                     ; facing right: check tile to right
+        cmp     #$40                    ; is it the trigger tile?
+        bne     code_9142               ; no -> walk horizontally
+        beq     code_911C               ; yes -> transition to rising
+code_9116:  lda     $42                 ; facing left: check tile to left
+        cmp     #$40                    ; is it the trigger tile?
+        bne     code_9142               ; no -> walk horizontally
+code_911C:  lda     #$4F                ; switch to rising OAM sprite ($4F)
+        jsr     LF835                   ; reset animation
+        lda     #$80                    ; Y speed sub = $80
+        sta     $0440,x                 ; rise speed = $01.80 (1.5 px/frame upward)
         lda     #$01
-        sta     $0460,x
+        sta     $0460,x                 ; Y speed whole = $01
         rts
 
-L912C:  ldy     #$0C
-        jsr     LF606
-        bcc     L9141
-        dec     $0300,x
-        jsr     LF869
-        jsr     LF81B
-        lda     #$4E
-        jsr     LF835
-L9141:  rts
+code_912C:  ldy     #$0C                ; collision check offset
+        jsr     LF606                   ; move down with collision (C=1 if landed)
+        bcc     code_9141               ; not landed -> keep falling
+        dec     $0300,x                 ; landed: go back to state 0
+        jsr     LF869                   ; turn toward player
+        jsr     LF81B                   ; zero Y speed
+        lda     #$4E                    ; switch to grounded OAM ($4E)
+        jsr     LF835                   ; reset animation
+code_9141:  rts
 
-L9142:  lda     $04A0,x
-        and     #$01
-        beq     L9151
-        ldy     #$08
-        jsr     LF580
-        jmp     L9156
+code_9142:  lda     $04A0,x             ; check facing direction
+        and     #$01                    ; bit 0 = right
+        beq     code_9151               ; facing left -> move left
+        ldy     #$08                    ; collision offset for right
+        jsr     LF580                   ; move right with wall check
+        jmp     code_9156
 
-L9151:  ldy     #$09
-        jsr     LF5C4
-L9156:  lda     $10
-        and     #$10
-        beq     L9164
-        lda     $04A0,x
-        eor     #$03
+code_9151:  ldy     #$09                ; collision offset for left
+        jsr     LF5C4                   ; move left with wall check
+code_9156:  lda     $10                 ; tile collision result flags
+        and     #$10                    ; bit 4 = hit solid wall
+        beq     code_9164               ; no wall -> done
+        lda     $04A0,x                 ; hit wall: reverse direction
+        eor     #$03                    ; flip both direction bits (left<->right)
         sta     $04A0,x
-L9164:  rts
+code_9164:  rts
 
-        ldy     #$00
-        jsr     LF67C
-        bcc     L9186
-        lda     $0300,x
+; --- Unreferenced code block at $9165 (possibly dead code) ---
+; Gravity fall, on landing: state 0 sets X speed $03.44 and faces player,
+; state 1 walks horizontally in facing direction.
+
+        ldy     #$00                    ; gravity index 0
+        jsr     LF67C                   ; fall with gravity
+        bcc     code_9186               ; not landed -> done
+        lda     $0300,x                 ; landed: check state
         and     #$0F
-        bne     L9187
-        inc     $0300,x
-        lda     #$44
-        sta     $0440,x
+        bne     code_9187               ; state 1+ -> walk horizontally
+        inc     $0300,x                 ; state 0: advance to state 1
+        lda     #$44                    ; X speed sub = $44
+        sta     $0440,x                 ; walk speed = $03.44 (~3.27 px/frame)
         lda     #$03
-        sta     $0460,x
-        jsr     LF869
-        jsr     LF883
-L9186:  rts
+        sta     $0460,x                 ; X speed whole = $03
+        jsr     LF869                   ; face toward player
+        jsr     LF883                   ; update sprite flip to match direction
+code_9186:  rts
 
-L9187:  lda     $04A0,x
-        and     #$01
-        beq     L9191
-        jmp     LF71D
+code_9187:  lda     $04A0,x             ; check direction
+        and     #$01                    ; bit 0 = right
+        beq     code_9191               ; facing left -> move left
+        jmp     LF71D                   ; move right
 
-L9191:  jmp     LF73B
+code_9191:  jmp     LF73B               ; move left
 
-        ldy     #$1E
-        jsr     LF67C
-        lda     $05C0,x
-        cmp     #$BC
-        bne     L9209
-        lda     $05E0,x
-        ora     $05A0,x
-        bne     L9208
-        jsr     L9286
-        lda     $0540,x
-        bne     L9209
-        dec     $05C0,x
-        jsr     LFC53
-        bcs     L9203
-        lda     $0360,x
+; =============================================================================
+; main_giant_springer — Large bouncing spring enemy (entity $BD parent)
+; =============================================================================
+; State 0: walks left/right, reverses on wall collision. When player is within
+;   $30 pixels, transitions to bouncing state. After $1E walk frames, stops
+;   and switches to stopped OAM ($BC). While stopped, counts active children
+;   (spawn group $80) and spawns a small springer ($BD) launched upward.
+; State 1: bouncing in place. Adjusts damage flags based on player Y position.
+;   Counts down $0520 timer ($3C frames). When timer expires and player is
+;   far enough away (>= $30 px), returns to walk state facing the player.
+; OAM IDs: $BB=walking, $BC=stopped/launching, $C2=bouncing
+; =============================================================================
+main_giant_springer:
+
+        ldy     #$1E                    ; gravity speed index
+        jsr     LF67C                   ; apply gravity
+        lda     $05C0,x                 ; current OAM ID
+        cmp     #$BC                    ; is it stopped (launching) sprite?
+        bne     code_9209               ; if not, go to walk/bounce state logic
+        lda     $05E0,x                 ; anim frame timer
+        ora     $05A0,x                 ; OR with anim sequence frame
+        bne     code_9208               ; if animation still playing, wait
+        jsr     code_9286               ; count active children (spawn group $80)
+        lda     $0540,x                 ; $FF = children exist, $00 = none
+        bne     code_9209               ; if children active, skip spawn → walk state
+        dec     $05C0,x                 ; OAM $BC → $BB (walk sprite, visual transition)
+        jsr     LFC53                   ; find free enemy slot → Y
+        bcs     code_9203               ; no free slot: skip spawn, reset timer
+        lda     $0360,x                 ; copy parent X pixel
         sta     $0360,y
-        lda     $0380,x
+        lda     $0380,x                 ; copy parent X screen
         sta     $0380,y
-        lda     $03C0,x
-        sbc     #$17
+        lda     $03C0,x                 ; parent Y pixel
+        sbc     #$17                    ; spawn 23 pixels above parent
         sta     $03C0,y
-        lda     #$BD
-        jsr     LF846
-        lda     #$75
+        lda     #$BD                    ; child entity type: small springer
+        jsr     LF846                   ; initialize child entity in slot Y
+        lda     #$75                    ; AI routine index
         sta     $0320,y
-        lda     #$C0
+        lda     #$C0                    ; damage flags: hurts player + hittable
         sta     $0480,y
-        lda     #$01
+        lda     #$01                    ; HP = 1
         sta     $04E0,y
-        lda     #$80
+        lda     #$80                    ; spawn group marker $80 (for child counting)
         sta     $04C0,y
-        lda     #$00
-        sta     $04A0,y
-        sta     $0400,y
-        sta     $0420,y
-        sta     $0440,y
-        sta     $0540,y
-        lda     #$FE
+        lda     #$00                    ; zero out child's movement values
+        sta     $04A0,y                 ; direction = 0
+        sta     $0400,y                 ; X speed sub = 0
+        sta     $0420,y                 ; X speed whole = 0
+        sta     $0440,y                 ; Y speed sub = 0
+        sta     $0540,y                 ; third timer = 0
+        lda     #$FE                    ; Y speed whole = -2 (launched upward)
         sta     $0460,y
-        lda     #$08
-        sta     $0500,y
-        sta     $0520,y
-L9203:  lda     #$00
+        lda     #$08                    ; timer = 8 frames
+        sta     $0500,y                 ; general timer
+        sta     $0520,y                 ; secondary timer
+code_9203:  lda     #$00                ; reset parent walk timer
         sta     $0500,x
-L9208:  rts
+code_9208:  rts
 
-L9209:  lda     $0300,x
-        and     #$0F
-        bne     L9256
-        lda     $04A0,x
-        and     #$01
-        beq     L921F
-        ldy     #$20
-        jsr     LF580
-        jmp     L9224
+; -- giant springer: walk/bounce state dispatch --
 
-L921F:  ldy     #$21
-        jsr     LF5C4
-L9224:  bcc     L922E
-        lda     $04A0,x
-        eor     #$03
+code_9209:  lda     $0300,x             ; active flag + state
+        and     #$0F                    ; isolate state bits
+        bne     code_9256               ; state 1 → bouncing
+        lda     $04A0,x                 ; direction flags
+        and     #$01                    ; bit 0 = moving right?
+        beq     code_921F               ; if not, move left
+        ldy     #$20                    ; speed index for move right
+        jsr     LF580                   ; move right with wall check
+        jmp     code_9224
+
+code_921F:  ldy     #$21                ; speed index for move left
+        jsr     LF5C4                   ; move left with wall check
+code_9224:  bcc     code_922E           ; C=0: no wall hit, skip reversal
+        lda     $04A0,x                 ; hit a wall: flip direction
+        eor     #$03                    ; toggle both left/right bits
         sta     $04A0,x
-L922E:  jsr     LF8C2
-        cmp     #$30
-        bcs     L9242
-        lda     #$3C
+code_922E:  jsr     LF8C2               ; A = horizontal distance to player
+        cmp     #$30                    ; within 48 pixels?
+        bcs     code_9242               ; no → continue walking
+        lda     #$3C                    ; bounce duration = 60 frames
         sta     $0520,x
-        inc     $0300,x
-        lda     #$C2
+        inc     $0300,x                 ; state 0 → state 1
+        lda     #$C2                    ; OAM ID $C2 = bouncing sprite
         jmp     LF835
 
-L9242:  lda     #$CA
+code_9242:  lda     #$CA                ; damage flags: hittable + hurts player
         sta     $0480,x
-        inc     $0500,x
+        inc     $0500,x                 ; increment walk frame counter
         lda     $0500,x
-        cmp     #$1E
-        bne     L9285
-        lda     #$BC
+        cmp     #$1E                    ; walked for 30 frames?
+        bne     code_9285               ; not yet → continue
+        lda     #$BC                    ; switch to stopped OAM (ready to launch)
         jmp     LF835
 
-L9256:  jsr     LF8B3
-        bcs     L925F
-        lda     #$DB
-        bne     L9261
-L925F:  lda     #$CA
-L9261:  sta     $0480,x
-        lda     $0520,x
-        beq     L926E
-        dec     $0520,x
-        bne     L9285
-L926E:  jsr     LF8C2
-        cmp     #$30
-        bcc     L9285
-        dec     $0300,x
-        lda     #$BB
+; -- state 1: bouncing in place --
+
+code_9256:  jsr     LF8B3               ; check vertical distance to player
+        bcs     code_925F               ; C=1: player is below → use $CA
+        lda     #$DB                    ; player above: damage flags $DB
+        bne     code_9261               ; (always taken)
+code_925F:  lda     #$CA                ; player below: damage flags $CA
+code_9261:  sta     $0480,x             ; set damage flags
+        lda     $0520,x                 ; bounce timer
+        beq     code_926E               ; if already 0, check distance
+        dec     $0520,x                 ; decrement bounce timer
+        bne     code_9285               ; still bouncing → done
+code_926E:  jsr     LF8C2               ; A = distance to player
+        cmp     #$30                    ; player still within 48 px?
+        bcc     code_9285               ; yes → keep bouncing
+        dec     $0300,x                 ; state 1 → state 0
+        lda     #$BB                    ; OAM ID $BB = walking sprite
         jsr     LF835
-        jsr     LF869
-        lda     #$00
+        jsr     LF869                   ; turn toward player
+        lda     #$00                    ; reset walk frame counter
         sta     $0500,x
-L9285:  rts
+code_9285:  rts
 
-L9286:  lda     #$00
+; -----------------------------------------------------------------------------
+; count_springer_children — counts active small springers (spawn group $80)
+; -----------------------------------------------------------------------------
+; Scans enemy slots $10-$1F for entities with $04C0 == $80.
+; Sets $0540,x = $00 if no children found (allow spawning),
+;              = $FF if any children exist (block spawning).
+; -----------------------------------------------------------------------------
+
+code_9286:  lda     #$00                ; child count = 0
         sta     L0000
-        lda     #$80
+        lda     #$80                    ; target spawn group marker
         sta     $01
-        ldy     #$1F
-L9290:  lda     $0300,y
-        bmi     L92AA
-L9295:  dey
-        cpy     #$0F
-        bne     L9290
-        lda     L0000
-        bne     L92A4
-        lda     #$00
+        ldy     #$1F                    ; start from slot 31 (last enemy slot)
+code_9290:  lda     $0300,y             ; is slot active? (bit 7)
+        bmi     code_92AA               ; yes → check if it's a springer child
+code_9295:  dey                         ; next slot
+        cpy     #$0F                    ; scanned down to slot $10?
+        bne     code_9290               ; no → keep scanning
+        lda     L0000                   ; child count
+        bne     code_92A4               ; if > 0, block spawning
+        lda     #$00                    ; no children: allow spawning
         sta     $0540,x
         rts
 
-L92A4:  lda     #$FF
+code_92A4:  lda     #$FF                ; children exist: block spawning
         sta     $0540,x
         rts
 
-L92AA:  lda     $01
-        cmp     $04C0,y
-        bne     L9295
-        inc     L0000
-        jmp     L9295
+code_92AA:  lda     $01                 ; $80 = spawn group marker
+        cmp     $04C0,y                 ; does this entity's group match?
+        bne     code_9295               ; no → skip
+        inc     L0000                   ; yes → increment child count
+        jmp     code_9295               ; continue scanning
 
-        lda     $0500,x
-        bne     L92F5
-        jsr     LF954
-        lda     $04A0,x
+; =============================================================================
+; main_chibee — Small bee enemy with 16-direction player tracking
+; =============================================================================
+; Flies toward the player using table-driven velocity for 16 compass directions.
+; Every $0520 frames ($0500 countdown), recalculates direction to player via
+; track_direction_to_player, then loads Y speed (sub/whole), X speed (sub/whole),
+; OAM ID, and facing flag from lookup tables indexed by direction.
+; Each frame: applies 24-bit X and Y position updates. If Y screen overflows
+; (entity goes off-screen vertically), deactivates.
+; =============================================================================
+main_chibee:
+
+        lda     $0500,x                 ; movement timer (frames until recalc)
+        bne     code_92F5               ; if > 0, skip direction recalculation
+        jsr     LF954                   ; sets $04A0 = base dir, $0540 = adjustment
+        lda     $04A0,x                 ; base direction index
         clc
-        adc     $0540,x
-        tay
-        lda     L9349,y
+        adc     $0540,x                 ; + fine adjustment → combined direction
+        tay                             ; Y = table index (0-31)
+        lda     L9349,y                 ; Y speed sub from direction table
         sta     $0440,x
-        lda     L9369,y
+        lda     L9369,y                 ; Y speed whole from direction table
         sta     $0460,x
-        lda     L9389,y
+        lda     L9389,y                 ; X speed sub from direction table
         sta     $0400,x
-        lda     L93A9,y
+        lda     L93A9,y                 ; X speed whole from direction table
         sta     $0420,x
-        lda     L93C9,y
+        lda     L93C9,y                 ; OAM ID from direction table
         sta     $05C0,x
-        lda     $0580,x
-        and     #$BF
-        ora     L93E9,y
+        lda     $0580,x                 ; sprite flags
+        and     #$BF                    ; clear facing bit (bit 6)
+        ora     L93E9,y                 ; OR in facing flag from table ($00 or $40)
         sta     $0580,x
-        lda     $0520,x
-        sta     $0500,x
-L92F5:  dec     $0500,x
-        lda     #$00
+        lda     $0520,x                 ; reload movement duration
+        sta     $0500,x                 ; reset countdown timer
+code_92F5:  dec     $0500,x             ; decrement movement timer
+        lda     #$00                    ; sign extend X speed whole
         sta     L0000
-        lda     $0420,x
-        bpl     L9303
-        dec     L0000
-L9303:  lda     $0340,x
+        lda     $0420,x                 ; X speed whole
+        bpl     code_9303               ; positive -> skip sign extension
+        dec     L0000                   ; negative -> $00 = $FF (sign extend)
+code_9303:  lda     $0340,x             ; X sub-pixel
         clc
-        adc     $0400,x
+        adc     $0400,x                 ; + X speed sub
         sta     $0340,x
-        lda     $0360,x
-        adc     $0420,x
+        lda     $0360,x                 ; X pixel
+        adc     $0420,x                 ; + X speed whole + carry
         sta     $0360,x
-        lda     $0380,x
-        adc     L0000
+        lda     $0380,x                 ; X screen
+        adc     L0000                   ; + sign extension + carry
         sta     $0380,x
-        lda     #$00
+        lda     #$00                    ; sign extend Y speed whole
         sta     L0000
-        lda     $0460,x
-        bpl     L9329
-        dec     L0000
-L9329:  lda     $03A0,x
+        lda     $0460,x                 ; Y speed whole
+        bpl     code_9329               ; positive -> skip
+        dec     L0000                   ; negative -> $00 = $FF
+code_9329:  lda     $03A0,x             ; Y sub-pixel
         clc
-        adc     $0440,x
+        adc     $0440,x                 ; + Y speed sub
         sta     $03A0,x
-        lda     $03C0,x
-        adc     $0460,x
+        lda     $03C0,x                 ; Y pixel
+        adc     $0460,x                 ; + Y speed whole + carry
         sta     $03C0,x
-        lda     $03E0,x
-        adc     L0000
-        beq     L9348
-        lda     #$00
-        sta     $0300,x
-L9348:  .byte   $60
-L9349:  .byte   $00,$27,$4B,$3D,$00,$C3,$B5,$D9
+        lda     $03E0,x                 ; Y screen
+        adc     L0000                   ; + sign extension + carry
+        beq     code_9348               ; still on screen 0 -> done
+        lda     #$00                    ; went off-screen vertically
+        sta     $0300,x                 ; deactivate entity
+code_9348:  .byte   $60
+
+; -- chibee direction lookup tables (16 directions x 2 sets = 32 entries each) --
+; Indexed by combined direction from track_direction_to_player.
+; Directions: 0=up, 2=up-right, 4=right, 6=down-right, 8=down, etc. (clockwise)
+L9349:  .byte   $00,$27,$4B,$3D,$00,$C3,$B5,$D9 ; Y speed sub (set 1)
         .byte   $00,$D0,$B5,$C3,$00,$3D,$4B,$27
-        .byte   $CD,$E5,$27,$8B,$00,$75,$D9,$1B
+        .byte   $CD,$E5,$27,$8B,$00,$75,$D9,$1B ; Y speed sub (set 2)
         .byte   $33,$1B,$D9,$75,$00,$8B,$27,$E5
-L9369:  .byte   $FE,$FE,$FF,$FF,$00,$00,$00,$01
+L9369:  .byte   $FE,$FE,$FF,$FF,$00,$00,$00,$01 ; Y speed whole (set 1)
         .byte   $02,$01,$00,$00,$00,$FF,$FF,$FE
-        .byte   $FE,$FE,$FF,$FF,$00,$00,$00,$01
+        .byte   $FE,$FE,$FF,$FF,$00,$00,$00,$01 ; Y speed whole (set 2)
         .byte   $01,$01,$00,$00,$00,$FF,$FF,$FE
-L9389:  .byte   $00,$C3,$B5,$D9,$00,$D9,$B5,$C3
+L9389:  .byte   $00,$C3,$B5,$D9,$00,$D9,$B5,$C3 ; X speed sub (set 1)
         .byte   $00,$3D,$4B,$27,$00,$27,$4B,$3D
-        .byte   $00,$75,$D9,$1B,$33,$1B,$D9,$75
+        .byte   $00,$75,$D9,$1B,$33,$1B,$D9,$75 ; X speed sub (set 2)
         .byte   $00,$8B,$27,$E5,$CD,$E5,$27,$8B
-L93A9:  .byte   $00,$00,$00,$01,$02,$01,$00,$00
+L93A9:  .byte   $00,$00,$00,$01,$02,$01,$00,$00 ; X speed whole (set 1)
         .byte   $00,$FF,$FF,$FE,$FE,$FE,$FF,$FF
-        .byte   $00,$00,$00,$01,$01,$01,$00,$00
+        .byte   $00,$00,$00,$01,$01,$01,$00,$00 ; X speed whole (set 2)
         .byte   $00,$FF,$FF,$FE,$FE,$FE,$FF,$FF
-L93C9:  .byte   $BD,$BD,$BE,$BE,$BF,$BF,$C0,$C0
+L93C9:  .byte   $BD,$BD,$BE,$BE,$BF,$BF,$C0,$C0 ; OAM ID per direction (set 1)
         .byte   $C1,$C1,$C0,$C0,$BF,$BF,$BE,$BE
+        .byte   $41,$41,$41,$41,$41,$41,$41,$41 ; OAM ID per direction (set 2)
         .byte   $41,$41,$41,$41,$41,$41,$41,$41
-        .byte   $41,$41,$41,$41,$41,$41,$41,$41
-L93E9:  .byte   $00,$00,$40,$40,$40,$40,$40,$40
+L93E9:  .byte   $00,$00,$40,$40,$40,$40,$40,$40 ; facing flag ($00=right, $40=left) (set 1)
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-        .byte   $00,$00,$40,$40,$40,$40,$40,$40
+        .byte   $00,$00,$40,$40,$40,$40,$40,$40 ; facing flag (set 2)
         .byte   $00,$00,$00,$00,$00
         brk
         brk
         brk
         jsr     LFAE2
-        bcc     L9459
+        bcc     code_9459
         lda     #$00
         sta     L0000
         lda     $0420,x
-        bpl     L9419
+        bpl     code_9419
         dec     L0000
-L9419:  lda     $0340,x
+code_9419:  lda     $0340,x
         clc
         adc     $0400,x
         sta     $0340,x
@@ -2114,9 +2487,9 @@ L9419:  lda     $0340,x
         lda     #$00
         sta     L0000
         lda     $0460,x
-        bpl     L943F
+        bpl     code_943F
         dec     L0000
-L943F:  lda     $03A0,x
+code_943F:  lda     $03A0,x
         clc
         adc     $0440,x
         sta     $03A0,x
@@ -2125,45 +2498,62 @@ L943F:  lda     $03A0,x
         sta     $03C0,x
         lda     $03E0,x
         adc     L0000
-        beq     L945E
-L9459:  lda     #$00
+        beq     code_945E
+code_9459:  lda     #$00
         sta     $0300,x
-L945E:  rts
+code_945E:  rts
 
-        lda     $0300,x
+; ===========================================================================
+; main_electric_gabyoall — Electric Gabyoall (rolling electrified ball)
+;\
+; | Rolls along surfaces with collision-based direction reversal.
+; | Alternates between normal and electrified states on a $3C-frame
+; | (60 frame) timer. In electrified state, uses OAM-2 sprite and
+; | enables contact damage. Checks player hit at two Y offsets per
+; | frame for reliable collision. Uses $0320 as index into per-variant
+; | offset tables ($94AF-$94B5).
+; /
+; ===========================================================================
+main_electric_gabyoall:
+
+        lda     $0300,x                 ; state check
         and     #$0F
-        bne     L946E
-        inc     $0300,x
-        lda     #$3C
-        sta     $0500,x
-L946E:  lda     $0480,x
-        and     #$E0
-        sta     $0480,x
-        ldy     $0320,x
-        lda     $03C0,x
-        pha
-        clc
-        adc     L94AF,y
-        sta     $03C0,x
-        jsr     L8097
-        lda     $04A0,x
-        and     #$01
-        beq     L9496
-        ldy     #$08
-        jsr     LF580
-        jmp     L949B
+        bne     code_946E               ; state 1+ → main logic
 
-L9496:  ldy     #$09
+; --- state 0: init ---
+        inc     $0300,x                 ; advance to state 1
+        lda     #$3C                    ; electric toggle timer = 60 frames
+        sta     $0500,x
+
+; --- main loop: horizontal movement + player hit checks ---
+code_946E:  lda     $0480,x             ; clear low 5 damage bits
+        and     #$E0                    ; (keep flags, reset damage)
+        sta     $0480,x
+        ldy     $0320,x                 ; variant index for tables
+        lda     $03C0,x                 ; save original Y position
+        pha
+        clc                             ; Y += upper hitbox offset
+        adc     code_94AF,y             ; (table-based per variant)
+        sta     $03C0,x
+        jsr     check_player_hit        ; check contact with player
+        lda     $04A0,x                 ; direction bit 0 = right?
+        and     #$01
+        beq     code_9496
+        ldy     #$08                    ; move right with collision
+        jsr     LF580
+        jmp     code_949B
+
+code_9496:  ldy     #$09                ; move left with collision
         jsr     LF5C4
-L949B:  lda     $0580,x
-        and     #$BF
+code_949B:  lda     $0580,x             ; clear H-flip bit
+        and     #$BF                    ; (ball has no facing)
         sta     $0580,x
-        bcc     L94AF
-        lda     $04A0,x
-        eor     #$03
+        bcc     code_94AF               ; no wall hit → vertical check
+        lda     $04A0,x                 ; wall hit: reverse direction
+        eor     #$03                    ; toggle bits 0-1
         sta     $04A0,x
-        bne     L94D4
-L94AF:  .byte   $BC
+        bne     code_94D4               ; → skip to electric toggle
+code_94AF:  .byte   $BC
         .byte   $20
 L94B1:  .byte   $03
         .byte   $BD
@@ -2171,65 +2561,66 @@ L94B3:  cpy     #$03
 L94B5:  clc
         adc     L94B1,y
         sta     $03C0,x
-        jsr     L8097
+        jsr     check_player_hit
         ldy     #$08
         jsr     LF67C
         ldy     $04A0,x
         lda     $41,y
-        bne     L94D4
+        bne     code_94D4
         lda     $04A0,x
         eor     #$03
         sta     $04A0,x
-L94D4:  lda     $0500,x
-        bne     L94F9
+code_94D4:  lda     $0500,x
+        bne     code_94F9
         lda     $05A0,x
         ora     $05E0,x
-        bne     L9509
+        bne     code_9509
         ldy     $0320,x
         lda     $05C0,x
         cmp     L94B3,y
-        bne     L94FE
+        bne     code_94FE
         sec
         sbc     #$02
         sta     $05C0,x
         lda     #$3C
         sta     $0500,x
-        bne     L9501
-L94F9:  dec     $0500,x
-        bne     L9509
-L94FE:  inc     $05C0,x
-L9501:  lda     #$00
+        bne     code_9501
+code_94F9:  dec     $0500,x
+        bne     code_9509
+code_94FE:  inc     $05C0,x
+code_9501:  lda     #$00
         sta     $05E0,x
         sta     $05A0,x
-L9509:  pla
+code_9509:  pla
         sta     $03C0,x
         ldy     $0320,x
         lda     $05C0,x
         cmp     L94B3,y
-        bne     L9526
+        bne     code_9526
         lda     $0480,x
         and     #$E0
         ora     L94B5,y
         sta     $0480,x
         .byte   $20,$97,$80
-L9526:  .byte   $60,$D8,$C8,$50,$70
+code_9526:  .byte   $60,$D8,$C8,$50,$70
         cmp     $E1
         asl     $14,x
+main_junk_block:
         lda     $0300,x
         and     #$0F
-        bne     L9540
+        bne     code_9540
         jsr     LF8C2
         cmp     #$3C
-        bcs     L9592
+        bcs     code_9592
         inc     $0300,x
-L9540:  lda     $0520,x
-        bne     L958F
+code_9540:  lda     $0520,x
+        bne     code_958F
         lda     #$70
         sta     $0500,x
-        jsr     L95B9
-        bcs     L9592
+        jsr     code_95B9
+        bcs     code_9592
         jsr     LFC53
-        bcs     L9592
+        bcs     code_9592
         lda     #$94
         jsr     LF846
         lda     $0360,x
@@ -2252,104 +2643,105 @@ L9540:  lda     $0520,x
         sta     $0460,y
         lda     #$08
         sta     $04E0,y
-L958F:  dec     $0520,x
-L9592:  rts
+code_958F:  dec     $0520,x
+code_9592:  rts
 
         ldy     #$1E
         jsr     LF67C
-        bcs     L95B0
+        bcs     code_95B0
         lda     $03C0,x
         cmp     #$70
-        bcc     L95B0
+        bcc     code_95B0
         lda     #$90
         sta     $0500,x
-        jsr     L95B9
-        bcc     L95B0
+        jsr     code_95B9
+        bcc     code_95B0
         lda     #$70
         sta     $03C0,x
-L95B0:  lda     $0580,x
+code_95B0:  lda     $0580,x
         ora     #$20
         sta     $0580,x
         rts
 
-L95B9:  stx     L0000
+code_95B9:  stx     L0000
         ldy     #$1F
-L95BD:  cpy     L0000
-        beq     L95DD
+code_95BD:  cpy     L0000
+        beq     code_95DD
         lda     $0300,y
-        bpl     L95DD
+        bpl     code_95DD
         lda     $0580,y
         and     #$04
-        bne     L95DD
+        bne     code_95DD
         lda     $0360,x
         cmp     $0360,y
-        bne     L95DD
+        bne     code_95DD
         lda     $03C0,y
         cmp     $0500,x
-        beq     L95E3
-L95DD:  dey
+        beq     code_95E3
+code_95DD:  dey
         cpy     #$0F
-        bne     L95BD
+        bne     code_95BD
         clc
-L95E3:  rts
+code_95E3:  rts
+main_petit_snakey:
 
         lda     $0300,x
         and     #$0F
-        bne     L95F9
+        bne     code_95F9
         jsr     LF883
         jsr     LF869
         inc     $0300,x
         lda     #$24
         sta     $0500,x
-L95F9:  lda     $0520,x
-        bne     L9643
+code_95F9:  lda     $0520,x
+        bne     code_9643
         lda     $0500,x
-        bne     L963F
+        bne     code_963F
         lda     $04A0,x
         and     #$02
-        bne     L9617
+        bne     code_9617
         jsr     LF8D9
         sec
         sbc     #$01
         cmp     #$07
-        bcs     L9639
-        jmp     L9621
+        bcs     code_9639
+        jmp     code_9621
 
-L9617:  jsr     LF8D9
+code_9617:  jsr     LF8D9
         sec
         sbc     #$09
         cmp     #$07
-        bcs     L9639
-L9621:  lda     $05C0,x
+        bcs     code_9639
+code_9621:  lda     $05C0,x
         cmp     #$D1
-        bne     L962C
+        bne     code_962C
         lda     #$D2
-        bne     L962E
-L962C:  lda     #$D5
-L962E:  jsr     LF835
-        jsr     L9659
+        bne     code_962E
+code_962C:  lda     #$D5
+code_962E:  jsr     LF835
+        jsr     code_9659
         lda     #$10
         sta     $0520,x
-L9639:  lda     #$78
+code_9639:  lda     #$78
         .byte   $9D
 L963C:  brk
         ora     $60
-L963F:  dec     $0500,x
+code_963F:  dec     $0500,x
         rts
 
-L9643:  dec     $0520,x
-        bne     L9658
+code_9643:  dec     $0520,x
+        bne     code_9658
         lda     $05C0,x
         cmp     #$D2
-        bne     L9653
+        bne     code_9653
         lda     #$D1
-        bne     L9655
-L9653:  lda     #$D4
-L9655:  jsr     LF835
-L9658:  rts
+        bne     code_9655
+code_9653:  lda     #$D4
+code_9655:  jsr     LF835
+code_9658:  rts
 
-L9659:  jsr     LFC53
-        bcs     L96C0
+code_9659:  jsr     LFC53
+        bcs     code_96C0
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -2391,17 +2783,18 @@ L9659:  jsr     LFC53
         sta     $0320,y
         lda     #$8B
         .byte   $99,$80,$04
-L96C0:  .byte   $60
+code_96C0:  .byte   $60
 L96C1:  .byte   $04
 L96C2:  brk
         .byte   $FC
         .byte   $FF
+main_yambow:
         lda     $0300,x
         and     #$0F
-        bne     L96E5
+        bne     code_96E5
         jsr     LF8C2
         cmp     #$51
-        bcs     L9716
+        bcs     code_9716
         jsr     LF869
         jsr     LF883
         lda     $0580,x
@@ -2410,307 +2803,355 @@ L96C2:  brk
         inc     $0300,x
         rts
 
-L96E5:  lda     $0500,x
-        beq     L9717
+code_96E5:  lda     $0500,x
+        beq     code_9717
         dec     $0500,x
         lda     $0300,x
         and     #$01
-        bne     L9716
+        bne     code_9716
         lda     $0460,x
-        bmi     L96FD
+        bmi     code_96FD
         cmp     #$02
-        bcs     L9716
-L96FD:  lda     $0440,x
+        bcs     code_9716
+code_96FD:  lda     $0440,x
         clc
         adc     #$10
         sta     $0440,x
         lda     $0460,x
         adc     #$00
         sta     $0460,x
-        bpl     L9713
+        bpl     code_9713
         jmp     LF7A8
 
-L9713:  jmp     LF7C8
+code_9713:  jmp     LF7C8
 
-L9716:  rts
+code_9716:  rts
 
-L9717:  lda     $0300,x
+code_9717:  lda     $0300,x
         and     #$0F
         cmp     #$04
-        beq     L9776
+        beq     code_9776
         cmp     #$03
-        beq     L9767
+        beq     code_9767
         cmp     #$02
-        beq     L9745
+        beq     code_9745
         jsr     LF8B3
-        bcc     L9734
+        bcc     code_9734
         cmp     #$4D
-        bcc     L9734
+        bcc     code_9734
         jmp     LF797
 
-L9734:  lda     #$14
+code_9734:  lda     #$14
         sta     $0500,x
         inc     $0300,x
         jsr     LF81B
         jsr     LF869
         jmp     LF883
 
-L9745:  lda     $04A0,x
+code_9745:  lda     $04A0,x
         and     #$02
-        beq     L9758
+        beq     code_9758
         jsr     LF8C2
-        bcc     L9755
+        bcc     code_9755
         cmp     #$29
-        bcs     L9764
-L9755:  jmp     LF73B
+        bcs     code_9764
+code_9755:  jmp     LF73B
 
-L9758:  jsr     LF8C2
-        bcs     L9761
+code_9758:  jsr     LF8C2
+        bcs     code_9761
         cmp     #$29
-        bcs     L9764
-L9761:  jmp     LF71D
+        bcs     code_9764
+code_9761:  jmp     LF71D
 
-L9764:  jmp     L9734
+code_9764:  jmp     code_9734
 
-L9767:  jsr     LF8B3
-        bcc     L9734
+code_9767:  jsr     LF8B3
+        bcc     code_9734
         cmp     #$09
-        bcc     L9773
+        bcc     code_9773
         jmp     LF797
 
-L9773:  jmp     L9734
+code_9773:  jmp     code_9734
 
-L9776:  lda     $04A0,x
+code_9776:  lda     $04A0,x
         and     #$02
-        beq     L9780
+        beq     code_9780
         jmp     LF73B
 
-L9780:  jmp     LF71D
+code_9780:  jmp     LF71D
 
-        lda     $0500,x
-        beq     L978D
-        dec     $0500,x
-        bne     L97B3
-L978D:  lda     $0300,x
+; ===========================================================================
+; main_met — Met (hard hat enemy, classic hide/peek/shoot)
+; ===========================================================================
+; State 0: hiding under helmet (invulnerable, $0480=$A3). Timer $0500 counts
+; down before peeking. When timer done + anim at frame 0 with counter 1 +
+; player within $41 X-distance → become vulnerable ($C3), open helmet anim.
+; At anim frame 2 → fire 3 bullets, enter state 1 (walking).
+; State 1: walk with gravity, $0520 = walk frames. When walk done → close
+; helmet, return to state 0 with random delay.
+main_met:
+
+        lda     $0500,x                 ; hide timer active?
+        beq     code_978D               ; zero → check state
+        dec     $0500,x                 ; decrement; still ticking?
+        bne     code_97B3               ; → freeze anim + return
+code_978D:  lda     $0300,x             ; state check
         and     #$0F
-        bne     L97D1
-        jsr     LF869
-        jsr     LF883
-        lda     $05A0,x
-        bne     L97B9
-        lda     $05E0,x
-        cmp     #$01
-        bne     L97B9
-        jsr     LF8C2
+        bne     code_97D1               ; state 1+ → walking
+
+; --- state 0: hiding / peeking ---
+        jsr     LF869                   ; track player direction
+        jsr     LF883                   ; flip sprite to face player
+        lda     $05A0,x                 ; anim seq index == 0?
+        bne     code_97B9               ; not yet → check fire frame
+        lda     $05E0,x                 ; anim frame timer == 1?
+        cmp     #$01                    ; (last frame before loop)
+        bne     code_97B9               ; no → continue anim
+        jsr     LF8C2                   ; player within $41 (~4 tiles)?
         cmp     #$41
-        bcs     L97B3
-        lda     #$C3
-        sta     $0480,x
+        bcs     code_97B3               ; too far → stay hiding
+        lda     #$C3                    ; close enough: become vulnerable
+        sta     $0480,x                 ; $C3 = hittable + contact damage
         rts
 
-L97B3:  lda     #$00
+code_97B3:  lda     #$00                ; freeze animation (stay in helmet)
         sta     $05E0,x
         rts
 
-L97B9:  lda     $05A0,x
+code_97B9:  lda     $05A0,x             ; anim frame == 2? (helmet fully open)
         cmp     #$02
-        bne     L97D0
-        jsr     L981D
-        inc     $0300,x
-        lda     #$13
+        bne     code_97D0               ; not yet → return
+        jsr     code_981D               ; fire 3 bullets
+        inc     $0300,x                 ; state → 1 (walking)
+        lda     #$13                    ; walk duration = $13 (19 frames)
         sta     $0520,x
-        lda     #$3C
+        lda     #$3C                    ; post-walk hide timer = $3C (60 frames)
         sta     $0500,x
-L97D0:  rts
+code_97D0:  rts
 
-L97D1:  lda     #$1D
+; --- state 1: walking after shooting ---
+
+code_97D1:  lda     #$1D                ; set walking OAM $1D (if not already)
         cmp     $05C0,x
-        beq     L97DB
+        beq     code_97DB
         jsr     LF835
-L97DB:  ldy     #$00
+code_97DB:  ldy     #$00                ; apply gravity; C=1 if on ground
         jsr     LF67C
-        bcc     L97D0
-        lda     $0520,x
-        beq     L97FB
-        dec     $0520,x
-        lda     $04A0,x
+        bcc     code_97D0               ; airborne → return
+        lda     $0520,x                 ; walk frames remaining?
+        beq     code_97FB               ; zero → done walking
+        dec     $0520,x                 ; decrement walk counter
+        lda     $04A0,x                 ; walk in facing direction
         and     #$01
-        beq     L97F6
+        beq     code_97F6
         ldy     #$00
         jmp     LF580
 
-L97F6:  ldy     #$01
+code_97F6:  ldy     #$01
         jmp     LF5C4
 
-L97FB:  lda     #$1C
+; --- walk done: close helmet, return to hiding ---
+
+code_97FB:  lda     #$1C                ; OAM $1C = helmet closing anim
         jsr     LF835
-        lda     $0300,x
+        lda     $0300,x                 ; state → 0 (clear low nibble)
         and     #$F0
         sta     $0300,x
-        lda     #$A3
-        sta     $0480,x
-        lda     $E5
-        adc     $E6
+        lda     #$A3                    ; become invulnerable again
+        sta     $0480,x                 ; $A3 = no contact, no weapon hit
+        lda     $E5                     ; pseudo-random hide delay
+        adc     $E6                     ; LFSR seed mix
         sta     $E6
-        and     #$03
+        and     #$03                    ; 4 possible delays from table
         tay
-        lda     L9881,y
-        sta     $0500,x
+        lda     L9881,y                 ; load random delay
+        sta     $0500,x                 ; set hide timer
         rts
 
-L981D:  stx     L0000
-        lda     #$02
+; --- met_fire_3_bullets: spawn 3 projectiles ---
+
+code_981D:  stx     L0000               ; save Met slot
+        lda     #$02                    ; bullet counter = 3 (indexes 2,1,0)
         sta     $01
-L9823:  jsr     LFC53
-        bcs     L9872
-        ldx     $01
-        lda     L9875,x
+code_9823:  jsr     LFC53               ; find free enemy slot
+        bcs     code_9872               ; none → done
+        ldx     $01                     ; set bullet speeds from table
+        lda     L9875,x                 ; X speed sub (3 entries)
         sta     $0400,y
-        lda     L9878,x
+        lda     L9878,x                 ; X speed whole
         sta     $0420,y
-        lda     L987B,x
+        lda     L987B,x                 ; Y speed sub
         sta     $0440,y
-        lda     L987E,x
+        lda     L987E,x                 ; Y speed whole
         sta     $0460,y
-        lda     #$73
+        lda     #$73                    ; OAM $73 = Met bullet
         jsr     LF846
-        lda     #$8B
+        lda     #$8B                    ; dmg = $8B (hurts player only)
         sta     $0480,y
-        ldx     L0000
-        lda     #$0F
+        ldx     L0000                   ; restore Met slot to X
+        lda     #$0F                    ; AI routine = $0F (simple projectile)
         sta     $0320,y
-        lda     $0360,x
+        lda     $0360,x                 ; copy Met position to bullet
         sta     $0360,y
         lda     $0380,x
         sta     $0380,y
-        lda     $03C0,x
+        lda     $03C0,x                 ; bullet Y = Met Y + 4
         clc
         adc     #$04
         sta     $03C0,y
-        lda     $04A0,x
+        lda     $04A0,x                 ; copy Met facing to bullet
         sta     $04A0,y
-        dec     $01
-        bpl     L9823
-L9872:  .byte   $A6,$00,$60
+        dec     $01                     ; loop for all 3 bullets
+        bpl     code_9823
+code_9872:  .byte   $A6,$00,$60         ; restore X
+
+; Met bullet speeds: X.sub={$FB,$33,$FB}, X.whole={$00,$01,$00},
+; Y.sub={$50,$00,$B0}, Y.whole={$00,$00,$FF}
+; bullet 0: slow right+down, bullet 1: fast right, bullet 2: slow right+up
 L9875:  .byte   $FB,$33,$FB
 L9878:  .byte   $00,$01,$00
 L987B:  .byte   $50,$00,$B0
 L987E:  .byte   $FF,$00,$00
 L9881:  asl     L963C,x
         .byte   $3C
-        lda     #$00
+
+; ===========================================================================
+; main_pole — Pole (climbing pole enemy, Spark Man stage)
+; ===========================================================================
+; Moves vertically at set speed, walks horizontally (via code_1C9776).
+; Despawns when Y screen changes (goes offscreen).
+main_pole:
+        lda     #$00                    ; sign extend Y speed for 24-bit add
         sta     L0000
-        lda     $0460,x
-        bpl     L9890
+        lda     $0460,x                 ; if Y speed negative, sign = $FF
+        bpl     code_9890
         dec     L0000
-L9890:  lda     $03A0,x
+code_9890:  lda     $03A0,x             ; apply Y speed: Y.sub += Yspd.sub
         clc
         adc     $0440,x
         sta     $03A0,x
-        lda     $03C0,x
+        lda     $03C0,x                 ; Y += Yspd.whole
         adc     $0460,x
         sta     $03C0,x
-        lda     $03E0,x
+        lda     $03E0,x                 ; Y.screen += sign
         adc     L0000
-        bne     L98AD
-        jmp     L9776
+        bne     code_98AD               ; offscreen → despawn
+        jmp     code_9776               ; on-screen → walk horizontally
 
-L98AD:  lda     #$00
+code_98AD:  lda     #$00                ; despawn
         sta     $0300,x
         rts
 
-        lda     $0500,x
-        beq     L98BD
-        dec     $0500,x
-        bne     L98D0
-L98BD:  lda     $05A0,x
-        bne     L98DB
-        lda     $05E0,x
+; ===========================================================================
+; main_cannon — Cannon (stationary turret, fires at player)
+; ===========================================================================
+; Cycle: idle (invulnerable, timer $0500) → detect player within $51 distance
+; → open ($C9 = vulnerable) → fire 2 shells (at anim frames $09 and $12)
+; → close ($A9 = invulnerable) → random idle delay. Fires distance-scaled shots.
+main_cannon:
+
+        lda     $0500,x                 ; idle timer active?
+        beq     code_98BD               ; zero → check for player
+        dec     $0500,x                 ; decrement; still idling?
+        bne     code_98D0               ; → freeze anim + return
+code_98BD:  lda     $05A0,x             ; anim seq frame == 0?
+        bne     code_98DB               ; no → animating, continue
+        lda     $05E0,x                 ; frame timer == 1? (ready to peek)
         cmp     #$01
-        bne     L98DB
-        jsr     LF8C2
+        bne     code_98DB               ; no → continue
+        jsr     LF8C2                   ; player within $51 distance?
         cmp     #$51
-        bcc     L98D6
-L98D0:  lda     #$00
+        bcc     code_98D6               ; yes → open up
+code_98D0:  lda     #$00                ; freeze anim (stay closed)
         sta     $05E0,x
         rts
 
-L98D6:  lda     #$C9
+code_98D6:  lda     #$C9                ; become vulnerable ($C9)
         sta     $0480,x
-L98DB:  jsr     LF869
-        jsr     LF883
-        lda     $05A0,x
+code_98DB:  jsr     LF869               ; track player direction
+        jsr     LF883                   ; flip sprite
+        lda     $05A0,x                 ; anim fully done? (both zero)
         ora     $05E0,x
-        bne     L98FE
-        lda     $E4
-        adc     $E7
+        bne     code_98FE               ; still animating → check fire
+
+; --- anim complete: close cannon, set idle delay ---
+        lda     $E4                     ; pseudo-random idle delay
+        adc     $E7                     ; LFSR seed mix
         sta     $E7
-        and     #$01
+        and     #$01                    ; 2 possible delays
         tay
         lda     L9995,y
-        sta     $0500,x
-        lda     #$A9
+        sta     $0500,x                 ; set idle timer
+        lda     #$A9                    ; close: become invulnerable ($A9)
         sta     $0480,x
-L98FD:  rts
+code_98FD:  rts
 
-L98FE:  lda     $05E0,x
-        bne     L98FD
-        lda     $05A0,x
-        cmp     #$09
-        beq     L990F
+; --- during open anim: fire at specific frames ---
+
+code_98FE:  lda     $05E0,x             ; frame timer must be 0 (exact moment)
+        bne     code_98FD               ; not zero → return
+        lda     $05A0,x                 ; fire at anim frame $09 or $12
+        cmp     #$09                    ; (two shots per open cycle)
+        beq     code_990F
         cmp     #$12
-        beq     L990F
+        beq     code_990F
         rts
 
-L990F:  jsr     LFC53
-        bcs     L98FD
-        lda     #$00
+; --- spawn_cannon_shell: fires distance-scaled projectile ---
+
+code_990F:  jsr     LFC53               ; find free slot
+        bcs     code_98FD               ; none → return
+        lda     #$00                    ; shell Y speed = $04.00 (4.0 px/f up)
         sta     $0440,y
         lda     #$04
         sta     $0460,y
-        lda     #$6F
+        lda     #$6F                    ; OAM $6F = cannon shell
         jsr     LF846
-        lda     #$1E
+        lda     #$1E                    ; play shot sound
         jsr     LF89A
-        lda     #$C0
+        lda     #$C0                    ; dmg: hurts player + hittable
         sta     $0480,y
-        lda     #$13
+        lda     #$13                    ; AI routine $13 = arcing shell
         sta     $0320,y
-        lda     $0360,x
+        lda     $0360,x                 ; copy cannon position to shell
         sta     $0360,y
         lda     $0380,x
         sta     $0380,y
-        lda     $03C0,x
+        lda     $03C0,x                 ; shell Y = cannon Y - $0C (barrel)
         sec
         sbc     #$0C
         sta     $03C0,y
-        lda     $03E0,x
+        lda     $03E0,x                 ; copy Y screen
         sta     $03E0,y
-        lda     $04A0,x
+        lda     $04A0,x                 ; copy facing + save for X offset
         sta     $04A0,y
         pha
-        jsr     LF8C2
-        stx     L0000
-        ldx     #$03
-L995B:  cmp     L9989,x
-        bcc     L9963
+        jsr     LF8C2                   ; get distance for speed scaling
+        stx     L0000                   ; save cannon slot
+        ldx     #$03                    ; find speed bracket from distance table
+code_995B:  cmp     L9989,x             ; (farther = slower X speed)
+        bcc     code_9963
         dex
-        bne     L995B
-L9963:  lda     L998D,x
-        sta     $0400,y
-        lda     L9991,x
+        bne     code_995B
+code_9963:  lda     L998D,x             ; set shell X speed from bracket
+        sta     $0400,y                 ; X speed sub
+        lda     L9991,x                 ; X speed whole
         sta     $0420,y
-        pla
-        and     #$02
+        pla                             ; offset shell X based on facing
+        and     #$02                    ; (facing left: bit 1 set → index 2)
         tax
-        lda     $0360,y
-        clc
+        lda     $0360,y                 ; shell X += offset
+        clc                             ; right: +$0C, left: -$0C
         adc     L9997,x
         sta     $0360,y
-        lda     $0380,y
+        lda     $0380,y                 ; with screen carry
         adc     L9998,x
         sta     $0380,y
-        .byte   $A6,$00,$60
+        .byte   $A6,$00,$60             ; restore cannon slot
+
+; distance thresholds: $4C, $3D, $2E, $1F (close→far)
+; X speed sub: $00, $80, $00, $80 | X speed whole: $02, $01, $01, $00
+; idle delays: $3C, $78 | X offsets: right=$0C/$00, left=$F4/$FF
 L9989:  .byte   $4C,$3D,$2E,$1F
 L998D:  .byte   $00,$80,$00,$80
 L9991:  .byte   $02,$01,$01,$00
@@ -2719,98 +3160,115 @@ L9997:  .byte   $0C
 L9998:  brk
         .byte   $F4
         .byte   $FF
-        ldy     #$08
+
+; --- cannon shell AI: gravity + walk, explode on landing/wall hit ---
+        ldy     #$08                    ; apply gravity; C=1 if landed
         jsr     LF67C
-        bcs     L99B9
-        lda     $04A0,x
+        bcs     code_99B9               ; landed → explode
+        lda     $04A0,x                 ; walk horizontally with collision
         and     #$02
-        beq     L99B1
+        beq     code_99B1
         ldy     #$07
         jsr     LF5C4
-        jmp     L99B6
+        jmp     code_99B6
 
-L99B1:  ldy     #$08
+code_99B1:  ldy     #$08
         jsr     LF580
-L99B6:  bcs     L99B9
+code_99B6:  bcs     code_99B9           ; hit wall → explode
         rts
 
-L99B9:  lda     #$00
-        sta     $0320,x
-        lda     #$71
+code_99B9:  lda     #$00                ; become generic explosion
+        sta     $0320,x                 ; (routine $00)
+        lda     #$71                    ; OAM $71 = small explosion
         jmp     LF835
 
-        lda     $0300,x
-        and     #$0F
-        cmp     #$01
-        beq     L9A1E
-        cmp     #$02
-        beq     L9A32
-        cmp     #$03
-        bne     L99D7
-        jmp     L9776
+; ===========================================================================
+; main_metall_dx — Metall DX (walking Met variant)
+; ===========================================================================
+; State 0: hiding, opens when player within $61 distance. Anim frame 5 →
+;   launch up (Y speed $02.00). Flies up until within $49 Y of player.
+; State 1: fly past player, fire 3 bullets when crossing. State 2: descend.
+; State 3: walk horizontally (shared code_1C9776).
+main_metall_dx:
 
-L99D7:  jsr     LF869
+        lda     $0300,x                 ; state machine dispatch
+        and     #$0F
+        cmp     #$01                    ; state 1: fly past player
+        beq     code_9A1E
+        cmp     #$02                    ; state 2: descend
+        beq     code_9A32
+        cmp     #$03                    ; state 3: walk horizontally
+        bne     code_99D7
+        jmp     code_9776               ; → walk in facing direction
+
+; --- state 0: hiding / opening / ascending ---
+
+code_99D7:  jsr     LF869               ; track player
         jsr     LF883
-        lda     $05C0,x
+        lda     $05C0,x                 ; OAM $1F = ascending (propeller)?
         cmp     #$1F
-        beq     L9A0E
-        lda     $05A0,x
-        bne     L99FB
-        jsr     LF8C2
+        beq     code_9A0E               ; yes → fly up logic
+        lda     $05A0,x                 ; anim in progress?
+        bne     code_99FB               ; yes → check frame
+        jsr     LF8C2                   ; player within $61?
         cmp     #$61
-        bcs     L9A18
-        lda     #$C3
+        bcs     code_9A18               ; too far → stay hidden
+        lda     #$C3                    ; become vulnerable
         sta     $0480,x
-        inc     $05A0,x
+        inc     $05A0,x                 ; advance anim frame
         lda     $05A0,x
-L99FB:  cmp     #$05
-        bne     L9A1D
-        lda     #$00
+code_99FB:  cmp     #$05                ; anim frame 5? (fully opened)
+        bne     code_9A1D               ; not yet → return
+        lda     #$00                    ; set upward velocity $02.00
         sta     $0440,x
         lda     #$02
         sta     $0460,x
-        lda     #$1F
+        lda     #$1F                    ; OAM $1F = ascending
         jmp     LF835
 
-L9A0E:  jsr     LF8B3
+code_9A0E:  jsr     LF8B3               ; within $49 Y of player?
         cmp     #$49
-        bcs     L9A4B
-        jmp     LF779
+        bcs     code_9A4B               ; yes → next state
+        jmp     LF779                   ; keep flying up
 
-L9A18:  lda     #$00
+code_9A18:  lda     #$00                ; freeze anim (stay hidden)
         sta     $05E0,x
-L9A1D:  rts
+code_9A1D:  rts
 
-L9A1E:  jsr     LF8C2
-        lda     $04A0,x
-        and     #$02
-        beq     L9A2D
-        bcs     L9A4F
-        jmp     L9776
+; --- state 1: fly past player, fire when crossing ---
 
-L9A2D:  bcc     L9A4F
-        jmp     L9776
+code_9A1E:  jsr     LF8C2               ; get X distance (sets carry)
+        lda     $04A0,x                 ; check if passed player
+        and     #$02                    ; facing left + player behind → fire
+        beq     code_9A2D
+        bcs     code_9A4F               ; C=1: player left of us → fire
+        jmp     code_9776               ; keep flying
 
-L9A32:  jsr     LF869
+code_9A2D:  bcc     code_9A4F           ; C=0: player right → fire
+        jmp     code_9776               ; keep flying
+
+; --- state 2: descend to player altitude ---
+
+code_9A32:  jsr     LF869               ; track player
         jsr     LF883
-        lda     $0500,x
-        beq     L9A41
-        dec     $0500,x
+        lda     $0500,x                 ; post-fire delay timer
+        beq     code_9A41               ; zero → descend
+        dec     $0500,x                 ; wait
         rts
 
-L9A41:  jsr     LF8B3
+code_9A41:  jsr     LF8B3               ; within 4 Y of player?
         cmp     #$04
-        bcc     L9A4B
-        jmp     LF759
+        bcc     code_9A4B               ; yes → next state
+        jmp     LF759                   ; keep descending
 
-L9A4B:  inc     $0300,x
+code_9A4B:  inc     $0300,x             ; advance to next state
         rts
 
-L9A4F:  stx     L0000
+code_9A4F:  stx     L0000
         lda     #$02
         sta     $01
-L9A55:  jsr     LFC53
-        bcs     L9AA1
+code_9A55:  jsr     LFC53
+        bcs     code_9AA1
         ldx     $01
         lda     L9AAC,x
         sta     $0400,y
@@ -2836,8 +3294,8 @@ L9A55:  jsr     LFC53
         lda     $03C0,x
         sta     $03C0,y
         dec     $01
-        bpl     L9A55
-L9AA1:  ldx     L0000
+        bpl     code_9A55
+code_9AA1:  ldx     L0000
         inc     $0300,x
         lda     #$3C
         .byte   $9D,$00,$05,$60
@@ -2848,201 +3306,247 @@ L9AB5:  .byte   $00,$01
         brk
 L9AB8:  .byte   $02
         ora     ($01,x)
-        lda     $04A0,x
+
+; ---------------------------------------------------------------------------
+; main_mag_fly — Mag Fly (flying horseshoe magnet, Magnet Man stage)
+; Flying magnet enemy that magnetically pulls Mega Man upward.
+; This is the ONLY entity that triggers player state $05 (entity_ride).
+; Player mounts when within X distance < $10 and Y overlap, state $00/$01.
+; $34 = slot index of entity being ridden (player tracks this entity).
+; Confirmed via Mesen breakpoint — triggered by magnetic pull while
+; standing or jumping near a Mag Fly in Magnet Man's stage.
+; ---------------------------------------------------------------------------
+main_mag_fly:
+        lda     $04A0,x                 ; direction flag
         and     #$01
         beq     L9AC8
         jsr     LF71D
         jmp     L9ACB
 
 L9AC8:  jsr     LF73B
-L9ACB:  jsr     LF8B3
-        bcc     L9B2B
-        jsr     LF8C2
-        cmp     #$10
+L9ACB:  jsr     LF8B3                   ; check player proximity
+        bcc     L9B2B                   ; no overlap → check dismount
+        jsr     LF8C2                   ; detailed collision check
+        cmp     #$10                    ; too far away?
         bcs     L9B2B
-        lda     $30
-        cmp     #$02
+        lda     $30                     ; only mount if state < $02
+        cmp     #$02                    ; (on_ground or airborne)
         bcs     L9B08
-        lda     #$05
+        lda     #$05                    ; state → $05 (entity_ride)
         sta     $30
-        stx     $34
-        lda     #$07
+        stx     $34                     ; $34 = ridden entity slot
+        lda     #$07                    ; player OAM $07 (riding anim)
         sta     $05C0
         lda     #$00
-        sta     $05E0
-        sta     $05A0
-        sta     $32
-        lda     $03C0
+        sta     $05E0                   ; reset animation counter
+        sta     $05A0                   ; reset animation frame
+        sta     $32                     ; clear sub-state
+        lda     $03C0                   ; save player Y as reference
         sta     $0500,x
-        lda     $0460
-        bpl     L9B43
-        lda     #$55
-        sta     $0440
-        lda     #$00
+        lda     $0460                   ; player Y velocity (high byte)
+        bpl     code_9B43               ; if falling down, done
+        lda     #$55                    ; if moving up, zero out velocity
+        sta     $0440                   ; $0440/$0460 = $55/$00
+        lda     #$00                    ; (gravity baseline, not moving)
         sta     $0460
         rts
 
 L9B08:  lda     $30
-        cmp     #$05
-        bne     L9B43
-        cpx     $34
-        bne     L9B43
-        lda     $0500,x
+        cmp     #$05                    ; if not in entity_ride, skip
+        bne     code_9B43
+        cpx     $34                     ; if riding different entity, skip
+        bne     code_9B43
+        lda     $0500,x                 ; check Y distance from mount point
         sec
         sbc     $03C0
-        cmp     #$20
-        bcc     L9B43
-        lda     #$00
+        cmp     #$20                    ; if player drifted > 32px away,
+        bcc     code_9B43               ; stay mounted
+        lda     #$00                    ; dismount: clear player velocity
         sta     $0440
         sta     $0460
-        lda     $04A0,x
-        sta     $35
+        lda     $04A0,x                 ; $35 = Mag Fly's direction
+        sta     $35                     ; (player inherits movement dir)
         rts
 
-L9B2B:  lda     $30
+L9B2B:  lda     $30                     ; if player is riding ($05)
         cmp     #$05
-        bne     L9B43
+        bne     code_9B43               ; and it's THIS entity
         cpx     $34
-        bne     L9B43
-        lda     #$AB
+        bne     code_9B43
+        lda     #$AB                    ; set fall velocity
         sta     $0440
         lda     #$FF
         sta     $0460
-        lda     #$00
-        sta     $30
-L9B43:  rts
+        lda     #$00                    ; state → $00 (on_ground)
+        sta     $30                     ; dismount complete
+code_9B43:  rts
 
-        lda     $0300,x
+; ===========================================================================
+; main_junk_golem — Junk Golem mini-boss (Hard Man stage)
+; State 0: idle, waits for player within $76 pixels horizontally.
+; State 1: falling with gravity (hitbox Y offset $24).
+; State 2: grounded — tracks player facing, periodically throws junk blocks
+;   (entity $94, routine $24) that fall then home toward player.
+; $0500 = child slot (thrown block), $0520 = throw cooldown timer ($78 frames),
+; $0540 = throw-anim started flag. OAM $38 = idle, $39 = throwing.
+; ===========================================================================
+main_junk_golem:
+
+        lda     $0300,x                 ; state 0: activation check
         and     #$0F
-        bne     L9B58
-        jsr     LF8C2
-        cmp     #$76
-        bcs     L9B43
-        inc     $0300,x
-        jsr     LF883
-L9B58:  lda     $0580,x
-        and     #$04
-        beq     L9B67
+        bne     code_9B58               ; skip if already active
+        jsr     LF8C2                   ; check horizontal distance to player
+        cmp     #$76                    ; if >= $76 px away,
+        bcs     code_9B43               ; stay idle (returns via RTS above)
+        inc     $0300,x                 ; activate: advance to state 1 (falling)
+        jsr     LF883                   ; face toward player
+code_9B58:  lda     $0580,x             ; clear sprite flags bit 2 if set
+        and     #$04                    ; (prevents unwanted vertical flip
+        beq     code_9B67               ; from collision or child spawn)
         lda     $0580,x
         eor     #$04
         sta     $0580,x
-L9B67:  lda     $0300,x
+code_9B67:  lda     $0300,x             ; check if state >= 2 (grounded)
         and     #$02
-        bne     L9B78
-        ldy     #$24
-        jsr     LF67C
-        bcc     L9BE1
-        inc     $0300,x
-L9B78:  lda     $04A0,x
+        bne     code_9B78               ; if grounded, skip gravity
+        ldy     #$24                    ; state 1: apply gravity, Y hitbox offset $24
+        jsr     LF67C                   ; move down with collision
+        bcc     code_9BE1               ; C=0: still airborne, done
+        inc     $0300,x                 ; C=1: landed, advance to state 2
+code_9B78:  lda     $04A0,x             ; save old direction
         pha
-        jsr     LF869
-        pla
+        jsr     LF869                   ; update facing toward player
+        pla                             ; compare old vs new direction
         cmp     $04A0,x
-        beq     L9B8D
-        lda     $0580,x
-        eor     #$40
+        beq     code_9B8D               ; no change, skip flip
+        lda     $0580,x                 ; direction changed: toggle sprite
+        eor     #$40                    ; horizontal flip (bit 6)
         sta     $0580,x
-L9B8D:  lda     $0520,x
-        bne     L9BA6
-        jsr     L9BE2
-        sty     L0000
+code_9B8D:  lda     $0520,x             ; throw cooldown timer
+        bne     code_9BA6               ; non-zero: skip spawning
+        jsr     code_9BE2               ; spawn junk block child entity
+        sty     L0000                   ; save child slot index
         lda     L0000
-        sta     $0500,x
-        lda     #$78
+        sta     $0500,x                 ; $0500 = child slot (to track Y)
+        lda     #$78                    ; reset throw cooldown = $78 (120 frames)
         sta     $0520,x
-        lda     #$00
+        lda     #$00                    ; clear throw-anim flag
         sta     $0540,x
-L9BA6:  lda     $0540,x
-        bne     L9BD1
-        lda     $0500,x
+code_9BA6:  lda     $0540,x             ; if throw anim already started,
+        bne     code_9BD1               ; skip to countdown
+        lda     $0500,x                 ; Y = child slot index
         tay
-        lda     $03C0,y
+        lda     $03C0,y                 ; child Y position
         sec
-        sbc     $03C0,x
-        bcs     L9BBD
-        eor     #$FF
+        sbc     $03C0,x                 ; minus golem Y position
+        bcs     code_9BBD               ; if negative,
+        eor     #$FF                    ; take absolute value
         adc     #$01
         clc
-L9BBD:  cmp     #$30
-        bcs     L9BE1
-        lda     $05C0,x
-        cmp     #$39
-        beq     L9BD1
-        lda     #$39
+code_9BBD:  cmp     #$30                ; if |Y dist| >= $30, block still far
+        bcs     code_9BE1               ; done (block still falling from top)
+        lda     $05C0,x                 ; if already using throw OAM ($39),
+        cmp     #$39                    ; skip animation reset
+        beq     code_9BD1
+        lda     #$39                    ; switch to throwing animation (OAM $39)
         jsr     LF835
-        inc     $0540,x
+        inc     $0540,x                 ; set throw-anim flag = 1
         rts
 
-L9BD1:  dec     $0520,x
-        lda     $05E0,x
-        ora     $05A0,x
-        bne     L9BE1
-        lda     #$38
+code_9BD1:  dec     $0520,x             ; decrement throw cooldown timer
+        lda     $05E0,x                 ; check if throw animation finished
+        ora     $05A0,x                 ; (anim timer=0 AND frame=0)
+        bne     code_9BE1               ; not done yet, skip
+        lda     #$38                    ; revert to idle animation (OAM $38)
         jsr     LF835
-L9BE1:  rts
+code_9BE1:  rts
 
-L9BE2:  jsr     LFC53
-        bcs     L9C18
-        lda     $04A0,x
+; --- spawn_junk_block: create thrown junk block child entity ---
+
+code_9BE2:  jsr     LFC53               ; find free enemy slot
+        bcs     code_9C18               ; none available, return
+        lda     $04A0,x                 ; copy parent direction to child
         sta     $04A0,y
-        lda     $0360,x
+        lda     $0360,x                 ; copy parent X position to child
         sta     $0360,y
         lda     $0380,x
         sta     $0380,y
-        lda     #$04
-        sta     $03C0,y
-        lda     $03C0,x
-        sta     $0500,y
-        lda     #$94
+        lda     #$04                    ; child Y = $04 (near top of screen)
+        sta     $03C0,y                 ; block spawns high and falls down
+        lda     $03C0,x                 ; $0500,y = golem's Y position
+        sta     $0500,y                 ; (target Y for homing transition)
+        lda     #$94                    ; entity type $94 (junk block)
         jsr     LF846
-        lda     #$CA
+        lda     #$CA                    ; damage flags $CA: hurts player + takes damage
         sta     $0480,y
-        lda     #$24
+        lda     #$24                    ; AI routine = $24 (main_unknown_24)
         sta     $0320,y
-        lda     #$08
+        lda     #$08                    ; HP = 8
         sta     $04E0,y
-L9C18:  rts
+code_9C18:  rts
 
-        lda     $0300,x
+; ===========================================================================
+; main_unknown_24 — Junk Golem's thrown block (entity $94)
+; State 0: init, set downward speed $04.00 (4 px/frame).
+; State 1: fall straight down. When within $20 pixels of target Y ($0500,x
+;   = golem's Y at spawn time), compute homing velocity toward player at
+;   speed $04.80 and switch to routine $0B (generic homing projectile).
+; ===========================================================================
+main_unknown_24:
+
+        lda     $0300,x                 ; state 0: init
         and     #$0F
-        bne     L9C2B
-        sta     $0440,x
-        lda     #$04
+        bne     code_9C2B               ; skip if already initialized
+        sta     $0440,x                 ; Y speed = $04.00 (4 px/frame down)
+        lda     #$04                    ; (A=0 from AND above, sub=0)
         sta     $0460,x
-        inc     $0300,x
-L9C2B:  jsr     LF759
-        lda     $03C0,x
+        inc     $0300,x                 ; advance to state 1
+code_9C2B:  jsr     LF759               ; move downward (no collision)
+        lda     $03C0,x                 ; current Y position
         sec
-        sbc     $0500,x
-        bcs     L9C3C
-        eor     #$FF
+        sbc     $0500,x                 ; minus target Y (golem's Y)
+        bcs     code_9C3C               ; if negative,
+        eor     #$FF                    ; take absolute value
         adc     #$01
         clc
-L9C3C:  cmp     #$20
-        bcs     L9C55
-        lda     #$80
+code_9C3C:  cmp     #$20                ; if |Y dist to target| >= $20,
+        bcs     code_9C55               ; still falling, done
+        lda     #$80                    ; homing speed = $04.80 (4.5 px/frame)
         sta     $02
         lda     #$04
         sta     $03
-        jsr     LFC63
-        lda     $0C
+        jsr     LFC63                   ; compute X/Y velocity toward player
+        lda     $0C                     ; set direction from homing result
         sta     $04A0,x
-        lda     #$0B
-        sta     $0320,x
-L9C55:  rts
+        lda     #$0B                    ; switch to routine $0B (generic homing)
+        sta     $0320,x                 ; block now flies toward player
+code_9C55:  rts
 
-        lda     $0300,x
+; ===========================================================================
+; main_pickelman_bull — Pickelman Bull (bulldozer enemy with rider)
+; State 0: init — fall speed $04.00, random drive count, $1E frame timer.
+; State 1: driving — moves horizontally with collision, gravity. Rider
+;   hitbox checked at Y-$17 (separate weapon collision). On drive count
+;   expired, advance to state 2 (stopped).
+; State 2: stopped — rider oscillates left/right (1px per 2 frames).
+;   After $1E-frame timer expires, returns to state 1 with new drive count.
+; $0500 = drive step counter (random: $10/$20/$30),
+; $0520 = stop timer ($1E = 30 frames), $0540/$0560 = oscillation counters.
+; ===========================================================================
+main_pickelman_bull:
+
+        lda     $0300,x                 ; state 0: init
         and     #$0F
-        bne     L9C73
-        sta     $0440,x
+        bne     code_9C73               ; skip if already initialized
+        sta     $0440,x                 ; Y speed = $04.00 (gravity fall)
         lda     #$04
         sta     $0460,x
-        jsr     L9D20
-        sta     $0500,x
-        lda     #$1E
+        jsr     code_9D20               ; get random drive count ($10/$20/$30)
+        sta     $0500,x                 ; store as drive step counter
+        lda     #$1E                    ; stop timer = $1E (30 frames)
         sta     $0520,x
-        inc     $0300,x
-L9C73:  lda     $03C0,x
+        inc     $0300,x                 ; advance to state 1
+code_9C73:  lda     $03C0,x             ; save real Y position
         pha
         lda     $03C0,x
         sec
@@ -3050,57 +3554,57 @@ L9C73:  lda     $03C0,x
         sta     $03C0,x
         lda     #$C3
         sta     $0480,x
-        jsr     L8003
+        jsr     code_8003
         pla
         sta     $03C0,x
         lda     $04E0,x
-        beq     L9CA5
+        beq     code_9CA5
         lda     #$AC
         sta     $0480,x
         lda     $0300,x
         and     #$02
-        bne     L9CD6
+        bne     code_9CD6
         dec     $0500,x
-        bne     L9CA6
+        bne     code_9CA6
         inc     $0300,x
-L9CA5:  rts
+code_9CA5:  rts
 
-L9CA6:  ldy     #$2A
+code_9CA6:  ldy     #$2A
         jsr     LF606
         lda     $04A0,x
         and     #$01
-        beq     L9CC0
+        beq     code_9CC0
         lda     $42
         and     #$10
-        beq     L9CCD
+        beq     code_9CCD
         ldy     #$10
         jsr     LF580
-        jmp     L9CCB
+        jmp     code_9CCB
 
-L9CC0:  lda     $44
+code_9CC0:  lda     $44
         and     #$10
-        beq     L9CCD
+        beq     code_9CCD
         ldy     #$11
         jsr     LF5C4
-L9CCB:  bcc     L9CD5
-L9CCD:  lda     $04A0,x
+code_9CCB:  bcc     code_9CD5
+code_9CCD:  lda     $04A0,x
         eor     #$03
         sta     $04A0,x
-L9CD5:  rts
+code_9CD5:  rts
 
-L9CD6:  dec     $0520,x
-        bne     L9CF0
+code_9CD6:  dec     $0520,x
+        bne     code_9CF0
         sta     $0540,x
         sta     $0560,x
         lda     #$1E
         sta     $0520,x
-        jsr     L9D20
+        jsr     code_9D20
         sta     $0500,x
         dec     $0300,x
         rts
 
-L9CF0:  lda     $0540,x
-        bne     L9D18
+code_9CF0:  lda     $0540,x
+        bne     code_9D18
         lda     $0560,x
         and     #$01
         asl     a
@@ -3117,12 +3621,12 @@ L9CF0:  lda     $0540,x
         inc     $0560,x
         rts
 
-L9D18:  .byte   $DE,$40,$05,$60
+code_9D18:  .byte   $DE,$40,$05,$60
 L9D1C:  .byte   $01
 L9D1D:  brk
         .byte   $FF
         .byte   $FF
-L9D20:  lda     $E4
+code_9D20:  lda     $E4
         adc     $E5
         sta     $E4
         and     #$03
@@ -3130,27 +3634,28 @@ L9D20:  lda     $E4
         .byte   $B9,$2D,$9D,$60
         bpl     L9D4F
         bmi     L9D41
+main_bikky:
         jsr     LF883
         ldy     #$10
         jsr     LF67C
-        bcs     L9D51
+        bcs     code_9D51
         lda     #$00
         sta     $05E0,x
         .byte   $BD
 L9D41:  ldy     #$04
         and     #$01
-        beq     L9D4C
+        beq     code_9D4C
         ldy     #$0E
         jmp     LF580
 
-L9D4C:  ldy     #$0F
+code_9D4C:  ldy     #$0F
         .byte   $4C
 L9D4F:  cpy     $F5
-L9D51:  lda     $05A0,x
+code_9D51:  lda     $05A0,x
         cmp     #$08
-        bne     L9D7E
+        bne     code_9D7E
         lda     $05E0,x
-        beq     L9D6B
+        beq     code_9D6B
         lda     #$00
         sta     $05A0,x
         sta     $05E0,x
@@ -3158,7 +3663,7 @@ L9D51:  lda     $05A0,x
         jsr     LF89A
         rts
 
-L9D6B:  lda     #$A8
+code_9D6B:  lda     #$A8
         sta     $0440,x
         lda     #$05
         sta     $0460,x
@@ -3167,62 +3672,64 @@ L9D6B:  lda     #$A8
         sta     $0480,x
         rts
 
-L9D7E:  lda     #$A5
+code_9D7E:  lda     #$A5
         sta     $0480,x
         rts
+main_magnet_force:
 
         jsr     LF8B3
         cmp     #$1C
-        bcs     L9DB3
+        bcs     code_9DB3
         jsr     LF8C2
         ror     L0000
         cmp     #$68
-        bcs     L9DB3
+        bcs     code_9DB3
         lda     $0580,x
         and     #$40
-        bne     L9DA3
+        bne     code_9DA3
         lda     L0000
-        bmi     L9DB3
+        bmi     code_9DB3
         lda     #$01
-        bne     L9DA9
-L9DA3:  lda     L0000
-        bpl     L9DB3
+        bne     code_9DA9
+code_9DA3:  lda     L0000
+        bpl     code_9DB3
         lda     #$02
-L9DA9:  sta     $36
+code_9DA9:  sta     $36
         lda     #$00
         sta     $37
         lda     #$01
         sta     $38
-L9DB3:  rts
+code_9DB3:  rts
+main_new_shotman:
 
         lda     $0300,x
         and     #$0F
-        bne     L9DC3
+        bne     code_9DC3
         lda     #$1E
         sta     $0500,x
         inc     $0300,x
-L9DC3:  lda     $0300,x
+code_9DC3:  lda     $0300,x
         and     #$02
-        bne     L9E04
+        bne     code_9E04
         jsr     LF8C2
         cmp     #$50
-        bcs     L9E0C
+        bcs     code_9E0C
         lda     $0540,x
-        bne     L9DE7
+        bne     code_9DE7
         lda     #$5A
         jsr     LF835
         jsr     LF869
-        jsr     L9EA9
+        jsr     code_9EA9
         lda     #$1E
         sta     $0540,x
         rts
 
-L9DE7:  dec     $0540,x
-        bne     L9E0C
+code_9DE7:  dec     $0540,x
+        bne     code_9E0C
         inc     $0560,x
         lda     $0560,x
         cmp     #$02
-        bcc     L9E0C
+        bcc     code_9E0C
         lda     #$00
         sta     $0560,x
         lda     #$78
@@ -3230,36 +3737,36 @@ L9DE7:  dec     $0540,x
         inc     $0300,x
         rts
 
-L9E04:  dec     $0540,x
-        bne     L9E0C
+code_9E04:  dec     $0540,x
+        bne     code_9E0C
         dec     $0300,x
-L9E0C:  dec     $0500,x
-        bne     L9E31
+code_9E0C:  dec     $0500,x
+        bne     code_9E31
         lda     #$00
         sta     $01
-        jsr     L9E46
+        jsr     code_9E46
         lda     #$1E
         sta     $0500,x
         inc     $0520,x
         lda     $0520,x
         cmp     #$03
-        bcc     L9E31
+        bcc     code_9E31
         lda     #$5A
         sta     $0500,x
         lda     #$00
         sta     $0520,x
-L9E31:  lda     $05C0,x
+code_9E31:  lda     $05C0,x
         cmp     #$5A
-        bne     L9E45
+        bne     code_9E45
         lda     $05E0,x
         ora     $05A0,x
-        bne     L9E45
+        bne     code_9E45
         lda     #$59
         jsr     LF835
-L9E45:  rts
+code_9E45:  rts
 
-L9E46:  jsr     LFC53
-        bcs     L9EA4
+code_9E46:  jsr     LFC53
+        bcs     code_9EA4
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -3298,12 +3805,12 @@ L9E46:  jsr     LFC53
         lda     $01
         cmp     #$02
         .byte   $90,$A2
-L9EA4:  .byte   $60
+code_9EA4:  .byte   $60
 L9EA5:  .byte   $0F
 L9EA6:  brk
         sbc     ($FF),y
-L9EA9:  jsr     LFC53
-        bcs     L9EA4
+code_9EA9:  jsr     LFC53
+        bcs     code_9EA4
         lda     #$00
         sta     $0440,y
         lda     #$04
@@ -3329,11 +3836,11 @@ L9EA9:  jsr     LFC53
         jsr     LF8C2
         stx     L0000
         ldx     #$03
-L9EEF:  cmp     L9F06,x
-        bcc     L9EF7
+code_9EEF:  cmp     L9F06,x
+        bcc     code_9EF7
         dex
-        bne     L9EEF
-L9EF7:  lda     L9F0A,x
+        bne     code_9EEF
+code_9EF7:  lda     L9F0A,x
         sta     $0400,y
         lda     L9F0E,x
         sta     $0420,y
@@ -3345,55 +3852,56 @@ L9F0E:  .byte   $02
         brk
         ldy     #$12
         jsr     LF67C
-        bcs     L9F30
+        bcs     code_9F30
         lda     $04A0,x
         and     #$01
-        beq     L9F28
+        beq     code_9F28
         ldy     #$1E
         jsr     LF580
-        jmp     L9F2D
+        jmp     code_9F2D
 
-L9F28:  ldy     #$1F
+code_9F28:  ldy     #$1F
         jsr     LF5C4
-L9F2D:  bcs     L9F30
+code_9F2D:  bcs     code_9F30
         rts
 
-L9F30:  lda     $0320,x
+code_9F30:  lda     $0320,x
         cmp     #$0C
-        bne     L9F6C
+        bne     code_9F6C
         lda     #$00
         sta     $0320,x
         lda     $B3
-        bpl     L9F44
+        bpl     code_9F44
         lda     #$59
-        bne     L9F46
-L9F44:  lda     #$71
-L9F46:  jmp     LF835
+        bne     code_9F46
+code_9F44:  lda     #$71
+code_9F46:  jmp     LF835
 
         lda     $04A0,x
         and     #$01
-        beq     L9F58
+        beq     code_9F58
         ldy     #$0C
         jsr     LF580
-        jmp     L9F5D
+        jmp     code_9F5D
 
-L9F58:  ldy     #$0D
+code_9F58:  ldy     #$0D
         jsr     LF5C4
-L9F5D:  bcs     L9F6C
+code_9F5D:  bcs     code_9F6C
         lda     $04A0,x
         and     #$08
-        beq     L9F69
+        beq     code_9F69
         jmp     LF779
 
-L9F69:  jmp     LF759
+code_9F69:  jmp     LF759
 
-L9F6C:  lda     #$00
+code_9F6C:  lda     #$00
         sta     $0300,x
         sta     $01
         lda     #$FF
         sta     $04C0,x
+code_9F78:
         jsr     LFC53
-        bcs     L9FE2
+        bcs     code_9FE2
         sty     L0000
         lda     $04A0,x
         and     #$02
@@ -3435,7 +3943,7 @@ L9F6C:  lda     #$00
         lda     $01
         cmp     #$04
         .byte   $90,$96
-L9FE2:  .byte   $60
+code_9FE2:  .byte   $60
 L9FE3:  .byte   $01,$01,$02,$02
 L9FE7:  .byte   $9E,$44,$9E,$44
 L9FEB:  .byte   $04,$03,$04,$03
@@ -3444,29 +3952,39 @@ L9FF3:  brk
         brk
         brk
         brk
-        jsr     LA249
+
+; ---------------------------------------------------------------------------
+; main_proto_man — Proto Man (Break Man) fighting encounter
+; Used by both routine $52 (normal) and $53 (Hard Man scripted).
+; Routine $52: Magnet Man stage (global enemy ID $3E). On defeat → $68=$80.
+; Routine $53: Hard Man stage (hardcoded spawn in bank18, slot $1F).
+;   On defeat → player state $13 (teleport_beam). Only $53 triggers this.
+; $0320 - $52 indexes into data tables at $A176+ for per-variant animations.
+; ---------------------------------------------------------------------------
+main_proto_man:
+        jsr     cutscene_init
         lda     $0560,x
-        beq     L9FE2
+        beq     code_9FE2
         .byte   $BD
 
 .segment "BANK1D"
 
 LA000:  .byte   $E0,$04
-        bne     LA007
-        jmp     LA180
+        bne     code_A007
+        jmp     code_A180
 
-LA007:  lda     $0300,x
+code_A007:  lda     $0300,x
         and     #$0F
-        bne     LA032
+        bne     code_A032
         sta     $05E0,x
         lda     $03C0,x
         cmp     #$90
-        bcs     LA01B
+        bcs     code_A01B
         jmp     LF797
 
-LA01B:  ldy     #$00
+code_A01B:  ldy     #$00
         jsr     LF67C
-        bcc     LA05F
+        bcc     code_A05F
         lda     $0320,x
         sec
         sbc     #$52
@@ -3474,61 +3992,61 @@ LA01B:  ldy     #$00
         lda     LA176,y
         sta     $0500,x
         inc     $0300,x
-LA032:  lda     $05C0,x
+code_A032:  lda     $05C0,x
         cmp     #$99
-        bne     LA04A
+        bne     code_A04A
         lda     $05A0,x
         cmp     #$04
-        bne     LA05F
+        bne     code_A05F
         lda     $0500,x
         tya
         lda     LA178,y
         jsr     LF835
-LA04A:  lda     $0300,x
+code_A04A:  lda     $0300,x
         and     #$02
-        beq     LA054
-        jmp     LA0D3
+        beq     code_A054
+        jmp     code_A0D3
 
-LA054:  jsr     LF8C2
+code_A054:  jsr     LF8C2
         cmp     #$60
-        bcs     LA05F
+        bcs     code_A05F
         inc     $0300,x
         rts
 
-LA05F:  ldy     #$00
+code_A05F:  ldy     #$00
         jsr     LF67C
         rol     $0F
         lda     $04A0,x
         and     #$01
-        beq     LA075
+        beq     code_A075
         ldy     #$00
         jsr     LF580
-        jmp     LA07A
+        jmp     code_A07A
 
-LA075:  ldy     #$01
+code_A075:  ldy     #$01
         jsr     LF5C4
-LA07A:  lda     $0F
+code_A07A:  lda     $0F
         and     #$01
-        beq     LA0D2
+        beq     code_A0D2
         lda     $04A0,x
         and     #$01
-        beq     LA091
+        beq     code_A091
         lda     $0360,x
         cmp     #$D6
-        bcc     LA0A1
-        jmp     LA098
+        bcc     code_A0A1
+        jmp     code_A098
 
-LA091:  lda     $0360,x
+code_A091:  lda     $0360,x
         cmp     #$2A
-        bcs     LA0A1
-LA098:  lda     $04A0,x
+        bcs     code_A0A1
+code_A098:  lda     $04A0,x
         eor     #$03
         sta     $04A0,x
         rts
 
-LA0A1:  lda     $10
+code_A0A1:  lda     $10
         and     #$10
-        beq     LA0BC
+        beq     code_A0BC
         lda     $0500,x
         tya
         lda     LA17A,y
@@ -3539,48 +4057,48 @@ LA0A1:  lda     $10
         sta     $0460,x
         rts
 
-LA0BC:  lda     $0500,x
+code_A0BC:  lda     $0500,x
         tay
         lda     LA17C,y
         cmp     $05C0,x
-        beq     LA0D2
+        beq     code_A0D2
         lda     $0500,x
         tay
         lda     LA17C,y
         jsr     LF835
-LA0D2:  rts
+code_A0D2:  rts
 
-LA0D3:  lda     $0540,x
-        bne     LA13A
+code_A0D3:  lda     $0540,x
+        bne     code_A13A
         lda     $04A0,x
         and     #$01
-        beq     LA0E7
+        beq     code_A0E7
         ldy     #$00
         jsr     LF580
-        jmp     LA0EC
+        jmp     code_A0EC
 
-LA0E7:  ldy     #$01
+code_A0E7:  ldy     #$01
         jsr     LF5C4
-LA0EC:  lda     $04A0,x
+code_A0EC:  lda     $04A0,x
         and     #$01
-        beq     LA0FD
+        beq     code_A0FD
         lda     $0360,x
         cmp     #$D6
-        bcc     LA10C
-        jmp     LA104
+        bcc     code_A10C
+        jmp     code_A104
 
-LA0FD:  .byte   $BD
+code_A0FD:  .byte   $BD
         rts
 
 LA0FF:  .byte   $03
         cmp     #$2A
-        bcs     LA10C
-LA104:  lda     $04A0,x
+        bcs     code_A10C
+code_A104:  lda     $04A0,x
         eor     #$03
         sta     $04A0,x
-LA10C:  ldy     #$00
+code_A10C:  ldy     #$00
         jsr     LF67C
-        bcc     LA13E
+        bcc     code_A13E
         lda     #$04
         sta     $0540,x
         lda     $0500,x
@@ -3593,34 +4111,34 @@ LA10C:  ldy     #$00
         sta     $0460,x
         jsr     LF8C2
         cmp     #$60
-        bcc     LA139
+        bcc     code_A139
         dec     $0300,x
         jsr     LF81B
-LA139:  rts
+code_A139:  rts
 
-LA13A:  dec     $0540,x
+code_A13A:  dec     $0540,x
         rts
 
-LA13E:  lda     $0460,x
-        bpl     LA14D
+code_A13E:  lda     $0460,x
+        bpl     code_A14D
         lda     $0500,x
         tay
         lda     LA17A,y
         jmp     LF835
 
-LA14D:  lda     $0500,x
+code_A14D:  lda     $0500,x
         tya
         lda     LA17E,y
         cmp     $05C0,x
-        beq     LA163
+        beq     code_A163
         lda     $0500,x
         tya
         lda     LA17E,y
         jsr     LF835
-LA163:  lda     $05A0,x
+code_A163:  lda     $05A0,x
         cmp     #$01
-        bne     LA139
-        jsr     LA293
+        bne     code_A139
+        jsr     code_A293
         lda     #$00
         sta     $05E0,x
         sta     $05A0,x
@@ -3631,22 +4149,22 @@ LA178:  .byte   $88,$8A
 LA17A:  .byte   $86,$8F
 LA17C:  .byte   $83,$8C
 LA17E:  .byte   $85,$8E
-LA180:  lda     #$99
+code_A180:  lda     #$99
         cmp     $05C0,x
-        beq     LA1A2
+        beq     code_A1A2
         lda     #$00
         sta     $0480,x
         tay
         jsr     LF67C
-        bcc     LA1E1
+        bcc     code_A1E1
         lda     #$99
         jsr     LF835
         inc     $05A0,x
         lda     #$00
         sta     $0440,x
         sta     $0460,x
-LA1A2:  lda     $05A0,x
-        bne     LA1E1
+code_A1A2:  lda     $05A0,x
+        bne     code_A1E1
         sta     $05E0,x
         lda     $0440,x
         clc
@@ -3656,105 +4174,116 @@ LA1A2:  lda     $05A0,x
         adc     #$00
         sta     $0460,x
         cmp     #$0C
-        bne     LA1C4
+        bne     code_A1C4
         lda     #$00
         sta     $0440,x
-LA1C4:  jsr     LF779
+code_A1C4:  jsr     LF779
         lda     $03E0,x
-        beq     LA1E1
+        beq     code_A1E1
         lda     #$00
         sta     $0300,x
-        lda     $0320,x
-        cmp     #$53
-        bne     LA1DD
-        lda     #$13
-        sta     $30
+        lda     $0320,x                 ; entity routine index
+        cmp     #$53                    ; $53 = Hard Man stage Proto Man
+        bne     code_A1DD               ; $52 = normal → skip, set $68
+        lda     #$13                    ; state → $13 (teleport_beam)
+        sta     $30                     ; Proto Man defeated → player beams out
         rts
 
-LA1DD:  lda     #$80
+code_A1DD:  lda     #$80                ; $68 = cutscene-complete flag
         sta     $68
-LA1E1:  rts
+code_A1E1:  rts
 
-        jsr     LA249
-        lda     $0560,x
-        beq     LA1E1
-        lda     #$0F
-        sta     $30
+; ---------------------------------------------------------------------------
+; main_proto_man_gemini_cutscene — Proto Man / Gemini Man intro cutscene
+; Freezes player in state $0F (stunned) while cutscene plays.
+; Proto Man whistles, drops down, then flies away.
+; When done, releases player back to state $00 (on_ground).
+; Entity routine $53 = Proto Man triggers state $13 (teleport_beam) on exit.
+; ---------------------------------------------------------------------------
+main_proto_man_gemini_cutscene:
+
+        jsr     cutscene_init           ; cutscene init/whistle
+        lda     $0560,x                 ; phase flag
+        beq     code_A1E1               ; not started yet → return
+        lda     #$0F                    ; state → $0F (stunned)
+        sta     $30                     ; freeze player during cutscene
         lda     $0300,x
         and     #$0F
-        bne     LA216
+        bne     code_A216
         jsr     LF797
         lda     #$9C
         cmp     $03C0,x
-        bcs     LA243
+        bcs     code_A243
         sta     $03C0,x
         lda     $05A0,x
         cmp     #$04
-        bne     LA248
+        bne     code_A248
         lda     #$88
         jsr     LF835
         inc     $0300,x
         lda     #$FF
         sta     $0500,x
-LA216:  lda     $0500,x
-        beq     LA230
+code_A216:  lda     $0500,x
+        beq     code_A230
         dec     $0500,x
-        bne     LA243
+        bne     code_A243
         lda     #$99
         sta     $05C0,x
         inc     $05A0,x
         lda     #$00
         sta     $0440,x
         sta     $0460,x
-LA230:  jsr     LA1A2
-        lda     $68
-        beq     LA248
-        lda     #$00
-        sta     $30
-        ldy     #$0F
-LA23D:  sta     $0310,y
+code_A230:  jsr     code_A1A2
+        lda     $68                     ; cutscene-complete flag
+        beq     code_A248               ; not done yet → return
+        lda     #$00                    ; state → $00 (on_ground)
+        sta     $30                     ; release player from stun
+        ldy     #$0F                    ; clear all weapon slots
+code_A23D:  sta     $0310,y
         dey
-        bpl     LA23D
-LA243:  lda     #$00
+        bpl     code_A23D
+code_A243:  lda     #$00
         sta     $05E0,x
-LA248:  rts
+code_A248:  rts
 
-LA249:  lda     $0560,x
-        bne     LA292
-        lda     $30
-        bne     LA25D
-        lda     $05C0
-        cmp     #$13
-        beq     LA292
-        lda     #$0F
-        sta     $30
-LA25D:  lda     #$11
+; cutscene init — freeze player and play Proto Man's whistle
+
+cutscene_init:  lda     $0560,x         ; if phase already started,
+        bne     code_A292               ; skip init
+        lda     $30                     ; if player already stunned,
+        bne     code_A25D               ; skip to whistle
+        lda     $05C0                   ; player OAM ID
+        cmp     #$13                    ; $13 = teleporting? skip
+        beq     code_A292
+        lda     #$0F                    ; state → $0F (stunned)
+        sta     $30                     ; freeze player for cutscene
+code_A25D:  lda     #$11
         cmp     $D9
-        beq     LA26B
+        beq     code_A26B
         jsr     LF898
         lda     #$B4
         sta     $0500,x
-LA26B:  dec     $0500,x
-        bne     LA292
-        lda     #$00
-        sta     $30
-        inc     $0560,x
+code_A26B:  dec     $0500,x
+        bne     code_A292
+        lda     #$00                    ; state → $00 (on_ground)
+        sta     $30                     ; whistle done, release player
+        inc     $0560,x                 ; advance to next cutscene phase
         lda     $0580,x
-        and     #$FB
+        and     #$FB                    ; clear bit 2 (disabled flag)
         sta     $0580,x
-        lda     $0320,x
-        cmp     #$53
+        lda     $0320,x                 ; entity routine index
+        cmp     #$53                    ; $53 = Proto Man
         bne     LA28A
-        lda     #$0C
+        lda     #$0C                    ; Proto Man stage music ($0C)
         bne     LA28F
-LA28A:  lda     $22
-        clc
+LA28A:  lda     $22                     ; else play stage music
+        clc                             ; (stage index + 1)
         adc     #$01
 LA28F:  jsr     LF898
-LA292:  rts
+code_A292:  rts
 
-LA293:  jsr     LFC53
-        bcs     LA2E7
+code_A293:  jsr     LFC53
+        bcs     code_A2E7
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -3779,186 +4308,213 @@ LA293:  jsr     LFC53
         sta     $0420,y
         lda     $0320,x
         and     #$01
-        bne     LA2D8
+        bne     code_A2D8
         lda     #$18
-        bne     LA2DA
-LA2D8:  lda     #$73
-LA2DA:  jsr     LF846
+        bne     code_A2DA
+code_A2D8:  lda     #$73
+code_A2DA:  jsr     LF846
         lda     #$8B
         sta     $0480,y
         lda     #$1B
         sta     $0320,y
-LA2E7:  rts
+code_A2E7:  rts
 
 LA2E8:  .byte   $0D
 LA2E9:  .byte   $00,$F3,$FF
-        lda     $0300,x
-        and     #$0F
-        bne     LA2FE
-        jsr     LF883
-        lda     #$3C
+
+; ===========================================================================
+; main_hari_harry — Hard Hat Machine (wall-mounted turret enemy)
+; Hides inside helmet, periodically opens to fire 5 bullets in a spread,
+; then deploys as a walking enemy that bounces off walls. After walk timer
+; expires, retracts back into helmet and repeats.
+; States: 0=init, 1=hidden/wait, 2=firing, 3=walking/deployed
+; ===========================================================================
+main_hari_harry:
+        lda     $0300,x                 ; state 0: init
+        and     #$0F                    ; extract sub-state
+        bne     code_A2FE
+        jsr     LF883                   ; face toward player
+        lda     #$3C                    ; hide timer = 60 frames
         sta     $0560,x
-        inc     $0300,x
-LA2FE:  lda     $0300,x
+        inc     $0300,x                 ; advance to state 1 (hidden)
+code_A2FE:  lda     $0300,x             ; dispatch by sub-state
         and     #$0F
-        cmp     #$02
-        beq     LA321
-        cmp     #$03
-        beq     LA389
-        dec     $0560,x
-        bne     LA318
-        lda     #$00
+        cmp     #$02                    ; state 2 = firing
+        beq     code_A321
+        cmp     #$03                    ; state 3 = walking
+        beq     code_A389
+        dec     $0560,x                 ; state 1: count down hide timer
+        bne     code_A318
+        lda     #$00                    ; timer expired: clear it
         sta     $0560,x
-        inc     $0300,x
-LA318:  lda     #$00
-        sta     $05E0,x
+        inc     $0300,x                 ; advance to state 2 (firing)
+code_A318:  lda     #$00                ; freeze animation while hidden
+        sta     $05E0,x                 ; (reset anim timer and frame)
         sta     $05A0,x
         rts
 
-LA321:  lda     $0500,x
-        bne     LA36B
-        lda     $05A0,x
-        cmp     #$01
-        bne     LA33D
+; --- state 2: firing sequence (turret open) ---
+
+code_A321:  lda     $0500,x             ; if firing-done flag set,
+        bne     code_A36B               ; skip to post-fire pause
+        lda     $05A0,x                 ; check anim frame 1, tick 1:
+        cmp     #$01                    ; fire first bullet spread
+        bne     code_A33D
         lda     $05E0,x
         cmp     #$01
-        bne     LA33D
-        lda     #$04
+        bne     code_A33D
+        lda     #$04                    ; spawn 5 bullets (index 0-4)
         sta     $01
         stx     L0000
-        jsr     LA41A
-LA33D:  lda     $05A0,x
-        cmp     #$03
-        bne     LA354
+        jsr     code_A41A
+code_A33D:  lda     $05A0,x             ; check anim frame 3, tick 1:
+        cmp     #$03                    ; fire second bullet spread
+        bne     code_A354
         lda     $05E0,x
         cmp     #$01
-        bne     LA354
-        lda     #$04
+        bne     code_A354
+        lda     #$04                    ; spawn 5 bullets (index 0-4)
         sta     $01
         stx     L0000
-        jsr     LA41A
-LA354:  lda     $05A0,x
-        cmp     #$04
-        bne     LA36A
+        jsr     code_A41A
+code_A354:  lda     $05A0,x             ; check anim frame 4, tick 2:
+        cmp     #$04                    ; firing animation complete
+        bne     code_A36A
         lda     $05E0,x
         cmp     #$02
-        bne     LA36A
-        inc     $0500,x
-        lda     #$10
+        bne     code_A36A
+        inc     $0500,x                 ; set firing-done flag
+        lda     #$10                    ; post-fire pause = 16 frames
         sta     $0520,x
-LA36A:  rts
+code_A36A:  rts
 
-LA36B:  lda     #$00
+; --- post-fire pause, then transition to walking ---
+
+code_A36B:  lda     #$00                ; freeze animation during pause
         sta     $05E0,x
         sta     $05A0,x
-        dec     $0520,x
-        bne     LA388
-        inc     $0300,x
-        lda     #$77
+        dec     $0520,x                 ; count down post-fire timer
+        bne     code_A388
+        inc     $0300,x                 ; advance to state 3 (walking)
+        lda     #$77                    ; set walking sprite
         jsr     LF835
-        jsr     LF869
-        lda     #$5A
+        jsr     LF869                   ; face player for walk direction
+        lda     #$5A                    ; walk timer = 90 frames
         sta     $0540,x
-LA388:  rts
+code_A388:  rts
 
-LA389:  lda     $05C0,x
-        cmp     #$76
-        beq     LA3FA
-        ldy     #$0E
+; --- state 3: walking/deployed ---
+
+code_A389:  lda     $05C0,x             ; check if using helmet sprite (OAM $76)
+        cmp     #$76                    ; if so, do retract-and-fire sequence
+        beq     code_A3FA
+        ldy     #$0E                    ; apply gravity, speed index $0E
         jsr     LF67C
-        bcc     LA3BA
-        lda     #$AA
+        bcc     code_A3BA               ; no floor hit: skip horizontal move
+        lda     #$AA                    ; on floor: set damage flags (hurts player, takes damage)
         sta     $0480,x
-        lda     $04A0,x
+        lda     $04A0,x                 ; check facing direction
         and     #$01
-        beq     LA3AB
-        ldy     #$1C
+        beq     code_A3AB               ; branch if facing left
+        ldy     #$1C                    ; move right with collision
         jsr     LF580
-        jmp     LA3B0
+        jmp     code_A3B0
 
-LA3AB:  ldy     #$1D
+code_A3AB:  ldy     #$1D                ; move left with collision
         jsr     LF5C4
-LA3B0:  bcc     LA3BA
-        lda     $04A0,x
-        eor     #$03
+code_A3B0:  bcc     code_A3BA           ; no wall hit: continue
+        lda     $04A0,x                 ; wall hit: reverse direction
+        eor     #$03                    ; toggle left/right bits
         sta     $04A0,x
-LA3BA:  lda     $0560,x
-        bne     LA3D7
-        dec     $0540,x
-        bne     LA3D6
-        lda     #$C6
-        sta     $0480,x
-        lda     #$76
+code_A3BA:  lda     $0560,x             ; check retract phase flag
+        bne     code_A3D7               ; if set, count down retract timer
+        dec     $0540,x                 ; decrement walk timer
+        bne     code_A3D6               ; not zero: keep walking
+        lda     #$C6                    ; walk timer expired: switch to helmet
+        sta     $0480,x                 ; damage flags = invincible in helmet
+        lda     #$76                    ; set helmet closing sprite
         jsr     LF835
-        lda     #$FF
+        lda     #$FF                    ; retract timer = 255 frames
         sta     $0540,x
-        inc     $0560,x
-LA3D6:  rts
+        inc     $0560,x                 ; set retract phase flag
+code_A3D6:  rts
 
-LA3D7:  dec     $0540,x
-        bne     LA3D6
-        lda     #$00
-        sta     $0500,x
-        sta     $0520,x
-        sta     $0540,x
-        sta     $0560,x
-        lda     #$C6
+; --- retract phase: wait in helmet, then reset to state 2 ---
+
+code_A3D7:  dec     $0540,x             ; count down retract timer
+        bne     code_A3D6               ; not done yet: wait
+        lda     #$00                    ; reset all entity-specific counters
+        sta     $0500,x                 ; firing-done flag
+        sta     $0520,x                 ; post-fire timer
+        sta     $0540,x                 ; walk/retract timer
+        sta     $0560,x                 ; retract phase flag
+        lda     #$C6                    ; damage flags = shielded helmet
         sta     $0480,x
-        lda     #$76
+        lda     #$76                    ; set helmet sprite
         jsr     LF835
-        lda     #$82
-        sta     $0300,x
+        lda     #$82                    ; reset to state 2 (active + firing)
+        sta     $0300,x                 ; skips init, goes straight to fire
         rts
 
-LA3FA:  lda     $05A0,x
-        cmp     #$01
-        bne     LA419
+; --- helmet retract-and-fire: single shot while closing ---
+
+code_A3FA:  lda     $05A0,x             ; wait for anim frame 1, tick 2
+        cmp     #$01                    ; (helmet opening frame)
+        bne     code_A419
         lda     $05E0,x
         cmp     #$02
-        bne     LA419
-        lda     #$04
+        bne     code_A419
+        lda     #$04                    ; fire 5 bullets
         sta     $01
         stx     L0000
-        jsr     LA41A
-        lda     #$10
+        jsr     code_A41A
+        lda     #$10                    ; set post-fire pause = 16 frames
         sta     $0520,x
-        dec     $0300,x
-LA419:  rts
+        dec     $0300,x                 ; go back to state 2 (wait for pause)
+code_A419:  rts
 
-LA41A:  jsr     LFC53
-        bcs     LA472
-        ldx     $01
-        lda     LA475,x
+; --- spawn_hari_harry_bullets: loop spawns up to 5 projectiles ---
+; $01 = bullet index (counts down from 4 to 0), $00 = parent slot
+
+code_A41A:  jsr     LFC53               ; find free enemy slot
+        bcs     code_A472               ; no slot: abort
+        ldx     $01                     ; X = bullet index for table lookup
+        lda     LA475,x                 ; set X speed sub from table
         sta     $0400,y
-        lda     LA47A,x
+        lda     LA47A,x                 ; set X speed whole from table
         sta     $0420,y
-        lda     LA47F,x
+        lda     LA47F,x                 ; set Y speed sub from table
         sta     $0440,y
-        lda     LA484,x
+        lda     LA484,x                 ; set Y speed whole from table
         sta     $0460,y
-        lda     LA489,x
+        lda     LA489,x                 ; set direction flags from table
         sta     $04A0,y
-        lda     LA48E,x
+        lda     LA48E,x                 ; init child with OAM ID from table
         jsr     LF846
-        lda     LA493,x
+        lda     LA493,x                 ; set sprite flags from table
         sta     $0580,y
-        ldx     L0000
-        lda     #$CB
+        ldx     L0000                   ; restore parent slot to X
+        lda     #$CB                    ; bullet damage flags (projectile)
         sta     $0480,y
-        lda     #$36
+        lda     #$36                    ; AI routine = $36 (bullet movement)
         sta     $0320,y
-        lda     $0360,x
+        lda     $0360,x                 ; copy parent X position to bullet
         sta     $0360,y
         lda     $0380,x
         sta     $0380,y
-        lda     $03C0,x
+        lda     $03C0,x                 ; copy parent Y position to bullet
         sta     $03C0,y
-        lda     #$01
+        lda     #$01                    ; set bullet HP = 1
         sta     $04E0,y
-        dec     $01
-        bpl     LA41A
-LA472:  ldx     L0000
+        dec     $01                     ; loop: next bullet index
+        bpl     code_A41A               ; continue until all 5 spawned
+code_A472:  ldx     L0000               ; restore parent slot to X
         rts
+
+; bullet speed/dir/OAM/sprite tables (5 entries each, indexed 0-4):
+; $A475: X speed sub    $A47A: X speed whole   $A47F: Y speed sub
+; $A484: Y speed whole  $A489: direction flags  $A48E: OAM ID
+; $A493: sprite flags
 
 LA475:  .byte   $00,$1F,$00,$00,$1F
 LA47A:  .byte   $00,$02,$03,$03,$02
@@ -3967,97 +4523,119 @@ LA484:  .byte   $FD,$FD,$00,$00,$FD
 LA489:  .byte   $02,$02,$02,$01,$01
 LA48E:  .byte   $40,$79,$78,$78,$79
 LA493:  .byte   $90,$90,$90,$D0,$D0
-        lda     $0300,x
+
+; ===========================================================================
+; main_nitron — Nitron (rocket/missile enemy, Gemini Man stage)
+; Approaches player horizontally, then flies in a sinusoidal wave pattern
+; while dropping bombs. After 2 bomb drops, climbs away upward.
+; States: 0=approach, 1=sine wave flight + bomb, 2=climb away
+; $0500=frame delay, $0520=sine index, $0540=bomb count, $0560=bomb cooldown
+; ===========================================================================
+main_nitron:
+        lda     $0300,x                 ; state 0: approach
         and     #$0F
-        bne     LA4BA
-        lda     $04A0,x
+        bne     code_A4BA
+        lda     $04A0,x                 ; check direction
         and     #$01
-        beq     LA4AC
-        jsr     LF71D
-        jmp     LA4AF
+        beq     code_A4AC               ; branch if moving left
+        jsr     LF71D                   ; move right toward player
+        jmp     code_A4AF
 
-LA4AC:  jsr     LF73B
-LA4AF:  jsr     LF8C2
-        cmp     #$40
-        bcs     LA4B9
+code_A4AC:  jsr     LF73B               ; move left toward player
+code_A4AF:  jsr     LF8C2               ; check X distance to player
+        cmp     #$40                    ; if < 64 pixels away,
+        bcs     code_A4B9               ; advance to sine wave state
         inc     $0300,x
-LA4B9:  rts
+code_A4B9:  rts
 
-LA4BA:  lda     $0300,x
+; --- state 1+: dispatch flying vs climbing ---
+
+code_A4BA:  lda     $0300,x             ; check if state >= 2
         and     #$02
-        beq     LA4C4
-        jmp     LA561
+        beq     code_A4C4               ; state 1: sine wave flight
+        jmp     code_A561               ; state 2: climb away
 
-LA4C4:  lda     $0500,x
-        bne     LA51A
-        ldy     $0520,x
-        lda     LA56E,y
-        asl     a
+; --- state 1: sinusoidal wave flight ---
+
+code_A4C4:  lda     $0500,x             ; if frame delay active,
+        bne     code_A51A               ; skip to movement
+        ldy     $0520,x                 ; load sine table step index
+        lda     LA56E,y                 ; lookup phase entry
+        asl     a                       ; *2 for 16-bit table offset
         tay
-        lda     LA57C,y
+        lda     LA57C,y                 ; set Y speed from sine table (sub)
         sta     $0440,x
-        lda     LA57D,y
+        lda     LA57D,y                 ; set Y speed from sine table (whole)
         sta     $0460,x
-        lda     LA59C,y
+        lda     LA59C,y                 ; set X speed from sine table (sub)
         sta     $0400,x
-        lda     LA59D,y
+        lda     LA59D,y                 ; set X speed from sine table (whole)
         sta     $0420,x
-        lda     $0420,x
-        bpl     LA503
-        lda     $0400,x
-        eor     #$FF
+        lda     $0420,x                 ; if X speed is negative,
+        bpl     code_A503               ; negate it (always move in facing dir)
+        lda     $0400,x                 ; negate 16-bit X speed:
+        eor     #$FF                    ; two's complement low byte
         clc
         adc     #$01
         sta     $0400,x
-        lda     $0420,x
+        lda     $0420,x                 ; two's complement high byte
         eor     #$FF
         adc     #$00
         sta     $0420,x
-LA503:  inc     $0520,x
+code_A503:  inc     $0520,x             ; advance sine step index
         lda     $0520,x
-        cmp     #$06
-        bne     LA515
-        inc     $0300,x
-        lda     #$1A
+        cmp     #$06                    ; after 6 steps: flight phase done
+        bne     code_A515
+        inc     $0300,x                 ; advance to state 2 (climb away)
+        lda     #$1A                    ; bomb cooldown = 26 frames
         sta     $0560,x
-LA515:  lda     #$0D
-        sta     $0500,x
-LA51A:  dec     $0500,x
-        lda     $03A0,x
-        clc
+code_A515:  lda     #$0D                ; frame delay = 13 (hold each sine
+        sta     $0500,x                 ; step for 13 frames)
+
+; --- apply current speed each frame ---
+code_A51A:  dec     $0500,x             ; decrement frame delay
+        lda     $03A0,x                 ; apply Y speed to Y position
+        clc                             ; (16-bit add: sub + whole)
         adc     $0440,x
         sta     $03A0,x
         lda     $03C0,x
         adc     $0460,x
         sta     $03C0,x
-        lda     $04A0,x
+        lda     $04A0,x                 ; move horizontally in facing dir
         and     #$02
-        bne     LA53E
-        jsr     LF71D
-        bcs     LA541
-        bcc     LA541
-LA53E:  jsr     LF73B
-LA541:  lda     $0560,x
-        bne     LA55D
-        jsr     LA5BC
-        inc     $0540,x
+        bne     code_A53E               ; branch if facing left
+        jsr     LF71D                   ; unconditional branch past
+        bcs     code_A541
+        bcc     code_A541
+code_A53E:  jsr     LF73B               ; move left
+code_A541:  lda     $0560,x             ; if bomb cooldown active,
+        bne     code_A55D               ; skip to decrement
+        jsr     code_A5BC               ; drop a bomb (spawn child)
+        inc     $0540,x                 ; increment bomb count
         lda     $0540,x
-        cmp     #$02
-        bne     LA557
-        lda     #$10
-        bne     LA559
-LA557:  lda     #$1A
-LA559:  sta     $0560,x
+        cmp     #$02                    ; after 2nd bomb: shorter cooldown
+        bne     code_A557
+        lda     #$10                    ; cooldown = 16 frames (after 2nd)
+        bne     code_A559
+code_A557:  lda     #$1A                ; cooldown = 26 frames (normal)
+code_A559:  sta     $0560,x             ; store bomb cooldown timer
         rts
 
-LA55D:  dec     $0560,x
+code_A55D:  dec     $0560,x             ; decrement bomb cooldown
         rts
 
-LA561:  lda     #$00
+; --- state 2: climb away (flee upward) ---
+
+code_A561:  lda     #$00                ; Y speed = $00.03 (3.0 px/frame up)
         sta     $0440,x
         lda     #$03
         sta     $0460,x
-        jmp     LF779
+        jmp     LF779                   ; fly upward off screen
+
+; Nitron sine wave tables:
+; $A56E: phase-to-index mapping (16 entries, one full sine cycle)
+; $A57C: Y speed table (16-bit signed pairs for vertical oscillation)
+; $A59C: X speed table (16-bit signed pairs for horizontal component)
 
 LA56E:  .byte   $09,$0A,$0B,$0C,$0D,$0E,$0F,$01
         .byte   $02,$03,$04,$05,$06,$07
@@ -4071,13 +4649,15 @@ LA59D:  .byte   $00,$C3,$00,$6A,$01,$D9,$01,$00
         .byte   $02,$D9,$01,$6A,$01,$C3,$00,$00
         .byte   $00,$3D,$FF,$96,$FE,$27,$FE,$00
         .byte   $FE,$27,$FE,$96,$FE,$3D,$FF
-LA5BC:  jsr     LFC53
-        bcs     LA5FD
-        sty     L0000
-        lda     $04A0,x
+
+; --- spawn_nitron_bomb: drop a bomb projectile below Nitron ---
+code_A5BC:  jsr     LFC53               ; find free enemy slot
+        bcs     code_A5FD               ; no slot: abort
+        sty     L0000                   ; save child slot
+        lda     $04A0,x                 ; dir offset (0 or 2) for X table
         and     #$02
         tay
-        lda     $0360,x
+        lda     $0360,x                 ; child X = parent X + dir offset
         clc
         adc     LA731,y
         pha
@@ -4087,53 +4667,54 @@ LA5BC:  jsr     LFC53
         sta     $0380,y
         pla
         sta     $0360,y
-        lda     $03C0,x
+        lda     $03C0,x                 ; child Y = parent Y + 16 (below)
         clc
         adc     #$10
         sta     $03C0,y
-        lda     #$00
+        lda     #$00                    ; HP = 0 (indestructible)
         sta     $04E0,y
-        lda     #$81
+        lda     #$81                    ; init child with OAM $81
         jsr     LF846
-        lda     #$26
+        lda     #$26                    ; AI routine = $26 (falling bomb)
         sta     $0320,y
-        lda     #$93
+        lda     #$93                    ; damage flags = projectile
         sta     $0480,y
-LA5FD:  rts
+code_A5FD:  rts
 
         lda     $0300,x
         and     #$0F
-        bne     LA60B
+        bne     code_A60B
         jsr     LF81B
         inc     $0300,x
-LA60B:  lda     $0300,x
+code_A60B:  lda     $0300,x
         and     #$02
-        bne     LA627
+        bne     code_A627
         ldy     #$12
         jsr     LF67C
-        bcc     LA626
+        bcc     code_A626
         lda     #$71
         jsr     LF835
         lda     #$24
         jsr     LF89A
         inc     $0300,x
-LA626:  rts
+code_A626:  rts
 
-LA627:  lda     $05C0,x
+code_A627:  lda     $05C0,x
         cmp     #$71
-        bne     LA626
+        bne     code_A626
         lda     $05A0,x
         cmp     #$04
-        bne     LA626
+        bne     code_A626
         lda     #$80
         jmp     LF835
+main_unknown_27:
 
         lda     $05C0,x
         cmp     #$71
-        bne     LA668
+        bne     code_A668
         lda     $05A0,x
         cmp     #$04
-        bne     LA667
+        bne     code_A667
         lda     #$92
         jsr     LF835
         lda     #$40
@@ -4146,52 +4727,53 @@ LA627:  lda     $05C0,x
         sta     $0480,x
         lda     #$01
         sta     $04E0,x
-LA667:  rts
+code_A667:  rts
 
-LA668:  jmp     LABEA
+code_A668:  jmp     code_ABEA
+main_gyoraibo:
 
         lda     $0300,x
         and     #$0F
-        bne     LA67D
+        bne     code_A67D
         sta     $0460,x
         lda     #$80
         sta     $0440,x
         inc     $0300,x
-LA67D:  lda     $0300,x
+code_A67D:  lda     $0300,x
         and     #$02
-        bne     LA6BD
+        bne     code_A6BD
         lda     $04A0,x
         and     #$01
-        beq     LA693
+        beq     code_A693
         ldy     #$14
         jsr     LF580
-        jmp     LA698
+        jmp     code_A698
 
-LA693:  ldy     #$15
+code_A693:  ldy     #$15
         jsr     LF5C4
-LA698:  bcc     LA6A0
+code_A698:  bcc     code_A6A0
         inc     $0540,x
-LA69D:  jmp     LF759
+code_A69D:  jmp     LF759
 
-LA6A0:  lda     $0540,x
-        bne     LA69D
+code_A6A0:  lda     $0540,x
+        bne     code_A69D
         lda     $0520,x
-        bne     LA6BC
+        bne     code_A6BC
         jsr     LF8C2
         cmp     #$08
-        bcs     LA6BC
+        bcs     code_A6BC
         inc     $0300,x
         inc     $0520,x
         lda     #$33
         jsr     LF835
-LA6BC:  rts
+code_A6BC:  rts
 
-LA6BD:  lda     $05C0,x
+code_A6BD:  lda     $05C0,x
         cmp     #$33
-        bne     LA6BC
+        bne     code_A6BC
         lda     $05E0,x
         ora     $05A0,x
-        bne     LA6BC
+        bne     code_A6BC
         lda     #$32
         jsr     LF835
         lda     #$00
@@ -4200,7 +4782,7 @@ LA6BD:  lda     $05C0,x
         sta     $0420,x
         dec     $0300,x
         jsr     LFC53
-        bcs     LA730
+        bcs     code_A730
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -4226,32 +4808,32 @@ LA6BD:  lda     $05C0,x
         jsr     LF846
         lda     $0320,x
         cmp     #$28
-        beq     LA726
+        beq     code_A726
         lda     #$45
         sta     $0320,y
-        bne     LA72B
-LA726:  lda     #$29
+        bne     code_A72B
+code_A726:  lda     #$29
         sta     $0320,y
-LA72B:  lda     #$C0
+code_A72B:  lda     #$C0
         sta     $0480,y
-LA730:  rts
+code_A730:  rts
 
 LA731:  .byte   $00
 LA732:  .byte   $00,$00,$00
         lda     $0300,x
         and     #$0F
-        bne     LA74A
+        bne     code_A74A
         sta     $0500,x
         sta     $0440,x
         lda     #$02
         sta     $0460,x
         inc     $0300,x
-LA74A:  lda     $0300,x
+code_A74A:  lda     $0300,x
         and     #$02
-        bne     LA76B
+        bne     code_A76B
         ldy     #$17
         jsr     LF642
-        bcc     LA76B
+        bcc     code_A76B
         inc     $0300,x
         lda     #$71
         jsr     LF835
@@ -4261,21 +4843,21 @@ LA74A:  lda     $0300,x
         sta     $0320,x
         rts
 
-LA76B:  lda     $0500,x
-        bne     LA7CA
+code_A76B:  lda     $0500,x
+        bne     code_A7CA
         lda     $0320,x
         cmp     #$29
-        beq     LA780
+        beq     code_A780
         lda     $03C0,x
         cmp     #$62
-        bcs     LA7CA
-        bcc     LA787
-LA780:  lda     $03C0,x
+        bcs     code_A7CA
+        bcc     code_A787
+code_A780:  lda     $03C0,x
         cmp     #$B4
-        bcs     LA7CA
-LA787:  inc     $0500,x
+        bcs     code_A7CA
+code_A787:  inc     $0500,x
         jsr     LFC53
-        bcs     LA7CA
+        bcs     code_A7CA
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -4301,22 +4883,23 @@ LA787:  inc     $0500,x
         sta     $04E0,y
         lda     #$68
         jsr     LF846
-LA7CA:  rts
+code_A7CA:  rts
+main_penpen_maker:
 
         lda     $0300,x
         and     #$0F
-        bne     LA7EB
+        bne     code_A7EB
         ldy     #$02
-LA7D4:  lda     LA8BD,y
+code_A7D4:  lda     LA8BD,y
         sta     $060D,y
         sta     $062D,y
         dey
-        bpl     LA7D4
+        bpl     code_A7D4
         sty     $18
         inc     $0300,x
-        jsr     LA82E
+        jsr     code_A82E
         sta     $0500,x
-LA7EB:  lda     $03C0,x
+code_A7EB:  lda     $03C0,x
         pha
         sec
         sbc     #$10
@@ -4325,29 +4908,29 @@ LA7EB:  lda     $03C0,x
         sta     $0480,x
         lda     $05C0,x
         pha
-        jsr     L8003
+        jsr     code_8003
         pla
         sta     $05C0,x
         pla
         sta     $03C0,x
         lda     $04E0,x
-        bne     LA81A
+        bne     code_A81A
         sta     $0520,x
         sta     $0540,x
         lda     #$63
         sta     $0320,x
         rts
 
-LA81A:  lda     #$98
+code_A81A:  lda     #$98
         sta     $0480,x
         dec     $0500,x
-        bne     LA82D
-        jsr     LA8EC
-        jsr     LA82E
+        bne     code_A82D
+        jsr     code_A8EC
+        jsr     code_A82E
         sta     $0500,x
-LA82D:  rts
+code_A82D:  rts
 
-LA82E:  lda     $E4
+code_A82E:  lda     $E4
         adc     $E5
         sta     $E5
         and     #$03
@@ -4357,11 +4940,11 @@ LA82E:  lda     $E4
 
 LA83B:  .byte   $3C,$1E,$78,$3C
         lda     $0520,x
-        bne     LA8B8
+        bne     code_A8B8
         lda     #$0A
         sta     $0520,x
         jsr     LFC53
-        bcs     LA8BB
+        bcs     code_A8BB
         lda     #$27
         jsr     LF89A
         lda     #$71
@@ -4394,24 +4977,24 @@ LA83B:  .byte   $3C,$1E,$78,$3C
         asl     a
         tax
         ldy     #$00
-LA894:  lda     LA8BC,x
+code_A894:  lda     LA8BC,x
         sta     $060C,y
         sta     $062C,y
         inx
         iny
         cpy     #$04
-        bne     LA894
+        bne     code_A894
         lda     #$FF
         sta     $18
         ldx     L0000
         inc     $0540,x
         lda     $0540,x
         and     #$03
-        bne     LA8BB
+        bne     code_A8BB
         lda     #$00
         sta     $0300,x
-LA8B8:  dec     $0520,x
-LA8BB:  rts
+code_A8B8:  dec     $0520,x
+code_A8BB:  rts
 
 LA8BC:  .byte   $0F
 LA8BD:  .byte   $20,$10,$17,$0F,$10,$00,$17,$0F
@@ -4420,8 +5003,8 @@ LA8BD:  .byte   $20,$10,$17,$0F,$10,$00,$17,$0F
         .byte   $0F,$17,$0F,$0F,$0F,$0F,$0F
 LA8DC:  .byte   $F0,$10,$10,$D0,$F0,$10,$10,$D0
 LA8E4:  .byte   $F0,$20,$E8,$10,$F0,$20,$E8,$10
-LA8EC:  jsr     LFC53
-        bcs     LA93A
+code_A8EC:  jsr     LFC53
+        bcs     code_A93A
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -4453,32 +5036,32 @@ LA8EC:  jsr     LFC53
         sta     $0480,y
         lda     #$01
         sta     $04E0,y
-LA93A:  rts
+code_A93A:  rts
 
 LA93B:  .byte   $F8
 LA93C:  .byte   $FF,$F8,$FF
         lda     $04A0,x
         and     #$01
-        beq     LA94E
+        beq     code_A94E
         lda     #$08
         jsr     LF580
-        jmp     LA953
+        jmp     code_A953
 
-LA94E:  ldy     #$09
+code_A94E:  ldy     #$09
         jsr     LF5C4
-LA953:  bcc     LA95F
+code_A953:  bcc     code_A95F
         lda     #$71
         jsr     LF835
         lda     #$00
         sta     $0320,x
-LA95F:  rts
+code_A95F:  rts
 
         lda     $05E0,x
         cmp     #$02
-        bne     LA95F
+        bne     code_A95F
         lda     $0500,x
         cmp     #$08
-        beq     LA95F
+        beq     code_A95F
         stx     L0000
         ldy     $0360,x
         sty     $02
@@ -4492,38 +5075,38 @@ LA95F:  rts
         sta     $11
         lda     $0500,x
         tax
-LA98D:  jsr     LFC53
-        bcs     LA9F7
+code_A98D:  jsr     LFC53
+        bcs     code_A9F7
         lda     $10
         jsr     LF846
         lda     $11
         cmp     #$56
-        beq     LA9B3
+        beq     code_A9B3
         cmp     #$48
-        beq     LA9B3
+        beq     code_A9B3
         cmp     #$39
-        beq     LA9BF
+        beq     code_A9BF
         cmp     #$48
-        beq     LA9BF
+        beq     code_A9BF
         lda     #$00
         sta     $0480,y
         sta     $0320,y
-        beq     LA9C9
-LA9B3:  lda     #$80
+        beq     code_A9C9
+code_A9B3:  lda     #$80
         sta     $0480,y
         lda     #$54
         sta     $0320,y
-        bne     LA9C9
-LA9BF:  lda     #$80
+        bne     code_A9C9
+code_A9BF:  lda     #$80
         sta     $0480,y
         lda     #$55
         sta     $0320,y
-LA9C9:  lda     #$00
+code_A9C9:  lda     #$00
         sta     $01
         lda     LA9FA,x
-        bpl     LA9D4
+        bpl     code_A9D4
         dec     $01
-LA9D4:  clc
+code_A9D4:  clc
         adc     $02
         sta     $0360,y
         lda     $03
@@ -4538,15 +5121,16 @@ LA9D4:  clc
         lda     $0500,x
         tax
         and     #$01
-        bne     LA98D
-LA9F7:  ldx     L0000
+        bne     code_A98D
+code_A9F7:  ldx     L0000
         rts
 
 LA9FA:  .byte   $0C,$F4,$F0,$10,$F4,$0C,$00,$00
 LAA02:  .byte   $F4,$0C,$00,$00,$F4,$0C,$F0,$10
+main_bomber_pepe:
         lda     $0300,x
         and     #$0F
-        bne     LAA2C
+        bne     code_AA2C
         lda     #$44
         sta     $0440,x
         lda     #$03
@@ -4554,58 +5138,58 @@ LAA02:  .byte   $F4,$0C,$00,$00,$F4,$0C,$F0,$10
         lda     #$1E
         sta     $0500,x
         jsr     LF883
-        jsr     LA82E
+        jsr     code_A82E
         sta     $0520,x
         inc     $0300,x
-LAA2C:  dec     $0520,x
-        bne     LAA3A
-        jsr     LAA9A
-        jsr     LA82E
+code_AA2C:  dec     $0520,x
+        bne     code_AA3A
+        jsr     code_AA9A
+        jsr     code_A82E
         sta     $0520,x
-LAA3A:  lda     $0300,x
+code_AA3A:  lda     $0300,x
         and     #$02
-        bne     LAA72
+        bne     code_AA72
         lda     $04A0,x
         and     #$01
-        beq     LAA50
+        beq     code_AA50
         ldy     #$0A
         jsr     LF580
-        jmp     LAA55
+        jmp     code_AA55
 
-LAA50:  ldy     #$0B
+code_AA50:  ldy     #$0B
         jsr     LF5C4
-LAA55:  ldy     #$20
+code_AA55:  ldy     #$20
         jsr     LF67C
-        bcc     LAA6D
+        bcc     code_AA6D
         lda     #$44
         sta     $0440,x
         lda     #$03
         sta     $0460,x
         inc     $0300,x
         lda     #$3D
-        bne     LAA6F
-LAA6D:  lda     #$3C
-LAA6F:  jmp     LF835
+        bne     code_AA6F
+code_AA6D:  lda     #$3C
+code_AA6F:  jmp     LF835
 
-LAA72:  lda     $05C0,x
+code_AA72:  lda     $05C0,x
         cmp     #$3B
-        beq     LAA86
+        beq     code_AA86
         lda     $05E0,x
         ora     $05A0,x
-        bne     LAA99
+        bne     code_AA99
         lda     #$3B
         jsr     LF835
-LAA86:  dec     $0500,x
-        bne     LAA99
+code_AA86:  dec     $0500,x
+        bne     code_AA99
         jsr     LF869
         jsr     LF883
         dec     $0300,x
         lda     #$3C
         sta     $0500,x
-LAA99:  rts
+code_AA99:  rts
 
-LAA9A:  jsr     LFC53
-        bcs     LAADB
+code_AA9A:  jsr     LFC53
+        bcs     code_AADB
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -4631,30 +5215,30 @@ LAA9A:  jsr     LFC53
         sta     $0320,y
         lda     #$C0
         sta     $0480,y
-LAADB:  rts
+code_AADB:  rts
 
 LAADC:  .byte   $08
 LAADD:  .byte   $00,$F8,$FF
         lda     $0300,x
         and     #$0F
-        bne     LAAF2
+        bne     code_AAF2
         sta     $0500,x
         lda     #$1E
         sta     $0520,x
         inc     $0300,x
-LAAF2:  lda     $0300,x
+code_AAF2:  lda     $0300,x
         and     #$02
-        bne     LAB3A
+        bne     code_AB3A
         lda     $04A0,x
         and     #$01
-        beq     LAB06
+        beq     code_AB06
         jsr     LF71D
-        jmp     LAB09
+        jmp     code_AB09
 
-LAB06:  jsr     LF73B
-LAB09:  ldy     #$08
+code_AB06:  jsr     LF73B
+code_AB09:  ldy     #$08
         jsr     LF67C
-        bcc     LAB39
+        bcc     code_AB39
         lda     $0500,x
         tay
         lda     LAB4F,y
@@ -4668,12 +5252,12 @@ LAB09:  ldy     #$08
         inc     $0500,x
         lda     $0500,x
         cmp     #$03
-        bcc     LAB39
+        bcc     code_AB39
         inc     $0300,x
-LAB39:  rts
+code_AB39:  rts
 
-LAB3A:  dec     $0520,x
-        bne     LAB3A
+code_AB3A:  dec     $0520,x
+        bne     code_AB3A
         lda     #$71
         jsr     LF835
         lda     #$00
@@ -4686,145 +5270,160 @@ LAB4F:  .byte   $9E,$44,$4F
 LAB52:  .byte   $04,$03,$02
 LAB55:  .byte   $00,$00,$80
 LAB58:  .byte   $01,$01,$00
-        lda     $05C0,x
-        cmp     #$2F
-        bne     LAB65
-        jmp     LABEA
 
-LAB65:  lda     $0300,x
-        and     #$0F
-        bne     LABC9
-        jsr     LAC27
-        bcs     LABE9
-        lda     $0580,x
+; ===========================================================================
+; main_bolton_and_nutton — Two-part bolt enemy (Hard Man stage)
+; Bolton (nut body, OAM $2E) sits on the wall and launches the Nutton
+; (bolt projectile, OAM $2F) when player is within range. Nutton homes
+; toward the player's position once launched. Code at $1DAC82 (unlabeled,
+; AI routine $31) handles Nutton's return flight back to Bolton.
+; Entity memory (Nutton child):
+;   $0500/$0540 = target X position (Bolton's X - 8)
+;   $0520 = parent Bolton slot index
+;   $0560 = sound-played flag
+; ===========================================================================
+main_bolton_and_nutton:
+        lda     $05C0,x                 ; check OAM sprite ID
+        cmp     #$2F                    ; is this the Nutton (bolt)?
+        bne     code_AB65               ; no -> Bolton (nut body) logic
+        jmp     code_ABEA               ; yes -> Nutton homing toward player
+
+; -- Bolton (nut body) logic --
+
+code_AB65:  lda     $0300,x             ; check state
+        and     #$0F                    ; state 0 = idle, waiting
+        bne     code_ABC9               ; nonzero = bolt already launched
+        jsr     code_AC27               ; check player range + find free slot
+        bcs     code_ABE9               ; carry set = can't fire, return
+        lda     $0580,x                 ; clear bit 2 (open-mouth indicator)
         and     #$FB
         sta     $0580,x
-        inc     $0300,x
-        lda     #$66
-        sta     $0440,x
+        inc     $0300,x                 ; advance to state 1 (bolt launched)
+        lda     #$66                    ; Y speed = $00.66/frame
+        sta     $0440,x                 ; (slow upward drift for Bolton body)
         lda     #$00
         sta     $0460,x
-        lda     #$2E
-        jsr     LF846
-        lda     #$31
-        sta     $0320,y
-        lda     $03C0,x
+        lda     #$2E                    ; spawn child entity type $2E
+        jsr     LF846                   ; (Nutton bolt projectile)
+        lda     #$31                    ; child AI routine = $31
+        sta     $0320,y                 ; (Nutton return-flight handler)
+        lda     $03C0,x                 ; copy Bolton Y to child
         sta     $03C0,y
-        lda     $FC
-        clc
+        lda     $FC                     ; child X = camera left edge + 4
+        clc                             ; (spawn at left side of screen)
         adc     #$04
         sta     $0360,y
-        lda     $F9
+        lda     $F9                     ; child X screen
         adc     #$00
         sta     $0380,y
-        lda     #$00
-        sta     $0400,y
+        lda     #$00                    ; child X speed = $04.00 px/frame
+        sta     $0400,y                 ; (flies rightward toward Bolton)
         lda     #$04
         sta     $0420,y
-        lda     $0360,x
-        sec
+        lda     $0360,x                 ; child target X = Bolton X - 8
+        sec                             ; (stored in child $0500/$0540)
         sbc     #$08
         sta     $0500,y
-        lda     $0380,x
+        lda     $0380,x                 ; target X screen
         sbc     #$00
         sta     $0540,y
-        txa
+        txa                             ; store parent Bolton slot in child
         sta     $0520,y
-        lda     #$00
+        lda     #$00                    ; child damage = $00 (harmless during return)
         sta     $0480,y
-LABC9:  lda     $0580,x
+code_ABC9:  lda     $0580,x
         and     #$FB
         sta     $0580,x
         lda     $0500,x
-        bne     LABE9
+        bne     code_ABE9
         lda     #$00
         sta     $05E0,x
         lda     $92
         and     #$04
-        beq     LABE9
+        beq     code_ABE9
         lda     $0580,x
         ora     #$04
         sta     $0580,x
-LABE9:  rts
+code_ABE9:  rts
 
-LABEA:  lda     $0360
+code_ABEA:  lda     $0360
         sec
         sbc     $0360,x
         pha
         lda     $0380
         sbc     $0380,x
         pla
-        beq     LAC16
-        bcc     LAC0B
+        beq     code_AC16
+        bcc     code_AC0B
         jsr     LF71D
         lda     $0580,x
         ora     #$40
         sta     $0580,x
-        jmp     LAC16
+        jmp     code_AC16
 
-LAC0B:  jsr     LF73B
+code_AC0B:  jsr     LF73B
         lda     $0580,x
         and     #$BF
         sta     $0580,x
-LAC16:  lda     $03C0
+code_AC16:  lda     $03C0
         sec
         sbc     $03C0,x
-        beq     LABE9
-        bcs     LAC24
+        beq     code_ABE9
+        bcs     code_AC24
         jmp     LF779
 
-LAC24:  jmp     LF759
+code_AC24:  jmp     LF759
 
-LAC27:  jsr     LF8C2
+code_AC27:  jsr     LF8C2
         cmp     #$44
-        bcs     LAC7E
+        bcs     code_AC7E
         lda     $0360,x
         sec
         sbc     $FC
         sta     L0000
         lda     $0380,x
         sbc     $F9
-        bcc     LAC79
+        bcc     code_AC79
         lda     L0000
         cmp     #$80
-        bcc     LAC79
+        bcc     code_AC79
         lda     #$00
         sta     $01
         stx     L0000
         ldy     #$1F
-LAC4B:  cpy     L0000
-        beq     LAC62
+code_AC4B:  cpy     L0000
+        beq     code_AC62
         lda     $0300,y
-        bpl     LAC62
+        bpl     code_AC62
         lda     $0580,y
-        bpl     LAC62
+        bpl     code_AC62
         lda     $0320,y
         cmp     #$30
-        bne     LAC62
+        bne     code_AC62
         inc     $01
-LAC62:  dey
+code_AC62:  dey
         cpy     #$0F
-        bne     LAC4B
+        bne     code_AC4B
         lda     $01
         cmp     #$03
-        beq     LAC79
+        beq     code_AC79
         ldy     L0000
-LAC6F:  lda     $0300,y
-        bpl     LAC80
+code_AC6F:  lda     $0300,y
+        bpl     code_AC80
         dey
         cpy     #$0F
-        bne     LAC6F
-LAC79:  lda     #$00
+        bne     code_AC6F
+code_AC79:  lda     #$00
         sta     $0300,x
-LAC7E:  sec
+code_AC7E:  sec
         rts
 
-LAC80:  clc
+code_AC80:  clc
         rts
 
         lda     $0300,x
         and     #$0F
-        bne     LACBE
+        bne     code_ACBE
         sta     $0560,x
         jsr     LF71D
         lda     $0500,x
@@ -4832,7 +5431,7 @@ LAC80:  clc
         sbc     $0360,x
         lda     $0540,x
         sbc     $0380,x
-        bcs     LACB8
+        bcs     code_ACB8
         lda     $0500,x
         sta     $0360,x
         lda     $0540,x
@@ -4842,31 +5441,31 @@ LAC80:  clc
         lda     #$08
         sta     $0500,y
         sta     $0500,x
-LACB8:  lda     #$00
+code_ACB8:  lda     #$00
         sta     $05E0,x
         rts
 
-LACBE:  lda     $0560,x
-        bne     LACCB
+code_ACBE:  lda     $0560,x
+        bne     code_ACCB
         lda     #$25
         jsr     LF89A
         inc     $0560,x
-LACCB:  lda     #$01
+code_ACCB:  lda     #$01
         sta     $95
         lda     $0500,x
-        beq     LACE0
+        beq     code_ACE0
         lda     $05E0,x
-        bne     LAD08
+        bne     code_AD08
         dec     $0500,x
         inc     $0360,x
         rts
 
-LACE0:  lda     $05A0,x
-        bne     LAD08
+code_ACE0:  lda     $05A0,x
+        bne     code_AD08
         sta     $05E0,x
         ldy     $0520,x
         lda     $05A0,y
-        bne     LAD08
+        bne     code_AD08
         sta     $05E0,y
         sta     $0500,y
         sta     $0300,x
@@ -4876,14 +5475,17 @@ LACE0:  lda     $05A0,x
         sta     $0480,y
         lda     #$01
         sta     $04E0,y
-LAD08:  rts
+code_AD08:  rts
+
+; bee carrier dudes
+main_have_su_bee:
 
         lda     $0300,x
         and     #$0F
-        bne     LAD4B
+        bne     code_AD4B
         jsr     LF8C2
         cmp     #$28
-        bcs     LAD4A
+        bcs     code_AD4A
         inc     $0300,x
         lda     #$1E
         sta     $0500,x
@@ -4905,24 +5507,24 @@ LAD08:  rts
         pla
         sta     $0360,x
         jsr     LF869
-LAD4A:  rts
+code_AD4A:  rts
 
-LAD4B:  lda     $0300,x
+code_AD4B:  lda     $0300,x
         and     #$02
-        bne     LAD9A
+        bne     code_AD9A
         jsr     LF883
         lda     $04A0,x
         and     #$01
-        beq     LAD62
+        beq     code_AD62
         jsr     LF71D
-        jmp     LAD65
+        jmp     code_AD65
 
-LAD62:  jsr     LF73B
-LAD65:  lda     $0520,x
-        bne     LAD99
+code_AD62:  jsr     LF73B
+code_AD65:  lda     $0520,x
+        bne     code_AD99
         jsr     LF8C2
         cmp     #$50
-        bcc     LAD99
+        bcc     code_AD99
         inc     $0300,x
         inc     $0520,x
         lda     #$80
@@ -4931,36 +5533,36 @@ LAD65:  lda     $0520,x
         sta     $0460,x
         lda     $04A0,x
         and     #$01
-        beq     LAD91
+        beq     code_AD91
         lda     $0580,x
         and     #$BF
         sta     $0580,x
         rts
 
-LAD91:  lda     $0580,x
+code_AD91:  lda     $0580,x
         ora     #$40
         sta     $0580,x
-LAD99:  rts
+code_AD99:  rts
 
-LAD9A:  dec     $0540,x
-        bne     LADB2
+code_AD9A:  dec     $0540,x
+        bne     code_ADB2
         dec     $0300,x
         lda     $04A0,x
         eor     #$03
         sta     $04A0,x
         lda     #$3A
         jsr     LF835
-        jmp     LADD9
+        jmp     code_ADD9
 
-LADB2:  lda     $04A0,x
+code_ADB2:  lda     $04A0,x
         and     #$01
-        beq     LADBF
+        beq     code_ADBF
         jsr     LF779
-        jmp     LADC2
+        jmp     code_ADC2
 
-LADBF:  jsr     LF759
-LADC2:  dec     $0500,x
-        bne     LAD99
+code_ADBF:  jsr     LF759
+code_ADC2:  dec     $0500,x
+        bne     code_AD99
         lda     #$3C
         sta     $0500,x
         lda     $04A0,x
@@ -4970,8 +5572,8 @@ LADC2:  dec     $0500,x
 
 LADD5:  .byte   $50
 LADD6:  .byte   $00,$B0,$FF
-LADD9:  jsr     LFC53
-        bcs     LAE27
+code_ADD9:  jsr     LFC53
+        bcs     code_AE27
         sty     $01
         lda     $04A0,x
         sta     $04A0,y
@@ -5003,11 +5605,12 @@ LADD9:  jsr     LFC53
         sta     $0440,y
         lda     #$04
         sta     $0460,y
-LAE27:  rts
+code_AE27:  rts
+main_beehive:
 
         ldy     #$08
         jsr     LF606
-        bcc     LAE27
+        bcc     code_AE27
         lda     #$71
         jsr     LF835
         lda     #$00
@@ -5016,8 +5619,8 @@ LAE27:  rts
         sta     $0320,x
         lda     #$00
         sta     $01
-LAE42:  jsr     LFC53
-        bcs     LAEB3
+code_AE42:  jsr     LFC53
+        bcs     code_AEB3
         sty     L0000
         lda     $04A0,x
         sta     $04A0,y
@@ -5026,7 +5629,7 @@ LAE42:  jsr     LFC53
         tay
         lda     $0360,x
         clc
-        adc     LAEB4,y
+        adc     bee_spawn_x_offset,y
         pha
         lda     $0380,x
         adc     LAEB5,y
@@ -5037,7 +5640,7 @@ LAE42:  jsr     LFC53
         ldy     $01
         lda     $03C0,x
         clc
-        adc     LAEBE,y
+        adc     bee_spawn_y_offset,y
         ldy     L0000
         sta     $03C0,y
         lda     #$41
@@ -5063,16 +5666,22 @@ LAE42:  jsr     LFC53
         inc     $01
         lda     $01
         cmp     #$05
-        bcc     LAE42
-LAEB3:  rts
+        bcc     code_AE42
+code_AEB3:  rts
 
-LAEB4:  .byte   $E8
+; spawn offsets indexed by bee #
+; screen and pixel (not sub)
+
+bee_spawn_x_offset:  .byte   $E8
 LAEB5:  .byte   $FF,$E8,$FF,$01,$00,$18,$00,$18
         .byte   $00
-LAEBE:  .byte   $E8,$18,$01,$E8,$18
+
+; pixel
+bee_spawn_y_offset:  .byte   $E8,$18,$01,$E8,$18
+main_returning_monking:
         lda     $0300,x
         and     #$0F
-        bne     LAEDF
+        bne     code_AEDF
         inc     $0300,x
         lda     #$3C
         sta     $0440,x
@@ -5081,55 +5690,55 @@ LAEBE:  .byte   $E8,$18,$01,$E8,$18
         lda     #$1E
         sta     $0500,x
         jsr     LF883
-LAEDF:  lda     $0300,x
+code_AEDF:  lda     $0300,x
         and     #$0F
         cmp     #$02
-        beq     LAF3F
+        beq     code_AF3F
         cmp     #$03
-        bne     LAEEF
-        jmp     LAFA5
+        bne     code_AEEF
+        jmp     code_AFA5
 
-LAEEF:  lda     $0500,x
-        bne     LAF16
+code_AEEF:  lda     $0500,x
+        bne     code_AF16
         lda     $05C0,x
         cmp     #$44
-        beq     LAF1A
+        beq     code_AF1A
         lda     $0520,x
-        bne     LAF1A
+        bne     code_AF1A
         lda     #$45
         jsr     LF835
         ldy     #$15
         jsr     LF67C
         lda     $10
         and     #$10
-        beq     LAF19
+        beq     code_AF19
         lda     #$44
         jsr     LF835
         rts
 
-LAF16:  dec     $0500,x
-LAF19:  rts
+code_AF16:  dec     $0500,x
+code_AF19:  rts
 
-LAF1A:  lda     $05C0,x
+code_AF1A:  lda     $05C0,x
         cmp     #$45
-        beq     LAF30
+        beq     code_AF30
         jsr     LF8C2
         cmp     #$28
-        bcs     LAF19
+        bcs     code_AF19
         lda     #$45
         jsr     LF835
         inc     $0520,x
-LAF30:  ldy     #$15
+code_AF30:  ldy     #$15
         jsr     LF67C
-        bcc     LAF19
+        bcc     code_AF19
         lda     #$43
         jsr     LF835
         inc     $0300,x
-LAF3F:  lda     $0540,x
-        bne     LAF5C
+code_AF3F:  lda     $0540,x
+        bne     code_AF5C
         lda     $04E0,x
         cmp     #$04
-        bne     LAF5C
+        bne     code_AF5C
         inc     $0300,x
         lda     #$3C
         sta     $0440,x
@@ -5138,21 +5747,21 @@ LAF3F:  lda     $0540,x
         inc     $0540,x
         rts
 
-LAF5C:  lda     $04A0,x
+code_AF5C:  lda     $04A0,x
         and     #$01
-        beq     LAF6B
+        beq     code_AF6B
         ldy     #$16
         jsr     LF580
-        jmp     LAF70
+        jmp     code_AF70
 
-LAF6B:  ldy     #$17
+code_AF6B:  ldy     #$17
         jsr     LF5C4
-LAF70:  lda     $05C0,x
+code_AF70:  lda     $05C0,x
         cmp     #$43
-        beq     LAF9B
+        beq     code_AF9B
         ldy     #$15
         jsr     LF67C
-        bcc     LAF9A
+        bcc     code_AF9A
         lda     #$BB
         sta     $0440,x
         lda     #$06
@@ -5164,176 +5773,178 @@ LAF70:  lda     $05C0,x
         lda     #$00
         sta     $05E0,x
         jsr     LF869
-LAF9A:  rts
+code_AF9A:  rts
 
-LAF9B:  lda     $05A0,x
-        bne     LAFA0
-LAFA0:  lda     #$46
+code_AF9B:  lda     $05A0,x
+        bne     code_AFA0
+code_AFA0:  lda     #$46
         jmp     LF835
 
-LAFA5:  lda     $05C0,x
+code_AFA5:  lda     $05C0,x
         cmp     #$44
-        beq     LAFC6
+        beq     code_AFC6
         lda     #$45
         jsr     LF835
         ldy     #$15
         jsr     LF67C
         lda     $10
         and     #$10
-        beq     LAF9A
+        beq     code_AF9A
         lda     #$44
         jsr     LF835
         lda     #$5A
         sta     $0560,x
-LAFC6:  dec     $0560,x
-        bne     LAFD6
+code_AFC6:  dec     $0560,x
+        bne     code_AFD6
         dec     $0300,x
         jsr     LF81B
         lda     #$45
         jsr     LF835
-LAFD6:  rts
+code_AFD6:  rts
+main_wanaan:
 
-        lda     $0300,x
-        and     #$0F
-        bne     LB00D
+        lda     $0300,x                 ; test state:
+        and     #$0F                    ; any of these bits
+        bne     LB00D                   ; means at least presnap
         sta     $0440,x
-        lda     #$02
-        sta     $0460,x
+        lda     #$02                    ; if not, $0200
+        sta     $0460,x                 ; -> Y speed
         jsr     LF8B3
         cmp     #$18
+        bcs     LB00C                   ; if player is within $18
+        jsr     LF8C2                   ; pixel distance both X & Y
+        cmp     #$18                    ; (if not return)
         bcs     LB00C
-        jsr     LF8C2
-        cmp     #$18
-        bcs     LB00C
-        inc     $0300,x
-        lda     #$21
-        sta     $0500,x
-        lda     #$06
-        sta     $0520,x
-        lda     $03C0,x
-        sta     $0540,x
-        lda     #$10
+        inc     $0300,x                 ; start snapping!
+        lda     #$21                    ; $21 frames of delay timer
+        sta     $0500,x                 ; for presnap
+        lda     #$06                    ; 6 frames to snap upward
+        sta     $0520,x                 ; snapping timer
+        lda     $03C0,x                 ; preserve original Y position
+        sta     $0540,x                 ; pre-snap
+        lda     #$10                    ; 16 frames downward snap
         sta     $0560,x
 LB00C:  rts
 
-LB00D:  lda     $0580,x
-        and     #$04
+LB00D:  lda     $0580,x                 ; this sprite flag
+        and     #$04                    ; indicates past presnap
         beq     LB026
-        dec     $0500,x
-        bne     LB00C
-        lda     $0580,x
-        eor     #$04
+        dec     $0500,x                 ; presnap timer
+        bne     LB00C                   ; not expired yet? return
+        lda     $0580,x                 ; on expiration,
+        eor     #$04                    ; turn $04 sprite flag on
         sta     $0580,x
-        lda     #$A3
+        lda     #$A3                    ; set shape $A3 (extended hitbox)
         sta     $0480,x
-LB026:  lda     $0300,x
-        and     #$02
+LB026:  lda     $0300,x                 ; this bitflag on
+        and     #$02                    ; means past snapping
         bne     LB04C
         lda     #$00
-        sta     $05E0,x
+        sta     $05E0,x                 ; show open mouth frame
         sta     $05A0,x
         dec     $03C0,x
+        dec     $03C0,x                 ; move up 3 pixels
         dec     $03C0,x
-        dec     $03C0,x
-        dec     $0520,x
-        bne     LB00C
+        dec     $0520,x                 ; upward snap timer
+        bne     LB00C                   ; not expired yet? return
         inc     $0300,x
-        lda     #$22
-        jsr     LF89A
+        lda     #$22                    ; on expiration,
+        jsr     LF89A                   ; $02 -> state
         rts
 
 LB04C:  lda     #$01
-        sta     $05A0,x
+        sta     $05A0,x                 ; show closed mouth frame
         lda     #$00
         sta     $05E0,x
         jsr     LF759
-        dec     $0560,x
-        bne     LB00C
-        lda     #$00
-        sta     $05E0,x
+        dec     $0560,x                 ; downward snap timer
+        bne     LB00C                   ; not expired yet? return
+        lda     #$00                    ; on expiration,
+        sta     $05E0,x                 ; reset animation frame
         sta     $05A0,x
-        lda     $0540,x
-        sta     $03C0,x
+        lda     $0540,x                 ; restore original presnap
+        sta     $03C0,x                 ; Y position
         lda     $0580,x
-        ora     #$94
+        ora     #$94                    ; flags: active+bit4+disabled ($94)
         sta     $0580,x
-        lda     #$80
+        lda     #$80                    ; reset entity to active/idle
         sta     $0300,x
-        lda     #$83
+        lda     #$83                    ; reset shape
         sta     $0480,x
         rts
+main_komasaburo:
 
         lda     $0300,x
         and     #$0F
-        bne     LB096
+        bne     code_B096
         jsr     LF883
         inc     $0300,x
         lda     #$36
         sta     $0500,x
         lda     #$10
         sta     $0520,x
-LB096:  lda     $0300,x
+code_B096:  lda     $0300,x
         and     #$02
-        bne     LB0CB
+        bne     code_B0CB
         lda     $05C0,x
         cmp     #$D6
-        beq     LB0B5
+        beq     code_B0B5
         lda     $0540,x
         cmp     #$03
-        bcs     LB0ED
+        bcs     code_B0ED
         dec     $0500,x
-        bne     LB0E0
+        bne     code_B0E0
         lda     #$D6
         jsr     LF835
-LB0B5:  lda     #$00
+code_B0B5:  lda     #$00
         sta     $05A0,x
         sta     $05E0,x
-        jsr     LB11C
+        jsr     code_B11C
         inc     $0540,x
         lda     #$36
         sta     $0500,x
         inc     $0300,x
-LB0CB:  lda     #$00
+code_B0CB:  lda     #$00
         sta     $05A0,x
         sta     $05E0,x
         dec     $0520,x
-        bne     LB0EC
+        bne     code_B0EC
         lda     #$10
         sta     $0520,x
         dec     $0300,x
-LB0E0:  lda     $05C0,x
+code_B0E0:  lda     $05C0,x
         cmp     #$C6
-        beq     LB0EC
+        beq     code_B0EC
         lda     #$C6
         jsr     LF835
-LB0EC:  rts
+code_B0EC:  rts
 
-LB0ED:  lda     #$00
+code_B0ED:  lda     #$00
         sta     L0000
         lda     #$E2
         sta     $01
         ldy     #$1F
-LB0F7:  lda     $0300,y
-        bmi     LB110
-LB0FC:  dey
+code_B0F7:  lda     $0300,y
+        bmi     code_B110
+code_B0FC:  dey
         cpy     #$0F
-        bne     LB0F7
+        bne     code_B0F7
         lda     L0000
         cmp     #$03
-        beq     LB10A
+        beq     code_B10A
         dec     $0540,x
-LB10A:  lda     #$38
+code_B10A:  lda     #$38
         sta     $0500,x
         rts
 
-LB110:  lda     $01
+code_B110:  lda     $01
         cmp     $05C0,y
-        bne     LB0FC
+        bne     code_B0FC
         inc     L0000
-        jmp     LB0FC
+        jmp     code_B0FC
 
-LB11C:  jsr     LFC53
-        bcs     LB155
+code_B11C:  jsr     LFC53
+        bcs     code_B155
         lda     $04A0,x
         sta     $04A0,y
         lda     $0360,x
@@ -5354,11 +5965,11 @@ LB11C:  jsr     LFC53
         sta     $0320,y
         lda     #$01
         sta     $04E0,y
-LB155:  rts
+code_B155:  rts
 
         lda     $0300,x
         and     #$0F
-        bne     LB173
+        bne     code_B173
         sta     $0520,x
         sta     $0400,x
         lda     #$02
@@ -5367,67 +5978,68 @@ LB155:  rts
         lda     #$F0
         sta     $0500,x
         jsr     LF81B
-LB173:  ldy     #$08
+code_B173:  ldy     #$08
         jsr     LF67C
-        bcc     LB198
+        bcc     code_B198
         lda     $04A0,x
         and     #$01
-        beq     LB189
+        beq     code_B189
         ldy     #$08
         jsr     LF580
-        jmp     LB18E
+        jmp     code_B18E
 
-LB189:  ldy     #$09
+code_B189:  ldy     #$09
         jsr     LF5C4
-LB18E:  bcc     LB198
+code_B18E:  bcc     code_B198
         lda     $04A0,x
         eor     #$03
         sta     $04A0,x
-LB198:  dec     $0500,x
-        bne     LB1A8
+code_B198:  dec     $0500,x
+        bne     code_B1A8
         lda     #$71
         jsr     LF835
         lda     #$00
         sta     $0320,x
-LB1A7:  rts
+code_B1A7:  rts
 
-LB1A8:  lda     $0520,x
-        bne     LB1A7
+code_B1A8:  lda     $0520,x
+        bne     code_B1A7
         lda     $0500,x
         cmp     #$B4
-        bne     LB1A7
+        bne     code_B1A7
         lda     #$F0
         sta     $0500,x
         inc     $0520,x
         rts
+main_mechakkero:
 
-        lda     $0300,x
-        and     #$0F
-        bne     LB1F8
+        lda     $0300,x                 ; state nonzero
+        and     #$0F                    ; means on ground
+        bne     code_B1F8
         lda     $04A0,x
         and     #$01
-        beq     LB1D3
+        beq     code_B1D3
         ldy     #$18
         jsr     LF580
-        jmp     LB1D8
+        jmp     code_B1D8
 
-LB1D3:  ldy     #$19
+code_B1D3:  ldy     #$19
         jsr     LF5C4
-LB1D8:  ldy     #$18
+code_B1D8:  ldy     #$18
         jsr     LF67C
-        bcc     LB1EE
-        jsr     LB224
+        bcc     code_B1EE
+        jsr     code_B224
         inc     $0300,x
         lda     #$CB
         sta     $0480,x
         lda     #$2B
-        bne     LB1F5
-LB1EE:  lda     #$C3
+        bne     code_B1F5
+code_B1EE:  lda     #$C3
         sta     $0480,x
         lda     #$2A
-LB1F5:  jmp     LF835
+code_B1F5:  jmp     LF835
 
-LB1F8:  lda     $05C0,x
+code_B1F8:  lda     $05C0,x
         cmp     #$2B
         bne     LB20A
         lda     $05A0,x
@@ -5437,18 +6049,18 @@ LB1F8:  lda     $05C0,x
         bne     LB20C
 LB20A:  lda     #$29
 LB20C:  jsr     LF835
-        lda     $0500,x
+        lda     $0500,x                 ; timer not expired yet?
         bne     LB220
-        lda     #$3C
-        sta     $0500,x
-        dec     $0300,x
-        jsr     LF869
+        lda     #$3C                    ; on timer expiration,
+        sta     $0500,x                 ; set hopping state
+        dec     $0300,x                 ; with timer 60 frames
+        jsr     LF869                   ; and hop toward player
 LB21F:  rts
 
 LB220:  dec     $0500,x
         rts
 
-LB224:  lda     $E4
+code_B224:  lda     $E4
         adc     $E5
         sta     $E5
         and     #$01
@@ -5461,167 +6073,182 @@ LB224:  lda     $E4
 
 LB23A:  .byte   $52,$A8
 LB23C:  .byte   $04,$05
+main_top_man_platform:
         lda     $0300,x
         and     #$0F
-        bne     LB265
+        bne     code_B265
         sta     $0440,x
         lda     #$01
         sta     $0460,x
         inc     $0300,x
         lda     $03C0,x
         cmp     #$88
-        bcs     LB25A
+        bcs     code_B25A
         inc     $0520,x
-LB25A:  lda     #$10
+code_B25A:  lda     #$10
         sta     $0500,x
         lda     #$01
         sta     $04A0,x
         rts
 
-LB265:  jsr     LF8C2
+code_B265:  jsr     LF8C2
         cmp     #$16
-        bcs     LB29C
+        bcs     code_B29C
         jsr     LF8B3
         cmp     #$15
-        bcs     LB29C
+        bcs     code_B29C
         lda     $04A0,x
         and     #$02
-        bne     LB27E
+        bne     code_B27E
         lda     #$01
-        bne     LB280
-LB27E:  lda     #$02
-LB280:  sta     $36
+        bne     code_B280
+code_B27E:  lda     #$02
+code_B280:  sta     $36
         lda     #$00
         sta     $37
         lda     #$01
         sta     $38
         dec     $0500,x
-        bne     LB29C
+        bne     code_B29C
         lda     #$10
         sta     $0500,x
         lda     $04A0,x
         eor     #$03
         sta     $04A0,x
-LB29C:  lda     $0520,x
-        bne     LB2AF
+code_B29C:  lda     $0520,x
+        bne     code_B2AF
         jsr     LF779
         lda     $03E0,x
-        beq     LB2AE
+        beq     code_B2AE
         lda     #$00
         sta     $03E0,x
-LB2AE:  rts
+code_B2AE:  rts
 
-LB2AF:  lda     $03C0,x
+code_B2AF:  lda     $03C0,x
         pha
         dec     $03C0,x
         jsr     LFAE2
         pla
         sta     $03C0,x
-        bcs     LB2F0
+        bcs     code_B2F0
         lda     $03C0
         sec
         sbc     $03C0,x
-        bcs     LB2DC
+        bcs     code_B2DC
         lda     $03C0
         adc     #$02
         sta     $03C0
         cmp     #$F0
-        bcc     LB2DC
+        bcc     code_B2DC
         adc     #$0F
         sta     $03C0
         inc     $03E0
-LB2DC:  stx     $0F
+code_B2DC:  stx     $0F
         ldx     #$00
         ldy     #$00
         jsr     LE8D6
         lda     $10
         and     #$10
-        beq     LB2EE
+        beq     code_B2EE
         jsr     LEE13
-LB2EE:  ldx     $0F
-LB2F0:  jsr     LF759
+code_B2EE:  ldx     $0F
+code_B2F0:  jsr     LF759
         lda     $03E0,x
-        beq     LB2AE
+        beq     code_B2AE
         lda     #$00
         sta     $03E0,x
         rts
 
-        lda     $0500,x
-        beq     LB308
-        dec     $0500,x
-        bne     LB346
-LB308:  lda     $0580,x
-        and     #$04
-        beq     LB31F
-        jsr     LF8C2
-        cmp     #$61
-        bcs     LB346
-        lda     $0580,x
+; =============================================================================
+; main_needle_press -- Needle Man stage ceiling crusher
+; =============================================================================
+; Animation-driven press that hangs from ceiling. Uses $0580 bit 2 as
+; "retracted" flag. When retracted, waits for player within $61 pixels
+; horizontally before descending. Animation frames drive the crush cycle:
+;   frame 0: fully retracted (invincible, $80). Sets retracted flag + delay.
+;   frame 2: midway down (hittable+hurts, $AE). Sets delay timer.
+;   other frames: actively crushing (hittable+hurts, $A4).
+; $0500 = delay timer ($1E = 30 frames pause at key positions)
+; =============================================================================
+main_needle_press:
+
+        lda     $0500,x                 ; delay timer
+        beq     code_B308               ; if zero, process state
+        dec     $0500,x                 ; decrement delay timer
+        bne     code_B346               ; still waiting -> freeze anim + return
+code_B308:  lda     $0580,x             ; sprite flags
+        and     #$04                    ; check bit 2 (retracted flag)
+        beq     code_B31F               ; not retracted -> animate crush cycle
+        jsr     LF8C2                   ; A = horizontal distance to player
+        cmp     #$61                    ; within 97 pixels?
+        bcs     code_B346               ; too far -> freeze anim + return
+        lda     $0580,x                 ; clear retracted flag (bit 2)
         and     #$FB
         sta     $0580,x
         rts
 
-LB31F:  lda     $05E0,x
-        bne     LB34B
-        lda     $05A0,x
-        bne     LB338
-        lda     #$80
+code_B31F:  lda     $05E0,x             ; anim frame timer
+        bne     code_B34B               ; animation still ticking -> wait
+        lda     $05A0,x                 ; anim sequence frame index
+        bne     code_B338               ; not frame 0 -> check frame 2
+        lda     #$80                    ; damage = invincible only (no hurt)
         sta     $0480,x
-        lda     $0580,x
+        lda     $0580,x                 ; set retracted flag (bit 2)
         ora     #$04
         sta     $0580,x
-        bne     LB341
-LB338:  cmp     #$02
-        bne     LB34C
-        lda     #$AE
+        bne     code_B341               ; (always taken) -> set delay timer
+code_B338:  cmp     #$02                ; anim frame 2? (midway)
+        bne     code_B34C               ; other frames -> set active damage
+        lda     #$AE                    ; damage = hittable + hurts player
         sta     $0480,x
-LB341:  lda     #$1E
+code_B341:  lda     #$1E                ; delay timer = 30 frames
         sta     $0500,x
-LB346:  lda     #$00
-        sta     $05E0,x
-LB34B:  rts
+code_B346:  lda     #$00                ; clear anim frame timer
+        sta     $05E0,x                 ; (forces instant frame advance)
+code_B34B:  rts
 
-LB34C:  lda     #$A4
+code_B34C:  lda     #$A4                ; damage = hittable + hurts player
         sta     $0480,x
         rts
+main_elecn:
 
         lda     $0300,x
         and     #$0F
-        bne     LB389
+        bne     code_B389
         lda     $0580,x
         and     #$04
-        beq     LB372
+        beq     code_B372
         jsr     LF8C2
         cmp     #$61
-        bcs     LB34B
+        bcs     code_B34B
         lda     $0580,x
         and     #$FB
         sta     $0580,x
         jmp     LF883
 
-LB372:  jsr     LF797
+code_B372:  jsr     LF797
         lda     $03C0,x
         cmp     #$78
-        bcc     LB34B
+        bcc     code_B34B
         lda     #$11
         sta     $0500,x
         lda     #$03
         sta     $0520,x
         inc     $0300,x
-LB389:  lda     $05C0,x
+code_B389:  lda     $05C0,x
         cmp     #$56
-        bne     LB39A
+        bne     code_B39A
         lda     $05E0,x
-        bne     LB34B
+        bne     code_B34B
         lda     #$55
         jsr     LF835
-LB39A:  dec     $0500,x
+code_B39A:  dec     $0500,x
         lda     $0500,x
-        bne     LB3AA
+        bne     code_B3AA
         lda     #$11
         sta     $0500,x
         inc     $0520,x
-LB3AA:  lda     $0520,x
+code_B3AA:  lda     $0520,x
         and     #$03
         sta     $0520,x
         tay
@@ -5634,28 +6261,28 @@ LB3AA:  lda     $0520,x
         sta     $03C0,x
         lda     $04A0,x
         and     #$02
-        beq     LB3DA
+        beq     code_B3DA
         lda     $0540,x
-        bne     LB3D7
+        bne     code_B3D7
         jsr     LF8C2
-        bcs     LB3E7
-LB3D7:  jmp     LF73B
+        bcs     code_B3E7
+code_B3D7:  jmp     LF73B
 
-LB3DA:  lda     $0540,x
-        bne     LB3E4
+code_B3DA:  lda     $0540,x
+        bne     code_B3E4
         jsr     LF8C2
-        bcc     LB3E7
-LB3E4:  jmp     LF71D
+        bcc     code_B3E7
+code_B3E4:  jmp     LF71D
 
-LB3E7:  lda     #$26
+code_B3E7:  lda     #$26
         jsr     LF89A
         lda     #$56
         jsr     LF835
         stx     L0000
         lda     #$07
         sta     $01
-LB3F7:  jsr     LFC53
-        bcs     LB446
+code_B3F7:  jsr     LFC53
+        bcs     code_B446
         ldx     $01
         lda     LB454,x
         sta     $0400,y
@@ -5683,8 +6310,8 @@ LB3F7:  jsr     LFC53
         sbc     #$0C
         sta     $03C0,y
         dec     $01
-        bpl     LB3F7
-LB446:  ldx     L0000
+        bpl     code_B3F7
+code_B446:  ldx     L0000
         inc     $0540,x
         rts
 
@@ -5695,291 +6322,363 @@ LB45C:  .byte   $00,$01,$02,$01,$00,$01,$02,$01
 LB464:  .byte   $00,$96,$00,$6A,$00,$6A,$00,$96
 LB46C:  .byte   $FE,$FE,$00,$01,$02,$01,$00,$FE
 LB474:  .byte   $02,$02,$02,$02,$01,$01,$01,$01
+main_peterchy:
         ldy     #$08
         jsr     LF67C
         lda     $04A0,x
         and     #$01
-        beq     LB490
+        beq     code_B490
         ldy     #$1A
         jsr     LF580
-        jmp     LB495
+        jmp     code_B495
 
-LB490:  ldy     #$1B
+code_B490:  ldy     #$1B
         jsr     LF5C4
-LB495:  bcc     LB49F
+code_B495:  bcc     code_B49F
         lda     $04A0,x
         eor     #$03
         sta     $04A0,x
-LB49F:  lda     $0300,x
+code_B49F:  lda     $0300,x
         and     #$0F
-        bne     LB4B1
+        bne     code_B4B1
         jsr     LF8C2
         cmp     #$10
-        bcs     LB4B0
+        bcs     code_B4B0
         inc     $0300,x
-LB4B0:  rts
+code_B4B0:  rts
 
-LB4B1:  jsr     LF8C2
+code_B4B1:  jsr     LF8C2
         cmp     #$30
-        bcc     LB4B0
+        bcc     code_B4B0
         lda     $04A0,x
         eor     #$03
         sta     $04A0,x
         dec     $0300,x
         rts
 
-        ldy     #$1A
+; ===========================================================================
+; main_walking_bomb — Walking Bomb (Gemini Man / Snake Man stages)
+; ===========================================================================
+; Walks toward player and explodes when hit by a weapon. Bounces off walls
+; up to 3 times before reversing direction. Hitbox $1A (gravity), $1C/$1D
+; (walk). $0500=wall-bounce counter. OAM $51=walk, $52=bounce, $71=explode.
+main_walking_bomb:
+
+        ldy     #$1A                    ; apply gravity with hitbox $1A
         jsr     LF67C
-        rol     $0F
-        jsr     LFB7B
-        bcs     LB4EC
-        lda     #$18
+        rol     $0F                     ; save carry (landed flag) into $0F bit 0
+        jsr     LFB7B                   ; check if weapon hit this enemy
+        bcs     code_B4EC               ; survived → continue walking
+
+; --- weapon killed this enemy: explode ---
+        lda     #$18                    ; play explosion sound
         jsr     LF89A
-        ldy     $10
+        ldy     $10                     ; deactivate the weapon that hit us
         lda     #$00
         sta     $0300,y
-        lda     #$71
+        lda     #$71                    ; switch to explosion sprite
         jsr     LF835
-        lda     #$00
+        lda     #$00                    ; clear timer
         sta     $0500,x
-        lda     #$39
+        lda     #$39                    ; change main routine to explosion handler
         sta     $0320,x
         rts
 
-LB4EC:  lda     $04A0,x
+; --- survived weapon hit: walk horizontally ---
+
+code_B4EC:  lda     $04A0,x             ; check facing direction
         and     #$01
-        beq     LB4FB
-        ldy     #$1C
+        beq     code_B4FB               ; bit 0 clear → move left
+        ldy     #$1C                    ; move right with wall collision
         jsr     LF580
-        jmp     LB500
+        jmp     code_B500
 
-LB4FB:  ldy     #$1D
+code_B4FB:  ldy     #$1D                ; move left with wall collision
         jsr     LF5C4
-LB500:  lda     $0F
+code_B500:  lda     $0F                 ; check landed flag (saved from gravity)
         and     #$01
-        beq     LB53F
-        lda     $10
+        beq     code_B53F               ; not on ground → done
+        lda     $10                     ; check collision result: bit 4 = hit wall
         and     #$10
-        beq     LB52E
-        lda     #$52
+        beq     code_B52E               ; no wall hit → restore walk anim
+
+; --- hit a wall: bounce ---
+        lda     #$52                    ; switch to bounce sprite
         jsr     LF835
-        inc     $0500,x
+        inc     $0500,x                 ; increment bounce counter
         lda     $0500,x
-        cmp     #$04
-        beq     LB526
-        lda     #$29
-        sta     $0440,x
-        lda     #$05
+        cmp     #$04                    ; 4 bounces → reverse direction
+        beq     code_B526
+        lda     #$29                    ; set upward bounce velocity
+        sta     $0440,x                 ; Y speed = $05.29 upward
+        lda     #$05                    ; (gravity will arc it back down)
         sta     $0460,x
         rts
 
-LB526:  lda     $04A0,x
-        eor     #$03
+; --- bounced 4 times: reverse walk direction ---
+
+code_B526:  lda     $04A0,x             ; flip horizontal direction
+        eor     #$03                    ; (toggle bits 0 and 1)
         sta     $04A0,x
-LB52E:  lda     $05C0,x
-        cmp     #$51
-        beq     LB53A
-        lda     #$51
-        jsr     LF835
-LB53A:  lda     #$00
-        sta     $0500,x
-LB53F:  rts
 
-        lda     $0580,x
-        bmi     LB55B
-        lda     #$00
+; --- restore walking animation ---
+code_B52E:  lda     $05C0,x             ; if already using walk OAM $51, skip
+        cmp     #$51
+        beq     code_B53A
+        lda     #$51                    ; reset to walking sprite
+        jsr     LF835
+code_B53A:  lda     #$00                ; reset bounce counter
+        sta     $0500,x
+code_B53F:  rts
+
+; ===========================================================================
+; main_hologran — Hologran (Gemini Man stage)
+; ===========================================================================
+; Holographic enemy that drifts horizontally while invisible, then appears
+; briefly to shoot when player is within range. $0580 bit 7=active/on-screen.
+; $0500=visibility timer (counts down while visible). $05A0=anim frame.
+; State 0: invisible, drifting. State 1: visible, counting down timer.
+; $8003 = swappable-bank entity update (handles damage, animation).
+main_hologran:
+
+        lda     $0580,x                 ; check sprite flags bit 7 (on-screen)
+        bmi     code_B55B               ; on-screen → active processing
+
+; --- off-screen or destroyed: deactivate ---
+        lda     #$00                    ; deactivate entity
         sta     $0300,x
-LB54A:  sta     $95
+code_B54A:  sta     $95                 ; clear palette cycle / flash vars
         sta     $72
-        lda     #$30
-        sta     $1D
-        lda     #$F0
+        lda     #$30                    ; set screen effect parameters
+        sta     $1D                     ; $1D=$30 (palette base)
+        lda     #$F0                    ; $1E=$F0 (palette range)
         sta     $1E
-        lda     #$FF
+        lda     #$FF                    ; $1C=$FF (effect enable flag)
         sta     $1C
         rts
 
-LB55B:  ora     #$08
-        sta     $0580,x
-        jsr     L8003
-        lda     $04E0,x
-        beq     LB54A
-        lda     $05A0,x
-        bne     LB579
-        lda     $05E0,x
-        cmp     #$01
-        bne     LB579
-        lda     #$00
-        sta     $05E0,x
-LB579:  lda     $0500,x
-        bne     LB5C6
-        lda     $04A0,x
-        and     #$01
-        beq     LB58B
-        jsr     LF71D
-        jmp     LB58E
+; --- active: process entity ---
 
-LB58B:  jsr     LF73B
-LB58E:  lda     $0300,x
-        and     #$0F
-        bne     LB5CB
-        jsr     LF8C2
-        cmp     #$61
-        bcs     LB5CB
-        inc     $0300,x
-        inc     $05A0,x
-        lda     #$3C
-        sta     $0500,x
-        lda     $0320,x
+code_B55B:  ora     #$08                ; set sprite flag bit 3 (invulnerable frame)
+        sta     $0580,x
+        jsr     code_8003               ; call swappable-bank entity update
+        lda     $04E0,x                 ; check HP
+        beq     code_B54A               ; HP=0 → killed, deactivate
+
+; --- hold on first animation frame (invisible pose) ---
+        lda     $05A0,x                 ; if anim frame > 0, skip hold
+        bne     code_B579
+        lda     $05E0,x                 ; if anim counter about to advance (=1),
+        cmp     #$01                    ; reset to 0 to hold on frame 0
+        bne     code_B579               ; (keeps Hologran invisible until triggered)
+        lda     #$00                    ; freeze animation on invisible frame
+        sta     $05E0,x
+
+; --- timer-based phase control ---
+code_B579:  lda     $0500,x             ; if visibility timer active,
+        bne     code_B5C6               ; skip to countdown
+
+; --- state 0: invisible, drifting horizontally ---
+        lda     $04A0,x                 ; move in facing direction
         and     #$01
-        beq     LB5B8
-        lda     #$40
+        beq     code_B58B               ; bit 0 clear → move left
+        jsr     LF71D
+        jmp     code_B58E
+
+code_B58B:  jsr     LF73B
+code_B58E:  lda     $0300,x             ; check entity state
+        and     #$0F
+        bne     code_B5CB               ; already appeared → done
+        jsr     LF8C2                   ; get X distance to player
+        cmp     #$61                    ; if farther than $61 px,
+        bcs     code_B5CB               ; too far → keep drifting
+
+; --- player in range: appear and shoot ---
+        inc     $0300,x                 ; advance state (0 → 1: visible)
+        inc     $05A0,x                 ; advance anim frame (show visible pose)
+        lda     #$3C                    ; visibility timer = 60 frames (1 second)
+        sta     $0500,x
+        lda     $0320,x                 ; odd main routine index:
+        and     #$01                    ; set slow X drift speed $00.40
+        beq     code_B5B8               ; even → skip speed change
+        lda     #$40                    ; X speed sub = $40
         sta     $0400,x
-        lda     #$00
-        sta     $0420,x
-LB5B8:  lda     #$FF
-        sta     $1C
-        lda     #$10
+        lda     #$00                    ; X speed whole = $00
+        sta     $0420,x                 ; (slow drift: 0.25 px/frame)
+code_B5B8:  lda     #$FF                ; set palette flash / screen effect
+        sta     $1C                     ; $1C=$FF, $1D=$10, $1E=$10
+        lda     #$10                    ; (visual flash on appearance)
         sta     $1D
         sta     $1E
-        lda     #$00
+        lda     #$00                    ; clear palette cycle var
         sta     $95
-LB5C6:  dec     $0500,x
-        bne     LB5CB
-LB5CB:  rts
 
-        lda     $0300,x
+; --- countdown visibility timer ---
+code_B5C6:  dec     $0500,x             ; decrement timer; when 0
+        bne     code_B5CB               ; entity returns to invisible drift
+code_B5CB:  rts
+
+; --- state 0: parachute descent ---
+main_parasyu:
+
+        lda     $0300,x                 ; check entity state
         and     #$0F
-        bne     LB5FD
-        sta     $0440,x
-        lda     #$03
-        sta     $0460,x
-        jsr     LF8C2
-        cmp     #$64
-        bcs     LB5FC
-        lda     $E4
-        adc     $E5
+        bne     code_B5FD               ; nonzero -> activated, skip init
+        sta     $0440,x                 ; Y speed sub = 0
+        lda     #$03                    ; Y speed whole = 3 (fall at 3.0 px/frame
+        sta     $0460,x                 ; with parachute)
+        jsr     LF8C2                   ; X distance to player
+        cmp     #$64                    ; if > 100 px away,
+        bcs     code_B5FC               ; too far -> keep falling
+
+; --- player close: detach parachute ---
+        lda     $E4                     ; pseudo-random: add shift register bytes
+        adc     $E5                     ; to get random index 0-3
         sta     $E5
         and     #$03
         tay
-        lda     LB6E4,y
-        sta     $0540,x
-        inc     $0300,x
-        lda     $0580,x
-        eor     #$04
+        lda     LB6E4,y                 ; load random delay timer from table
+        sta     $0540,x                 ; ($22, $2A, $26, or $2E frames)
+        inc     $0300,x                 ; advance state -> 1 (activated)
+        lda     $0580,x                 ; toggle sprite flag bit 2
+        eor     #$04                    ; (visual change: chute detaching)
         sta     $0580,x
-LB5FC:  rts
+code_B5FC:  rts
 
-LB5FD:  lda     $0560,x
-        bne     LB61B
-        lda     $0540,x
-        beq     LB60D
-        dec     $0540,x
-        jmp     LF759
+; --- state 1+: activated (parachute detaching or detached) ---
 
-LB60D:  lda     #$4D
+code_B5FD:  lda     $0560,x             ; check phase flag
+        bne     code_B61B               ; nonzero -> chute detached, swoop phase
+
+; --- phase 1: chute still attached, slow fall with delay ---
+        lda     $0540,x                 ; if delay timer > 0,
+        beq     code_B60D               ; expired -> detach chute
+        dec     $0540,x                 ; count down delay
+        jmp     LF759                   ; fall slowly while waiting
+
+; --- delay expired: detach parachute ---
+
+code_B60D:  lda     #$4D                ; switch to detached sprite (OAM $4D)
         jsr     LF835
-        inc     $0560,x
-        lda     #$10
-        sta     $0540,x
+        inc     $0560,x                 ; set phase flag -> 1 (detached)
+        lda     #$10                    ; set fall timer = 16 frames
+        sta     $0540,x                 ; (before first swoop)
         rts
 
-LB61B:  lda     $05A0,x
-        cmp     #$02
-        bcc     LB62C
-        lda     #$03
-        sta     $05A0,x
-        lda     #$00
-        sta     $05E0,x
-LB62C:  lda     $0300,x
-        and     #$02
-        beq     LB636
-        jmp     LB6BC
+; --- phase 2: chute detached, swoop pattern ---
 
-LB636:  lda     $0500,x
-        bne     LB694
-        ldy     $0520,x
-        lda     LB6D6,y
-        asl     a
+code_B61B:  lda     $05A0,x             ; clamp anim frame: if >= 2,
+        cmp     #$02                    ; force frame 3 and reset counter
+        bcc     code_B62C               ; (lock to falling sprite pose)
+        lda     #$03                    ; set anim frame = 3
+        sta     $05A0,x
+        lda     #$00                    ; reset anim counter
+        sta     $05E0,x
+code_B62C:  lda     $0300,x             ; check state bit 1
+        and     #$02                    ; (0=swooping, 1=gentle fall between swoops)
+        beq     code_B636               ; bit 1 clear -> swoop phase
+        jmp     code_B6BC               ; bit 1 set -> gentle fall phase
+
+; --- swoop sub-phase: sine-like arc movement ---
+
+code_B636:  lda     $0500,x             ; speed hold timer: if > 0,
+        bne     code_B694               ; hold current speed -> skip to apply
+
+; --- load next speed step from tables ---
+        ldy     $0520,x                 ; swoop step index -> $B6D6 lookup
+        lda     LB6D6,y                 ; get speed table sub-index
+        asl     a                       ; *2 for 16-bit table offset
         tay
-        lda     L8F4A,y
+        lda     L8F4A,y                 ; load Y speed from table (16-bit)
         sta     $0440,x
         lda     L8F4B,y
         sta     $0460,x
-        lda     L8F6A,y
+        lda     L8F6A,y                 ; load X speed from table (16-bit)
         sta     $0400,x
         lda     L8F6B,y
         sta     $0420,x
-        lda     $0420,x
-        bpl     LB675
-        lda     $0400,x
-        eor     #$FF
+        lda     $0420,x                 ; if X speed whole is negative,
+        bpl     code_B675               ; positive -> skip negate
+
+; --- negate X speed (make absolute value for directional move) ---
+        lda     $0400,x                 ; two's complement negate 16-bit
+        eor     #$FF                    ; X speed sub
         clc
         adc     #$01
         sta     $0400,x
-        lda     $0420,x
+        lda     $0420,x                 ; X speed whole
         eor     #$FF
         adc     #$00
         sta     $0420,x
-LB675:  inc     $0520,x
+code_B675:  inc     $0520,x             ; advance swoop step
         lda     $0520,x
-        cmp     #$07
-        bne     LB68F
-        lda     $04A0,x
+        cmp     #$07                    ; after 7 steps: swoop complete
+        bne     code_B68F
+        lda     $04A0,x                 ; reverse horizontal direction
         eor     #$03
         sta     $04A0,x
-        inc     $0300,x
-        lda     #$00
+        inc     $0300,x                 ; advance state (set bit 1 -> fall phase)
+        lda     #$00                    ; reset swoop step for next cycle
         sta     $0520,x
-LB68F:  lda     #$05
+code_B68F:  lda     #$05                ; hold each speed step for 5 frames
         sta     $0500,x
-LB694:  dec     $0500,x
-        lda     $03A0,x
+
+; --- apply current speed to position ---
+code_B694:  dec     $0500,x             ; decrement speed hold timer
+        lda     $03A0,x                 ; add Y speed to Y position (16-bit)
         clc
         adc     $0440,x
         sta     $03A0,x
         lda     $03C0,x
         adc     $0460,x
         sta     $03C0,x
-        lda     $04A0,x
-        and     #$02
-        bne     LB6B8
+        lda     $04A0,x                 ; move horizontally by X speed
+        and     #$02                    ; bit 1: 0=right, 1=left
+        bne     code_B6B8
         jsr     LF71D
-        bcs     LB6BB
-        bcc     LB6BB
-LB6B8:  jsr     LF73B
-LB6BB:  rts
+        bcs     code_B6BB               ; (unconditional branch pair)
+        bcc     code_B6BB
+code_B6B8:  jsr     LF73B
+code_B6BB:  rts
 
-LB6BC:  dec     $0540,x
-        bne     LB6C9
-        dec     $0300,x
-        lda     #$10
+; --- gentle fall phase (between swoops) ---
+
+code_B6BC:  dec     $0540,x             ; count down fall timer
+        bne     code_B6C9               ; not expired -> keep falling
+        dec     $0300,x                 ; clear state bit 1 -> back to swoop
+        lda     #$10                    ; reset fall timer = 16 frames
         sta     $0540,x
-LB6C9:  lda     #$80
-        sta     $0440,x
+code_B6C9:  lda     #$80                ; Y speed = $00.80 (0.5 px/frame)
+        sta     $0440,x                 ; gentle downward drift
         lda     #$00
         sta     $0460,x
-        jmp     LF759
+        jmp     LF759                   ; apply downward movement
+
+; parasyu data tables
+; $B6D6: swoop speed sub-indices (7 steps per swoop, 2 swoops = 14 entries)
 
 LB6D6:  .byte   $09,$0A,$0B,$0C,$0D,$0E,$0F,$09
         .byte   $0A,$0B,$0C,$0D,$0E,$0F
 LB6E4:  .byte   $22,$2A,$26,$2E
+
+; same intro for all 8
+main_doc_robot_intro:
         lda     #$00
         sta     $05E0,x
         lda     $0300,x
         and     #$0F
-        beq     LB752
+        beq     code_B752
         lda     $B0
         cmp     #$9C
-        bne     LB751
+        bne     code_B751
         lda     $0300,x
         ora     #$40
         sta     $0300,x
         stx     L0000
         lda     $0320,x
-        and     #$07
-        tay
-        lda     LB7FB,y
+        and     #$07                    ; fetch doc robot master's
+        tay                             ; main routine index
+        lda     doc_robot_master_main_indices,y ; morph this sprite into it
         sta     $0320,x
         lda     #$CA
         sta     $0480,x
@@ -6000,19 +6699,19 @@ LB6E4:  .byte   $22,$2A,$26,$2E
         asl     a
         tay
         ldx     #$00
-LB73C:  lda     LB823,y
+code_B73C:  lda     LB823,y
         sta     $061C,x
         sta     $063C,x
         iny
         inx
         cpx     #$04
-        bne     LB73C
+        bne     code_B73C
         lda     #$FF
         sta     $18
         ldx     L0000
-LB751:  rts
+code_B751:  rts
 
-LB752:  jsr     LB7DF
+code_B752:  jsr     init_boss_wait
         inc     $0300,x
         jsr     LFC53
         lda     #$61
@@ -6063,28 +6762,39 @@ LB752:  jsr     LB7DF
         jsr     LF759
         lda     $03C0,x
         cmp     $0520,x
-        beq     LB7D9
+        beq     code_B7D9
         lda     #$80
         sta     $B0
         rts
 
-LB7D9:  lda     #$00
+code_B7D9:  lda     #$00
         sta     $0300,x
         rts
 
-LB7DF:  lda     #$09
-        sta     $30
-        lda     #$80
-        sta     $B0
-        sta     $5A
-        lda     #$8E
-        sta     $B3
-        lda     #$0C
+; ---------------------------------------------------------------------------
+; init_boss_wait — freeze player for boss intro sequence
+; Called when boss shutter closes. Sets state $09 (boss_wait):
+; player frozen while boss HP bar fills, then released to $00.
+; Same pattern used by all Robot Masters, Doc Robots, and fortress bosses.
+; $B0 = boss HP meter position, $B3 = HP fill target ($8E = 28 HP).
+; ---------------------------------------------------------------------------
+
+init_boss_wait:  lda     #$09           ; state → $09 (boss_wait)
+        sta     $30                     ; freeze player
+        lda     #$80                    ; init boss HP display
+        sta     $B0                     ; $B0 = HP bar position
+        sta     $5A                     ; $5A = boss active flag
+        lda     #$8E                    ; $B3 = HP fill target
+        sta     $B3                     ; ($8E = $80 + 14 ticks = 28 HP)
+        lda     #$0C                    ; SFX $0C = boss intro music
         jsr     LF898
         rts
 
 LB7F3:  .byte   $16,$1A,$14,$18,$15,$13,$19,$17
-LB7FB:  .byte   $A0,$B0,$B2,$A1,$A2,$B3,$A3,$B1
+
+; doc robot AI indices, as opposed to the intro docs
+; Flash, Bubble, Quick, Wood, Crash, Air, Metal, Heat
+doc_robot_master_main_indices:  .byte   $A0,$B0,$B2,$A1,$A2,$B3,$A3,$B1
 LB803:  .byte   $23,$10,$23,$23,$23,$23,$10,$23
 LB80B:  .byte   $30
 LB80C:  .byte   $11,$30,$19,$27,$15,$37,$17,$30
@@ -6096,43 +6806,46 @@ LB823:  .byte   $0F,$30,$15,$27,$0F,$0F,$30,$19
         .byte   $0F,$0F,$27,$15,$0F,$0F,$27,$15
 LB843:  .byte   $00,$00,$00,$B3,$4C,$00,$80,$00
 LB84B:  .byte   $01,$00,$00,$01,$01,$00,$02,$04
+
+; same intro for all 8
+main_robot_master_intro:
         lda     $0300,x
         and     #$0F
-        bne     LB860
+        bne     code_B860
         inc     $0300,x
-        jsr     LB7DF
-LB860:  lda     $03C0,x
+        jsr     init_boss_wait
+code_B860:  lda     $03C0,x
         cmp     #$80
-        bcs     LB86D
+        bcs     code_B86D
         jsr     LF797
-        jmp     LB8BD
+        jmp     code_B8BD
 
-LB86D:  lda     $0320,x
+code_B86D:  lda     $0320,x
         and     #$07
         tay
         lda     LB8EF,y
         tay
         jsr     LF67C
-        bcc     LB8BD
+        bcc     code_B8BD
         lda     $0320,x
         and     #$07
         tay
         lda     LB8E7,y
         cmp     $05A0,x
-        bne     LB8C2
+        bne     code_B8C2
         lda     #$00
         sta     $05E0,x
         lda     $B0
         cmp     #$9C
-        bne     LB8C6
+        bne     code_B8C6
         lda     #$C0
         sta     $0300,x
         lda     #$1C
         sta     $04E0,x
         lda     $0320,x
-        and     #$07
-        tay
-        lda     LB8C7,y
+        and     #$07                    ; fetch robot master's
+        tay                             ; main routine index
+        lda     robot_master_main_indices,y ; morph this sprite into it
         sta     $0320,x
         lda     LB8CF,y
         sta     $0400,x
@@ -6141,26 +6854,27 @@ LB86D:  lda     $0320,x
         lda     LB8DF,y
         jmp     LF835
 
-LB8BD:  lda     #$00
+code_B8BD:  lda     #$00
         sta     $05E0,x
-LB8C2:  lda     #$80
+code_B8C2:  lda     #$80
         sta     $B0
-LB8C6:  rts
+code_B8C6:  rts
 
-LB8C7:  .byte   $C0,$C1,$D6,$D0,$C2,$D4,$D2,$C3
+robot_master_main_indices:  .byte   $C0,$C1,$D6,$D0,$C2,$D4,$D2,$C3
 LB8CF:  .byte   $B3,$00,$2D,$00,$00,$4C,$6D,$00
 LB8D7:  .byte   $01,$00,$03,$01,$04,$01,$01,$04
 LB8DF:  .byte   $29,$1F,$33,$2C,$49,$22,$36,$3F
 LB8E7:  .byte   $04,$03,$05,$06,$02,$02,$08,$03
 LB8EF:  .byte   $1E,$1E,$00,$26,$1E,$00,$1E,$1E
         .byte   $60
+main_spinning_wheel:
         lda     $03C0,x
         pha
         dec     $03C0,x
         jsr     LFAE2
         pla
         sta     $03C0,x
-        bcs     LB92A
+        bcs     code_B92A
         lda     $05C0,x
         and     #$01
         tay
@@ -6174,73 +6888,75 @@ LB8EF:  .byte   $1E,$1E,$00,$26,$1E,$00,$1E,$1E
         lda     $0380
         adc     LB92F,y
         sta     $0380
-LB92A:  rts
+code_B92A:  rts
 
 LB92B:  .byte   $80,$80
 LB92D:  .byte   $00,$FF
 LB92F:  .byte   $00,$FF
+main_trap_platform:
         lda     $0300,x
         and     #$0F
-        bne     LB964
+        bne     code_B964
         sta     $05A0,x
         sta     $05E0,x
         sta     $0520,x
         jsr     LF8B3
         cmp     #$15
-        bcs     LB963
+        bcs     code_B963
         lda     $30
-        bne     LB963
+        bne     code_B963
         lda     $03C0,x
         cmp     $03C0
-        bcc     LB963
+        bcc     code_B963
         jsr     LF8C2
         cmp     #$18
-        bcs     LB963
+        bcs     code_B963
         lda     #$0C
         sta     $0500,x
         inc     $0300,x
-LB963:  rts
+code_B963:  rts
 
-LB964:  lda     $0520,x
-        bne     LB979
+code_B964:  lda     $0520,x
+        bne     code_B979
         dec     $0500,x
-        bne     LB963
+        bne     code_B963
         inc     $0520,x
         lda     $0580,x
         and     #$90
         sta     $0580,x
-LB979:  lda     $0300,x
+code_B979:  lda     $0300,x
         and     #$02
-        bne     LB98F
+        bne     code_B98F
         lda     $05A0,x
         cmp     #$04
-        bne     LB963
+        bne     code_B963
         inc     $0300,x
         lda     #$14
         sta     $0500,x
-LB98F:  lda     #$04
+code_B98F:  lda     #$04
         sta     $05A0,x
         lda     #$00
         sta     $05E0,x
         dec     $0500,x
-        bne     LB963
+        bne     code_B963
         lda     $0580,x
         eor     #$01
         sta     $0580,x
         lda     #$80
         sta     $0300,x
         rts
+main_breakable_wall:
 
         ldy     #$01
-LB9AE:  lda     $0300,y
-        bpl     LB9DF
+code_B9AE:  lda     $0300,y
+        bpl     code_B9DF
         lda     $05C0,y
         cmp     #$AC
-        beq     LB9BE
+        beq     code_B9BE
         cmp     #$AF
-        bne     LB9DF
-LB9BE:  jsr     LFB7B
-        bcs     LB9DF
+        bne     code_B9DF
+code_B9BE:  jsr     LFB7B
+        bcs     code_B9DF
         lda     #$18
         jsr     LF89A
         ldy     $10
@@ -6254,14 +6970,15 @@ LB9BE:  jsr     LFB7B
         sta     $0320,x
         rts
 
-LB9DF:  iny
+code_B9DF:  iny
         cpy     #$03
-        bcc     LB9AE
+        bcc     code_B9AE
         rts
+main_spark_falling_platform:
 
         lda     $0300,x
         and     #$0F
-        bne     LBA0B
+        bne     code_BA0B
         sta     $0440,x
         lda     #$01
         sta     $0460,x
@@ -6269,13 +6986,13 @@ LB9DF:  iny
         sta     $0560,x
         jsr     LF8B3
         cmp     #$15
-        bcs     LBA41
+        bcs     code_BA41
         jsr     LF8C2
         cmp     #$0A
-        bcs     LBA41
+        bcs     code_BA41
         inc     $0300,x
-LBA0B:  lda     $0500,x
-        bne     LBA42
+code_BA0B:  lda     $0500,x
+        bne     code_BA42
         jsr     LF779
         lda     $0440,x
         clc
@@ -6285,40 +7002,41 @@ LBA0B:  lda     $0500,x
         adc     #$00
         sta     $0460,x
         cmp     #$03
-        bne     LBA2D
+        bne     code_BA2D
         lda     #$00
         sta     $0440,x
-LBA2D:  lda     $03C0,x
+code_BA2D:  lda     $03C0,x
         cmp     #$3A
-        bcs     LBA41
+        bcs     code_BA41
         inc     $0500,x
         lda     #$00
         sta     $0440,x
         lda     #$01
         sta     $0460,x
-LBA41:  rts
+code_BA41:  rts
 
-LBA42:  lda     $0300,x
+code_BA42:  lda     $0300,x
         and     #$02
-        bne     LBA57
-        jsr     LB2AF
+        bne     code_BA57
+        jsr     code_B2AF
         lda     $03C0,x
         cmp     $0560,x
-        bcc     LBA41
+        bcc     code_BA41
         inc     $0300,x
-LBA57:  jsr     LF8B3
+code_BA57:  jsr     LF8B3
         cmp     #$16
-        bcs     LBA41
+        bcs     code_BA41
         jsr     LF8C2
         cmp     #$09
-        bcs     LBA41
+        bcs     code_BA41
         dec     $0300,x
         dec     $0500,x
         rts
+main_big_snakey:
 
         lda     $0300,x
         and     #$0F
-        bne     LBA8C
+        bne     code_BA8C
         inc     $0300,x
         lda     $E4
         adc     $E6
@@ -6329,14 +7047,14 @@ LBA57:  jsr     LF8B3
         sta     $0520,x
         lda     #$78
         sta     $0500,x
-        bne     LBB01
-LBA8C:  lda     $0500,x
-        bne     LBAFE
+        bne     code_BB01
+code_BA8C:  lda     $0500,x
+        bne     code_BAFE
         lda     $05A0,x
         ora     #$01
         sta     $05A0,x
         lda     $0540,x
-        bne     LBAF8
+        bne     code_BAF8
         jsr     LFC53
         lda     #$BA
         jsr     LF846
@@ -6365,76 +7083,77 @@ LBA8C:  lda     $0500,x
         lda     $0C
         sta     $04A0,y
         dec     $0520,x
-        beq     LBAEE
+        beq     code_BAEE
         lda     #$12
         sta     $0540,x
-        bne     LBB01
-LBAEE:  lda     #$00
+        bne     code_BB01
+code_BAEE:  lda     #$00
         sta     $05A0,x
         dec     $0300,x
-        bne     LBB01
-LBAF8:  dec     $0540,x
-        jmp     LBB01
+        bne     code_BB01
+code_BAF8:  dec     $0540,x
+        jmp     code_BB01
 
-LBAFE:  dec     $0500,x
-LBB01:  lda     $05C0,x
+code_BAFE:  dec     $0500,x
+code_BB01:  lda     $05C0,x
         pha
-        jsr     L8003
+        jsr     code_8003
         pla
         sta     $05C0,x
         lda     $04E0,x
-        bne     LBB2E
+        bne     code_BB2E
         sta     $0300,x
         ldy     #$0F
-LBB16:  lda     $0310,y
-        bpl     LBB27
+code_BB16:  lda     $0310,y
+        bpl     code_BB27
         lda     $03D0,y
         cmp     #$80
-        bcs     LBB27
+        bcs     code_BB27
         lda     #$00
         sta     $0310,y
-LBB27:  dey
-        bpl     LBB16
+code_BB27:  dey
+        bpl     code_BB16
         lda     #$80
         sta     $55
-LBB2E:  lda     #$00
+code_BB2E:  lda     #$00
         sta     $05E0,x
         rts
 
         lda     $04A0,x
         and     #$01
-        beq     LBB41
+        beq     code_BB41
         jsr     LF71D
-        jmp     LBB44
+        jmp     code_BB44
 
-LBB41:  jsr     LF73B
-LBB44:  lda     $04A0,x
+code_BB41:  jsr     LF73B
+code_BB44:  lda     $04A0,x
         and     #$08
-        beq     LBB4E
+        beq     code_BB4E
         jmp     LF779
 
-LBB4E:  jmp     LF759
+code_BB4E:  jmp     LF759
 
 LBB51:  .byte   $03,$03,$04,$02
+init_tama:
         lda     $05C0,x
-        beq     LBBBB
+        beq     code_BBBB
         jsr     LF797
         ldy     #$00
         sty     $54
         lda     $0380,x
         cmp     #$0B
-        beq     LBB69
+        beq     code_BB69
         iny
-LBB69:  lda     LBBBC,y
+code_BB69:  lda     LBBBC,y
         cmp     $03C0,x
-        bcs     LBBB6
+        bcs     code_BBB6
         sta     $03C0,x
         lda     $05E0,x
         cmp     #$02
-        bne     LBBBB
+        bne     code_BBBB
         lda     $05A0,x
         cmp     #$02
-        bne     LBBBB
+        bne     code_BBBB
         lda     #$20
         sta     $060D
         sta     $062D
@@ -6448,31 +7167,32 @@ LBB69:  lda     LBBBC,y
         lda     #$00
         sta     $05C0,x
         ldy     #$1F
-LBBA3:  lda     $0300,y
-        bpl     LBBB0
+code_BBA3:  lda     $0300,y
+        bpl     code_BBB0
         lda     $0580,y
         and     #$FB
         sta     $0580,y
-LBBB0:  dey
+code_BBB0:  dey
         cpy     #$0F
-        bne     LBBA3
+        bne     code_BBA3
         rts
 
-LBBB6:  lda     #$00
+code_BBB6:  lda     #$00
         sta     $05E0,x
-LBBBB:  rts
+code_BBBB:  rts
 
 LBBBC:  .byte   $48,$78
+main_tama_A:
         lda     $0580,x
         and     #$04
-        bne     LBBBB
+        bne     code_BBBB
         lda     $05C0,x
         pha
-        jsr     L8003
+        jsr     code_8003
         pla
         sta     $05C0,x
         lda     $04E0,x
-        bne     LBBF5
+        bne     code_BBF5
         sta     $0520,x
         sta     $0480,x
         lda     #$04
@@ -6481,40 +7201,40 @@ LBBBC:  .byte   $48,$78
         sta     $0320,x
         ldy     #$0F
         lda     #$00
-LBBE9:  sta     $0310,y
+code_BBE9:  sta     $0310,y
         dey
-        bpl     LBBE9
+        bpl     code_BBE9
         lda     #$80
         sta     $0300,x
         rts
 
-LBBF5:  lda     $0300,x
+code_BBF5:  lda     $0300,x
         and     #$0F
-        bne     LBC1E
+        bne     code_BC1E
         sta     $05E0,x
         ldy     #$1F
-LBC01:  lda     $0300,y
-        bpl     LBC11
+code_BC01:  lda     $0300,y
+        bpl     code_BC11
         lda     $05C0,y
         cmp     #$CF
-        beq     LBC1D
+        beq     code_BC1D
         cmp     #$D0
-        beq     LBC1D
-LBC11:  dey
+        beq     code_BC1D
+code_BC11:  dey
         cpy     #$0F
-        bne     LBC01
+        bne     code_BC01
         lda     $54
-        bne     LBC1D
+        bne     code_BC1D
         inc     $0300,x
-LBC1D:  rts
+code_BC1D:  rts
 
-LBC1E:  lda     $05E0,x
+code_BC1E:  lda     $05E0,x
         ora     $05A0,x
-        bne     LBC44
+        bne     code_BC44
         inc     $0520,x
         lda     $0520,x
         cmp     #$02
-        bne     LBC3E
+        bne     code_BC3E
         dec     $0300,x
         lda     #$00
         sta     $0500,x
@@ -6522,24 +7242,24 @@ LBC1E:  lda     $05E0,x
         inc     $54
         rts
 
-LBC3E:  lda     #$3C
+code_BC3E:  lda     #$3C
         sta     $0500,x
         rts
 
-LBC44:  lda     $0500,x
-        beq     LBC52
+code_BC44:  lda     $0500,x
+        beq     code_BC52
         dec     $0500,x
         lda     #$00
         sta     $05E0,x
         rts
 
-LBC52:  lda     $05E0,x
-        bne     LBCA6
+code_BC52:  lda     $05E0,x
+        bne     code_BCA6
         lda     $05A0,x
         cmp     #$02
-        bne     LBCA6
+        bne     code_BCA6
         jsr     LFC53
-        bcs     LBCA6
+        bcs     code_BCA6
         lda     #$CF
         jsr     LF846
         lda     $0360,x
@@ -6565,47 +7285,48 @@ LBC52:  lda     $05E0,x
         jsr     LF869
         lda     $04A0,x
         sta     $04A0,y
-LBCA6:  rts
+code_BCA6:  rts
 
-LBCA7:  rts
+code_BCA7:  rts
+main_tama_B:
 
         lda     $0580,x
         and     #$04
-        bne     LBCA7
+        bne     code_BCA7
         lda     $0300,x
         and     #$0F
-        bne     LBCD8
+        bne     code_BCD8
         sta     $05E0,x
         ldy     #$1F
-LBCBB:  lda     $0300,y
-        bpl     LBCCB
+code_BCBB:  lda     $0300,y
+        bpl     code_BCCB
         lda     $05C0,y
         cmp     #$CF
-        beq     LBCD7
+        beq     code_BCD7
         cmp     #$D0
-        beq     LBCD7
-LBCCB:  dey
+        beq     code_BCD7
+code_BCCB:  dey
         cpy     #$0F
-        bne     LBCBB
+        bne     code_BCBB
         lda     $54
-        beq     LBCD7
+        beq     code_BCD7
         inc     $0300,x
-LBCD7:  rts
+code_BCD7:  rts
 
-LBCD8:  lda     $05E0,x
+code_BCD8:  lda     $05E0,x
         ora     $05A0,x
-        bne     LBCE3
+        bne     code_BCE3
         dec     $0300,x
-LBCE3:  lda     $05A0,x
+code_BCE3:  lda     $05A0,x
         cmp     #$02
-        bne     LBCD7
+        bne     code_BCD7
         lda     $05E0,x
-        bne     LBCD7
+        bne     code_BCD7
         lda     #$02
         sta     $10
         jsr     LF869
-LBCF6:  jsr     LFC53
-        bcs     LBD58
+code_BCF6:  jsr     LFC53
+        bcs     code_BD58
         lda     #$D0
         jsr     LF846
         lda     #$01
@@ -6638,10 +7359,10 @@ LBCF6:  jsr     LFC53
         sta     $0520,y
         ldx     L0000
         dec     $10
-        bpl     LBCF6
+        bpl     code_BCF6
         lda     #$00
         sta     $54
-LBD58:  rts
+code_BD58:  rts
 
 LBD59:  .byte   $44,$00,$2A
 LBD5C:  .byte   $03,$04,$05
@@ -6649,46 +7370,46 @@ LBD5F:  .byte   $39,$55,$8C
 LBD62:  .byte   $01,$01,$01
         ldy     #$08
         jsr     LF67C
-        bcc     LBD76
+        bcc     code_BD76
         lda     #$44
         sta     $0440,x
         lda     #$03
         sta     $0460,x
-LBD76:  lda     $04A0,x
+code_BD76:  lda     $04A0,x
         and     #$01
-        beq     LBD85
+        beq     code_BD85
         ldy     #$08
         jsr     LF580
-        jmp     LBD8A
+        jmp     code_BD8A
 
-LBD85:  ldy     #$09
+code_BD85:  ldy     #$09
         jsr     LF5C4
-LBD8A:  bcc     LBD94
+code_BD8A:  bcc     code_BD94
         lda     $04A0,x
         eor     #$03
         sta     $04A0,x
-LBD94:  rts
+code_BD94:  rts
 
         lda     $0500,x
-        beq     LBDAD
+        beq     code_BDAD
         dec     $0500,x
         jsr     LF797
         lda     $04A0,x
         and     #$01
-        beq     LBDAA
+        beq     code_BDAA
         jmp     LF71D
 
-LBDAA:  jmp     LF73B
+code_BDAA:  jmp     LF73B
 
-LBDAD:  ldy     #$12
+code_BDAD:  ldy     #$12
         jsr     LF67C
         lda     #$01
         sta     $05A0,x
-        bcc     LBDDF
+        bcc     code_BDDF
         lda     #$00
         sta     $05A0,x
         dec     $0520,x
-        bne     LBDF3
+        bne     code_BDF3
         lda     #$3C
         sta     $0520,x
         lda     #$A8
@@ -6700,130 +7421,161 @@ LBDAD:  ldy     #$12
         lda     #$00
         sta     $0420,x
         jsr     LF869
-LBDDF:  lda     $04A0,x
+code_BDDF:  lda     $04A0,x
         and     #$01
-        beq     LBDEE
+        beq     code_BDEE
 LBDE6:  ldy     #$1E
         jsr     LF580
         .byte   $4C
 LBDEC:  .byte   $F3
         .byte   $BD
-LBDEE:  ldy     #$1F
+code_BDEE:  ldy     #$1F
         jsr     LF5C4
-LBDF3:  lda     #$00
+code_BDF3:  lda     #$00
         sta     $05E0,x
         rts
 
-        ldy     #$2C
-        bne     LBDFF
-        ldy     #$2D
-LBDFF:  jsr     LF67C
-        jsr     LFAE2
-        bcs     LBE3A
-        lda     $0500,x
-        bne     LBE25
-        lda     $04C0,x
-        pha
-        and     #$07
+; ===========================================================================
+; main_item_pickup — item pickup entity (small/large HP, ammo, 1-up, E-tank)
+; ===========================================================================
+; Two entry points: main_item_pickup (small, hitbox $2C) and .large ($2D).
+; Falls with gravity, checks player collision. On pickup: marks item
+; collected in respawn table ($0150), despawns, and jumps to type-specific
+; pickup handler via table at $BDE6/$BDEC. If $0500 set, item has a
+; despawn timer (e.g. from enemy drops).
+main_item_pickup:
+
+        ldy     #$2C                    ; small pickup hitbox
+        bne     code_BDFF
+        ldy     #$2D                    ; large pickup hitbox
+code_BDFF:  jsr     LF67C               ; apply gravity
+        jsr     LFAE2                   ; check if player touches item
+        bcs     code_BE3A               ; no collision → timer logic
+
+; --- player picked up item ---
+        lda     $0500,x                 ; if despawn timer set, skip
+        bne     code_BE25               ; respawn-table marking
+        lda     $04C0,x                 ; mark item collected in respawn table
+        pha                             ; $04C0 = spawn index (bit packed)
+        and     #$07                    ; low 3 bits = bit position
         tay
-        lda     $DEC2,y
+        lda     $DEC2,y                 ; bit mask from table
         sta     L0000
-        pla
+        pla                             ; high 5 bits = byte index
         lsr     a
         lsr     a
         lsr     a
         tay
-        lda     $0150,y
+        lda     $0150,y                 ; set collected bit
         ora     L0000
         sta     $0150,y
-LBE25:  lda     #$00
+code_BE25:  lda     #$00                ; despawn pickup entity
         sta     $0300,x
-        ldy     $0320,x
-        lda     LBDE6,y
-        sta     L0000
-        lda     LBDEC,y
+        ldy     $0320,x                 ; dispatch to item type handler
+        lda     LBDE6,y                 ; via pointer table indexed by
+        sta     L0000                   ; AI routine ($0320)
+        lda     LBDEC,y                 ; loads pickup-effect routine address
         sta     $01
-        jmp     (L0000)
+        jmp     (L0000)                 ; indirect jump to effect handler
 
-LBE3A:  lda     $0500,x
-        beq     LBE49
-        dec     $0500,x
-        bne     LBE49
-        lda     #$00
+; --- no collision: handle despawn timer ---
+
+code_BE3A:  lda     $0500,x             ; despawn timer active?
+        beq     code_BE49               ; no → return
+        dec     $0500,x                 ; decrement; expired?
+        bne     code_BE49               ; no → return
+        lda     #$00                    ; timer expired: despawn uncollected item
         sta     $0300,x
-LBE49:  rts
+code_BE49:  rts
+
+; pickup handler pointer table (lo bytes, indexed by $0320)
 
         .byte   $56,$5C,$62,$66,$9D,$AB,$BE,$BE
         .byte   $BE,$BE,$BE,$BE
-        lda     #$0A
-        ldy     #$00
-        beq     LBE6C
+
+; --- pickup_hp_large: restore 10 HP to Mega Man's weapon (buster=slot 0) ---
+        lda     #$0A                    ; amount = 10 energy ticks
+        ldy     #$00                    ; weapon index = 0 (HP)
+        beq     code_BE6C
+
+; --- pickup_hp_small: restore 2 HP ---
+        lda     #$02                    ; amount = 2
+        ldy     #$00                    ; weapon = 0 (HP)
+        beq     code_BE6C
+
+; --- pickup_ammo_large: restore 10 ammo to current weapon ---
+        lda     #$0A                    ; amount = 10
+        bne     code_BE68
+
+; --- pickup_ammo_small: restore 2 ammo ---
         lda     #$02
-        ldy     #$00
-        beq     LBE6C
-        lda     #$0A
-        bne     LBE68
-        lda     #$02
-LBE68:  ldy     $A0
-        beq     LBE98
-LBE6C:  inc     $58
-        sta     $0F
-        sty     $0E
-LBE72:  ldy     $0E
-        lda     $A2,y
-        cmp     #$9C
-        beq     LBE98
-        lda     $A2,y
+code_BE68:  ldy     $A0                 ; Y = current weapon ID ($A0)
+        beq     code_BE98               ; weapon 0 (buster) has no ammo → skip
+
+; --- apply_energy_refill: A=amount, Y=weapon slot index ---
+code_BE6C:  inc     $58                 ; flag: energy refill active
+        sta     $0F                     ; remaining ticks to add
+        sty     $0E                     ; target weapon/HP slot
+code_BE72:  ldy     $0E                 ; check current energy level
+        lda     $A2,y                   ; ($A2+Y: $A2=HP, $A3+=weapon ammo)
+        cmp     #$9C                    ; $9C = max energy (28 units)
+        beq     code_BE98               ; already full → done
+        lda     $A2,y                   ; add 1 tick of energy
         clc
         adc     #$01
         sta     $A2,y
-        lda     #$1C
+        lda     #$1C                    ; play refill tick sound
         jsr     LF89A
-        dec     $0F
-        beq     LBE98
-LBE8D:  jsr     LFD6E
-        lda     $95
+        dec     $0F                     ; all ticks applied?
+        beq     code_BE98               ; yes → done
+code_BE8D:  jsr     LFD6E               ; wait 4 frames between ticks
+        lda     $95                     ; (frame counter & 3 == 0)
         and     #$03
-        bne     LBE8D
-        beq     LBE72
-LBE98:  lda     #$00
+        bne     code_BE8D
+        beq     code_BE72               ; → next tick
+code_BE98:  lda     #$00                ; clear refill-active flag
         sta     $58
         rts
 
-        lda     #$14
-        jsr     LF89A
-        lda     $AF
-        cmp     #$09
-        beq     LBEAA
-        inc     $AF
-LBEAA:  rts
+; --- pickup_etank: add 1 E-tank (max 9) ---
 
-        lda     #$14
+        lda     #$14                    ; play 1-up/E-tank sound
         jsr     LF89A
-        lda     $AE
-        cmp     #$99
-        beq     LBED1
-        inc     $AE
-        lda     $AE
-        and     #$0F
+        lda     $AF                     ; current E-tanks ($AF)
+        cmp     #$09                    ; max 9?
+        beq     code_BEAA               ; yes → don't add more
+        inc     $AF                     ; E-tanks += 1
+code_BEAA:  rts
+
+; --- pickup_1up: add 1 extra life (BCD, max 99) ---
+
+        lda     #$14                    ; play 1-up sound
+        jsr     LF89A
+        lda     $AE                     ; lives ($AE, BCD format)
+        cmp     #$99                    ; max 99?
+        beq     code_BED1               ; yes → done
+        inc     $AE                     ; lives += 1
+        lda     $AE                     ; BCD fixup: if low nibble >= $A
+        and     #$0F                    ; carry into high nibble
         cmp     #$0A
-        bne     LBED1
-        lda     $AE
-        and     #$F0
+        bne     code_BED1
+        lda     $AE                     ; add $10 (next tens digit)
+        and     #$F0                    ; clear low nibble
         clc
         adc     #$10
         sta     $AE
-        cmp     #$A0
-        bne     LBED1
+        cmp     #$A0                    ; overflow past 99? clamp to 99
+        bne     code_BED1
         lda     #$99
         sta     $AE
-LBED1:  rts
+code_BED1:  rts
+main_surprise_box:
 
         lda     $05C0,x
         cmp     #$71
-        beq     LBF03
+        beq     code_BF03
         jsr     LFB7B
-        bcs     LBED1
+        bcs     code_BED1
         lda     $04C0,x
         pha
         and     #$07
@@ -6844,9 +7596,9 @@ LBED1:  rts
         lda     #$71
         jmp     LF835
 
-LBF03:  lda     $05A0,x
+code_BF03:  lda     $05A0,x
         cmp     #$04
-        bne     LBF3E
+        bne     code_BF3E
         lda     $E5
         adc     $E6
         sta     $E5
@@ -6856,11 +7608,11 @@ LBF03:  lda     $05A0,x
         jsr     LFCEB
         ldy     #$05
         lda     $03
-LBF1D:  cmp     LBF3F,y
-        bcc     LBF25
+code_BF1D:  cmp     LBF3F,y
+        bcc     code_BF25
         dey
-        bne     LBF1D
-LBF25:  lda     LBF45,y
+        bne     code_BF1D
+code_BF25:  lda     LBF45,y
         jsr     LF835
         lda     LBF4B,y
         sta     $0320,x
@@ -6869,7 +7621,7 @@ LBF25:  lda     LBF45,y
         sta     $0580,x
         lda     #$F0
         sta     $0500,x
-LBF3E:  .byte   $60
+code_BF3E:  .byte   $60
 LBF3F:  .byte   $63,$41,$23,$19,$0F,$05
 LBF45:  .byte   $FB,$F9,$FA,$FC,$FE,$FD
 LBF4B:  .byte   $66,$64,$65
@@ -6877,9 +7629,9 @@ LBF4B:  .byte   $66,$64,$65
         adc     #$68
         lda     $05A0,x
         cmp     #$04
-        bne     LBF96
+        bne     code_BF96
         lda     $5A
-        bmi     LBF77
+        bmi     code_BF77
         lda     $E6
         adc     $E7
         sta     $E7
@@ -6889,15 +7641,15 @@ LBF4B:  .byte   $66,$64,$65
         jsr     LFCEB
         ldy     #$04
         lda     $03
-LBF6F:  cmp     LBF97,y
-        bcc     LBF7D
+code_BF6F:  cmp     LBF97,y
+        bcc     code_BF7D
         dey
-        bpl     LBF6F
-LBF77:  lda     #$00
+        bpl     code_BF6F
+code_BF77:  lda     #$00
         sta     $0300,x
         rts
 
-LBF7D:  lda     LBF9C,y
+code_BF7D:  lda     LBF9C,y
         jsr     LF835
         lda     LBFA1,y
         sta     $0320,x
@@ -6906,7 +7658,7 @@ LBF7D:  lda     LBF9C,y
         lda     #$00
         sta     $0440,x
         sta     $0460,x
-LBF96:  .byte   $60
+code_BF96:  .byte   $60
 LBF97:  .byte   $1D,$1B,$0C,$0A,$01
 LBF9C:  .byte   $FB,$FC,$F9,$FA,$FE
 LBFA1:  .byte   $66,$67,$64,$65,$69,$ED,$40,$40

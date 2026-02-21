@@ -92,9 +92,13 @@ The disassembly is byte-perfect but annotation is ongoing. Each source file has 
 | File | Status |
 |------|--------|
 | **fixed_bank.asm** | **~52%** — 474 labels named, ~3970 inline comments |
+| **bank1C_1D_entity_ai.asm** | **~77%** — 674 labels named, 1984 inline comments |
+| **bank16_sound_driver.asm** | **~87%** — 148 labels named, 37 inline comments |
+| **bank12_fortress_bosses.asm** | **~78%** — 309 labels named, 52 inline comments |
+| **bank18_stage_select.asm** | **~41%** — 68 labels named, 331 inline comments |
 | All other banks | 0% — unannotated da65 output |
 
-**Overall: ~2% annotated** (1 of 30 code files). The fixed bank contains the core game engine and was annotated first since it's the most important — NMI/IRQ handlers, player state machine, physics, weapon logic, collision detection, bank switching.
+**Overall: ~17% annotated** (5 of 30 code files). The fixed bank contains the core game engine and was annotated first since it's the most important — NMI/IRQ handlers, player state machine, physics, weapon logic, collision detection, bank switching.
 
 The goal is 100% annotation across all banks.
 
