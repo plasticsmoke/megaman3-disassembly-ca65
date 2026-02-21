@@ -1,8 +1,12 @@
-; da65 V2.18 - Ubuntu 2.19-1
-; Created:    2026-02-21 05:24:06
-; Input file: /home/kn/megamanforever/megaman3-disassembly-ca65/tools/../build/bank1C_1D.bin
-; Page:       1
-
+; =============================================================================
+; MEGA MAN 3 (U) — BANKS $1C-$1D — SPRITE PROCESSING & ENTITY AI
+; =============================================================================
+; Entity AI dispatch, sprite processing loop, hit detection callbacks,
+; and AI routines for all standard enemies and mini-bosses.
+; Bank $1C at $8000, Bank $1D at $A000.
+;
+; Annotation: 0% — unannotated da65 output
+; =============================================================================
 
         .setcpu "6502"
 

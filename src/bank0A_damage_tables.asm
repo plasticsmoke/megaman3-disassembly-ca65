@@ -1,8 +1,10 @@
-; da65 V2.18 - Ubuntu 2.19-1
-; Created:    2026-02-21 05:24:06
-; Input file: /home/kn/megamanforever/megaman3-disassembly-ca65/tools/../build/bank0A.bin
-; Page:       1
-
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $0A — WEAPON DAMAGE TABLES + DOC ROBOT SPARK STAGE
+; =============================================================================
+; Weapon-vs-enemy damage tables (9 tables) and Doc Robot Spark Man stage data.
+;
+; Annotation: 0% — unannotated da65 output (pure data)
+; =============================================================================
 
         .setcpu "6502"
 

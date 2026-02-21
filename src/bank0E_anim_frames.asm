@@ -1,8 +1,10 @@
-; da65 V2.18 - Ubuntu 2.19-1
-; Created:    2026-02-21 05:24:06
-; Input file: /home/kn/megamanforever/megaman3-disassembly-ca65/tools/../build/bank0E.bin
-; Page:       1
-
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $0E — ANIMATION FRAME MANAGEMENT
+; =============================================================================
+; Sprite animation frame sequencing and management routines.
+;
+; Annotation: 0% — unannotated da65 output
+; =============================================================================
 
         .setcpu "6502"
 

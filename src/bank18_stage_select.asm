@@ -1,8 +1,11 @@
-; da65 V2.18 - Ubuntu 2.19-1
-; Created:    2026-02-21 05:24:06
-; Input file: /home/kn/megamanforever/megaman3-disassembly-ca65/tools/../build/bank18.bin
-; Page:       1
-
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $18 — STAGE SELECT + PROTO MAN SCENES
+; =============================================================================
+; Stage select screen logic, cursor handling, stage-to-bank mapping,
+; Proto Man encounter cutscenes, and password system.
+;
+; Annotation: 0% — unannotated da65 output
+; =============================================================================
 
         .setcpu "6502"
 

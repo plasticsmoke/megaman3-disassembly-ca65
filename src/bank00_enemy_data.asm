@@ -1,8 +1,11 @@
-; da65 V2.18 - Ubuntu 2.19-1
-; Created:    2026-02-21 05:24:06
-; Input file: /home/kn/megamanforever/megaman3-disassembly-ca65/tools/../build/bank00.bin
-; Page:       1
-
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $00 — GLOBAL ENEMY DATA
+; =============================================================================
+; Global enemy data tables shared across all stages.
+; Contains enemy flags, routine IDs, spawn parameters, and hitbox data.
+;
+; Annotation: 0% — unannotated da65 output
+; =============================================================================
 
         .setcpu "6502"
 
