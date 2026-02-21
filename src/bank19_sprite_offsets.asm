@@ -25,6 +25,9 @@
 
         .setcpu "6502"
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 
 .segment "BANK19"
 

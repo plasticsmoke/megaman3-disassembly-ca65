@@ -22,6 +22,9 @@ main_needle_man_j:
 
         .setcpu "6502"
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 L0000           := $0000
 LF580           := $F580
 LF5C4           := $F5C4
@@ -65,7 +68,7 @@ main_shadow_man_j:
 
         rts
 
-main_needle_man:  lda     $0300,x
+main_needle_man:  lda     ent_status,x
         and     #$0F
         tay                             ; load Needle Man's
         lda     needle_man_state_ptr_lo,y ; AI pointer based on state
@@ -80,35 +83,35 @@ needle_man_state_ptr_hi:  .byte   $A0,$A0,$A0,$A0,$A1 ; state $00: init
 ; state $00: one-frame state for init
 needle_man_init:
         lda     #$78                    ; timer: 120 frames
-        sta     $0500,x                 ; to wait before acting
+        sta     ent_timer,x                 ; to wait before acting
         jsr     needle_man_setup_throw
-        lda     $0300,x
+        lda     ent_status,x
         ora     #$40                    ; set boss flag
-        sta     $0300,x
-        inc     $0300,x                 ; next state
+        sta     ent_status,x
+        inc     ent_status,x                 ; next state
         rts
 
 ; state $01: waiting for B press at beginning of battle
 needle_man_wait_B:
 
         lda     #$00
-        sta     $05E0,x                 ; clear animation
-        sta     $05A0,x
-        dec     $0500,x
+        sta     ent_anim_frame,x                 ; clear animation
+        sta     ent_anim_state,x
+        dec     ent_timer,x
         bne     LA05E                   ; if timer expires,
-        inc     $0300,x                 ; go to next state
+        inc     ent_status,x                 ; go to next state
         rts
 
-LA05E:  lda     $14
+LA05E:  lda     joy1_press
         and     #$40                    ; if player presses B,
         beq     LA067                   ; go to next state
-        inc     $0300,x
+        inc     ent_status,x
 LA067:  rts
 
 ; state $02: jumping & throwing needles
 needle_man_throw:
 
-        lda     $05C0,x
+        lda     ent_anim_id,x
         cmp     #$28                    ; if his animation is throwing
         beq     LA0AD                   ; needle, skip some stuff
         ldy     #$1E
@@ -117,69 +120,69 @@ needle_man_throw:
         lda     #$29                    ; start animation sequence
         jsr     LF835                   ; for jumping before needle throw
         lda     #$02
-        sta     $05A0,x                 ; set up animation frame
+        sta     ent_anim_state,x                 ; set up animation frame
         lda     #$00                    ; for ???
-        sta     $05E0,x
+        sta     ent_anim_frame,x
         lda     #$08                    ; 8 frame timer for a brief pause
-        sta     $0540,x
-        inc     $0300,x                 ; next state
+        sta     ent_var2,x
+        inc     ent_status,x                 ; next state
         jsr     LF869                   ; face toward player
         jmp     needle_man_setup_jump   ; setup jump values
 
-LA093:  lda     $0460,x                 ; if he is moving down
+LA093:  lda     ent_yvel,x                 ; if he is moving down
         bmi     LA0A3
         lda     #$01
-        sta     $05A0,x                 ; if not, set up animation
+        sta     ent_anim_state,x                 ; if not, set up animation
         lda     #$00                    ; frame for ???
-        sta     $05E0,x
+        sta     ent_anim_frame,x
         rts
 
-LA0A3:  lda     $0540,x                 ; if timer hasn't expired
+LA0A3:  lda     ent_var2,x                 ; if timer hasn't expired
         bne     LA0EE                   ; for moving down
         lda     #$28                    ; if it has, set up animation
         jsr     LF835                   ; for throwing needle
 LA0AD:  jsr     test_facing_change      ; handle facing change
-        lda     $0500,x                 ; if first needle has
+        lda     ent_timer,x                 ; if first needle has
         bne     LA0C2                   ; been thrown, skip
-        lda     $05A0,x
+        lda     ent_anim_state,x
         cmp     #$01                    ; if animation frame is not ???
         bne     LA0D4
         jsr     spawn_needle            ; else spawn a needle and set
-        inc     $0500,x                 ; "first needle thrown" flag
-LA0C2:  lda     $0520,x                 ; if second needle has
+        inc     ent_timer,x                 ; "first needle thrown" flag
+LA0C2:  lda     ent_var1,x                 ; if second needle has
         bne     LA0D4                   ; been thrown, skip
-        lda     $05A0,x
+        lda     ent_anim_state,x
         cmp     #$03                    ; if animation frame is not ???
         bne     LA0D4
         jsr     spawn_needle            ; else spawn a needle and set
-        inc     $0520,x                 ; "second needle thrown" flag
-LA0D4:  lda     $05A0,x
+        inc     ent_var1,x                 ; "second needle thrown" flag
+LA0D4:  lda     ent_anim_state,x
         cmp     #$03                    ; if animation frame is not ???
         bne     LA0F3
         lda     #$00
-        sta     $0500,x                 ; clear needle thrown flags
-        sta     $0520,x
+        sta     ent_timer,x                 ; clear needle thrown flags
+        sta     ent_var1,x
         lda     #$29                    ; start animation sequence
         jsr     LF835                   ; for jumping between needle throws
         lda     #$10                    ; give 16 frames between throws
-        sta     $0540,x                 ; timer
+        sta     ent_var2,x                 ; timer
         rts
 
-LA0EE:  dec     $0540,x                 ; tick timer down
+LA0EE:  dec     ent_var2,x                 ; tick timer down
         bne     LA0F3                   ; useless branch
 LA0F3:  rts
 
 ; state $03: jump toward player (or pause)
 needle_man_jump_player:
 
-        lda     $05A0,x                 ; if animation frame is ???
+        lda     ent_anim_state,x                 ; if animation frame is ???
         cmp     #$02                    ; this is to skip movement
         beq     LA132                   ; if this is just a pause state
         lda     #$01
-        sta     $05A0,x                 ; set up animation frame
+        sta     ent_anim_state,x                 ; set up animation frame
         lda     #$00                    ; for ???
-        sta     $05E0,x
-        lda     $04A0,x
+        sta     ent_anim_frame,x
+        lda     ent_facing,x
         and     #$01                    ; if he's not facing right
         beq     LA114
         ldy     #$20                    ; move right
@@ -192,54 +195,54 @@ LA119:  ldy     #$1E
         jsr     LF67C                   ; I believe this checks for his
         bcc     LA14F                   ; Y value to be back on ground?
         lda     #$02
-        sta     $05A0,x                 ; set up animation frame
+        sta     ent_anim_state,x                 ; set up animation frame
         lda     #$00                    ; for ???
-        sta     $05E0,x
+        sta     ent_anim_frame,x
         jsr     test_facing_change
         lda     #$08                    ; 8-frame timer
-        sta     $0540,x                 ; for extra pause when ground reached
-LA132:  dec     $0540,x                 ; tick timer down
+        sta     ent_var2,x                 ; for extra pause when ground reached
+LA132:  dec     ent_var2,x                 ; tick timer down
         bne     LA14F                   ; check if done
-        lda     $0560,x                 ; test if state value from table
+        lda     ent_var3,x                 ; test if state value from table
         bne     LA145                   ; was $FF
         lda     #$C2                    ; if it was $00 instead
-        sta     $0300,x                 ; go to throw needles state
+        sta     ent_status,x                 ; go to throw needles state
         jsr     needle_man_setup_throw  ; and setup values for it
         rts
 
 LA145:  lda     #$2A                    ; set up headbutt
         jsr     LF835                   ; animation
         lda     #$C4                    ; go to headbutt state
-        sta     $0300,x
+        sta     ent_status,x
 LA14F:  rts
 
 ; state $04: head butt
 needle_man_headbutt:
 
-        lda     $05A0,x
+        lda     ent_anim_state,x
         cmp     #$04
         bne     code_A176
-        lda     $05E0,x
+        lda     ent_anim_frame,x
         and     #$08
         beq     code_A176
         lda     #$C0
-        sta     $0320,x
+        sta     ent_routine,x
         lda     #$29
         jsr     LF835
         lda     #$C3
-        sta     $0300,x
+        sta     ent_status,x
         jsr     needle_man_setup_jump
 code_A170:  lda     #$CA
-        sta     $0480,x
+        sta     ent_hitbox,x
         rts
 
-code_A176:  lda     $05A0,x
+code_A176:  lda     ent_anim_state,x
         cmp     #$02
         bne     code_A170
         lda     #$D2
-        sta     $0480,x
+        sta     ent_hitbox,x
         lda     #$C7
-        sta     $0320,x
+        sta     ent_routine,x
         rts
 
 needle_man_setup_throw:  lda     $E4
@@ -248,9 +251,9 @@ needle_man_setup_throw:  lda     $E4
         and     #$01                    ; y = random index from 0 to 1
         tay                             ; 50/50
         lda     needle_man_throw_vel_y_sub,y
-        sta     $0440,x                 ; Y velocity = either
+        sta     ent_yvel_sub,x                 ; Y velocity = either
         lda     needle_man_throw_vel_y,y ; $093C or $0688
-        sta     $0460,x                 ; 50/50 chance
+        sta     ent_yvel,x                 ; 50/50 chance
         rts
 
 ; values for needle man's throwing of needles
@@ -261,20 +264,20 @@ needle_man_setup_throw:  lda     $E4
 needle_man_throw_vel_y_sub:  .byte   $88,$3C
 needle_man_throw_vel_y:  .byte   $06,$09
 needle_man_setup_jump:  lda     #$88
-        sta     $0440,x                 ; Y velocity = $0688
+        sta     ent_yvel_sub,x                 ; Y velocity = $0688
         lda     #$06
-        sta     $0460,x
+        sta     ent_yvel,x
         lda     $E4
         adc     $E5                     ; grab RNG value
         sta     $E5                     ; and update it as well
         and     #$07                    ; y = random index from 0 to 7
         tay
         lda     needle_man_jump_vel_x_sub,y
-        sta     $0400,x                 ; one of 8 random X velocity
+        sta     ent_xvel_sub,x                 ; one of 8 random X velocity
         lda     needle_man_jump_vel_x,y ; values
-        sta     $0420,x
+        sta     ent_xvel,x
         lda     needle_man_jump_states,y ; one of 8 random state values
-        sta     $0560,x                 ; to go onto after jump
+        sta     ent_var3,x                 ; to go onto after jump
         rts
 
 ; values for needle man's jump toward player
@@ -288,54 +291,54 @@ needle_man_jump_states:  .byte   $FF,$00,$FF,$FF,$00,$FF,$00,$FF
 spawn_needle:  jsr     LFC53
         bcs     code_A245
         sty     L0000
-        lda     $04A0,x
-        sta     $04A0,y
+        lda     ent_facing,x
+        sta     ent_facing,y
         and     #$02
         tay
-        lda     $05A0,x
+        lda     ent_anim_state,x
         cmp     #$01
         bne     code_A211
-        lda     $0360,x
+        lda     ent_x_px,x
         clc
         adc     LA246,y
         pha
-        lda     $0380,x
+        lda     ent_x_scr,x
         adc     LA247,y
         ldy     L0000
-        sta     $0380,y
+        sta     ent_x_scr,y
         pla
-        sta     $0360,y
+        sta     ent_x_px,y
         jmp     code_A228
 
-code_A211:  lda     $0360,x
+code_A211:  lda     ent_x_px,x
         clc
         adc     LA24A,y
         pha
-        lda     $0380,x
+        lda     ent_x_scr,x
         adc     LA24B,y
         ldy     L0000
-        sta     $0380,y
+        sta     ent_x_scr,y
         pla
-        sta     $0360,y
-code_A228:  lda     $03C0,x
+        sta     ent_x_px,y
+code_A228:  lda     ent_y_px,x
         clc
         adc     #$07
-        sta     $03C0,y
+        sta     ent_y_px,y
         lda     #$00
-        sta     $04E0,y
+        sta     ent_hp,y
         lda     #$27
         jsr     LF846
         lda     #$8B
-        sta     $0480,y
+        sta     ent_hitbox,y
         lda     #$AF
-        sta     $0320,y
+        sta     ent_routine,y
 code_A245:  rts
 
 LA246:  .byte   $15
 LA247:  .byte   $00,$EB,$FF
 LA24A:  .byte   $02
 LA24B:  .byte   $00,$FE,$FF
-code_A24E:  lda     $0300,x
+code_A24E:  lda     ent_status,x
         and     #$0F
         tay
         lda     LA261,y
@@ -346,58 +349,58 @@ code_A24E:  lda     $0300,x
 
 LA261:  .byte   $6B,$EB,$0C,$76,$A5
 LA266:  .byte   $A2,$A2,$A3,$A3,$A3
-        lda     $0520,x
+        lda     ent_var1,x
         bne     code_A2E7
-        lda     $0300,x
+        lda     ent_status,x
         ora     #$40
-        sta     $0300,x
-        lda     $0560,x
+        sta     ent_status,x
+        lda     ent_var3,x
         and     #$01
         beq     code_A28D
-        lda     $0580,x
+        lda     ent_flags,x
         ora     #$40
-        sta     $0580,x
+        sta     ent_flags,x
         jsr     LF71D
         jmp     code_A298
 
-code_A28D:  lda     $0580,x
+code_A28D:  lda     ent_flags,x
         and     #$BF
-        sta     $0580,x
+        sta     ent_flags,x
         jsr     LF73B
 code_A298:  ldy     #$22
         jsr     LF67C
         bcc     code_A2E2
-        lda     $0500,x
+        lda     ent_timer,x
         tay
         lda     LA419,y
-        sta     $0440,x
+        sta     ent_yvel_sub,x
         lda     LA41C,y
-        sta     $0460,x
+        sta     ent_yvel,x
         lda     LA41F,y
-        sta     $0400,x
+        sta     ent_xvel_sub,x
         lda     LA422,y
-        sta     $0420,x
+        sta     ent_xvel,x
         lda     #$1F
         jsr     LF835
         lda     #$04
-        sta     $0520,x
-        inc     $0500,x
-        lda     $0500,x
+        sta     ent_var1,x
+        inc     ent_timer,x
+        lda     ent_timer,x
         cmp     #$03
         bcc     code_A2E1
-        inc     $0300,x
+        inc     ent_status,x
         lda     #$00
-        sta     $0500,x
+        sta     ent_timer,x
         lda     #$3C
-        sta     $0440,x
+        sta     ent_yvel_sub,x
         lda     #$09
-        sta     $0460,x
+        sta     ent_yvel,x
 code_A2E1:  rts
 
 code_A2E2:  lda     #$20
         jmp     LF835
 
-code_A2E7:  dec     $0520,x
+code_A2E7:  dec     ent_var1,x
         rts
 
         lda     $E4
@@ -405,19 +408,19 @@ code_A2E7:  dec     $0520,x
         sta     $E4
         and     #$01
         bne     code_A2F9
-        inc     $0300,x
+        inc     ent_status,x
         rts
 
 code_A2F9:  lda     #$C4
-        sta     $0300,x
+        sta     ent_status,x
         lda     #$F0
-        sta     $0540,x
+        sta     ent_var2,x
         lda     #$1E
         jsr     LF835
         jsr     code_A3FC
         rts
 
-        lda     $05C0,x
+        lda     ent_anim_id,x
         cmp     #$21
         beq     code_A333
         lda     #$20
@@ -430,63 +433,63 @@ code_A2F9:  lda     #$C4
         lda     #$21
         jsr     LF835
         lda     #$00
-        sta     $0520,x
+        sta     ent_var1,x
         lda     #$06
-        sta     $0500,x
+        sta     ent_timer,x
 code_A332:  rts
 
 code_A333:  jsr     code_A3FC
-        dec     $0500,x
+        dec     ent_timer,x
         bne     code_A375
         lda     #$06
-        sta     $0500,x
-        lda     $05A0,x
+        sta     ent_timer,x
+        lda     ent_anim_state,x
         cmp     #$01
         bne     code_A375
         jsr     code_A425
         lda     #$2A
         jsr     LF89A
-        inc     $0520,x
-        lda     $0520,x
+        inc     ent_var1,x
+        lda     ent_var1,x
         cmp     #$03
         bcc     code_A375
-        inc     $0300,x
+        inc     ent_status,x
         lda     #$00
-        sta     $0500,x
+        sta     ent_timer,x
         lda     #$1E
-        sta     $0540,x
+        sta     ent_var2,x
         lda     #$20
         jsr     LF835
         lda     #$80
-        sta     $0440,x
+        sta     ent_yvel_sub,x
         lda     #$06
-        sta     $0460,x
+        sta     ent_yvel,x
 code_A375:  rts
 
-        lda     $0500,x
+        lda     ent_timer,x
         bne     code_A383
-        dec     $0540,x
+        dec     ent_var2,x
         bne     code_A375
-        inc     $0500,x
+        inc     ent_timer,x
 code_A383:  ldy     #$1E
         jsr     LF606
         bcc     code_A3A4
         lda     #$1F
         jsr     LF835
         jsr     LF81B
-        lda     $0560,x
+        lda     ent_var3,x
         eor     #$01
-        sta     $0560,x
+        sta     ent_var3,x
         lda     #$C0
-        sta     $0300,x
+        sta     ent_status,x
         lda     #$00
-        sta     $0500,x
+        sta     ent_timer,x
 code_A3A4:  rts
 
         jsr     LF8C2
         cmp     #$18
         bcc     code_A3E8
-        lda     $0580,x
+        lda     ent_flags,x
         and     #$40
         bne     code_A3B7
         lda     #$01
@@ -497,43 +500,43 @@ code_A3B9:  sta     $36
         sta     $37
         lda     #$01
         sta     $38
-        lda     $05A0,x
+        lda     ent_anim_state,x
         cmp     #$04
         bne     code_A3D2
-        lda     $05E0,x
+        lda     ent_anim_frame,x
         beq     code_A3D2
-        inc     $05A0,x
-code_A3D2:  lda     $05A0,x
+        inc     ent_anim_state,x
+code_A3D2:  lda     ent_anim_state,x
         cmp     #$06
         bne     code_A3E3
-        lda     $05E0,x
+        lda     ent_anim_frame,x
         beq     code_A3E3
         lda     #$05
-        sta     $05A0,x
-code_A3E3:  dec     $0540,x
+        sta     ent_anim_state,x
+code_A3E3:  dec     ent_var2,x
         bne     code_A3F6
 code_A3E8:  lda     #$C3
-        sta     $0300,x
+        sta     ent_status,x
         lda     #$CA
-        sta     $0480,x
-        sta     $0500,x
+        sta     ent_hitbox,x
+        sta     ent_timer,x
         rts
 
 code_A3F6:  lda     #$AA
-        sta     $0480,x
+        sta     ent_hitbox,x
         rts
 
 code_A3FC:  jsr     LF869
-        lda     $04A0,x
+        lda     ent_facing,x
         and     #$01
         beq     code_A410
-        lda     $0580,x
+        lda     ent_flags,x
         ora     #$40
-        sta     $0580,x
+        sta     ent_flags,x
         bne     code_A418
-code_A410:  lda     $0580,x
+code_A410:  lda     ent_flags,x
         and     #$BF
-        sta     $0580,x
+        sta     ent_flags,x
 code_A418:  rts
 
 LA419:  .byte   $9E,$88,$88
@@ -543,42 +546,42 @@ LA422:  .byte   $01,$02,$02
 code_A425:  jsr     LFC53
         bcs     code_A46F
         sty     L0000
-        lda     $04A0,x
-        sta     $04A0,y
+        lda     ent_facing,x
+        sta     ent_facing,y
         and     #$01
         tay
-        lda     $0360,x
+        lda     ent_x_px,x
         clc
         adc     LA470,y
         ldy     L0000
-        sta     $0360,y
-        lda     $0380,x
-        sta     $0380,y
-        lda     $03C0,x
-        sta     $03C0,y
+        sta     ent_x_px,y
+        lda     ent_x_scr,x
+        sta     ent_x_scr,y
+        lda     ent_y_px,x
+        sta     ent_y_px,y
         lda     #$00
-        sta     $03E0,y
-        sta     $0400,y
-        sta     $0440,x
+        sta     ent_y_scr,y
+        sta     ent_xvel_sub,y
+        sta     ent_yvel_sub,x
         lda     #$04
-        sta     $0420,y
-        sta     $0460,y
+        sta     ent_xvel,y
+        sta     ent_yvel,y
         lda     #$4D
         jsr     LF846
         lda     #$80
-        sta     $0480,y
+        sta     ent_hitbox,y
         lda     #$C4
-        sta     $0320,y
+        sta     ent_routine,y
 code_A46F:  rts
 
 LA470:  .byte   $EC,$14
-code_A472:  lda     $05C0,x
+code_A472:  lda     ent_anim_id,x
         cmp     #$51
         beq     code_A49C
-        lda     $0300,x
+        lda     ent_status,x
         and     #$0F
         bne     code_A49C
-        lda     $04A0,x
+        lda     ent_facing,x
         and     #$01
         beq     code_A48D
         jsr     LF71D
@@ -590,7 +593,7 @@ code_A490:  jsr     LF8C2
         bcs     code_A4B2
         lda     #$51
         jsr     LF835
-code_A49C:  lda     $05C0,x
+code_A49C:  lda     ent_anim_id,x
         cmp     #$59
         beq     code_A4B2
         ldy     #$12
@@ -598,10 +601,10 @@ code_A49C:  lda     $05C0,x
         bcc     code_A4B2
         lda     #$59
         jsr     LF835
-        inc     $0300,x
+        inc     ent_status,x
 code_A4B2:  rts
 
-code_A4B3:  lda     $0300,x
+code_A4B3:  lda     ent_status,x
         and     #$0F
         tay
         lda     LA4C6,y
@@ -613,147 +616,147 @@ code_A4B3:  lda     $0300,x
 LA4C6:  .byte   $CE,$E2,$3A,$75
 LA4CA:  .byte   $A4,$A4,$A5,$A5
         lda     #$3C
-        sta     $0500,x
-        sta     $0520,x
-        lda     $0300,x
+        sta     ent_timer,x
+        sta     ent_var1,x
+        lda     ent_status,x
         ora     #$40
-        sta     $0300,x
-        inc     $0300,x
+        sta     ent_status,x
+        inc     ent_status,x
         rts
 
         lda     #$CA
-        sta     $0480,x
-        lda     $05A0,x
+        sta     ent_hitbox,x
+        lda     ent_anim_state,x
         cmp     #$02
         bne     code_A4FD
-        lda     $0540,x
+        lda     ent_var2,x
         bne     code_A4FD
         lda     #$00
         sta     $01
         jsr     code_A5BC
-        inc     $0540,x
-code_A4FD:  lda     $05A0,x
+        inc     ent_var2,x
+code_A4FD:  lda     ent_anim_state,x
         cmp     #$03
         bne     code_A525
-        lda     $05E0,x
+        lda     ent_anim_frame,x
         and     #$08
         beq     code_A525
         ldy     #$1F
         lda     #$10
-code_A50F:  cmp     $04C0,y
+code_A50F:  cmp     ent_spawn_id,y
         beq     code_A51B
         dey
         cpy     #$0F
         bne     code_A50F
         beq     code_A525
 code_A51B:  lda     #$C5
-        sta     $0320,y
+        sta     ent_routine,y
         dey
         lda     #$10
         bne     code_A50F
-code_A525:  lda     $05A0,x
+code_A525:  lda     ent_anim_state,x
         cmp     #$05
         bne     code_A539
-        lda     $05E0,x
+        lda     ent_anim_frame,x
         beq     code_A539
-        inc     $0300,x
+        inc     ent_status,x
         lda     #$44
         jsr     LF835
 code_A539:  rts
 
-        lda     $05C0,x
+        lda     ent_anim_id,x
         cmp     #$47
         beq     code_A555
-        lda     $0540,x
+        lda     ent_var2,x
         beq     code_A564
-        dec     $0500,x
+        dec     ent_timer,x
         bne     code_A539
         lda     #$47
         jsr     LF835
         lda     #$AA
-        sta     $0480,x
-code_A555:  lda     $05A0,x
+        sta     ent_hitbox,x
+code_A555:  lda     ent_anim_state,x
         cmp     #$02
         bne     code_A564
         lda     #$48
         jsr     LF835
-        dec     $0540,x
-code_A564:  dec     $0520,x
+        dec     ent_var2,x
+code_A564:  dec     ent_var1,x
         bne     code_A539
-        inc     $0300,x
+        inc     ent_status,x
         lda     #$78
-        sta     $0500,x
-        sta     $0520,x
+        sta     ent_timer,x
+        sta     ent_var1,x
         rts
 
-        lda     $0560,x
+        lda     ent_var3,x
         and     #$01
         beq     code_A589
         jsr     LF71D
-        lda     $0360,x
+        lda     ent_x_px,x
         cmp     #$D0
         bcs     code_A593
         jmp     code_A5BB
 
 code_A589:  jsr     LF73B
-        lda     $0360,x
+        lda     ent_x_px,x
         cmp     #$30
         bcs     code_A5BB
-code_A593:  lda     $0560,x
+code_A593:  lda     ent_var3,x
         eor     #$01
-        sta     $0560,x
-        lda     $04A0,x
+        sta     ent_var3,x
+        lda     ent_facing,x
         eor     #$03
-        sta     $04A0,x
-        lda     $0580,x
+        sta     ent_facing,x
+        lda     ent_flags,x
         eor     #$40
-        sta     $0580,x
+        sta     ent_flags,x
         lda     #$49
         jsr     LF835
-        dec     $0300,x
-        dec     $0300,x
+        dec     ent_status,x
+        dec     ent_status,x
         lda     #$00
-        sta     $0540,x
+        sta     ent_var2,x
 code_A5BB:  rts
 
 code_A5BC:  jsr     LFC53
         bcs     code_A624
         sty     L0000
-        lda     $04A0,x
-        sta     $04A0,y
+        lda     ent_facing,x
+        sta     ent_facing,y
         and     #$01
         tay
-        lda     $0360,x
+        lda     ent_x_px,x
         ldy     L0000
-        sta     $0360,y
-        lda     $0380,x
-        sta     $0380,y
-        lda     $03C0,x
+        sta     ent_x_px,y
+        lda     ent_x_scr,x
+        sta     ent_x_scr,y
+        lda     ent_y_px,x
         sec
         sbc     #$0E
-        sta     $03C0,y
+        sta     ent_y_px,y
         lda     #$00
-        sta     $04E0,y
-        sta     $0320,y
-        sta     $0400,y
-        sta     $0440,y
+        sta     ent_hp,y
+        sta     ent_routine,y
+        sta     ent_xvel_sub,y
+        sta     ent_yvel_sub,y
         lda     #$04
-        sta     $0420,y
-        sta     $0460,y
+        sta     ent_xvel,y
+        sta     ent_yvel,y
         lda     #$46
         jsr     LF846
         lda     #$8B
-        sta     $0480,y
+        sta     ent_hitbox,y
         lda     #$10
-        sta     $04C0,y
+        sta     ent_spawn_id,y
         ldy     $01
         lda     LA625,y
         ldy     L0000
-        sta     $0500,y
+        sta     ent_timer,y
         ldy     $01
         lda     LA628,y
         ldy     L0000
-        sta     $0520,y
+        sta     ent_var1,y
         inc     $01
         lda     $01
         cmp     #$03
@@ -762,10 +765,10 @@ code_A624:  rts
 
 LA625:  .byte   $08,$10,$18
 LA628:  .byte   $32,$2A,$1E
-code_A62B:  lda     $0300,x
+code_A62B:  lda     ent_status,x
         and     #$0F
         bne     code_A653
-        lda     $04A0,x
+        lda     ent_facing,x
         and     #$01
         beq     code_A63F
         jsr     LF71D
@@ -773,22 +776,22 @@ code_A62B:  lda     $0300,x
 
 code_A63F:  jsr     LF73B
 code_A642:  jsr     LF779
-        dec     $0500,x
+        dec     ent_timer,x
         bne     code_A652
         lda     #$00
-        sta     $0500,x
-        inc     $0300,x
+        sta     ent_timer,x
+        inc     ent_status,x
 code_A652:  rts
 
-code_A653:  lda     $0300,x
+code_A653:  lda     ent_status,x
         and     #$02
         bne     code_A663
-        dec     $0520,x
+        dec     ent_var1,x
         bne     code_A652
-        inc     $0300,x
+        inc     ent_status,x
         rts
 
-code_A663:  lda     $0500,x
+code_A663:  lda     ent_timer,x
         bne     code_A67B
         lda     #$33
         sta     $02
@@ -796,23 +799,23 @@ code_A663:  lda     $0500,x
         sta     $03
         jsr     LFC63
         lda     $0C
-        sta     $04A0,x
-        inc     $0500,x
-code_A67B:  lda     $04A0,x
+        sta     ent_facing,x
+        inc     ent_timer,x
+code_A67B:  lda     ent_facing,x
         and     #$08
         beq     code_A688
         jsr     LF779
         jmp     code_A68B
 
 code_A688:  jsr     LF759
-code_A68B:  lda     $04A0,x
+code_A68B:  lda     ent_facing,x
         and     #$01
         beq     code_A695
         jmp     LF71D
 
 code_A695:  jmp     LF73B
 
-code_A698:  lda     $0300,x
+code_A698:  lda     ent_status,x
         and     #$0F
         tay
         lda     LA6AB,y
@@ -824,22 +827,22 @@ code_A698:  lda     $0300,x
 LA6AB:  .byte   $B5,$D6,$30,$93,$EE
 LA6B0:  .byte   $A6,$A6,$A7,$A7,$A7
         lda     #$00
-        sta     $0500,x
-        sta     $0520,x
-        sta     $0560,x
+        sta     ent_timer,x
+        sta     ent_var1,x
+        sta     ent_var3,x
         lda     #$80
-        sta     $0400,x
+        sta     ent_xvel_sub,x
         lda     #$00
-        sta     $0420,x
-        lda     $0300,x
+        sta     ent_xvel,x
+        lda     ent_status,x
         ora     #$40
-        sta     $0300,x
-        inc     $0300,x
+        sta     ent_status,x
+        inc     ent_status,x
         rts
 
-        lda     $0520,x
+        lda     ent_var1,x
         bne     code_A722
-        lda     $04A0,x
+        lda     ent_facing,x
         and     #$01
         beq     code_A6EA
         ldy     #$24
@@ -854,54 +857,54 @@ code_A6EF:  ldy     #$22
         lda     #$40
         jsr     LF835
         lda     #$04
-        sta     $0520,x
+        sta     ent_var1,x
         jsr     code_A84C
         jsr     test_facing_change
-        inc     $0500,x
-        lda     $0500,x
+        inc     ent_timer,x
+        lda     ent_timer,x
         cmp     #$03
         bcc     code_A72F
-        inc     $0300,x
+        inc     ent_status,x
         rts
 
 code_A714:  lda     #$40
         jsr     LF835
         lda     #$00
-        sta     $05E0,x
-        sta     $05A0,x
+        sta     ent_anim_frame,x
+        sta     ent_anim_state,x
         rts
 
 code_A722:  lda     #$01
-        sta     $05A0,x
+        sta     ent_anim_state,x
         lda     #$00
-        sta     $05E0,x
-        dec     $0520,x
+        sta     ent_anim_frame,x
+        dec     ent_var1,x
 code_A72F:  rts
 
-        lda     $0540,x
+        lda     ent_var2,x
         bne     code_A743
-        inc     $0300,x
+        inc     ent_status,x
         lda     #$41
         jsr     LF835
         lda     #$00
-        sta     $0520,x
+        sta     ent_var1,x
         rts
 
-code_A743:  inc     $0300,x
-        inc     $0300,x
+code_A743:  inc     ent_status,x
+        inc     ent_status,x
         lda     #$08
-        sta     $0500,x
+        sta     ent_timer,x
         lda     #$00
-        sta     $0520,x
+        sta     ent_var1,x
         lda     #$3E
         jsr     LF835
         lda     #$C8
-        sta     $0320,x
-        lda     $0360,x
+        sta     ent_routine,x
+        lda     ent_x_px,x
         sta     $0370
-        lda     $0380,x
+        lda     ent_x_scr,x
         sta     $0390
-        lda     $03C0,x
+        lda     ent_y_px,x
         sta     $03D0
         lda     #$00
         sta     $04F0
@@ -911,16 +914,16 @@ code_A743:  inc     $0300,x
         lda     #$5A
         jsr     LF846
         lda     #$C3
-        sta     $0480,x
+        sta     ent_hitbox,x
         lda     #$00
-        sta     $0400,x
+        sta     ent_xvel_sub,x
         lda     #$04
-        sta     $0420,x
+        sta     ent_xvel,x
         jmp     LF869
 
-        lda     $0520,x
+        lda     ent_var1,x
         bne     code_A7B4
-        lda     $05A0,x
+        lda     ent_anim_state,x
         cmp     #$00
         bne     code_A7ED
         jsr     test_facing_change
@@ -928,44 +931,44 @@ code_A743:  inc     $0300,x
         sta     $01
         jsr     code_A874
         lda     #$14
-        sta     $0500,x
+        sta     ent_timer,x
         lda     #$FF
-        sta     $0520,x
+        sta     ent_var1,x
         rts
 
-code_A7B4:  lda     $05A0,x
+code_A7B4:  lda     ent_anim_state,x
         bne     code_A7D7
-        dec     $0500,x
+        dec     ent_timer,x
         bne     code_A7CE
         lda     #$2E
         jsr     LF89A
         lda     #$01
-        sta     $05A0,x
+        sta     ent_anim_state,x
         lda     #$00
-        sta     $05E0,x
+        sta     ent_anim_frame,x
         rts
 
 code_A7CE:  lda     #$00
-        sta     $05A0,x
-        sta     $05E0,x
+        sta     ent_anim_state,x
+        sta     ent_anim_frame,x
         rts
 
-code_A7D7:  lda     $05E0,x
+code_A7D7:  lda     ent_anim_frame,x
         and     #$08
         beq     code_A7E1
-        inc     $05A0,x
-code_A7E1:  lda     $05A0,x
+        inc     ent_anim_state,x
+code_A7E1:  lda     ent_anim_state,x
         cmp     #$06
         bne     code_A7ED
         lda     #$C0
-        sta     $0300,x
+        sta     ent_status,x
 code_A7ED:  rts
 
-        lda     $0520,x
+        lda     ent_var1,x
         beq     code_A7F8
-        dec     $0500,x
+        dec     ent_timer,x
         beq     code_A81E
-code_A7F8:  lda     $04A0,x
+code_A7F8:  lda     ent_facing,x
         and     #$01
         beq     code_A807
         ldy     #$24
@@ -975,34 +978,34 @@ code_A7F8:  lda     $04A0,x
 code_A807:  ldy     #$25
         jsr     LF5C4
 code_A80C:  bcs     code_A81E
-        lda     $0520,x
+        lda     ent_var1,x
         bne     code_A835
         jsr     LF8C2
         cmp     #$08
         bcs     code_A835
-        inc     $0520,x
+        inc     ent_var1,x
         rts
 
 code_A81E:  lda     #$3D
         jsr     LF835
         lda     #$C0
-        sta     $0300,x
+        sta     ent_status,x
         lda     #$CA
-        sta     $0480,x
+        sta     ent_hitbox,x
         jsr     test_facing_change
         lda     #$C3
-        sta     $0320,x
+        sta     ent_routine,x
 code_A835:  rts
 
-test_facing_change:  lda     $04A0,x
+test_facing_change:  lda     ent_facing,x
         pha                             ; faces toward player then
         jsr     LF869                   ; tests if the facing
         pla                             ; has changed (left to right
-        cmp     $04A0,x                 ; or right to left)
+        cmp     ent_facing,x                 ; or right to left)
         beq     LA84B
-        lda     $0580,x                 ; if so,
+        lda     ent_flags,x                 ; if so,
         eor     #$40                    ; flip facing-lock flag
-        sta     $0580,x                 ; to simulate proper facing
+        sta     ent_flags,x                 ; to simulate proper facing
 LA84B:  rts
 
 code_A84C:  lda     $E4
@@ -1011,11 +1014,11 @@ code_A84C:  lda     $E4
         and     #$03
         tay
         lda     LA868,y
-        sta     $0440,x
+        sta     ent_yvel_sub,x
         lda     LA86C,y
-        sta     $0460,x
+        sta     ent_yvel,x
         lda     LA870,y
-        sta     $0540,x
+        sta     ent_var2,x
         rts
 
 LA868:  .byte   $9E,$88,$00,$88
@@ -1024,39 +1027,39 @@ LA870:  .byte   $00,$01,$00,$01
 code_A874:  jsr     LFC53
         bcs     code_A8D7
         sty     L0000
-        lda     $04A0,x
-        sta     $04A0,y
+        lda     ent_facing,x
+        sta     ent_facing,y
         and     #$01
         tay
-        lda     $0360,x
+        lda     ent_x_px,x
         ldy     L0000
-        sta     $0360,y
-        lda     $0380,x
-        sta     $0380,y
-        lda     $03C0,x
+        sta     ent_x_px,y
+        lda     ent_x_scr,x
+        sta     ent_x_scr,y
+        lda     ent_y_px,x
         sec
         sbc     #$18
-        sta     $03C0,y
+        sta     ent_y_px,y
         lda     #$00
-        sta     $04E0,y
+        sta     ent_hp,y
         lda     #$42
         jsr     LF846
         lda     #$80
-        sta     $0480,y
+        sta     ent_hitbox,y
         lda     #$C6
-        sta     $0320,y
+        sta     ent_routine,y
         stx     $03
         lda     $01
         asl     a
         tax
         lda     LA8D8,x
-        sta     $0440,y
+        sta     ent_yvel_sub,y
         lda     LA8D9,x
-        sta     $0460,y
+        sta     ent_yvel,y
         lda     LA8DC,x
-        sta     $0400,y
+        sta     ent_xvel_sub,y
         lda     LA8DD,x
-        sta     $0420,y
+        sta     ent_xvel,y
         ldx     $03
         inc     $01
         lda     $01
@@ -1068,37 +1071,37 @@ LA8D8:  .byte   $D2
 LA8D9:  .byte   $FC,$00,$00
 LA8DC:  .byte   $2E
 LA8DD:  .byte   $03,$80,$04
-code_A8E0:  lda     $05C0,x
+code_A8E0:  lda     ent_anim_id,x
         cmp     #$42
         bne     code_A8FC
-        lda     $05A0,x
+        lda     ent_anim_state,x
         cmp     #$06
         bne     code_A929
         lda     #$43
         jsr     LF835
-        lda     $03C0,x
+        lda     ent_y_px,x
         clc
         adc     #$0E
-        sta     $03C0,x
+        sta     ent_y_px,x
 code_A8FC:  lda     #$00
         sta     $02
-        lda     $0460,x
+        lda     ent_yvel,x
         bpl     code_A907
         dec     $02
-code_A907:  lda     $03A0,x
+code_A907:  lda     ent_y_sub,x
         clc
-        adc     $0440,x
-        sta     $03A0,x
-        lda     $03C0,x
-        adc     $0460,x
-        sta     $03C0,x
-        lda     $03E0,x
+        adc     ent_yvel_sub,x
+        sta     ent_y_sub,x
+        lda     ent_y_px,x
+        adc     ent_yvel,x
+        sta     ent_y_px,x
+        lda     ent_y_scr,x
         adc     $02
         bne     code_A924
         jmp     code_A68B
 
 code_A924:  lda     #$00
-        sta     $0300,x
+        sta     ent_status,x
 code_A929:  rts
 
         .byte   $AA,$81,$0A,$B6,$03,$D7,$A9,$F9

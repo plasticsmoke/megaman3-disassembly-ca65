@@ -21,6 +21,9 @@
 
         .setcpu "6502"
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 LC8A0           := $C8A0
 LF89A           := $F89A
 LFF21           := $FF21
@@ -114,7 +117,7 @@ code_8084:  lda     #$00
         sta     $078B
         jmp     code_804B
 
-code_80CC:  lda     $22
+code_80CC:  lda     stage_id
         sta     $F5
         jmp     LFF6B
 
@@ -234,7 +237,7 @@ code_8263:  lda     #$00
         sta     $0789
         jmp     code_8236
 
-code_82A9:  lda     $22
+code_82A9:  lda     stage_id
         sta     $F5
         jmp     LFF6B
 

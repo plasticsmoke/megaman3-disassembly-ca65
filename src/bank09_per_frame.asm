@@ -24,6 +24,9 @@
 
         .setcpu "6502"
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 ; ---------------------------------------------------------------------------
 ; Fixed bank subroutine imports
 ; ---------------------------------------------------------------------------
@@ -77,7 +80,7 @@ subsys_stage_clear:  jmp     stage_clear_spawner       ; entry 1: $8003
 ;
 ; State: $55=spawn counter, $56=anim frame, $57=anim cycle
 ; ===========================================================================
-gemini_platform_update:  lda     $22
+gemini_platform_update:  lda     stage_id
         cmp     #$05            ; Gemini Man stage?
         bne     gemini_platform_clear
         ldy     $F9
@@ -91,7 +94,7 @@ gemini_platform_clear:  lda     #$00
         sta     $55             ; reset spawn counter
         rts
 
-gemini_platform_active:  sta     $F5
+gemini_platform_active:  sta     prg_bank
         jsr     select_PRG_banks ; swap in stage data bank
         lda     $55
         beq     gemini_tile_animate ; $55=0: tile animation phase
@@ -195,7 +198,7 @@ gemini_write_attrs:  lda     #$04
         asl     a               ; * 4 (4 attr bytes per cycle)
         tay
 gemini_attr_loop:  lda     gemini_attr_data,y
-        sta     $03C0,x
+        sta     ent_y_px,x
         iny
         inx
         dec     $00
@@ -234,19 +237,19 @@ gemini_platform_spawn:  lda     $55
         lda     #$71            ; entity type $71 = platform piece
         jsr     init_child_entity
         lda     #$19
-        sta     $0320,y         ; entity timer
+        sta     ent_routine,y         ; entity timer
         lda     #$00
-        sta     $0500,y
-        sta     $0480,y
-        lda     $0380           ; copy player screen
-        sta     $0380,y
+        sta     ent_timer,y
+        sta     ent_hitbox,y
+        lda     ent_x_scr           ; copy player screen
+        sta     ent_x_scr,y
         lda     $55
         and     #$07
         tax
         lda     gemini_spawn_x,x
-        sta     $03C0,y         ; entity X position
+        sta     ent_y_px,y         ; entity X position
         lda     gemini_spawn_y,x
-        sta     $0360,y         ; entity Y position
+        sta     ent_x_px,y         ; entity Y position
         lda     $55
         and     #$03
         bne     gemini_spawn_next
@@ -269,7 +272,7 @@ gemini_spawn_y:  .byte   $B0,$D0,$F0,$B0,$D0,$F0,$F0,$F0
 ;
 ; State: $68 bit 7 = active, $68 bits 0-3 = current item index
 ; ===========================================================================
-item_drop_update:  lda     $68
+item_drop_update:  lda     proto_man_flag
         bpl     per_frame_rts   ; bit 7 clear = no items pending
         and     #$0F            ; current item index
         ldy     $22             ; stage ID
@@ -295,26 +298,26 @@ item_drop_update:  lda     $68
         lda     #$71            ; entity type $71 = item pickup
         jsr     reset_sprite_anim
         lda     #$19
-        sta     $0320,x         ; entity timer
+        sta     ent_routine,x         ; entity timer
         lda     #$80
-        sta     $0300,x         ; entity flags (active)
+        sta     ent_status,x         ; entity flags (active)
         lda     #$90
-        sta     $0580,x
+        sta     ent_flags,x
         lda     #$00
-        sta     $03E0,x
-        sta     $0480,x
-        sta     $0500,x
+        sta     ent_y_scr,x
+        sta     ent_hitbox,x
+        sta     ent_timer,x
         lda     $F9
-        sta     $0380,x         ; entity screen = current screen
+        sta     ent_x_scr,x         ; entity screen = current screen
         lda     item_spawn_x,y
-        sta     $03C0,x         ; entity X position
+        sta     ent_y_px,x         ; entity X position
         lda     item_spawn_y,y
-        sta     $0360,x         ; entity Y position
+        sta     ent_x_px,x         ; entity Y position
         lda     #$27            ; sound: item spawn
         jmp     submit_sound_ID
 
 ; --- All items done: clear active flag, handle stage-specific palette ---
-item_drop_done:  lda     $68
+item_drop_done:  lda     proto_man_flag
         and     #$7F            ; clear bit 7 (no more items)
         sta     $68
         lda     $22
@@ -373,7 +376,7 @@ item_spawn_y:  .byte   $18,$28,$FF,$70,$90,$70,$90,$70
 ; by setting scroll mode $F8=$09. Once active, increments $69 each frame
 ; (the fixed bank uses $69 to drive the Y scroll offset).
 ; ===========================================================================
-wily_camera_y_check:  lda     $F8
+wily_camera_y_check:  lda     game_mode
         cmp     #$09            ; Y transition already active?
         beq     wily_camera_y_tick
         lda     $22
@@ -404,7 +407,7 @@ wily_camera_y_rts:  rts
 ; scroll mode to $03 when complete. This prepares the stage layout for the
 ; Gemini-style section of the Doc Robot stage.
 ; ===========================================================================
-docrobot_gemini_prep:  lda     $22
+docrobot_gemini_prep:  lda     stage_id
         cmp     #$08            ; Doc Robot stage?
         bne     docrobot_rts
         lda     $F9
@@ -412,7 +415,7 @@ docrobot_gemini_prep:  lda     $22
         beq     docrobot_check_scroll
         cmp     #$1A            ; screen $1A?
         bne     docrobot_rts
-docrobot_check_scroll:  lda     $F8
+docrobot_check_scroll:  lda     game_mode
         cmp     #$03            ; already in scroll mode $03?
         beq     docrobot_rts
         lda     $033F           ; entity[31] position
@@ -442,20 +445,20 @@ docrobot_rts:  rts
 ;
 ; State: $64=zone, $65=timer, $66=data index, $67=cycle counter
 ; ===========================================================================
-stage_clear_spawner:  lda     $22
+stage_clear_spawner:  lda     stage_id
         cmp     #$0C            ; Wily 1 / Break Man stage?
         beq     stage_clear_wily1
         cmp     #$01            ; stage $01?
         bne     stage_clear_reset
-        lda     $0380           ; player screen (camera hi)
+        lda     ent_x_scr           ; player screen (camera hi)
         cmp     #$0C            ; past screen $0C?
         bcc     stage_clear_reset
         ldy     #$00
 ; --- Check which scroll zone the camera is in ---
-stage_clear_zone_check:  lda     $0360
+stage_clear_zone_check:  lda     ent_x_px
         sec
         sbc     clear_threshold_lo,y ; 16-bit compare: camera vs zone boundary
-        lda     $0380
+        lda     ent_x_scr
         sbc     clear_threshold_hi,y
         bcc     stage_clear_set_zone  ; camera < threshold → in this zone
         iny
@@ -471,7 +474,7 @@ stage_clear_reset:  lda     #$3C  ; reset timer to 60 frames
         sta     $66             ; data index = 0
         rts
 
-stage_clear_wily1:  lda     $F9
+stage_clear_wily1:  lda     camera_screen
         cmp     #$0D            ; screen $0D only
         bne     stage_clear_reset
         ldy     #$04            ; zone 4 (Wily 1 specific)
@@ -497,21 +500,21 @@ stage_clear_spawn_loop:  jsr     find_enemy_freeslot_x
         lda     #$2C            ; entity type $2C = debris effect
         jsr     reset_sprite_anim
         lda     #$80
-        sta     $0300,x         ; entity flags (active)
+        sta     ent_status,x         ; entity flags (active)
         lda     #$9A
-        sta     $0580,x
+        sta     ent_flags,x
         lda     #$00
-        sta     $0320,x         ; entity timer
-        sta     $03E0,x
+        sta     ent_routine,x         ; entity timer
+        sta     ent_y_scr,x
         lda     #$17
-        sta     $0480,x         ; entity behavior type
+        sta     ent_hitbox,x         ; entity behavior type
         ldy     $66
         lda     clear_spawn_x,y
-        sta     $0360,x         ; entity Y position
+        sta     ent_x_px,x         ; entity Y position
         lda     clear_spawn_screen,y
-        sta     $0380,x         ; entity screen
+        sta     ent_x_scr,x         ; entity screen
         lda     clear_spawn_attr,y
-        sta     $03C0,x         ; entity X / attribute
+        sta     ent_y_px,x         ; entity X / attribute
         inc     $66             ; next data entry
         dec     $00
         bpl     stage_clear_spawn_loop
@@ -569,7 +572,7 @@ clear_spawn_attr:  .byte   $01,$98,$40,$00,$88,$00,$58,$00
 ; using a bitmask ($6E) to track which have already been spawned.
 ; Skipped when entity[31] is active ($031F bit 7) or game state = $11.
 ; ===========================================================================
-wily3_entity_spawn:  lda     $22
+wily3_entity_spawn:  lda     stage_id
         cmp     #$0F            ; Wily 3 stage?
         bne     wily3_rts
         lda     $F9

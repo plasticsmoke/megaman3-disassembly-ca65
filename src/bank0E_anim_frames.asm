@@ -20,6 +20,9 @@
 
         .setcpu "6502"
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 LFF21           := $FF21
 
 .segment "BANK0E"

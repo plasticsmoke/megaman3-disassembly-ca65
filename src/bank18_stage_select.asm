@@ -20,6 +20,9 @@
 
         .setcpu "6502"
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 L0000           := $0000
 L0400           := $0400
 L0515           := $0515
@@ -798,7 +801,7 @@ code_9155:
         sta     $5E
         lda     #$07
         sta     $F8
-code_9164:  lda     $FC
+code_9164:  lda     camera_x_lo
         clc
         adc     $10
         sta     $FC
@@ -977,7 +980,7 @@ code_9258:
 ; $12 = cursor column (0-2), $13 = cursor row offset (0/3/6)
 ; Combined ($12+$13) = grid index 0-8 into stage lookup table at $9CE1
 
-code_9261:  lda     $14                 ; new button presses
+code_9261:  lda     joy1_press                 ; new button presses
         and     #$03                    ; $02=Left, $01=Right
         beq     code_9279               ; no horizontal input → skip
         tay
@@ -989,7 +992,7 @@ code_9261:  lda     $14                 ; new button presses
         sta     $12                     ; update column
         lda     #$1B                    ; SFX $1B = cursor move
         jsr     LF89A
-code_9279:  lda     $14                 ; new button presses
+code_9279:  lda     joy1_press                 ; new button presses
         and     #$0C                    ; $08=Up, $04=Down
         beq     code_9291               ; no vertical input → skip
         tay
@@ -1107,7 +1110,7 @@ stage_select_confirm:
         bne     LB316
         jmp     L9ABC                   ; → Wily fortress entrance
 
-LB316:  lda     $61                     ; $61 = boss-defeated bitmask
+LB316:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
         and     $9DED,y                 ; check if this boss already beaten
         bne     code_92F2               ; already beaten → back to select loop
         lda     $60                     ; $60 = game progression page
@@ -1253,7 +1256,7 @@ LB3D2:  lda     ($02),y                 ; tile data byte
         dec     L0000
         bpl     LB3D2
         bmi     LB3BA                   ; next PPU entry (always branches)
-LB3DE:  sta     $19                     ; $19 = $FF → flag PPU write pending
+LB3DE:  sta     nametable_dirty                     ; $19 = $FF → flag PPU write pending
         pla                             ; restore original PRG bank
         sta     $F5
         jsr     LFF6B
@@ -1306,7 +1309,7 @@ code_940F:  rts
 robot_master_intro:
 
         ldy     #$0B                    ; refill weapon energy
-LB412:  lda     $A2,y                   ; $A2-$AD = weapon ammo
+LB412:  lda     player_hp,y                   ; $A2-$AD = weapon ammo
         bpl     LB41C                   ; if negative (depleted), set to full
         lda     #$9C                    ; $9C = full energy (28 units)
         sta     $A2,y
@@ -1379,40 +1382,40 @@ LB47F:  lda     $9D16,y                 ; 32 bytes: BG ($0620-$062F) + sprite ($
 
 ; --- Set up boss entity and begin drop animation ---
 ; Entity slot 0: the boss sprite (reused as the intro display entity).
-; $0360 = entity 0 X position (player X during gameplay)
-; $03C0 = entity 0 Y position (player Y during gameplay)
+; ent_x_px = entity 0 X position (player X during gameplay)
+; ent_y_px = entity 0 Y position (player Y during gameplay)
         lda     #$80                    ; entity 0 X = $80 (128 = centered)
-        sta     $0360
+        sta     ent_x_px
         lda     #$E8                    ; entity 0 Y = $E8 (232 = below screen)
-        sta     $03C0
+        sta     ent_y_px
         ldx     #$00                    ; set animation to $B0
         lda     #$B0                    ; (boss intro drop animation)
         jsr     LF835
-        lda     $0580                   ; clear bit 6 of entity flags
+        lda     ent_flags                   ; clear bit 6 of entity flags
         and     #$BF                    ; (enable rendering?)
-        sta     $0580
+        sta     ent_flags
         jsr     LFF21                   ; wait 1 frame
         jsr     LC74C                   ; enable rendering
 
 ; Boss drop loop: decrement Y from $E8 to $74 at 4px/frame.
 ; ($E8 - $74) / 4 = 29 frames for the boss to slide down.
-; When anim phase ($05A0) reaches $02, switch to idle anim $1A.
-LB4A7:  lda     $03C0                   ; if Y == $74, skip decrement
+; When anim phase (ent_anim_state) reaches $02, switch to idle anim $1A.
+LB4A7:  lda     ent_y_px                   ; if Y == $74, skip decrement
         cmp     #$74                    ; (target reached)
         beq     LB4B9
         sec                             ; Y -= 4
         sbc     #$04
-        sta     $03C0
+        sta     ent_y_px
         lda     #$00                    ; reset anim frame counter
-        sta     $05E0                   ; (keep animation progressing)
-LB4B9:  lda     $05A0                   ; check animation phase
+        sta     ent_anim_frame                   ; (keep animation progressing)
+LB4B9:  lda     ent_anim_state                   ; check animation phase
         cmp     #$02                    ; phase 2 = intro anim done
         bne     LB4C7
         ldx     #$00                    ; switch to idle animation $1A
         lda     #$1A
         jsr     LF835
 LB4C7:  jsr     LFD6E                   ; process sprites + wait for NMI
-        lda     $05C0                   ; check current OAM ID
+        lda     ent_anim_id                   ; check current OAM ID
         cmp     #$1A                    ; $1A = idle pose active
         bne     LB4A7                   ; loop until idle
         ldx     #$3C                    ; wait $3C (60) frames
@@ -1421,12 +1424,12 @@ LB4C7:  jsr     LFD6E                   ; process sprites + wait for NMI
 ; --- Mega Man teleport-in animation ---
 ; Mega Man rises from Y=$80 to Y=$C0, 2px/frame = 32 frames.
 ; (Teleporting from below the blue band upward into view.)
-        lda     $0360                   ; if X == $C0, done
+        lda     ent_x_px                   ; if X == $C0, done
         cmp     #$C0
         beq     LB4E9
         clc                             ; X += 2
-        adc     #$02                    ; (note: using $0360 which is
-        sta     $0360                   ; the X position for the entity)
+        adc     #$02                    ; (note: using ent_x_px which is
+        sta     ent_x_px                   ; the X position for the entity)
         jsr     LFD6E                   ; process sprites + wait for NMI
         jmp     L94D6
 
@@ -1490,7 +1493,7 @@ LB52F:  lda     $0630,y                 ; default SP 0
         sta     $0618,y
         dey
         bne     LB52F
-LB53E:  inc     $18                     ; flag palette upload
+LB53E:  inc     palette_dirty                     ; flag palette upload
         ldx     #$02                    ; wait 2 frames per flash
         jsr     LFF1A
         dec     $10                     ; decrement flash counter
@@ -1973,7 +1976,7 @@ code_98F2:
         jmp     L98F2
 
 code_9901:  ldx     #$0B
-code_9903:  lda     $A2,x
+code_9903:  lda     player_hp,x
         bpl     code_990B
         lda     #$9C
         sta     $A2,x
@@ -2012,8 +2015,8 @@ reset_stage_state:
         sta     LA000                   ; reset something in mapped bank
         sta     $59                     ; game sub-state
         sta     $F9                     ; camera/scroll page
-        sta     $0380                   ; entity 0 screen page (Y high)
-        sta     $03E0                   ; entity 0 screen page (X high)
+        sta     ent_x_scr                   ; entity 0 screen page (Y high)
+        sta     ent_y_scr                   ; entity 0 screen page (X high)
         sta     $B1                     ; scroll-related
         sta     $B2
         sta     $B3
@@ -2075,7 +2078,7 @@ code_99BA:  dex
         jsr     LFF21
 code_99CB:  rts
 
-code_99CC:  lda     $60
+code_99CC:  lda     stage_select_page
         beq     code_99BA
         cmp     #$12
         beq     code_996A
@@ -2158,7 +2161,7 @@ code_9A6D:  dex
         bpl     code_9A4F
         rts
 
-code_9A71:  lda     $60
+code_9A71:  lda     stage_select_page
         beq     code_9A6D
         cmp     #$12
         beq     code_9A81
@@ -2213,14 +2216,14 @@ code_9ABE:
         sta     $9E
         sta     $9F
         sta     $EE
-        sta     $03E0
-        sta     $03C0
+        sta     ent_y_scr
+        sta     ent_y_px
         lda     #$17
         sta     $29
         lda     #$20
         sta     $2A
         lda     #$30
-        sta     $0360
+        sta     ent_x_px
         lda     #$01
         sta     $31
         sta     $23
@@ -2279,7 +2282,7 @@ code_9B38:  lda     $9E2A,y
         jsr     LF835
         lda     #$18
         sta     $F9
-        sta     $0380
+        sta     ent_x_scr
         sta     $039F
         lda     #$C0
         sta     $037F
@@ -2298,7 +2301,7 @@ code_9B38:  lda     $9E2A,y
         sta     $0102
         sta     $0103
         lda     #$30
-        sta     $0360
+        sta     ent_x_px
         lda     #$0C
         jsr     LF898
         jsr     LFF21

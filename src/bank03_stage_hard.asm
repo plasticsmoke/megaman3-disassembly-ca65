@@ -38,6 +38,9 @@ stage_transition_entry:
 
         .setcpu "6502"                  ; play stage intro music
 
+.include "include/zeropage.inc"
+.include "include/constants.inc"
+
 L9212           := $9212                ; play stage intro music
 L938B           := $938B                ; play stage intro music
 L939E           := $939E                ; play stage intro music
@@ -90,17 +93,17 @@ LA039:  lda     LA1D9,x                 ; intro sprite palette data
         lda     #$00
         sta     $05F0                   ; clear entity slot $10 flags
         sta     $05B0                   ; clear entity slot $10 anim phase
-        sta     $0300                   ; clear entity slot 0 type
+        sta     ent_status                   ; clear entity slot 0 type
         lda     #$40                    ; $99 = deceleration value for
-        sta     $99                     ; scroll physics (gravity)
+        sta     $99                     ; scroll physics ($99)
 
 ; --- Horizontal scroll loop ---
 ; Scrolls X position by 4px/frame. $FC = X scroll low byte (0-255).
 ; $FD bit 0 = nametable select (toggles when $FC overflows).
 ; This scrolls the display from the old nametable (stage select)
 ; to the new nametable (boss intro band). Takes 64 frames (256/4).
-; Simultaneously applies "gravity" to entity $10 (Y movement).
-LA05D:  lda     $FC                     ; $FC += 4
+; Simultaneously applies "$99" to entity $10 (Y movement).
+LA05D:  lda     camera_x_lo                     ; $FC += 4
         clc
         adc     #$04
         sta     $FC
@@ -176,7 +179,7 @@ LA0B9:  jsr     LFD52                   ; process entities + wait for NMI
 ; Tile encoding: $0A=A, $0B=B, ... $23=Z, $25=space
 ; ---------------------------------------------------------------------------
 
-LA0D0:  lda     $60                     ; if not Robot Master ($60 != 0),
+LA0D0:  lda     stage_select_page                     ; if not Robot Master ($60 != 0),
         bne     LA122                   ; skip name writing
 
 ; Set up PPU write queue for 1-tile-at-a-time writes.
@@ -409,7 +412,7 @@ code_A5A5:  lda     LA6FF,y
         dey
         dey
         bpl     code_A5A5
-code_A5C3:  lda     $14
+code_A5C3:  lda     joy1_press
         and     #$80
         bne     code_A603
         lda     $14
@@ -425,7 +428,7 @@ code_A5C3:  lda     $14
 code_A5DD:  sta     $10
         jmp     code_A5F2
 
-code_A5E2:  lda     $14
+code_A5E2:  lda     joy1_press
         and     #$0C
         beq     code_A5F2
         lda     #$26
@@ -454,7 +457,7 @@ code_A60C:  lda     $10
         lda     #$00
         sta     $11
         beq     code_A66D
-code_A61C:  lda     $14
+code_A61C:  lda     joy1_press
         and     #$40
         beq     code_A62D
         lda     #$24
@@ -463,7 +466,7 @@ code_A61C:  lda     $14
         sta     $11
         jmp     code_A5C3
 
-code_A62D:  lda     $14
+code_A62D:  lda     joy1_press
         and     #$80
         beq     code_A66D
         lda     $10
@@ -528,7 +531,7 @@ code_A695:  lda     $00
         bpl     code_A695
         rts
 
-code_A6AF:  lda     $14
+code_A6AF:  lda     joy1_press
         and     #$03
         beq     code_A6CF
         and     #$01
@@ -544,7 +547,7 @@ code_A6C7:  dec     $10
         bpl     code_A6CF
         lda     #$05
         sta     $10
-code_A6CF:  lda     $14
+code_A6CF:  lda     joy1_press
         and     #$0C
         beq     code_A6F6
         and     #$04
@@ -605,7 +608,7 @@ code_A76F:  ldx     LA9DF,y
         dey
         bpl     code_A76F
         bmi     code_A7A6
-code_A77C:  lda     $FD
+code_A77C:  lda     camera_x_hi
         asl     a
         asl     a
         and     #$04
@@ -643,7 +646,7 @@ code_A7C4:  ldx     LA9B7,y
         lda     $0150,x
         bne     code_A77C
         lda     LA9C8,y
-code_A7CF:  ora     $61                 ; accumulate defeated bit
+code_A7CF:  ora     bosses_beaten                 ; accumulate defeated bit
         sta     $61                     ; into boss-defeated bitmask
 code_A7D3:  iny
         cpy     #$04
@@ -676,7 +679,7 @@ code_A804:  ldx     LA9B7,y             ; check Doc Robot completion
         sta     $61
         jmp     code_A7D3
 
-check_doc_robot_complete:  lda     $61  ; all 4 Doc Robot stages beaten?
+check_doc_robot_complete:  lda     bosses_beaten  ; all 4 Doc Robot stages beaten?
         cmp     #$FF                    ; ($FF = all bits set)
         bne     code_A82B
         lda     #$12                    ; advance to Wily tier
@@ -843,7 +846,7 @@ code_A946:  lda     #$00
 
 code_A963:  inc     $13
 code_A965:  jsr     code_A985
-code_A968:  lda     $60
+code_A968:  lda     stage_select_page
         bpl     code_A975
         lda     #$00
         sta     $13
