@@ -138,24 +138,29 @@ The disassembly is byte-perfect but annotation is ongoing. Each source file has 
 | **bank1C_1D_entity_ai.asm** | **~77%** — 674 labels named, 1984 inline comments |
 | **bank16_sound_driver.asm** | **~87%** — 148 labels named, 37 inline comments |
 | **bank12_fortress_bosses.asm** | **~78%** — 309 labels named, 52 inline comments |
+| **bank09_per_frame.asm** | **~90%** — 80 labels named, 100+ inline comments |
 | **bank06_robot_masters_a.asm** | **~70%** — 93 labels named, 106 inline comments |
 | **bank07_robot_masters_b.asm** | **~82%** — 120 labels named, 22 inline comments |
 | **bank04_doc_robot_a.asm** | **~87%** — 104 labels named, 9 inline comments |
 | **bank05_doc_robot_b.asm** | **~75%** — 111 labels named |
 | **bank03_stage_hard.asm** | **~65%** — 69 labels named, 99 inline comments |
-| **bank02_stage_gemini.asm** | **~82%** — 96 labels named |
-| **bank0B_intro.asm** | **~68%** — 64 labels named |
-| **bank0C_game_over.asm** | **~73%** — 62 labels named |
-| **bank09_per_frame.asm** | **~90%** — 80 labels named, 100+ inline comments |
+| **bank02_stage_gemini.asm** | **~82%** — 117 labels, 462 inline comments |
+| **bank0B_intro.asm** | **~68%** — 94 labels, 543 inline comments |
+| **bank0C_game_over.asm** | **~73%** — 85 labels, 601 inline comments |
+| **bank0D_oam_sprites.asm** | **~35%** — 6 labels, 146 inline comments |
+| **bank0E_anim_frames.asm** | **~40%** — 14 labels, 164 inline comments |
+| **bank0F_entity_spawn.asm** | **~45%** — 31 labels, 222 inline comments |
+| **bank10_stage_setup.asm** | **~50%** — 21 labels, 211 inline comments |
+| **bank01_stage_magnet.asm** | **~45%** — 4 labels, 174 inline comments |
+| **bank1A_1B_oam_sequences.asm** | **~25%** — 30 labels, 273 inline comments |
 | **bank18_stage_select.asm** | **~41%** — 68 labels named, 331 inline comments |
 | **bank00_enemy_data.asm** | **~50%** — 8 data table labels named |
 | **bank0A_damage_tables.asm** | **~30%** — 9 damage table labels named |
-| **bank1A_1B_oam_sequences.asm** | **~7%** — 2 labels named, 99 inline comments |
-| Remaining banks | Headers + auto-label renames from xkas reference |
+| Remaining banks (08, 11, 13, 14, 15, 17, 19) | Headers + auto-label renames (pure data) |
 
-**Overall: all 30 bank files processed.** xkas annotation transfer complete — labels renamed, comments transferred, documentation headers added. The fixed bank and bank1C_1D have the richest annotations; remaining banks have structural labels and need manual annotation with Mesen verification.
+**Overall: all 30 bank files processed.** 23 of 30 banks have section headers and inline comments. The fixed bank and bank1C_1D have the richest annotations; pure data banks (08, 11, 13, 14, 15, 17, 19) have structural headers only.
 
-The goal is 100% annotation across all banks.
+The goal is 100% annotation across all banks — next steps are Mesen-verified label renaming and detailed comments on remaining unknowns.
 
 ## Technical Notes
 
