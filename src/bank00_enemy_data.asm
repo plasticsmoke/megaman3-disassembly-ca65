@@ -1,10 +1,37 @@
+; global enemy data: each table is 256 bytes
+; indexed with a global enemy ID
+enemy_flags_g:
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $00 — GLOBAL ENEMY DATA
 ; =============================================================================
 ; Global enemy data tables shared across all stages.
 ; Contains enemy flags, routine IDs, spawn parameters, and hitbox data.
 ;
-; Annotation: 0% — unannotated da65 output
+; Annotation: ~50% — 8 data table labels named, block comments added
+; =============================================================================
+
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $00 — GLOBAL ENEMY DATA
+; =============================================================================
+; Mapped to $A000-$BFFF. Contains global enemy property tables indexed by
+; "global enemy ID" (the ID used in stage enemy spawn lists at $AB00+).
+; NOT a stage data bank — loaded explicitly when the engine needs enemy
+; properties (spawning, collision). Each table is 256 bytes.
+;
+; Tables:
+;   $A000: enemy_flags_g     — entity flags (bit 7=active, bit 4=invincible, etc.)
+;   $A100: enemy_main_ID_g   — main routine index for bank1C_1D dispatch
+;   $A200: enemy_shape_g     — hitbox shape ID (bit 7=contact damage)
+;   $A300: enemy_OAM_ID_g    — OAM animation ID ($05C0 value)
+;   $A400: enemy_health_g    — starting HP ($04E0 value)
+;   (remaining tables at $A500+: speed, velocity data, etc.)
+;
+; $AA00+ region: may contain additional data, but this bank is NOT used
+; as a stage layout bank (stage banks are $00-$0F per stage_to_bank table,
+; but bank $00 doubles as Needle Man's stage AND global enemy data).
+;
+; Annotation: partial — all data tables named, no per-entry annotations
 ; =============================================================================
 
         .setcpu "6502"
@@ -44,6 +71,9 @@
         .byte   $E7,$FF,$AA,$FF,$AA,$FF,$BF,$F7
         .byte   $AA,$FF,$AF,$FE,$AF,$7F,$AA,$EF
         .byte   $FB,$FD,$EA,$FF,$FA,$FD,$AA,$FF
+
+; main routine indices
+enemy_main_ID_g:
         .byte   $02,$03,$05,$06,$08,$15,$0A,$00
         .byte   $0D,$0E,$12,$14,$17,$18,$1E,$1A
         .byte   $1B,$1F,$20,$21,$22,$16,$23,$24
@@ -76,6 +106,7 @@
         .byte   $BA,$FF,$EA,$FF,$AA,$FF,$EE,$FF
         .byte   $EA,$FF,$BE,$FF,$BE,$FF,$A8,$FF
         .byte   $AA,$7F,$EE,$FD,$EA,$FF,$E2,$FF
+enemy_shape_g:
         .byte   $C1,$C0,$C2,$A1,$A2,$C0,$83,$A1
         .byte   $C8,$A3,$A9,$0F,$C0,$C0,$CA,$C4
         .byte   $A2,$CA,$CC,$A5,$00,$C0,$00,$C0
@@ -108,6 +139,7 @@
         .byte   $AA,$FF,$EA,$F7,$AE,$FF,$BB,$FE
         .byte   $AA,$FF,$EE,$FF,$AA,$FF,$BA,$FE
         .byte   $EB,$FF,$BA,$FB,$AA,$FF,$BA,$FF
+enemy_OAM_ID_g:
         .byte   $21,$22,$59,$26,$69,$4F,$47,$13
         .byte   $74,$1C,$6E,$70,$4E,$4E,$32,$62
         .byte   $65,$38,$31,$72,$00,$4F,$36,$5B
@@ -140,6 +172,7 @@
         .byte   $A2,$F7,$AA,$DE,$AE,$FF,$AE,$FE
         .byte   $AF,$77,$AA,$FF,$BA,$BF,$8A,$FF
         .byte   $FA,$FF,$AA,$FD,$EA,$FF,$A2,$F7
+enemy_health_g:
         .byte   $01,$01,$03,$08,$04,$01,$03,$03
         .byte   $03,$01,$03,$FF,$01,$01,$02,$01
         .byte   $02,$06,$03,$06,$FF,$01,$FF,$06
@@ -172,6 +205,9 @@
         .byte   $7B,$45,$FF,$10,$FB,$44,$D7,$41
         .byte   $CE,$44,$8F,$11,$FD,$5D,$93,$45
         .byte   $DC,$45,$8F,$45,$F5,$14,$5F,$55
+
+; speed ID/index into velocity tables
+enemy_speed_ID_g:
         .byte   $03,$01,$00,$00,$04,$00,$01,$00
         .byte   $05,$06,$00,$08,$03,$03,$04,$01
         .byte   $01,$00,$01,$07,$00,$00,$00,$03
@@ -204,6 +240,10 @@
         .byte   $B4,$05,$EF,$41,$6F,$51,$EA,$10
         .byte   $75,$54,$9A,$17,$FF,$55,$7F,$71
         .byte   $FF,$15,$3D,$54,$FF,$55,$FF,$40
+
+; speed tables, indexed with speed ID
+; X velocity subpixel
+enemy_x_velocity_sub_g:
         .byte   $00,$00,$66,$80,$00,$00,$19,$33
         .byte   $80,$00,$80,$4C,$B3,$CC,$00,$00
         .byte   $AB,$45,$DC,$55,$FB,$11,$3E,$50
@@ -236,6 +276,9 @@
         .byte   $BD,$D4,$77,$95,$8C,$16,$13,$15
         .byte   $EA,$15,$40,$55,$AF,$85,$F7,$45
         .byte   $F7,$45,$B9,$40,$FB,$55,$FA,$55
+
+; X velocity
+enemy_x_velocity_g:
         .byte   $00,$01,$00,$01,$02,$04,$02,$01
         .byte   $00,$03,$02,$01,$01,$00,$00,$00
         .byte   $76,$70,$DF,$51,$FB,$55,$9B,$51
@@ -1004,6 +1047,11 @@
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+
+; tile collision attribute table: 1 byte per metatile index
+; upper nibble = collision type: $00=air $10=solid $20=ladder $30=damage
+;   $40=ladder_top $50=spikes $70=disappearing_block
+; lower nibble = visual sub-type (not used for collision)
         .byte   $00,$02,$02,$02,$10,$10,$02,$02
         .byte   $01,$02,$02,$02,$10,$02,$10,$02
         .byte   $10,$02,$10,$10,$13,$23,$01,$01

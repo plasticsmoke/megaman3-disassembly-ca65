@@ -6,6 +6,19 @@
 ; Annotation: 0% — unannotated da65 output
 ; =============================================================================
 
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $10 — STAGE SETUP / BOSS POST-DEFEAT
+; =============================================================================
+; Mapped to $8000-$9FFF. Called via trampolines at $1FEE31/$1FEE44 in
+; bank1E_1F. Contains stage initialization (nametable pointers, collision
+; table setup, music selection) and boss post-defeat sequencing.
+; Entry points: $8000 (stage setup), $8003 (post-defeat).
+; Also serves as stage data for stage $14 via stage_to_bank.
+;
+; Annotation: light — all labels auto-generated, stage setup logic bare
+; =============================================================================
+
         .setcpu "6502"
 
 LC8A0           := $C8A0
@@ -15,11 +28,11 @@ LFF6B           := $FF6B
 
 .segment "BANK10"
 
-        jmp     L8006
+        jmp     code_8006
 
-        jmp     L81F3
+        jmp     code_81F3
 
-L8006:  jsr     LC8A0
+code_8006:  jsr     LC8A0
         lda     #$00
         sta     $95
         lda     L80D3,y
@@ -46,7 +59,7 @@ L8006:  jsr     LC8A0
         jsr     LF89A
         lda     #$04
         sta     $02
-L804B:  ldx     L80D5,y
+code_804B:  ldx     L80D5,y
         lda     $BB00,x
         sta     $0783
         lda     $BC00,x
@@ -67,17 +80,17 @@ L804B:  ldx     L80D5,y
         lda     #$FF
         sta     $078E
         sta     $19
-L8084:  lda     #$00
+code_8084:  lda     #$00
         sta     $EE
         jsr     LFF21
         inc     $EE
         inc     $95
         lda     $95
         and     #$03
-        bne     L8084
+        bne     code_8084
         iny
         dec     $02
-        beq     L80CC
+        beq     code_80CC
         lda     $0781
         sec
         sbc     #$40
@@ -92,16 +105,16 @@ L8084:  lda     #$00
         eor     #$02
         sta     $04
         cmp     #$03
-        bne     L804B
+        bne     code_804B
         lda     $03
         sec
         sbc     #$08
         sta     $03
         ora     #$C0
         sta     $078B
-        jmp     L804B
+        jmp     code_804B
 
-L80CC:  lda     $22
+code_80CC:  lda     $22
         sta     $F5
         jmp     LFF6B
 
@@ -145,7 +158,7 @@ L8165:  .byte   $40,$04,$40,$04,$2F,$03,$40,$04
         .byte   $04,$40,$04,$40,$2F,$03,$00,$00
         .byte   $00,$00,$2F,$03,$00,$00,$00,$00
         .byte   $2F,$03,$00,$00,$00,$00
-L81F3:  jsr     LC8A0
+code_81F3:  jsr     LC8A0
         lda     L82B0,y
         sta     $0780
         sta     $0784
@@ -171,7 +184,7 @@ L81F3:  jsr     LC8A0
         jsr     LF89A
         lda     #$04
         sta     $02
-L8236:  ldx     L82B2,y
+code_8236:  ldx     L82B2,y
         lda     $BC00,x
         sta     $0783
         lda     $BE00,x
@@ -188,17 +201,17 @@ L8236:  ldx     L82B2,y
         lda     #$FF
         sta     $078C
         sta     $19
-L8263:  lda     #$00
+code_8263:  lda     #$00
         sta     $EE
         jsr     LFF21
         inc     $EE
         inc     $95
         lda     $95
         and     #$03
-        bne     L8263
+        bne     code_8263
         iny
         dec     $02
-        beq     L82A9
+        beq     code_82A9
         lda     $0781
         clc
         adc     #$40
@@ -212,16 +225,16 @@ L8263:  lda     #$00
         lda     $04
         eor     #$02
         sta     $04
-        bne     L8236
+        bne     code_8236
         lda     $03
         clc
         adc     #$08
         sta     $03
         ora     #$C0
         sta     $0789
-        jmp     L8236
+        jmp     code_8236
 
-L82A9:  lda     $22
+code_82A9:  lda     $22
         sta     $F5
         jmp     LFF6B
 

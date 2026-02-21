@@ -1,3 +1,16 @@
+; ---------------------------------------------------------------------------
+; set_room_chr_and_palette — configure sprite CHR banks and palettes
+; ---------------------------------------------------------------------------
+; Called from load_room (bank1E_1F) with A = CHR/palette param from $AA60.
+; The param indexes two tables:
+;   $A200[param*2]:   $EC/$ED sprite CHR bank pages (tiles $80-$FF)
+;   $A030[param*8]:   SP2/SP3 sprite palettes (8 NES color bytes)
+;
+; Params $00-$11 = stage defaults (Needle..Wily6), $12+ = room variants.
+; Each room in a stage can select any param, allowing different enemy
+; tilesets and palettes per room within the same stage.
+; ---------------------------------------------------------------------------
+set_room_chr_and_palette:
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $01 — CHR/PALETTE INIT + MAGNET MAN STAGE DATA
 ; =============================================================================
@@ -6,37 +19,51 @@
 ; Annotation: 0% — unannotated da65 output
 ; =============================================================================
 
-        .setcpu "6502"
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $01 — CHR/PALETTE INIT + MAGNET MAN STAGE DATA
+; =============================================================================
+; Mapped to $A000-$BFFF. Contains the shared CHR/palette initialization
+; routine called by load_room (bank1E_1F), plus data tables:
+;   $A000:       set_room_chr_and_palette — sets $EC/$ED and SP2-SP3
+;   $A030+:      sprite palette table (8 bytes per param: SP2 + SP3)
+;   $A200+:      sprite CHR bank table (2 bytes per param: $EC, $ED)
+; Also doubles as Magnet Man stage data ($22=$01) for $AA00+ region.
+;
+; Annotation: partial — entry point named, CHR/palette tables explained
+; =============================================================================
+
+        .setcpu "6502"                  ; param * 2 → index into $A200
 
 
-.segment "BANK01"
+.segment "BANK01"                       ; param * 2 → index into $A200
 
-        asl     a
-        pha
+        asl     a                       ; param * 2 → index into $A200
+        pha                             ; (save param*2 for palette calc)
         tax
-        lda     LA200,x
-        sta     $EC
-        lda     LA201,x
-        sta     $ED
-        pla
+        lda     LA200,x                 ; $EC = sprite CHR bank for $1800-$1BFF
+        sta     $EC                     ; (tiles $80-$BF)
+        lda     LA201,x                 ; $ED = sprite CHR bank for $1C00-$1FFF
+        sta     $ED                     ; (tiles $C0-$FF)
+        pla                             ; param*2 → param*4 → param*8
+        asl     a                       ; for palette table offset
         asl     a
-        asl     a
-        tay
-        lda     #$00
-        adc     #$A0
-        sta     $01
-        lda     #$30
-        sta     $00
+        tay                             ; Y = (param*8) & $FF
+        lda     #$00                    ; high byte = $A0 + carry from ASL
+        adc     #$A0                    ; ($A0 for param $00-$1F,
+        sta     $01                     ; $A1 for param $20-$3F)
+        lda     #$30                    ; low byte = $30
+        sta     $00                     ; → pointer = $A030 + (param*8 overflow)
         ldx     #$00
-LA01D:  lda     ($00),y
-        sta     $0618,x
-        sta     $0638,x
+LA01D:  lda     ($00),y                 ; copy 8 palette bytes (SP2 + SP3):
+        sta     $0618,x                 ; $0618-$061F = active SP2-SP3
+        sta     $0638,x                 ; $0638-$063F = working copy
         iny
         inx
         cpx     #$08
         bne     LA01D
-        ldx     #$FF
-        stx     $18
+        ldx     #$FF                    ; $18 = $FF → trigger palette DMA
+        stx     $18                     ; (NMI will copy to PPU)
         rts
 
         .byte   $0F,$0F,$30,$27,$0F,$0F,$30,$15

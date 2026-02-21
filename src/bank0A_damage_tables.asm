@@ -3,7 +3,39 @@
 ; =============================================================================
 ; Weapon-vs-enemy damage tables (9 tables) and Doc Robot Spark Man stage data.
 ;
-; Annotation: 0% — unannotated da65 output (pure data)
+; Annotation: ~30% — 9 damage table labels named
+; =============================================================================
+
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $0A — WEAPON DAMAGE TABLES + DOC ROBOT SPARK STAGE
+; =============================================================================
+; Mapped to $A000-$BFFF. Dual-purpose bank:
+;
+; 1) WEAPON DAMAGE DATA ($A000-$A9FF):
+;   Loaded explicitly by check_player_hit and check_weapon_hit in bank1C_1D
+;   via hardcoded `LDA #$0A / STA $F5`. Contains 10 damage tables, each 256
+;   bytes, indexed by entity main routine ID ($0320,x):
+;     $A000: unnamed table — base/contact damage (read via LDA $A000,y)
+;     $A100: buster_damage_table   — Mega Buster ($A0=00)
+;     $A200: needle_damage_table   — Needle Cannon ($A0=02)
+;     $A300: magnet_damage_table   — Magnet Missile ($A0=04)
+;     $A400: gemini_damage_table   — Gemini Laser ($A0=01)
+;     $A500: hard_knuckle_damage_table — Hard Knuckle ($A0=03)
+;     $A600: top_spin_damage_table — Top Spin ($A0=05)
+;     $A700: snake_damage_table    — Search Snake ($A0=06)
+;     $A800: spark_damage_table    — Spark Shock ($A0=08)
+;     $A900: shadow_damage_table   — Shadow Blade ($A0=0A)
+;   Weapon → table mapping via weapon_damage_ptr_lo/hi in bank1C_1D.
+;   Rush Coil/Marine/Jet use buster_damage_table (no unique damage).
+;
+; 2) STAGE DATA ($AA00-$BFFF):
+;   Also serves as Doc Robot Spark Man stage ($22=$0A) layout data.
+;   Contains screen layouts, enemy spawn lists, metatile columns,
+;   CHR definitions, and collision table ($BF00) for the Doc Robot
+;   version of Spark Man's stage (featuring Metal Man & Quick Man).
+;
+; Annotation: partial — all 9 damage tables named, no per-entry annotations
 ; =============================================================================
 
         .setcpu "6502"
@@ -43,6 +75,7 @@
         .byte   $10,$08,$00,$00,$00,$04,$00,$00
         .byte   $08,$04,$04,$00,$00,$06,$00,$00
         .byte   $00,$00,$00,$00,$08,$00,$00,$00
+buster_damage_table:
         .byte   $00,$00,$01,$01,$01,$01,$01,$01
         .byte   $01,$01,$01,$01,$00,$01,$01,$00
         .byte   $00,$00,$01,$01,$00,$01,$01,$01
@@ -75,6 +108,7 @@
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $01,$01,$01,$00,$00,$01,$00,$00
         .byte   $00,$00,$00,$00,$01,$00,$00,$00
+needle_damage_table:
         .byte   $00,$00,$01,$01,$01,$01,$01,$01
         .byte   $01,$01,$01,$01,$00,$01,$01,$00
         .byte   $00,$00,$01,$01,$00,$01,$01,$01
@@ -107,6 +141,7 @@
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $01,$01,$01,$00,$00,$01,$00,$00
         .byte   $00,$00,$00,$00,$01,$00,$00,$00
+magnet_damage_table:
         .byte   $00,$00,$01,$01,$01,$02,$04,$02
         .byte   $00,$01,$03,$02,$00,$03,$01,$00
         .byte   $00,$00,$03,$01,$00,$01,$01,$01
@@ -139,6 +174,7 @@
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $01,$01,$01,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+gemini_damage_table:
         .byte   $00,$00,$01,$01,$01,$02,$04,$02
         .byte   $02,$01,$03,$02,$00,$03,$01,$00
         .byte   $00,$00,$02,$01,$00,$01,$01,$01
@@ -171,6 +207,7 @@
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $01,$01,$01,$00,$00,$01,$00,$00
         .byte   $00,$00,$00,$00,$02,$00,$00,$00
+hard_knuckle_damage_table:
         .byte   $00,$00,$01,$01,$01,$03,$08,$03
         .byte   $00,$01,$03,$02,$00,$03,$01,$00
         .byte   $00,$00,$03,$01,$00,$01,$01,$01
@@ -203,6 +240,7 @@
         .byte   $04,$00,$00,$00,$00,$00,$00,$00
         .byte   $01,$06,$01,$00,$00,$04,$00,$00
         .byte   $00,$00,$00,$00,$03,$00,$00,$00
+top_spin_damage_table:
         .byte   $00,$00,$01,$01,$01,$03,$00,$03
         .byte   $04,$01,$03,$06,$00,$03,$01,$00
         .byte   $00,$00,$00,$01,$00,$01,$01,$01
@@ -235,6 +273,7 @@
         .byte   $00,$02,$00,$00,$00,$00,$00,$00
         .byte   $01,$06,$01,$00,$00,$07,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+snake_damage_table:
         .byte   $00,$00,$01,$01,$01,$01,$00,$01
         .byte   $01,$01,$03,$01,$00,$00,$01,$00
         .byte   $00,$00,$03,$01,$00,$01,$01,$01
@@ -267,6 +306,10 @@
         .byte   $00,$02,$00,$00,$00,$00,$00,$00
         .byte   $01,$06,$01,$00,$00,$07,$00,$00
         .byte   $00,$00,$00,$00,$03,$00,$00,$00
+
+; NOTE: $58 is magic number for freeze effect
+; rather than damage
+spark_damage_table:
         .byte   $00,$00,$58,$58,$58,$58,$00,$58
         .byte   $58,$58,$58,$58,$00,$58,$00,$00
         .byte   $00,$00,$00,$00,$00,$58,$58,$58
@@ -299,6 +342,7 @@
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$58,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
+shadow_damage_table:
         .byte   $00,$00,$01,$01,$01,$03,$02,$02
         .byte   $04,$01,$03,$02,$00,$03,$01,$00
         .byte   $00,$00,$03,$01,$00,$01,$01,$01

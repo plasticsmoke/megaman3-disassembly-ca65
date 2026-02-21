@@ -6,6 +6,17 @@
 ; Annotation: 0% — unannotated da65 output
 ; =============================================================================
 
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $0F — ENTITY SPAWNING / PROJECTILE DISPATCH + WILY 4
+; =============================================================================
+; Mapped to $A000-$BFFF. Contains entity spawn initialization for slots
+; $10+, collision flag setup, and projectile behavior routing.
+; Also serves as Wily Fortress 4 stage data ($22=$0F).
+;
+; Annotation: light — all labels auto-generated, entity spawn routing bare
+; =============================================================================
+
         .setcpu "6502"
 
 LF797           := $F797
@@ -30,14 +41,14 @@ LA006:  ldy     #$85
         brk
         .byte   $03
         sta     $0310
-LA01B:  lda     $0300
-        bmi     LA077
+code_A01B:  lda     $0300
+        bmi     code_A077
         lda     $95
         and     #$01
-        bne     LA077
+        bne     code_A077
         lda     $FA
         and     #$07
-        bne     LA077
+        bne     code_A077
         lda     $FA
         lsr     a
         lsr     a
@@ -58,11 +69,11 @@ LA01B:  lda     $0300
         rol     $03
         sta     $04
         cpx     #$3B
-        bcs     LA059
+        bcs     code_A059
         lda     ($00),y
         cmp     $02
-        beq     LA07A
-LA059:  lda     $03
+        beq     code_A07A
+code_A059:  lda     $03
         ora     #$24
         sta     $0780
         lda     $04
@@ -70,22 +81,22 @@ LA059:  lda     $03
         ldy     #$1F
         sty     $0782
         lda     #$24
-LA06C:  sta     $0783,y
+code_A06C:  sta     $0783,y
         dey
-        bpl     LA06C
+        bpl     code_A06C
         sty     $07A3
         sty     $19
-LA077:  jmp     LA0C0
+code_A077:  jmp     code_A0C0
 
-LA07A:  iny
+code_A07A:  iny
         lda     ($00),y
         sta     $05
         ldx     #$00
         lda     #$24
-LA083:  sta     $0783,x
+code_A083:  sta     $0783,x
         inx
         dec     $05
-        bpl     LA083
+        bpl     code_A083
         lda     $04
         sta     $0781
         lda     $03
@@ -97,47 +108,47 @@ LA083:  sta     $0783,x
         lda     ($00),y
         sta     $02
         iny
-LA0A2:  lda     ($00),y
+code_A0A2:  lda     ($00),y
         sta     $0783,x
         iny
         inx
         dec     $02
-        bpl     LA0A2
+        bpl     code_A0A2
         lda     #$24
-LA0AF:  sta     $0783,x
+code_A0AF:  sta     $0783,x
         inx
         cpx     #$20
-        bne     LA0AF
+        bne     code_A0AF
         lda     #$FF
         sta     $07A3
         sta     $19
         inc     $B8
-LA0C0:  lda     $FA
-        bne     LA0D4
+code_A0C0:  lda     $FA
+        bne     code_A0D4
         lda     $B8
         cmp     #$3B
-        bne     LA0D4
+        bne     code_A0D4
         lda     $0540
         cmp     #$02
-        bne     LA0D4
-        jmp     LA137
+        bne     code_A0D4
+        jmp     code_A137
 
-LA0D4:  lda     $95
+code_A0D4:  lda     $95
         and     #$01
-        bne     LA0EF
+        bne     code_A0EF
         inc     $FA
         lda     $FA
         cmp     #$F0
-        bne     LA0EF
+        bne     code_A0EF
         lda     #$00
         sta     $FA
         lda     $B8
         cmp     #$3B
-        bne     LA0EF
+        bne     code_A0EF
         inc     $0540
-LA0EF:  ldy     #$00
+code_A0EF:  ldy     #$00
         ldx     #$00
-LA0F3:  lda     LA202,y
+code_A0F3:  lda     LA202,y
         clc
         adc     $0500,x
         sta     $0200,y
@@ -152,10 +163,10 @@ LA0F3:  lda     LA202,y
         iny
         iny
         cpy     #$18
-        bcc     LA0F3
+        bcc     code_A0F3
         ldx     #$20
         cpy     #$30
-        bcc     LA0F3
+        bcc     code_A0F3
         sty     $97
         lda     $0500
         clc
@@ -166,12 +177,12 @@ LA0F3:  lda     LA202,y
         adc     #$03
         sta     $0520
         jsr     LFD80
-        jmp     LA01B
+        jmp     code_A01B
 
-LA137:  lda     $0300
-        bmi     LA181
+code_A137:  lda     $0300
+        bmi     code_A181
         ldx     #$01
-LA13E:  lda     #$80
+code_A13E:  lda     #$80
         sta     $0300,x
         sta     $0580,x
         lda     LA232,x
@@ -184,7 +195,7 @@ LA13E:  lda     #$80
         sta     $05E0,x
         sta     $05A0,x
         dex
-        bpl     LA13E
+        bpl     code_A13E
         lda     #$25
         sta     $0780
         lda     #$D6
@@ -197,27 +208,27 @@ LA13E:  lda     #$80
         sta     $0782
         sta     $0786
         sta     $0500
-LA181:  dec     $0361
-        bne     LA18B
+code_A181:  dec     $0361
+        bne     code_A18B
         lda     #$00
         sta     $0301
-LA18B:  lda     $05C0
+code_A18B:  lda     $05C0
         cmp     #$07
-        beq     LA1E8
+        beq     code_A1E8
         dec     $0360
         lda     $0360
         and     #$07
-        bne     LA1CA
+        bne     code_A1CA
         lda     $0360
         cmp     #$B1
-        bcs     LA1CA
+        bcs     code_A1CA
         cmp     #$50
-        bcc     LA1CA
+        bcc     code_A1CA
         dec     $0781
         dec     $0785
         ldx     $0560
         cpx     #$0C
-        beq     LA1CA
+        beq     code_A1CA
         lda     LA236,x
         sta     $0783
         lda     LA242,x
@@ -226,9 +237,9 @@ LA18B:  lda     $05C0
         sta     $0788
         sta     $19
         inc     $0560
-LA1CA:  lda     $0360
+code_A1CA:  lda     $0360
         cmp     #$20
-        bne     LA1FF
+        bne     code_A1FF
         lda     #$44
         sta     $0440
         lda     #$03
@@ -238,16 +249,16 @@ LA1CA:  lda     $0360
         lda     #$00
         sta     $05A0
         sta     $05E0
-LA1E8:  lda     #$7C
+code_A1E8:  lda     #$7C
         cmp     $03C0
-        bcs     LA1F7
+        bcs     code_A1F7
         sta     $03C0
         inc     $03C0
-        bcc     LA1FF
-LA1F7:  ldx     #$00
+        bcc     code_A1FF
+code_A1F7:  ldx     #$00
         jsr     LF797
         inc     $0360
-LA1FF:  jmp     LA0EF
+code_A1FF:  jmp     code_A0EF
 
 LA202:  .byte   $28
 LA203:  .byte   $F1

@@ -49,6 +49,128 @@ BANK_CONFIG = {
         'ca65': 'src/bank16_sound_driver.asm',
         'banks': [('16', 0x8000)],
     },
+    '00': {
+        'xkas': 'bank00.asm',
+        'ca65': 'src/bank00_enemy_data.asm',
+        'banks': [('00', 0xA000)],
+    },
+    '0A': {
+        'xkas': 'bank0A.asm',
+        'ca65': 'src/bank0A_damage_tables.asm',
+        'banks': [('0A', 0xA000)],
+    },
+    '1A_1B': {
+        'xkas': 'bank1A_1B.asm',
+        'ca65': 'src/bank1A_1B_oam_sequences.asm',
+        'banks': [('1A', 0x8000), ('1B', 0xA000)],
+        # xkas uses org $8000 for both banks; bank $1B maps to ca65 $A000
+        'addr_fixup_prefix': {'1B': lambda a: a + 0x2000},
+    },
+    '01': {
+        'xkas': 'bank01.asm',
+        'ca65': 'src/bank01_stage_magnet.asm',
+        'banks': [('01', 0xA000)],
+    },
+    '03': {
+        'xkas': 'bank03.asm',
+        'ca65': 'src/bank03_stage_hard.asm',
+        'banks': [('03', 0xA000)],
+    },
+    '04': {
+        'xkas': 'bank04.asm',
+        'ca65': 'src/bank04_doc_robot_a.asm',
+        'banks': [('04', 0xA000)],
+    },
+    '05': {
+        'xkas': 'bank05.asm',
+        'ca65': 'src/bank05_doc_robot_b.asm',
+        'banks': [('05', 0xA000)],
+    },
+    '06': {
+        'xkas': 'bank06.asm',
+        'ca65': 'src/bank06_robot_masters_a.asm',
+        'banks': [('06', 0xA000)],
+    },
+    '07': {
+        'xkas': 'bank07.asm',
+        'ca65': 'src/bank07_robot_masters_b.asm',
+        'banks': [('07', 0xA000)],
+    },
+    '02': {
+        'xkas': 'bank02.asm',
+        'ca65': 'src/bank02_stage_gemini.asm',
+        'banks': [('02', 0xA000)],
+    },
+    '08': {
+        'xkas': 'bank08.asm',
+        'ca65': 'src/bank08_stage_doc_needle.asm',
+        'banks': [('08', 0xA000)],
+    },
+    '09': {
+        'xkas': 'bank09.asm',
+        'ca65': 'src/bank09_per_frame.asm',
+        'banks': [('09', 0x8000)],
+    },
+    '0B': {
+        'xkas': 'bank0B.asm',
+        'ca65': 'src/bank0B_intro.asm',
+        'banks': [('0B', 0x8000)],
+    },
+    '0C': {
+        'xkas': 'bank0C.asm',
+        'ca65': 'src/bank0C_game_over.asm',
+        'banks': [('0C', 0x8000)],
+    },
+    '0D': {
+        'xkas': 'bank0D.asm',
+        'ca65': 'src/bank0D_oam_sprites.asm',
+        'banks': [('0D', 0xA000)],
+    },
+    '0E': {
+        'xkas': 'bank0E.asm',
+        'ca65': 'src/bank0E_anim_frames.asm',
+        'banks': [('0E', 0xA000)],
+    },
+    '0F': {
+        'xkas': 'bank0F.asm',
+        'ca65': 'src/bank0F_entity_spawn.asm',
+        'banks': [('0F', 0xA000)],
+    },
+    '10': {
+        'xkas': 'bank10.asm',
+        'ca65': 'src/bank10_stage_setup.asm',
+        'banks': [('10', 0x8000)],
+    },
+    '11': {
+        'xkas': 'bank11.asm',
+        'ca65': 'src/bank11_ending_data.asm',
+        'banks': [('11', 0xA000)],
+    },
+    '13': {
+        'xkas': 'bank13.asm',
+        'ca65': 'src/bank13_ending_data2.asm',
+        'banks': [('13', 0xA000)],
+    },
+    '14': {
+        'xkas': 'bank14.asm',
+        'ca65': 'src/bank14_sprite_offsets_alt.asm',
+        'banks': [('14', 0xA000)],
+    },
+    '15': {
+        'xkas': 'bank15.asm',
+        'ca65': 'src/bank15_weapon_anim.asm',
+        'banks': [('15', 0x8000)],
+    },
+    '17': {
+        'xkas': 'bank17.asm',
+        'ca65': 'src/bank17_sound_data.asm',
+        'banks': [('17', 0xA000)],
+    },
+    '19': {
+        'xkas': 'bank19.asm',
+        'ca65': 'src/bank19_sprite_offsets.asm',
+        'banks': [('19', 0xA000)],
+    },
 }
 
 # ─── xkas parsing ────────────────────────────────────────────────────────────
@@ -58,23 +180,30 @@ RE_XKAS_LOCAL_LABEL = re.compile(r'^(\.[a-zA-Z_][a-zA-Z0-9_]*):')
 
 
 def build_addr_regex(bank_hexes):
-    """Build regex to match address comments for the given bank hex prefixes."""
+    """Build regex to match address comments for the given bank hex prefixes.
+
+    Captures group(1)=bank prefix, group(2)=4-digit addr, group(3)=comment.
+    """
     prefix_pattern = '|'.join(re.escape(h) for h in bank_hexes)
-    return re.compile(r';\s*\$(?:' + prefix_pattern + r')([0-9A-Fa-f]{4})\s*\|(.*)')
+    return re.compile(r';\s*\$(' + prefix_pattern + r')([0-9A-Fa-f]{4})\s*\|(.*)')
 
 
-def parse_xkas(path, bank_hexes, addr_fixup=None):
+def parse_xkas(path, bank_hexes, addr_fixup=None, addr_fixup_prefix=None):
     """Parse xkas reference to extract address→annotation maps.
 
-    addr_fixup: optional function(int) → int to remap raw addresses.
+    addr_fixup: optional function(int) → int to remap all raw addresses.
+    addr_fixup_prefix: optional dict of bank_hex → function(int) → int for per-prefix fixups.
     """
     re_addr = build_addr_regex(bank_hexes)
 
-    def fix_addr(hex4):
-        """Apply fixup to a 4-digit hex address string, return normalized hex string."""
-        if addr_fixup is None:
-            return hex4
-        return f"{addr_fixup(int(hex4, 16)):04X}"
+    def fix_addr(prefix, hex4):
+        """Resolve a bank prefix + 4-digit hex to the ca65 CPU address string."""
+        raw = int(hex4, 16)
+        if addr_fixup is not None:
+            raw = addr_fixup(raw)
+        if addr_fixup_prefix and prefix.upper() in addr_fixup_prefix:
+            raw = addr_fixup_prefix[prefix.upper()](raw)
+        return f"{raw:04X}"
 
     addr_to_global = {}
     addr_to_local = {}
@@ -148,8 +277,8 @@ def parse_xkas(path, bank_hexes, addr_fixup=None):
         # Instruction/data line with address comment
         m_addr = re_addr.search(line)
         if m_addr:
-            addr = fix_addr(m_addr.group(1).upper())
-            comment = _clean_comment(m_addr.group(2))
+            addr = fix_addr(m_addr.group(1).upper(), m_addr.group(2).upper())
+            comment = _clean_comment(m_addr.group(3))
             if comment:
                 addr_to_comment[addr] = comment
             if pending_block:
@@ -166,8 +295,9 @@ def _find_next_addr(lines, start_idx, re_addr, fix_addr=None):
     for j in range(start_idx, min(start_idx + 20, len(lines))):
         m = re_addr.search(lines[j])
         if m:
-            raw = m.group(1).upper()
-            return fix_addr(raw) if fix_addr else raw
+            prefix = m.group(1).upper()
+            raw = m.group(2).upper()
+            return fix_addr(prefix, raw) if fix_addr else raw
     return None
 
 
@@ -393,9 +523,11 @@ def main():
     print(f"=== Annotating bank {bank_id} ===")
 
     addr_fixup = cfg.get('addr_fixup')
+    addr_fixup_prefix = cfg.get('addr_fixup_prefix')
 
     print("1. Parsing xkas reference...")
-    addr_to_global, addr_to_comment, addr_to_block = parse_xkas(xkas_path, bank_hexes, addr_fixup)
+    addr_to_global, addr_to_comment, addr_to_block = parse_xkas(
+        xkas_path, bank_hexes, addr_fixup, addr_fixup_prefix)
     print(f"   Global labels: {len(addr_to_global)}")
     print(f"   Comments:      {len(addr_to_comment)}")
     print(f"   Block comments: {len(addr_to_block)}")
