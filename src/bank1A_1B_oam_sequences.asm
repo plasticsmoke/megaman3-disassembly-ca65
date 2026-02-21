@@ -1027,68 +1027,68 @@ check_new_enemies:
         sta     $03                     ; -> $03
         lda     $2E
         and     #$01                    ; if player moving right
-        bne     L9C4F                   ; check right side, else left
+        bne     check_spawn_right_loop                   ; check right side, else left
 
 ; check new enemies on left edge
 ; NOTE: everything is checked minus one
-L9C17:  ldy     $9F                     ; fetch last left-spawned
-        beq     L9C33                   ; enemy screen #, if it's zero break
-        lda     LAAFF,y                 ; if camera screen left edge >= this,
+check_spawn_left_loop:  ldy     $9F                     ; fetch last left-spawned
+        beq     track_right_no_spawn                   ; enemy screen #, if it's zero break
+        lda     spawn_data_screen_boundary_left,y                 ; if camera screen left edge >= this,
         cmp     $01                     ; break loop
-        bcc     L9C33                   ; if < , spawn
-        bne     L9C2B                   ; if == , check camera X left edge
-        lda     LABFF,y                 ; >= last left-spawned enemy X
+        bcc     track_right_no_spawn                   ; if < , spawn
+        bne     spawn_left_found                   ; if == , check camera X left edge
+        lda     spawn_data_x_boundary_left,y                 ; >= last left-spawned enemy X
         cmp     $00                     ; if < , spawn
-        bcc     L9C33
-L9C2B:  dey                             ; spawn,
+        bcc     track_right_no_spawn
+spawn_left_found:  dey                             ; spawn,
         jsr     spawn_enemy             ; set new last left-spawned enemy ID,
         dec     $9F                     ; and continue looking for more
-        bne     L9C17
+        bne     check_spawn_left_loop
 
 ; track stage enemy ID for right side but don't spawn
 ; anything on right while moving left
-L9C33:  ldy     $9E
-        beq     L9C4A
-L9C37:  lda     LAAFF,y                 ; if camera screen right edge
+track_right_no_spawn:  ldy     $9E
+        beq     track_right_done
+track_right_loop:  lda     spawn_data_screen_boundary_left,y                 ; if camera screen right edge
         cmp     $03                     ; >= last right-spawned enemy screen,
-        bcc     L9C4A                   ; break loop
-        bne     L9C47                   ; if < , set new last right
-        lda     LABFF,y                 ; if == , check camera X right edge
+        bcc     track_right_done                   ; break loop
+        bne     track_right_next                   ; if < , set new last right
+        lda     spawn_data_x_boundary_left,y                 ; if == , check camera X right edge
         cmp     $02                     ; >= last right-spawned enemy X
-        bcc     L9C4A                   ; if < , set new last right
-L9C47:  dey                             ; track new "last right enemy"
-        bne     L9C37                   ; continue tracking more
-L9C4A:  sty     $9E                     ; set new right enemy ID
-        jmp     L9C7F                   ; return
+        bcc     track_right_done                   ; if < , set new last right
+track_right_next:  dey                             ; track new "last right enemy"
+        bne     track_right_loop                   ; continue tracking more
+track_right_done:  sty     $9E                     ; set new right enemy ID
+        jmp     spawn_check_return                   ; return
 
 ; check new enemies on right edge
 
-L9C4F:  ldy     $9E                     ; fetch last right-spawned
+check_spawn_right_loop:  ldy     $9E                     ; fetch last right-spawned
         lda     $03                     ; enemy screen #
-        cmp     LAB00,y                 ; if camera screen right edge < this,
-        bcc     L9C68                   ; break loop
-        bne     L9C61                   ; if > , spawn
+        cmp     spawn_data_enemy_screen,y                 ; if camera screen right edge < this,
+        bcc     track_left_no_spawn                   ; break loop
+        bne     spawn_right_found                   ; if > , spawn
         lda     $02                     ; if == , check camera X right edge
-        cmp     LAC00,y                 ; < last right-spawned enemy X
-        bcc     L9C68                   ; if >=, spawn
-L9C61:  jsr     spawn_enemy             ; spawn,
+        cmp     spawn_data_enemy_x_pos,y                 ; < last right-spawned enemy X
+        bcc     track_left_no_spawn                   ; if >=, spawn
+spawn_right_found:  jsr     spawn_enemy             ; spawn,
         inc     $9E                     ; set new last right-spawned enemy ID,
-        bne     L9C4F                   ; and continue looking for more
+        bne     check_spawn_right_loop                   ; and continue looking for more
 
 ; track stage enemy ID for left side but don't spawn
 ; anything on left while moving right
-L9C68:  ldy     $9F                     ; last left-spawned enemy stage ID
-L9C6A:  lda     $01                     ; if camera screen left edge
-        cmp     LAB00,y                 ; < last left-spawned enemy screen,
-        bcc     L9C7D                   ; break loop
-        bne     L9C7A                   ; if > , set new last left
+track_left_no_spawn:  ldy     $9F                     ; last left-spawned enemy stage ID
+track_left_loop:  lda     $01                     ; if camera screen left edge
+        cmp     spawn_data_enemy_screen,y                 ; < last left-spawned enemy screen,
+        bcc     track_left_done                   ; break loop
+        bne     track_left_next                   ; if > , set new last left
         lda     $00                     ; if == , check camera X left edge
-        cmp     LAC00,y                 ; < last left-spawned enemy X
-        bcc     L9C7D                   ; if >=, set new last left
-L9C7A:  iny                             ; track new "last left enemy"
-        bne     L9C6A                   ; continue tracking more
-L9C7D:  sty     $9F                     ; set new last left enemy ID
-L9C7F:  rts
+        cmp     spawn_data_enemy_x_pos,y                 ; < last left-spawned enemy X
+        bcc     track_left_done                   ; if >=, set new last left
+track_left_next:  iny                             ; track new "last left enemy"
+        bne     track_left_loop                   ; continue tracking more
+track_left_done:  sty     $9F                     ; set new last left enemy ID
+spawn_check_return:  rts
 
 ; ===========================================================================
 ; spawn_enemy — instantiate a stage enemy into an entity slot ($9C80)
@@ -1106,15 +1106,15 @@ L9C7F:  rts
 ;   6. Initialize all entity state arrays for the new spawn
 spawn_enemy:  tya                       ; first, loop through all sprites
         ldx     #$1F                    ; besides reserved 00-0F
-L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
-        beq     L9C7F                   ; don't spawn
+spawn_check_dup_loop:  cmp     ent_spawn_id,x                 ; if this ID is already here
+        beq     spawn_check_return                   ; don't spawn
         dex
         cpx     #$0F                    ; stop at $0F
-        bne     L9C83                   ; indicating $00-$0F are "reserved"
+        bne     spawn_check_dup_loop                   ; indicating $00-$0F are "reserved"
 
 ; ID not found, find a free slot
         jsr     find_enemy_freeslot_x                   ; find a slot, if none found
-        bcs     L9C7F                   ; don't spawn
+        bcs     spawn_check_return                   ; don't spawn
         tya                             ; store new stage ID
         sta     ent_spawn_id,x
         pha
@@ -1129,7 +1129,7 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         tay
         lda     $0150,y                 ; if this enemy's bit is set, don't spawn
         and     $04
-        bne     L9C7F
+        bne     spawn_check_return
 
 ; finally, actually spawn — read from 4 per-stage enemy placement tables:
 ;   $AB00,y = screen number (X page) where enemy appears
@@ -1139,13 +1139,13 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
 ; then switch to bank $00 to read global enemy properties:
 ;   enemy_flags_g ($A000) / enemy_main_ID_g ($A100) / etc.
         ldy     ent_spawn_id,x                 ; load stage enemy ID for data
-        lda     LAB00,y                 ; enemy screen number
+        lda     spawn_data_enemy_screen,y                 ; enemy screen number
         sta     ent_x_scr,x
-        lda     LAC00,y                 ; enemy X pixel position
+        lda     spawn_data_enemy_x_pos,y                 ; enemy X pixel position
         sta     ent_x_px,x
-        lda     LAD00,y                 ; enemy Y pixel position
+        lda     spawn_data_enemy_y_pos,y                 ; enemy Y pixel position
         sta     ent_y_px,x
-        lda     LAE00,y                 ; global enemy ID
+        lda     spawn_data_enemy_type_id,y                 ; global enemy ID
         pha
         stx     $05                     ; preserve X
         lda     #$00                    ; switch to bank $00
@@ -1156,22 +1156,22 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
         tay                             ; for initial data lookup
         lda     #$80                    ; mark entity active
         sta     ent_status,x
-        lda     LA000,y                 ; sprite flags from $A000,y
+        lda     anim_seq_ptr_lo_table,y                 ; sprite flags from $A000,y
         sta     ent_flags,x
-        lda     LA100,y                 ; AI routine ID from $A100,y
+        lda     anim_seq_ptr_hi_table,y                 ; AI routine ID from $A100,y
         sta     ent_routine,x
-        lda     LA200,y                 ; hitbox/shape from $A200,y
+        lda     oam_sprite_def_ptr_hi_table,y                 ; hitbox/shape from $A200,y
         sta     ent_hitbox,x
-        lda     LA300,y                 ; sprite graphic ID
+        lda     anim_variable_records,y                 ; sprite graphic ID
         jsr     reset_sprite_anim
         jsr     face_player                   ; face toward player
-        lda     LA400,y                 ; HP from $A400,y
+        lda     oam_tile_base_table,y                 ; HP from $A400,y
         sta     ent_hp,x
-        lda     LA500,y                 ; Y = speed ID
+        lda     oam_attr_base_table,y                 ; Y = speed ID
         tay
-        lda     LA600,y                 ; X velocity subpixel
+        lda     oam_xoffset_base_table,y                 ; X velocity subpixel
         sta     ent_xvel_sub,x
-        lda     LA700,y                 ; X velocity pixel
+        lda     oam_yoffset_base_table,y                 ; X velocity pixel
         sta     ent_xvel,x
         jsr     reset_gravity                   ; Y velocity
         lda     #$00
@@ -1196,10 +1196,10 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
 ;              already defeated. Each bit corresponds to a stage enemy ID.
 ;
 ; Farther below ($AAFF-$AFFF) are the per-stage enemy placement tables:
-;   LAAFF/LAB00 = screen number (X page) where each enemy appears
-;   LABFF/LAC00 = X pixel position within that screen
-;   LAD00       = Y pixel position
-;   LAE00       = global enemy type ID (indexes bank $00 tables)
+;   spawn_data_screen_boundary_left/spawn_data_enemy_screen = screen number (X page) where each enemy appears
+;   spawn_data_x_boundary_left/spawn_data_enemy_x_pos = X pixel position within that screen
+;   spawn_data_enemy_y_pos       = Y pixel position
+;   spawn_data_enemy_type_id       = global enemy type ID (indexes bank $00 tables)
 ;
 ; These tables are populated per-stage and define every enemy placement
 ; for the currently loaded level.
@@ -1310,7 +1310,7 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
 ;   $8300+       Animation sequence data
 ;   $8554+       OAM sprite definition data
 ;
-; Labels LA000-LA700 correspond to bank $00 global enemy property tables
+; Labels anim_seq_ptr_lo_table-oam_yoffset_base_table correspond to bank $00 global enemy property tables
 ; referenced during enemy spawning (mapped at $A000-$A7FF when bank $00
 ; is selected). These labels are used by the spawn_enemy routine above.
 ; =============================================================================
@@ -1318,7 +1318,7 @@ L9C83:  cmp     ent_spawn_id,x                 ; if this ID is already here
 
 ; --- Animation sequence pointer table (low bytes) ---
 ; (when bank $00 is loaded at $A000: enemy_flags_g — per-enemy-type flags)
-LA000:  .byte   $00,$13,$16,$1C,$22,$28,$2C,$2F
+anim_seq_ptr_lo_table:  .byte   $00,$13,$16,$1C,$22,$28,$2C,$2F
         .byte   $3B,$3F,$47,$4B,$4F,$55,$5B,$5F
         .byte   $62,$6E,$73,$77,$7B,$7E,$88,$8E
         .byte   $91,$96,$9D,$A0,$A3,$A7,$AB,$AF
@@ -1352,12 +1352,12 @@ LA000:  .byte   $00,$13,$16,$1C,$22,$28,$2C,$2F
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
 ; --- OAM sprite definition pointer table (low bytes) ---
-; NOTE: Labels LA000-LA700 point to address $A000-$A7FF. This address range
+; NOTE: Labels anim_seq_ptr_lo_table-oam_yoffset_base_table point to address $A000-$A7FF. This address range
 ; is bank $1B's data when bank $1B is loaded, but also serves as the target
 ; for spawn_enemy's reads of bank $00 global enemy properties (after the
 ; PRG bank is switched to $00). The ca65 labels resolve to the same address.
 ; (when bank $00: enemy_main_ID_g — AI routine ID for each enemy type)
-LA100:  .byte   $54,$54,$58,$5E,$66,$70,$7C,$88
+anim_seq_ptr_hi_table:  .byte   $54,$54,$58,$5E,$66,$70,$7C,$88
         .byte   $94,$9A,$A8,$C2,$CC,$D6,$EA,$FE
         .byte   $16,$2E,$58,$82,$96,$A4,$AE,$B8
         .byte   $C2,$CC,$D6,$E0,$E4,$FA,$10,$26
@@ -1391,7 +1391,7 @@ LA100:  .byte   $54,$54,$58,$5E,$66,$70,$7C,$88
         .byte   $CA,$CA,$CA,$CA,$CA,$CA,$CA,$CA
 ; --- OAM sprite definition pointer table (high bytes) ---
 ; (when bank $00 is loaded: enemy_shape_g — hitbox/collision shape)
-LA200:  .byte   $85,$85,$85,$85,$85,$85,$85,$85
+oam_sprite_def_ptr_hi_table:  .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
         .byte   $86,$86,$86,$86,$86,$86,$86,$86
         .byte   $86,$86,$86,$86,$86,$86,$87,$87
@@ -1426,7 +1426,7 @@ LA200:  .byte   $85,$85,$85,$85,$85,$85,$85,$85
 ; --- Animation sequence data ($8300+) ---
 ; Variable-length records for animation IDs $80-$FF (same format as bank $1A).
 ; (when bank $00: enemy_OAM_ID_g — initial animation/sprite ID per enemy type)
-LA300:  .byte   $10,$03,$01,$02,$03,$04,$05,$06
+anim_variable_records:  .byte   $10,$03,$01,$02,$03,$04,$05,$06
         .byte   $07,$05,$06,$07,$05,$06,$04,$03
         .byte   $02,$01,$00,$00,$08,$1B,$03,$08
         .byte   $08,$09,$0A,$09,$03,$06,$1C,$1D
@@ -1459,7 +1459,7 @@ LA300:  .byte   $10,$03,$01,$02,$03,$04,$05,$06
         .byte   $83,$84,$85,$09,$02,$98,$79,$98
         .byte   $79,$98,$79,$98,$7E,$98,$79,$02
 ; (when bank $00: enemy_health_g — HP values)
-LA400:  .byte   $04,$87,$88,$89,$03,$04,$B6,$B7
+oam_tile_base_table:  .byte   $04,$87,$88,$89,$03,$04,$B6,$B7
         .byte   $B8,$B9,$03,$04,$B8,$B7,$B6,$B9
         .byte   $01,$08,$14,$13,$0B,$08,$17,$17
         .byte   $17,$17,$17,$17,$17,$17,$17,$17
@@ -1492,7 +1492,7 @@ LA400:  .byte   $04,$87,$88,$89,$03,$04,$B6,$B7
         .byte   $9A,$99,$1B,$03,$9B,$9C,$9B,$9C
         .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9B,$9C
 ; (when bank $00: enemy_speed_ID_g — speed table index)
-LA500:  .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9B,$9C
+oam_attr_base_table:  .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9B,$9C
         .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9D,$9C
         .byte   $01,$03,$9E,$9F,$00,$08,$A0,$01
         .byte   $02,$DD,$DE,$03,$06,$DF,$DE,$DF
@@ -1525,7 +1525,7 @@ LA500:  .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9B,$9C
         .byte   $72,$00,$73,$00,$74,$00,$75,$00
         .byte   $76,$00,$78,$01,$79,$01,$0A,$C8
 ; (when bank $00: enemy_x_velocity_sub_g — X velocity subpixel)
-LA600:  .byte   $70,$00,$71,$00,$72,$00,$73,$00
+oam_xoffset_base_table:  .byte   $70,$00,$71,$00,$72,$00,$73,$00
         .byte   $74,$00,$75,$00,$76,$00,$77,$00
         .byte   $78,$00,$7D,$01,$7E,$01,$0A,$C8
         .byte   $70,$00,$79,$00,$7A,$00,$73,$00
@@ -1558,7 +1558,7 @@ LA600:  .byte   $70,$00,$71,$00,$72,$00,$73,$00
         .byte   $DB,$02,$E9,$02,$EA,$02,$EB,$02
         .byte   $ED,$01,$09,$D0,$C0,$02,$A1,$02
 ; (when bank $00: enemy_x_velocity_g — X velocity whole pixel)
-LA700:  .byte   $E5,$02,$E6,$02,$E7,$02,$E8,$02
+oam_yoffset_base_table:  .byte   $E5,$02,$E6,$02,$E7,$02,$E8,$02
         .byte   $F5,$02,$F6,$02,$EC,$02,$AD,$01
         .byte   $09,$D2,$C0,$02,$A1,$02,$E4,$02
         .byte   $CC,$02,$CD,$02,$CE,$02,$DC,$02
@@ -1687,13 +1687,13 @@ LA700:  .byte   $E5,$02,$E6,$02,$E7,$02,$E8,$02
         .byte   $DC,$03,$DA,$03,$DA,$43,$D9,$43
         .byte   $03,$2C,$70,$00,$71,$00,$71
 ; --- Per-stage enemy placement tables ---
-; LAAFF/LAB00: enemy screen number (X page position), accessed Y-1 / Y
-; LABFF/LAC00: enemy X pixel position within screen
-; LAD00: enemy Y pixel position
-; LAE00: global enemy type ID (indexes bank $00 property tables)
+; spawn_data_screen_boundary_left/spawn_data_enemy_screen: enemy screen number (X page position), accessed Y-1 / Y
+; spawn_data_x_boundary_left/spawn_data_enemy_x_pos: enemy X pixel position within screen
+; spawn_data_enemy_y_pos: enemy Y pixel position
+; spawn_data_enemy_type_id: global enemy type ID (indexes bank $00 property tables)
 ; These tables are loaded per-stage and contain OAM data interspersed.
-LAAFF:  .byte   $C0
-LAB00:  .byte   $70,$C0,$03,$2C,$72,$00,$73,$00
+spawn_data_screen_boundary_left:  .byte   $C0
+spawn_data_enemy_screen:  .byte   $70,$C0,$03,$2C,$72,$00,$73,$00
         .byte   $73,$C0,$72,$C0,$88,$02,$74,$00
         .byte   $75,$00,$76,$00,$77,$00,$78,$00
         .byte   $79,$40,$79,$00,$7A,$00,$7B,$00
@@ -1725,9 +1725,9 @@ LAB00:  .byte   $70,$C0,$03,$2C,$72,$00,$73,$00
         .byte   $00,$0E,$7E,$00,$07,$1E,$9D,$00
         .byte   $9E,$00,$8F,$00,$5E,$40,$5D,$40
         .byte   $8D,$00,$8E,$00,$9C,$01,$00
-; LABFF/LAC00: enemy X pixel position within screen
-LABFF:  .byte   $0E
-LAC00:  .byte   $7F,$00,$03,$2C,$7A,$00,$7B,$00
+; spawn_data_x_boundary_left/spawn_data_enemy_x_pos: enemy X pixel position within screen
+spawn_data_x_boundary_left:  .byte   $0E
+spawn_data_enemy_x_pos:  .byte   $7F,$00,$03,$2C,$7A,$00,$7B,$00
         .byte   $7C,$00,$7D,$00,$09,$14,$2F,$01
         .byte   $07,$00,$32,$00,$8C,$00,$42,$00
         .byte   $50,$00,$51,$00,$52,$00,$30,$40
@@ -1759,8 +1759,8 @@ LAC00:  .byte   $7F,$00,$03,$2C,$7A,$00,$7B,$00
         .byte   $F7,$02,$F7,$42,$F7,$42,$F7,$82
         .byte   $F7,$82,$F7,$C2,$F7,$C2,$F7,$02
         .byte   $F7,$42,$F7,$82,$F7,$C2,$F6,$02
-; LAD00: enemy Y pixel position
-LAD00:  .byte   $F6,$42,$F6,$82,$F6,$C2,$17,$FD
+; spawn_data_enemy_y_pos: enemy Y pixel position
+spawn_data_enemy_y_pos:  .byte   $F6,$42,$F6,$82,$F6,$C2,$17,$FD
         .byte   $F2,$42,$F3,$42,$F3,$02,$F2,$02
         .byte   $F2,$C2,$F3,$C2,$F3,$82,$F2,$82
         .byte   $F3,$42,$F3,$02,$F3,$C2,$F3,$82
@@ -1792,8 +1792,8 @@ LAD00:  .byte   $F6,$42,$F6,$82,$F6,$C2,$17,$FD
         .byte   $47,$00,$4B,$00,$4D,$00,$44,$00
         .byte   $45,$00,$78,$01,$4E,$00,$4F,$00
         .byte   $76,$00,$77,$00,$79,$01,$7A,$01
-; LAE00: global enemy type ID (indexes bank $00 property tables)
-LAE00:  .byte   $7D,$01,$00,$01,$49,$00,$4A,$00
+; spawn_data_enemy_type_id: global enemy type ID (indexes bank $00 property tables)
+spawn_data_enemy_type_id:  .byte   $7D,$01,$00,$01,$49,$00,$4A,$00
         .byte   $8F,$0E,$47,$00,$70,$00,$5F,$00
         .byte   $44,$00,$45,$00,$78,$01,$74,$00
         .byte   $75,$00,$76,$00,$77,$00,$79,$01

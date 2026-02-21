@@ -84,14 +84,14 @@ main_doc_air_j:
 code_A022:  lda     ent_status,x            ; dispatch on status low nibble
         and     #$0F
         tay
-        lda     LA035,y                 ; phase handler pointer (low)
+        lda     doc_heat_phase_ptr_lo_table,y                 ; phase handler pointer (low)
         sta     L0000
-        lda     LA037,y                 ; phase handler pointer (high)
+        lda     doc_heat_phase_ptr_hi_table,y                 ; phase handler pointer (high)
         sta     $01
         jmp     (L0000)
 
-LA035:  .byte   $39,$AF                 ; phase handler pointers (low bytes)
-LA037:  .byte   $A0,$A0                 ; phase handler pointers (high bytes)
+doc_heat_phase_ptr_lo_table:  .byte   $39,$AF                 ; phase handler pointers (low bytes)
+doc_heat_phase_ptr_hi_table:  .byte   $A0,$A0                 ; phase handler pointers (high bytes)
 ; --- phase 0: init / idle ---
         jsr     face_player                   ; face player
         jsr     set_sprite_hflip                   ; set sprite H-flip from facing
@@ -112,7 +112,7 @@ LA037:  .byte   $A0,$A0                 ; phase handler pointers (high bytes)
         sta     $01
         jsr     divide_8bit                   ; divide_8bit: $E4 mod 3
         ldy     $03
-        lda     LA1A6,y                 ; lookup delay from table
+        lda     doc_heat_jump_delay_table,y                 ; lookup delay from table
         sta     ent_timer,x             ; store as jump timer
         rts
 
@@ -170,7 +170,7 @@ code_A0C8:  lda     ent_anim_id,x
         bne     code_A12B
         lda     ent_var2,x
         tay
-        lda     LA1A9,y                 ; lookup next anim from sub-state
+        lda     doc_heat_anim_id_table,y                 ; lookup next anim from sub-state
         jsr     reset_sprite_anim
         lda     ent_var2,x
         bne     code_A0F6               ; if dashing, store target X
@@ -212,11 +212,11 @@ code_A12C:  jsr     entity_x_dist_to_player                   ; get X distance t
 code_A13A:  jsr     find_enemy_freeslot_y                   ; find free enemy slot
         bcs     code_A1A3               ; no slot — done
         ldx     $0F                     ; projectile index
-        lda     LA1AB,x                 ; Y velocity sub-pixel
+        lda     doc_heat_projectile_yvel_sub_table,x                 ; Y velocity sub-pixel
         sta     ent_yvel_sub,y
-        lda     LA1AE,x                 ; Y velocity whole
+        lda     doc_heat_projectile_yvel_table,x                 ; Y velocity whole
         sta     ent_yvel,y
-        lda     LA1B1,x                 ; X speed divisor
+        lda     doc_heat_projectile_xspeed_div_table,x                 ; X speed divisor
         sta     $03
         lda     #$00
         sta     $02
@@ -255,11 +255,11 @@ code_A161:  sta     $01
 code_A1A3:  ldx     $0E                     ; restore parent index
         rts
 
-LA1A6:  .byte   $1E,$3C,$5A             ; jump delay timers (30, 60, 90 frames)
-LA1A9:  .byte   $01,$09                 ; anim IDs per sub-state (idle, slide)
-LA1AB:  .byte   $00,$88,$54             ; Y velocity sub-pixels (3 projectiles)
-LA1AE:  .byte   $04,$06,$08             ; Y velocity whole (3 projectiles)
-LA1B1:  .byte   $1C,$2A,$34             ; X speed divisors (3 projectiles)
+doc_heat_jump_delay_table:  .byte   $1E,$3C,$5A             ; jump delay timers (30, 60, 90 frames)
+doc_heat_anim_id_table:  .byte   $01,$09                 ; anim IDs per sub-state (idle, slide)
+doc_heat_projectile_yvel_sub_table:  .byte   $00,$88,$54             ; Y velocity sub-pixels (3 projectiles)
+doc_heat_projectile_yvel_table:  .byte   $04,$06,$08             ; Y velocity whole (3 projectiles)
+doc_heat_projectile_xspeed_div_table:  .byte   $1C,$2A,$34             ; X speed divisors (3 projectiles)
 ; =============================================================================
 ; DOC HEAT PROJECTILE ($B4) — Moving Fireball
 ; =============================================================================
@@ -372,7 +372,7 @@ code_A26B:  lda     ent_status,x            ; --- attack decision ---
         beq     code_A2B6               ; none — check if we should start
         dec     ent_var2,x
         beq     code_A28D               ; last bubble spawned — initiate jump
-        lda     LA354,y                 ; set inter-bubble delay per phase
+        lda     doc_bubble_inter_projectile_delay_table,y                 ; set inter-bubble delay per phase
         sta     ent_var1,x
         lda     #$00
         sta     ent_anim_frame,x
@@ -400,7 +400,7 @@ code_A28D:  tya                             ; all bubbles spawned
 
 ; --- check Y distance to player, start attack if close ---
 code_A2B6:  jsr     entity_y_dist_to_player                   ; get Y distance to player
-        cmp     LA35A,y                 ; close enough to attack?
+        cmp     doc_bubble_distance_threshold_table,y                 ; close enough to attack?
         bcs     code_A2DC               ; no — too far
         tya
         beq     code_A2C5               ; phase 0: randomize bubble count
@@ -427,17 +427,17 @@ code_A2DD:  jsr     find_enemy_freeslot_y                   ; find free enemy sl
         and     #$0F
         tax                             ; X = phase (0 or 1)
         stx     $01
-        lda     LA34C,x                 ; Y velocity sub-pixel (per phase)
+        lda     doc_bubble_phase_yvel_sub_table,x                 ; Y velocity sub-pixel (per phase)
         sta     ent_yvel_sub,y
-        lda     LA34E,x                 ; Y velocity whole
+        lda     doc_bubble_phase_yvel_table,x                 ; Y velocity whole
         sta     ent_yvel,y
-        lda     LA350,x                 ; X velocity sub-pixel
+        lda     doc_bubble_phase_xvel_sub_table,x                 ; X velocity sub-pixel
         sta     ent_xvel_sub,y
-        lda     LA352,x                 ; X velocity whole
+        lda     doc_bubble_phase_xvel_table,x                 ; X velocity whole
         sta     ent_xvel,y
-        lda     LA356,x                 ; routine index (per phase)
+        lda     doc_bubble_projectile_routine_table,x                 ; routine index (per phase)
         sta     ent_routine,y
-        lda     LA358,x                 ; anim ID (per phase)
+        lda     doc_bubble_projectile_anim_table,x                 ; anim ID (per phase)
         ldx     L0000
         jsr     init_child_entity                   ; init child entity
         lda     #$80
@@ -456,25 +456,25 @@ code_A2DD:  jsr     find_enemy_freeslot_y                   ; find free enemy sl
         tax
         lda     ent_x_px,y
         clc
-        adc     LA35C,x
+        adc     doc_bubble_x_offset_right,x
         sta     ent_x_px,y
         lda     ent_x_scr,y
-        adc     LA35D,x
+        adc     doc_bubble_x_offset_left_table,x
         sta     ent_x_scr,y
 code_A349:  ldx     L0000                   ; restore parent index
         rts
 
 ; --- Bubble Man data tables (indexed by phase: 0=idle, 1=jumping) ---
-LA34C:  .byte   $AB,$00                 ; Y velocity sub-pixel
-LA34E:  .byte   $05,$00                 ; Y velocity whole
-LA350:  .byte   $A8,$00                 ; X velocity sub-pixel
-LA352:  .byte   $01,$04                 ; X velocity whole
-LA354:  .byte   $1E,$14                 ; inter-bubble delay (30, 20 frames)
-LA356:  .byte   $B5,$41                 ; projectile routine index
-LA358:  .byte   $11,$58                 ; projectile anim ID
-LA35A:  .byte   $05,$07                 ; Y distance threshold to attack
-LA35C:  .byte   $1A                     ; X offset for phase 1 (facing right)
-LA35D:  .byte   $00,$E6,$FF             ; X offset + screen (facing left: -26)
+doc_bubble_phase_yvel_sub_table:  .byte   $AB,$00                 ; Y velocity sub-pixel
+doc_bubble_phase_yvel_table:  .byte   $05,$00                 ; Y velocity whole
+doc_bubble_phase_xvel_sub_table:  .byte   $A8,$00                 ; X velocity sub-pixel
+doc_bubble_phase_xvel_table:  .byte   $01,$04                 ; X velocity whole
+doc_bubble_inter_projectile_delay_table:  .byte   $1E,$14                 ; inter-bubble delay (30, 20 frames)
+doc_bubble_projectile_routine_table:  .byte   $B5,$41                 ; projectile routine index
+doc_bubble_projectile_anim_table:  .byte   $11,$58                 ; projectile anim ID
+doc_bubble_distance_threshold_table:  .byte   $05,$07                 ; Y distance threshold to attack
+doc_bubble_x_offset_right:  .byte   $1A                     ; X offset for phase 1 (facing right)
+doc_bubble_x_offset_left_table:  .byte   $00,$E6,$FF             ; X offset + screen (facing left: -26)
 ; =============================================================================
 ; DOC BUBBLE PROJECTILE ($B5) — Bouncing Bubble
 ; =============================================================================
@@ -523,9 +523,9 @@ code_A392:  rts
 code_A393:  lda     ent_status,x            ; dispatch on status low nibble
         and     #$0F
         tay
-        lda     LA4ED,y                 ; phase handler pointer (low)
+        lda     doc_quick_phase_ptr_lo_table,y                 ; phase handler pointer (low)
         sta     L0000
-        lda     LA4F0,y                 ; phase handler pointer (high)
+        lda     doc_quick_phase_ptr_hi_table,y                 ; phase handler pointer (high)
         sta     $01
         jmp     (L0000)
 
@@ -535,9 +535,9 @@ code_A393:  lda     ent_status,x            ; dispatch on status low nibble
         sta     $E6
         and     #$03
         tay                             ; Y = random 0..3
-        lda     LA503,y                 ; jump duration (bounce count)
+        lda     doc_quick_bounce_count_table,y                 ; jump duration (bounce count)
         sta     ent_timer,x
-        lda     LA507,y                 ; boomerang spawn timing
+        lda     doc_quick_boomerang_spawn_timing_table,y                 ; boomerang spawn timing
         sta     ent_var2,x
         inc     ent_status,x            ; advance to phase 1
 ; --- phase 1: jumping with gravity ---
@@ -557,11 +557,11 @@ code_A3D8:  lda     $E4                     ; randomize jump velocity
         sta     $E7
         and     #$03
         tay
-        lda     LA4F7,y                 ; Y velocity sub-pixel (random)
+        lda     doc_quick_random_yvel_sub_table,y                 ; Y velocity sub-pixel (random)
         sta     ent_yvel_sub,x
-        lda     LA4FB,y                 ; Y velocity whole (random)
+        lda     doc_quick_random_yvel_table,y                 ; Y velocity whole (random)
         sta     ent_yvel,x
-        lda     LA4FF,y                 ; X speed divisor (random)
+        lda     doc_quick_random_xspeed_div_table,y                 ; X speed divisor (random)
         sta     $03
         lda     #$00
         sta     L0000
@@ -569,9 +569,9 @@ code_A3D8:  lda     $E4                     ; randomize jump velocity
         jsr     entity_x_dist_to_player                   ; get X distance to player
         sta     $01
         clc
-        adc     LA4F3,y                 ; add random X offset
+        adc     doc_quick_random_x_offset_table,y                 ; add random X offset
         sta     $04
-        lda     LA4F3,y                 ; clamp: don't overshoot
+        lda     doc_quick_random_x_offset_table,y                 ; clamp: don't overshoot
         bpl     code_A40E
         bcc     code_A414
         lda     $04
@@ -669,7 +669,7 @@ code_A49E:  jsr     find_enemy_freeslot_y                   ; find free enemy sl
         lda     ent_y_px               ; offset target Y per boomerang
         pha
         clc
-        adc     LA50B,x                 ; Y offset: -24, 0, +24
+        adc     doc_quick_boomerang_y_offset_table,x                 ; Y offset: -24, 0, +24
         sta     ent_y_px
         tya
         tax
@@ -682,15 +682,15 @@ code_A4EA:  ldx     $0E                     ; restore parent index
         rts
 
 ; --- Quick Man data tables ---
-LA4ED:  .byte   $A6,$BE,$62             ; phase handler pointers (low)
-LA4F0:  .byte   $A3,$A3,$A4             ; phase handler pointers (high)
-LA4F3:  .byte   $C0,$00,$40,$00         ; X offset for velocity calc (4 random sets)
-LA4F7:  .byte   $88,$15,$3D,$15         ; Y velocity sub-pixel (4 random sets)
-LA4FB:  .byte   $06,$08,$09,$08         ; Y velocity whole (4 random sets)
-LA4FF:  .byte   $27,$30,$37,$30         ; X speed divisor (4 random sets)
-LA503:  .byte   $03,$02,$02,$01         ; bounce count (4 random sets)
-LA507:  .byte   $01,$01,$00,$00         ; boomerang spawn timing (4 random sets)
-LA50B:  .byte   $E8,$00,$18             ; Y offsets for 3 boomerangs (-24, 0, +24)
+doc_quick_phase_ptr_lo_table:  .byte   $A6,$BE,$62             ; phase handler pointers (low)
+doc_quick_phase_ptr_hi_table:  .byte   $A3,$A3,$A4             ; phase handler pointers (high)
+doc_quick_random_x_offset_table:  .byte   $C0,$00,$40,$00         ; X offset for velocity calc (4 random sets)
+doc_quick_random_yvel_sub_table:  .byte   $88,$15,$3D,$15         ; Y velocity sub-pixel (4 random sets)
+doc_quick_random_yvel_table:  .byte   $06,$08,$09,$08         ; Y velocity whole (4 random sets)
+doc_quick_random_xspeed_div_table:  .byte   $27,$30,$37,$30         ; X speed divisor (4 random sets)
+doc_quick_bounce_count_table:  .byte   $03,$02,$02,$01         ; bounce count (4 random sets)
+doc_quick_boomerang_spawn_timing_table:  .byte   $01,$01,$00,$00         ; boomerang spawn timing (4 random sets)
+doc_quick_boomerang_y_offset_table:  .byte   $E8,$00,$18             ; Y offsets for 3 boomerangs (-24, 0, +24)
 ; =============================================================================
 ; DOC QUICK BOOMERANG ($B6)
 ; =============================================================================
@@ -814,18 +814,18 @@ code_A5AB:  lda     $E4                     ; PRNG: randomize tornado pattern
 code_A5D3:  jsr     find_enemy_freeslot_y                   ; find free enemy slot
         bcs     code_A62F               ; no slot — done
         ldx     $03                     ; tornado index (0..5)
-        lda     LA6FB,x                 ; spawn delay for this tornado
+        lda     doc_air_tornado_spawn_delay_table,x                 ; spawn delay for this tornado
         sta     ent_var1,y
         ldx     L0000                   ; data table index (pattern * 6 + tornado#)
-        lda     LA700,x                 ; Y velocity sub-pixel
+        lda     doc_air_tornado_yvel_sub_data,x                 ; Y velocity sub-pixel
         sta     ent_yvel_sub,y
-        lda     LA71E,x                 ; Y velocity whole
+        lda     doc_air_tornado_yvel_data,x                 ; Y velocity whole
         sta     ent_yvel,y
-        lda     LA73C,x                 ; X velocity sub-pixel
+        lda     doc_air_tornado_xvel_sub_data,x                 ; X velocity sub-pixel
         sta     ent_xvel_sub,y
-        lda     LA75A,x                 ; X velocity whole
+        lda     doc_air_tornado_xvel_data,x                 ; X velocity whole
         sta     ent_xvel,y
-        lda     LA778,x                 ; lifetime timer
+        lda     doc_air_tornado_lifetime_data,x                 ; lifetime timer
         sta     ent_timer,y
         ldx     $02                     ; restore parent index
         lda     ent_x_px,x             ; copy position from parent
@@ -858,13 +858,13 @@ code_A63C:  lda     ent_var1,x             ; jump step counter
         cmp     #$02
         beq     code_A660               ; step 2 → landing — reposition
         tay                             ; step 0 or 1 — set velocity from table
-        lda     LA6F3,y                 ; Y velocity sub-pixel
+        lda     doc_air_jump_yvel_sub_table,y                 ; Y velocity sub-pixel
         sta     ent_yvel_sub,x
-        lda     LA6F5,y                 ; Y velocity whole
+        lda     doc_air_jump_yvel_table,y                 ; Y velocity whole
         sta     ent_yvel,x
-        lda     LA6F7,y                 ; X velocity sub-pixel
+        lda     doc_air_jump_xvel_sub_table,y                 ; X velocity sub-pixel
         sta     ent_xvel_sub,x
-        lda     LA6F9,y                 ; X velocity whole
+        lda     doc_air_jump_xvel_table,y                 ; X velocity whole
         sta     ent_xvel,x
         inc     ent_var1,x              ; next step
         rts
@@ -946,31 +946,31 @@ code_A6E1:  lda     ent_facing,x           ; set wind push variables
         jmp     code_A554               ; move horizontally
 
 ; --- Air Man jump velocity tables (2 steps) ---
-LA6F3:  .byte   $A8,$A4                 ; Y velocity sub-pixel (step 0, 1)
-LA6F5:  .byte   $05,$08                 ; Y velocity whole (step 0, 1)
-LA6F7:  .byte   $6A,$DA                 ; X velocity sub-pixel (step 0, 1)
-LA6F9:  .byte   $01,$01                 ; X velocity whole (step 0, 1)
+doc_air_jump_yvel_sub_table:  .byte   $A8,$A4                 ; Y velocity sub-pixel (step 0, 1)
+doc_air_jump_yvel_table:  .byte   $05,$08                 ; Y velocity whole (step 0, 1)
+doc_air_jump_xvel_sub_table:  .byte   $6A,$DA                 ; X velocity sub-pixel (step 0, 1)
+doc_air_jump_xvel_table:  .byte   $01,$01                 ; X velocity whole (step 0, 1)
 ; --- tornado spawn data ---
-LA6FB:  .byte   $44,$4A,$42,$43,$43     ; spawn delay per tornado (6 entries, index 0..5)
+doc_air_tornado_spawn_delay_table:  .byte   $44,$4A,$42,$43,$43     ; spawn delay per tornado (6 entries, index 0..5)
 ; Tornado data tables: 30 entries (5 patterns x 6 tornadoes)
 ; Each pattern defines velocity and lifetime for 6 tornado projectiles.
-LA700:  .byte   $00,$F0,$50,$3C,$00,$00,$D3,$CD     ; Y velocity sub-pixel
+doc_air_tornado_yvel_sub_data:  .byte   $00,$F0,$50,$3C,$00,$00,$D3,$CD     ; Y velocity sub-pixel
         .byte   $68,$0F,$1A,$00,$A7,$68,$00,$7F
         .byte   $B1,$A7,$88,$50,$D4,$D0,$D0,$B9
         .byte   $98,$50,$3C,$1A,$7C,$35
-LA71E:  .byte   $04,$03,$03,$02,$02,$00,$03,$03     ; Y velocity whole
+doc_air_tornado_yvel_data:  .byte   $04,$03,$03,$02,$02,$00,$03,$03     ; Y velocity whole
         .byte   $02,$02,$01,$00,$03,$02,$02,$01
         .byte   $00,$FF,$03,$03,$02,$01,$01,$FF
         .byte   $03,$03,$02,$01,$00,$00
-LA73C:  .byte   $00,$B1,$3C,$50,$76,$00,$2B,$3C     ; X velocity sub-pixel
+doc_air_tornado_xvel_sub_data:  .byte   $00,$B1,$3C,$50,$76,$00,$2B,$3C     ; X velocity sub-pixel
         .byte   $31,$6B,$DB,$00,$A0,$31,$76,$B5
         .byte   $F0,$FC,$E0,$3C,$D4,$90,$90,$FD
         .byte   $C0,$3C,$50,$DB,$F8,$FE
-LA75A:  .byte   $00,$00,$02,$03,$03,$04,$01,$01     ; X velocity whole
+doc_air_tornado_xvel_data:  .byte   $00,$00,$02,$03,$03,$04,$01,$01     ; X velocity whole
         .byte   $03,$03,$03,$04,$01,$03,$03,$03
         .byte   $03,$03,$01,$02,$02,$03,$03,$03
         .byte   $01,$02,$03,$03,$03,$03
-LA778:  .byte   $0C,$16,$24,$0E,$24,$18,$1B,$0E     ; lifetime timer (frames)
+doc_air_tornado_lifetime_data:  .byte   $0C,$16,$24,$0E,$24,$18,$1B,$0E     ; lifetime timer (frames)
         .byte   $1E,$2A,$1D,$0C,$0D,$0A,$20,$15
         .byte   $22,$18,$21,$15,$05,$0D,$23,$1C
         .byte   $1A,$0E,$1C,$1D,$10,$24
@@ -1015,7 +1015,7 @@ code_A7BE:  lda     ent_timer,x            ; initial delay timer
         beq     code_A7CF
         dec     ent_timer,x
         lda     ent_timer,x
-        cmp     LA86A,x                 ; threshold check (data overlap)
+        cmp     doc_air_tornado_diagonal_anim_threshold,x                 ; threshold check (data overlap)
         bcc     code_A7CF
         rts                             ; still waiting
 
@@ -1089,7 +1089,7 @@ code_A858:  lda     ent_timer,x            ; --- move up ---
 
 code_A865:  ldy     #$13                    ; move up with collision
         jsr     move_up_collide
-LA86A:  lda     #$4C                    ; anim: upward tornado
+doc_air_tornado_diagonal_anim_threshold:  lda     #$4C                    ; anim: upward tornado
         sta     ent_anim_id,x
 code_A86F:  bcc     code_A879               ; no floor/ceiling collision
         lda     ent_facing,x           ; collision — flip vertical direction

@@ -34,8 +34,8 @@ L00C1           := $00C1
 
 .segment "BANK16"
 
-L8000:  .byte   $4C
-L8001:  jmp     ($4C80)
+driver_entry_jump:  .byte   $4C
+driver_entry_bank:  jmp     ($4C80)
 
         .byte   $FE
         .byte   $80
@@ -90,24 +90,24 @@ jump_local_ptr:  asl     a
 read_ptr:  sty     L00C1                ; store low byte -> $C1
         ldy     #$00                    ; 0 index for indirect read
         cmp     #$C0                    ; if high byte >= $C0
-        bcs     L8047                   ; this is a bank $18 read
+        bcs     read_ptr_bank18_check                   ; this is a bank $18 read
         sta     $C2
         lda     (L00C1),y               ; else return read of address
         rts                             ; at $C1~$C2, bank $16~$17
 
-L8047:  sec
+read_ptr_bank18_check:  sec
         sbc     #$20                    ; high byte -= $20
         sta     $C2                     ; (get into $A0~$BF range)
         lda     #$07
-        sta     L8000                   ; set $A000~$BFFF bank
+        sta     driver_entry_jump                   ; set $A000~$BFFF bank
         lda     #$18                    ; to $18
-        sta     L8001
+        sta     driver_entry_bank
         lda     (L00C1),y               ; push read $C1~$C2
         pha                             ; from bank $18
         lda     #$07
-        sta     L8000                   ; set $A000~$BFFF bank
+        sta     driver_entry_jump                   ; set $A000~$BFFF bank
         lda     #$17                    ; back to $17
-        sta     L8001
+        sta     driver_entry_bank
         lda     #$20
         clc                             ; and (falsely) go back into
         adc     $C2                     ; $C0~$DF range for high byte
@@ -211,21 +211,21 @@ code_80FE:  inc     $C0
 ; A: sound ID to play
 
 play_sound_ID:  cmp     #$F0            ; if sound ID < $F0
-        bcc     L810D
+        bcc     play_sound_id_bounds_check
         jmp     code_81AE
 
-L810D:  cmp     L8A40
-        bcc     L8118
+play_sound_id_bounds_check:  cmp     sound_id_max
+        bcc     play_sound_id_modulo_loop
         sec                             ; A = sound ID mod $39
-        sbc     L8A40
-        bcs     L810D
-L8118:  asl     a
+        sbc     sound_id_max
+        bcs     play_sound_id_bounds_check
+play_sound_id_modulo_loop:  asl     a
         tax                             ; X = A * 2
-        ldy     L8A44,x                 ; index into sound pointers
+        ldy     sound_pointer_table,x                 ; index into sound pointers
         tya                             ; grab pointer word in Y & A
-        ora     L8A43,x                 ; if it's $0000, return
-        beq     L816E                   ; otherwise, Y = read byte
-        lda     L8A43,x                 ; at pointer
+        ora     sound_data_low,x                 ; if it's $0000, return
+        beq     play_sound_id_return                   ; otherwise, Y = read byte
+        lda     sound_data_low,x                 ; at pointer
         jsr     read_ptr
         tay
         beq     code_816F               ; if value read was $00
@@ -234,25 +234,25 @@ L8118:  asl     a
         sta     $C4                     ; first byte of sound data -> $C4
         and     #$7F
         cmp     $CE
-        bcc     L816E
+        bcc     play_sound_id_return
         sta     $CE
-        bne     L8145
+        bne     play_sound_setup_priority_check
         lda     $D6
-        bpl     L8145
+        bpl     play_sound_setup_priority_check
         lda     $C4
-        bmi     L8145
+        bmi     play_sound_setup_priority_check
         sty     $D7
-L8145:  sty     $D6
+play_sound_setup_priority_check:  sty     $D6
         asl     $C4
         ror     $D6
-        bpl     L814F
+        bpl     play_sound_read_offset_increment
         stx     $D7
-L814F:  inc     L00C1
+play_sound_read_offset_increment:  inc     L00C1
         lda     L00C1
         sta     $D0
-        bne     L8159
+        bne     play_sound_read_address_low
         inc     $C2
-L8159:  lda     $C2
+play_sound_read_address_low:  lda     $C2
         sta     $D1
         tya
         sta     $D2
@@ -260,10 +260,10 @@ L8159:  lda     $C2
         sta     $D4
         sta     $D5
         ldy     #$27
-L8168:  sta     $0700,y
+play_sound_clear_loop:  sta     $0700,y
         dey                             ; clear $0700~$0727
-        bpl     L8168
-L816E:  rts
+        bpl     play_sound_clear_loop
+play_sound_id_return:  rts
 
 code_816F:  ldx     #$01
         stx     $C9
@@ -392,7 +392,7 @@ code_825B:  jsr     code_8386
         lda     $D7
         lsr     a
         bcc     code_8270
-        jsr     L8118
+        jsr     play_sound_id_modulo_loop
         jmp     code_825B
 
 code_8270:  jmp     code_81C8
@@ -588,11 +588,11 @@ code_83DA:  pha
         asl     a
         asl     a
         bpl     code_83EF
-        lda     L8915,y
+        lda     frequency_scale_factors_table,y
         bne     code_8406
 code_83EF:  asl     a
         asl     a
-        lda     L891C,y
+        lda     frequency_scale_alt_table,y
         bcc     code_8406
         sta     $C3
         lda     $0730,x
@@ -655,7 +655,7 @@ code_8466:  sty     $C3
         lda     $0730,x
         and     #$0F
         tay
-        lda     L8923,y
+        lda     pitch_offset_table,y
         clc
         adc     $C3
         clc
@@ -866,9 +866,9 @@ code_861D:  lda     $0704,x
 code_8627:  sta     $071C,x
 code_862A:  asl     $C3
         ldy     $C3
-        lda     L8959,y
+        lda     frequency_high_start,y
         sta     $C3
-        lda     L895A,y
+        lda     frequency_period_table,y
 code_8636:  sta     $0724,x
         lda     $C3
         sta     $0720,x
@@ -918,10 +918,10 @@ code_8684:  dey
         asl     a
         rol     $C3
         clc
-        adc     L8A42
+        adc     sound_data_base
         sta     $C5
         lda     $C3
-        adc     L8A41
+        adc     sound_data_high
         sta     $C6
 code_86A0:  rts
 
@@ -954,7 +954,7 @@ code_86BA:  lda     $0710,x
         tay
         lda     $C4
         clc
-        adc     L8933,y
+        adc     duty_cycle_table,y
         bcs     code_86E2
         cmp     #$F0
         bcc     code_871D
@@ -966,7 +966,7 @@ code_86E2:  lda     #$F0
         tay
         lda     $C4
         sec
-        sbc     L8933,y
+        sbc     duty_cycle_table,y
         bcc     code_86FB
         ldy     #$02
         cmp     ($C5),y
@@ -985,7 +985,7 @@ code_86FB:  ldy     #$02
         tay
         lda     $C4
         sec
-        sbc     L8933,y
+        sbc     duty_cycle_table,y
         bcs     code_871D
 code_8718:  lda     #$00
 code_871A:  inc     $0704,x
@@ -1146,7 +1146,7 @@ code_8835:  txa
 code_8849:  tya
         ldy     #$08
 code_884C:  dey
-        cmp     L8953,y
+        cmp     volume_thresholds_table,y
         bcc     code_884C
         sta     L00C1
         tya
@@ -1214,10 +1214,10 @@ code_88B8:  clc
         tay
         sec
         lda     $0720,x
-        sbc     L8959,y
+        sbc     frequency_high_start,y
         lda     $0724,x
         and     #$3F
-        sbc     L895A,y
+        sbc     frequency_period_table,y
         lda     #$FF
         adc     #$00
         plp
@@ -1225,9 +1225,9 @@ code_88B8:  clc
         bne     code_88FA
         txa
         beq     code_88FA
-        lda     L8959,y
+        lda     frequency_high_start,y
         sta     $0720,x
-        lda     L895A,y
+        lda     frequency_period_table,y
         sta     $0724,x
 code_88F2:  lda     $0704,x
         and     #$DF
@@ -1246,17 +1246,17 @@ code_88FA:  ldy     #$04
         sta     $0704,x
 code_8914:  rts
 
-L8915:  .byte   $02,$04,$08,$10,$20,$40,$80
-L891C:  .byte   $03,$06,$0C,$18,$30,$60,$C0
-L8923:  .byte   $00,$0C,$18,$24,$30,$3C,$48,$54
+frequency_scale_factors_table:  .byte   $02,$04,$08,$10,$20,$40,$80
+frequency_scale_alt_table:  .byte   $03,$06,$0C,$18,$30,$60,$C0
+pitch_offset_table:  .byte   $00,$0C,$18,$24,$30,$3C,$48,$54
         .byte   $18,$24,$30,$3C,$48,$54,$60,$6C
-L8933:  .byte   $00,$01,$02,$03,$04,$05,$06,$07
+duty_cycle_table:  .byte   $00,$01,$02,$03,$04,$05,$06,$07
         .byte   $08,$09,$0A,$0B,$0C,$0E,$0F,$10
         .byte   $12,$13,$14,$16,$18,$1B,$1E,$23
         .byte   $28,$30,$3C,$50,$7E,$7F,$FE,$FF
-L8953:  .byte   $00,$07,$0E,$15,$1C,$23
-L8959:  .byte   $2A
-L895A:  .byte   $31,$5C,$37,$9C,$36,$E7,$35,$3C
+volume_thresholds_table:  .byte   $00,$07,$0E,$15,$1C,$23
+frequency_high_start:  .byte   $2A
+frequency_period_table:  .byte   $31,$5C,$37,$9C,$36,$E7,$35,$3C
         .byte   $35,$9B,$34,$02,$34,$72,$33,$EA
         .byte   $32,$6A,$32,$F1,$31,$80,$31,$14
         .byte   $31,$5C,$30,$9C,$2F,$E7,$2E,$3C
@@ -1287,11 +1287,11 @@ L895A:  .byte   $31,$5C,$37,$9C,$36,$E7,$35,$3C
         .byte   $00,$00,$00,$00,$00,$00
 
 ; sound pointers
-L8A40:  .byte   $39
-L8A41:  .byte   $8A
-L8A42:  .byte   $B5
-L8A43:  .byte   $8C
-L8A44:  .byte   $9D,$90,$DF,$95,$9A,$9A,$06,$9C
+sound_id_max:  .byte   $39
+sound_data_high:  .byte   $8A
+sound_data_base:  .byte   $B5
+sound_data_low:  .byte   $8C
+sound_pointer_table:  .byte   $9D,$90,$DF,$95,$9A,$9A,$06,$9C
         .byte   $D7,$A0,$BE,$A4,$14,$A7,$C1,$AA
         .byte   $C2,$AD,$E5,$B1,$23,$B2,$CB,$B4
         .byte   $16,$B5,$F6,$B8,$2B,$B9,$1E,$BE

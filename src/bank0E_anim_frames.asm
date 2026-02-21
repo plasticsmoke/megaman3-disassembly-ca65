@@ -83,7 +83,7 @@ task_yield           := $FF21
 ; ===========================================================================
 ; nametable_stream_by_index — stream nametable data for string index X
 ; ===========================================================================
-; Input:  X = string index (0-13), selects pointer from LA0A5/LA0B3 table
+; Input:  X = string index (0-13), selects pointer from string_pointer_table_low/string_pointer_table_high table
 ; Output: one tile written to PPU buffer, or PPU address changed, or stream ended
 ;
 ; Uses $B6/$B7 as pointer to the string data, $B8 as stream byte offset.
@@ -96,9 +96,9 @@ task_yield           := $FF21
 ;   Other    = tile ID to write to nametable
 ; ===========================================================================
 
-        lda     LA0A5,x                 ; load string pointer low byte
+        lda     string_pointer_table_low,x                 ; load string pointer low byte
         sta     $B6
-        lda     LA0B3,x                 ; load string pointer high byte
+        lda     string_pointer_table_high,x                 ; load string pointer high byte
         sta     $B7
         lda     #$00
         sta     $B8                     ; reset stream offset to 0
@@ -154,17 +154,17 @@ code_A05E:  rts
 ; columns simultaneously. Calls task_yield ($FF21) between each pair so
 ; the NMI handler can drain the PPU buffer.
 ;
-; Uses LA09D/LA09E for PPU address low bytes (column offsets $20/$40/$60/$80)
-; and LA0A1/LA0A2 for PPU address high bytes ($23 for all = nametable $2300).
+; Uses ppu_nametable_addr_low_col0_buf1/ppu_nametable_addr_low_col0plus_buf2 for PPU address low bytes (column offsets $20/$40/$60/$80)
+; and ppu_nametable_addr_high_col0_buf1/ppu_nametable_addr_high_col0plus_buf2 for PPU address high bytes ($23 for all = nametable $2300).
 ; ===========================================================================
 code_A05F:  ldx     #$00                ; column pair index (0, 2)
-code_A061:  lda     LA0A1,x             ; PPU addr high for buffer 1
+code_A061:  lda     ppu_nametable_addr_high_col0_buf1,x             ; PPU addr high for buffer 1
         sta     $0780
-        lda     LA0A2,x                 ; PPU addr high for buffer 2
+        lda     ppu_nametable_addr_high_col0plus_buf2,x                 ; PPU addr high for buffer 2
         sta     $07A3
-        lda     LA09D,x                 ; PPU addr low for buffer 1
+        lda     ppu_nametable_addr_low_col0_buf1,x                 ; PPU addr low for buffer 1
         sta     $0781
-        lda     LA09E,x                 ; PPU addr low for buffer 2
+        lda     ppu_nametable_addr_low_col0plus_buf2,x                 ; PPU addr low for buffer 2
         sta     $07A4
         ldy     #$1F                    ; 32 bytes per column
         sty     $0782                   ; buffer 1 byte count
@@ -188,11 +188,11 @@ code_A083:  sta     $0783,y             ; clear buffer 1 tile data
 ; Nametable address tables for column initialization
 ; ===========================================================================
 ; PPU address low bytes for column pairs (nametable column offsets)
-LA09D:  .byte   $20                     ; col pair 0, buffer 1: $2320
-LA09E:  .byte   $40,$60,$80             ; col pair 0 buf2, pair 1 buf1/buf2
+ppu_nametable_addr_low_col0_buf1:  .byte   $20                     ; col pair 0, buffer 1: $2320
+ppu_nametable_addr_low_col0plus_buf2:  .byte   $40,$60,$80             ; col pair 0 buf2, pair 1 buf1/buf2
 ; PPU address high bytes for column pairs (all $23 = attribute area)
-LA0A1:  .byte   $23                     ; buffer 1 high byte
-LA0A2:  .byte   $23,$23,$23             ; buffer 2 / pairs 1-2
+ppu_nametable_addr_high_col0_buf1:  .byte   $23                     ; buffer 1 high byte
+ppu_nametable_addr_high_col0plus_buf2:  .byte   $23,$23,$23             ; buffer 2 / pairs 1-2
 
 ; ===========================================================================
 ; String pointer table — low bytes and high bytes for 14 text strings
@@ -202,10 +202,10 @@ LA0A2:  .byte   $23,$23,$23             ; buffer 2 / pairs 1-2
 ; Each string begins with a 2-byte PPU address, then tile IDs,
 ; with $FE for address changes and $FF for end-of-string.
 ; --- pointer low bytes (14 entries) ---
-LA0A5:  .byte   $C1,$EC,$11,$3C,$62,$88,$B1,$D9
+string_pointer_table_low:  .byte   $C1,$EC,$11,$3C,$62,$88,$B1,$D9
         .byte   $03,$3C,$5A,$85,$DC,$01
 ; --- pointer high bytes (14 entries) ---
-LA0B3:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
+string_pointer_table_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $A2,$A2,$A2,$A2,$A2,$A3
 
 ; =============================================================================

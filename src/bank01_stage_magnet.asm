@@ -56,9 +56,9 @@ set_room_chr_and_palette:
         asl     a                       ; param * 2 → index into $A200
         pha                             ; (save param*2 for palette calc)
         tax
-        lda     LA200,x                 ; $EC = sprite CHR bank for $1800-$1BFF
+        lda     chr_bank_sprite_lower,x                 ; $EC = sprite CHR bank for $1800-$1BFF
         sta     $EC                     ; (tiles $80-$BF)
-        lda     LA201,x                 ; $ED = sprite CHR bank for $1C00-$1FFF
+        lda     chr_bank_sprite_upper,x                 ; $ED = sprite CHR bank for $1C00-$1FFF
         sta     $ED                     ; (tiles $C0-$FF)
         pla                             ; param*2 → param*4 → param*8
         asl     a                       ; for palette table offset
@@ -70,13 +70,13 @@ set_room_chr_and_palette:
         lda     #$30                    ; low byte = $30
         sta     $00                     ; → pointer = $A030 + (param*8 overflow)
         ldx     #$00
-LA01D:  lda     ($00),y                 ; copy 8 palette bytes (SP2 + SP3):
+palette_copy_from_rom:  lda     ($00),y                 ; copy 8 palette bytes (SP2 + SP3):
         sta     $0618,x                 ; $0618-$061F = active SP2-SP3
         sta     $0638,x                 ; $0638-$063F = working copy
         iny
         inx
         cpx     #$08
-        bne     LA01D
+        bne     palette_copy_from_rom
         ldx     #$FF                    ; $18 = $FF → trigger palette DMA
         stx     palette_dirty                     ; (NMI will copy to PPU)
         rts
@@ -163,8 +163,8 @@ LA01D:  lda     ($00),y                 ; copy 8 palette bytes (SP2 + SP3):
 ;   Byte 1 → $ED: CHR bank for PPU $1C00-$1FFF (sprite tiles $C0-$FF)
 ; Entries $00-$11 are the stage defaults, $12+ per-room overrides.
 ; ---------------------------------------------------------------------------
-LA200:  .byte   $08                             ; $00 Needle: $EC=$08
-LA201:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needle $ED=$09, Magnet, Gemini...)
+chr_bank_sprite_lower:  .byte   $08                             ; $00 Needle: $EC=$08
+chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needle $ED=$09, Magnet, Gemini...)
         .byte   $16,$11,$12,$13,$14,$32,$3A,$15
         .byte   $17,$0A,$18,$08,$19,$15,$1A,$08
         .byte   $19,$1D,$1E,$1D,$1F,$20,$21,$20

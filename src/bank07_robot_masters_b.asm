@@ -83,15 +83,15 @@ main_gemini_man_j:
 code_A019:  lda     ent_status,x            ; --- state dispatch ---
         and     #$0F
         tay
-        lda     LA02C,y                 ; load state handler address low byte
+        lda     hard_man_state_ptrs_low_table,y                 ; load state handler address low byte
         sta     L0000
-        lda     LA031,y                 ; load state handler address high byte
+        lda     hard_man_state_ptrs_high_table,y                 ; load state handler address high byte
         sta     $01
         jmp     (L0000)                 ; indirect jump to current phase
 
 ; Hard Man state pointer table (low/high bytes)
-LA02C:  .byte   $36,$52,$B2,$66,$CF     ; low bytes for phases 0-4
-LA031:  .byte   $A0,$A0,$A0,$A1,$A1     ; high bytes for phases 0-4
+hard_man_state_ptrs_low_table:  .byte   $36,$52,$B2,$66,$CF     ; low bytes for phases 0-4
+hard_man_state_ptrs_high_table:  .byte   $A0,$A0,$A0,$A1,$A1     ; high bytes for phases 0-4
 ; --- phase 0: init ---
         lda     #$00
         sta     ent_timer,x             ; clear timer
@@ -315,20 +315,20 @@ code_A1EF:  lda     #$2F                  ; still cooling down — set jump pose
 ; --- set Hard Man X velocity based on distance to player ---
 code_A1FF:  jsr     entity_x_dist_to_player                   ; get X distance to player
         ldy     #$06
-code_A204:  cmp     LA219,y                 ; find matching distance bracket
+code_A204:  cmp     hard_man_jump_xvel_distance_thresholds_table,y                 ; find matching distance bracket
         bcc     code_A20C
         dey
         bne     code_A204
-code_A20C:  lda     LA220,y                 ; set X velocity sub-pixel
+code_A20C:  lda     hard_man_jump_xvel_sub_table,y                 ; set X velocity sub-pixel
         sta     ent_xvel_sub,x
-        lda     LA227,y                 ; set X velocity whole pixel
+        lda     hard_man_jump_xvel_whole_table,y                 ; set X velocity whole pixel
         sta     ent_xvel,x
         rts
 
 ; Hard Man jump X velocity lookup tables (7 distance brackets)
-LA219:  .byte   $79,$6A,$5B,$4C,$3D,$2E,$1F  ; distance thresholds
-LA220:  .byte   $80,$00,$80,$00,$80,$00,$80   ; X velocity sub-pixel
-LA227:  .byte   $03,$03,$02,$02,$01,$01,$00   ; X velocity whole pixel
+hard_man_jump_xvel_distance_thresholds_table:  .byte   $79,$6A,$5B,$4C,$3D,$2E,$1F  ; distance thresholds
+hard_man_jump_xvel_sub_table:  .byte   $80,$00,$80,$00,$80,$00,$80   ; X velocity sub-pixel
+hard_man_jump_xvel_whole_table:  .byte   $03,$03,$02,$02,$01,$01,$00   ; X velocity whole pixel
 ; --- spawn Hard Man fist projectile ---
 code_A22E:  jsr     find_enemy_freeslot_y                   ; find free enemy slot → Y
         bcs     code_A272               ; no slot → bail
@@ -339,10 +339,10 @@ code_A22E:  jsr     find_enemy_freeslot_y                   ; find free enemy sl
         tay
         lda     ent_x_px,x              ; position projectile relative to Hard Man
         clc
-        adc     LA273,y                 ; X offset based on facing
+        adc     hard_man_fist_xoffset_table,y                 ; X offset based on facing
         pha
         lda     ent_x_scr,x
-        adc     LA274,y
+        adc     hard_man_fist_screen_offset_table,y
         ldy     L0000
         sta     ent_x_scr,y
         pla
@@ -362,8 +362,8 @@ code_A22E:  jsr     find_enemy_freeslot_y                   ; find free enemy sl
 code_A272:  rts
 
 ; Hard Man fist spawn X offsets (facing right / facing left)
-LA273:  .byte   $04
-LA274:  .byte   $00,$FC,$FF
+hard_man_fist_xoffset_table:  .byte   $04
+hard_man_fist_screen_offset_table:  .byte   $00,$FC,$FF
 ; =============================================================================
 ; HARD MAN FIST PROJECTILE ($D1)
 ; =============================================================================
@@ -456,7 +456,7 @@ code_A308:  lda     #$4C                  ; speed parameter low
 ;     phase 1 for the attack anim.
 ;   Phase 1: attack — plays Spark Shock anim, spawns projectiles, then
 ;     returns to phase 0 with a cooldown timer.
-; Uses 8 fixed X-position waypoints (LA4DF) for landing spots.
+; Uses 8 fixed X-position waypoints (spark_man_waypoint_xpos_table) for landing spots.
 ; =============================================================================
 
 code_A319:  lda     ent_status,x            ; --- main dispatch ---
@@ -522,9 +522,9 @@ code_A38A:  ldy     #$1E
         lda     ent_var1,x              ; get current waypoint index
         and     #$03
         tay
-        lda     LA4E7,y                 ; look up X velocity sub-pixel
+        lda     spark_man_waypoint_xvel_sub_table,y                 ; look up X velocity sub-pixel
         sta     ent_xvel_sub,x
-        lda     LA4EB,y                 ; look up X velocity whole pixel
+        lda     spark_man_waypoint_xvel_whole_table,y                 ; look up X velocity whole pixel
         sta     ent_xvel,x
         lda     ent_facing,x
         and     #$02                    ; check horizontal direction
@@ -538,7 +538,7 @@ code_A3B2:  ldy     #$20
 ; --- landed on ground: snap to waypoint X position ---
 code_A3B7:  lda     ent_var1,x
         tay
-        lda     LA4DF,y                 ; get fixed X position for this waypoint
+        lda     spark_man_waypoint_xpos_table,y                 ; get fixed X position for this waypoint
         sta     ent_x_px,x             ; snap X to waypoint
         inc     ent_anim_state,x        ; signal: on ground
         jsr     code_A333
@@ -596,15 +596,15 @@ code_A42D:  stx     L0000                   ; save Spark Man slot
 code_A433:  jsr     find_enemy_freeslot_y                   ; find free enemy slot → Y
         bcs     code_A482               ; no slot → done
         ldx     $01
-        lda     LA4F3,x                 ; set X velocity sub from table
+        lda     spark_man_8way_xvel_sub_table,x                 ; set X velocity sub from table
         sta     ent_xvel_sub,y
-        lda     LA4FB,x                 ; set X velocity whole from table
+        lda     spark_man_8way_xvel_whole_table,x                 ; set X velocity whole from table
         sta     ent_xvel,y
-        lda     LA503,x                 ; set Y velocity sub from table
+        lda     spark_man_8way_yvel_sub_table,x                 ; set Y velocity sub from table
         sta     ent_yvel_sub,y
-        lda     LA50B,x                 ; set Y velocity whole from table
+        lda     spark_man_8way_yvel_whole_table,x                 ; set Y velocity whole from table
         sta     ent_yvel,y
-        lda     LA513,x                 ; set facing direction from table
+        lda     spark_man_8way_facing_table,x                 ; set facing direction from table
         sta     ent_facing,y
         ldx     L0000
         lda     #$3A
@@ -659,34 +659,34 @@ code_A485:  stx     $0E                     ; save Spark Man slot
         tax
         lda     ent_x_px,y              ; offset X position based on facing
         clc
-        adc     LA4EF,x
+        adc     spark_man_homing_ball_xoffset_right,x
         sta     ent_x_px,y
         lda     ent_x_scr,y
-        adc     LA4F0,x
+        adc     spark_man_homing_ball_xoffset_table,x
         sta     ent_x_scr,y
 code_A4DC:  ldx     $0E
         rts
 
 ; --- Spark Man data tables ---
 ; Waypoint X positions for Spark Man's 8 fixed landing spots
-LA4DF:  .byte   $A8,$80,$58,$20,$58,$80,$A8,$E0
+spark_man_waypoint_xpos_table:  .byte   $A8,$80,$58,$20,$58,$80,$A8,$E0
 ; X velocity for each waypoint (sub-pixel / whole pixel)
-LA4E7:  .byte   $6D,$05,$05,$6D             ; X velocity sub-pixel per waypoint
-LA4EB:  .byte   $01,$01,$01,$01             ; X velocity whole pixel per waypoint
+spark_man_waypoint_xvel_sub_table:  .byte   $6D,$05,$05,$6D             ; X velocity sub-pixel per waypoint
+spark_man_waypoint_xvel_whole_table:  .byte   $01,$01,$01,$01             ; X velocity whole pixel per waypoint
 ; Homing spark ball spawn X offsets (facing right / facing left)
-LA4EF:  .byte   $20
-LA4F0:  .byte   $00,$E0,$FF
+spark_man_homing_ball_xoffset_right:  .byte   $20
+spark_man_homing_ball_xoffset_table:  .byte   $00,$E0,$FF
 ; 8-directional spark projectile velocity tables (8 directions)
-LA4F3:  .byte   $00,$6A,$00,$6A,$00,$6A,$00,$6A  ; X velocity sub
-LA4FB:  .byte   $00,$01,$02,$01,$00,$01,$02,$01  ; X velocity whole
-LA503:  .byte   $00,$96,$00,$6A,$00,$6A,$00,$96  ; Y velocity sub
-LA50B:  .byte   $FE,$FE,$00,$01,$02,$01,$00,$FE  ; Y velocity whole
-LA513:  .byte   $02,$02,$02,$02,$01,$01,$01,$01  ; facing direction per spark
+spark_man_8way_xvel_sub_table:  .byte   $00,$6A,$00,$6A,$00,$6A,$00,$6A  ; X velocity sub
+spark_man_8way_xvel_whole_table:  .byte   $00,$01,$02,$01,$00,$01,$02,$01  ; X velocity whole
+spark_man_8way_yvel_sub_table:  .byte   $00,$96,$00,$6A,$00,$6A,$00,$96  ; Y velocity sub
+spark_man_8way_yvel_whole_table:  .byte   $FE,$FE,$00,$01,$02,$01,$00,$FE  ; Y velocity whole
+spark_man_8way_facing_table:  .byte   $02,$02,$02,$02,$01,$01,$01,$01  ; facing direction per spark
 ; =============================================================================
 ; SNAKE MAN AI ($D4)
 ; =============================================================================
 ; Two phases:
-;   Phase 0: walk on the ground, move between 4 waypoints (LA6A4).
+;   Phase 0: walk on the ground, move between 4 waypoints (snake_man_waypoint_xpos_table).
 ;     At each waypoint, decide to jump or fire Search Snake.
 ;   Phase 1: in the air — apply gravity, move horizontally. On landing,
 ;     return to phase 0.
@@ -744,12 +744,12 @@ code_A577:  lda     ent_timer,x           ; current waypoint index
         lda     ent_facing,x
         and     #$02                    ; check facing direction
         beq     code_A58B
-        lda     LA6A4,y                 ; facing left: check if passed waypoint
+        lda     snake_man_waypoint_xpos_table,y                 ; facing left: check if passed waypoint
         cmp     ent_x_px,x
         bcs     code_A594               ; reached waypoint → jump/fire
         rts
 
-code_A58B:  lda     LA6A4,y               ; facing right: check if passed waypoint
+code_A58B:  lda     snake_man_waypoint_xpos_table,y               ; facing right: check if passed waypoint
         cmp     ent_x_px,x
         bcc     code_A594               ; reached waypoint → jump/fire
         rts
@@ -776,11 +776,11 @@ code_A5B8:  dey
         adc     $E6
         and     #$01                    ; 0 = small jump, 1 = high jump + fire
         tay
-code_A5C2:  lda     LA6A8,y               ; set jump anim based on type
+code_A5C2:  lda     snake_man_jump_anim_table,y               ; set jump anim based on type
         jsr     reset_sprite_anim
-        lda     LA6AA,y                 ; set Y velocity sub based on type
+        lda     snake_man_jump_yvel_sub_table,y                 ; set Y velocity sub based on type
         sta     ent_yvel_sub,x
-        lda     LA6AC,y                 ; set Y velocity whole based on type
+        lda     snake_man_jump_yvel_whole_table,y                 ; set Y velocity whole based on type
         sta     ent_yvel,x
         inc     ent_status,x            ; advance to phase 1 (airborne)
         rts
@@ -865,10 +865,10 @@ code_A633:  lda     #$02
         tax
         lda     ent_x_px,y
         clc
-        adc     LA6AE,x
+        adc     snake_man_search_snake_xoffset_right,x
         sta     ent_x_px,y
         lda     ent_x_scr,y
-        adc     LA6AF,x
+        adc     snake_man_search_snake_xoffset_table,x
         sta     ent_x_scr,y
         ldx     L0000
         pla
@@ -878,14 +878,14 @@ code_A6A1:  ldx     L0000
 
 ; --- Snake Man data tables ---
 ; Waypoint X positions (4 waypoints, cycled with wrap)
-LA6A4:  .byte   $80,$28,$80,$D8
+snake_man_waypoint_xpos_table:  .byte   $80,$28,$80,$D8
 ; Jump type tables: [0]=small jump, [1]=high jump+fire
-LA6A8:  .byte   $23,$24                     ; anim ID per jump type
-LA6AA:  .byte   $A8,$00                     ; Y velocity sub per jump type
-LA6AC:  .byte   $05,$08                     ; Y velocity whole per jump type
+snake_man_jump_anim_table:  .byte   $23,$24                     ; anim ID per jump type
+snake_man_jump_yvel_sub_table:  .byte   $A8,$00                     ; Y velocity sub per jump type
+snake_man_jump_yvel_whole_table:  .byte   $05,$08                     ; Y velocity whole per jump type
 ; Search Snake spawn X offsets (facing right / facing left)
-LA6AE:  .byte   $1E
-LA6AF:  .byte   $00,$E2,$FF
+snake_man_search_snake_xoffset_right:  .byte   $1E
+snake_man_search_snake_xoffset_table:  .byte   $00,$E2,$FF
 ; =============================================================================
 ; GEMINI MAN AI ($D6)
 ; =============================================================================
@@ -1010,7 +1010,7 @@ code_A787:  lda     $E6                   ; RNG
         adc     $E7
         and     #$01
         tay
-        lda     LA96C,y                 ; pick timer value ($B4 or $FF)
+        lda     gemini_man_random_timer_table,y                 ; pick timer value ($B4 or $FF)
         sta     ent_timer,x
         rts
 
@@ -1193,10 +1193,10 @@ code_A8EE:  lda     #$8B
         tax
         lda     ent_x_px,y
         clc
-        adc     LA96E,x                 ; X offset (facing right/left)
+        adc     gemini_man_laser_xoffset_right,x                 ; X offset (facing right/left)
         sta     ent_x_px,y
         lda     ent_x_scr,y
-        adc     LA96F,x
+        adc     gemini_man_laser_xoffset_table,x
         sta     ent_x_scr,y
 code_A927:  ldx     L0000
         rts
@@ -1233,10 +1233,10 @@ code_A969:  ldx     L0000
 
 ; --- Gemini Man data tables ---
 ; Random timer values for next action (phase 1 dual mode)
-LA96C:  .byte   $B4,$FF
+gemini_man_random_timer_table:  .byte   $B4,$FF
 ; Gemini Laser spawn X offsets (facing right / facing left)
-LA96E:  .byte   $0D
-LA96F:  .byte   $00,$F3,$FF
+gemini_man_laser_xoffset_right:  .byte   $0D
+gemini_man_laser_xoffset_table:  .byte   $00,$F3,$FF
 ; =============================================================================
 ; GEMINI MAN CLONE AI ($D7)
 ; =============================================================================
