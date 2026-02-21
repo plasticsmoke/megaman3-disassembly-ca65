@@ -1,3 +1,15 @@
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $03 — STAGE TRANSITION + HARD MAN STAGE DATA
+; =============================================================================
+; Mapped to $A000-$BFFF. Contains:
+;   1. Stage transition animation (boss intro scroll, name reveal)
+;   2. Password entry/display UI
+;   3. Stage select progression logic (tier/bitmask computation)
+;   4. Hard Man stage layout data ($22=$03)
+;
+; Called from bank18 after stage select confirmation.
+; =============================================================================
+
 ; ===========================================================================
 ; stage_transition_entry — horizontal scroll + boss name reveal
 ; ===========================================================================
@@ -18,23 +30,6 @@
 ;   7. Returns to caller (bank18 robot_master_intro)
 ; ---------------------------------------------------------------------------
 stage_transition_entry:
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $03 — STAGE TRANSITION + HARD MAN STAGE DATA
-; =============================================================================
-; Stage transition effects and Hard Man stage layout data.
-;
-; Annotation: 0% — unannotated da65 output
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $03 — STAGE TRANSITION + HARD MAN STAGE DATA
-; =============================================================================
-; Mapped to $A000-$BFFF. Contains stage transition animation (boss name
-; reveal, horizontal scroll entry). Also doubles as Hard Man stage data ($22=$03).
-;
-; Annotation: partial — main flow well documented, 66 auto labels in branches
-; =============================================================================
 
         .setcpu "6502"                  ; play stage intro music
 
@@ -242,35 +237,60 @@ LA124:  pha
         sta     nmi_skip
         rts                             ; → returns to bank18 robot_master_intro
 
-LA139:  .byte   $36,$22,$26,$2B,$00,$45,$32,$1F
-        .byte   $3F,$65,$00,$65,$00,$00,$00,$65
+; ===========================================================================
+; Stage transition parameter tables (7 tables × 18 entries each)
+; ===========================================================================
+; Indexed by grid position Y (from bank18 stage select):
+;   0=Spark  1=Snake  2=Needle  3=Hard   4=Center
+;   5=Top    6=Gemini 7=Magnet  8=Shadow
+;   9-17 = Doc Robot stages (same grid, +9 offset)
+; ---------------------------------------------------------------------------
+
+; Table 1: stage config byte → $05D0
+LA139:  .byte   $36,$22,$26,$2B,$00,$45,$32,$1F     ; Robot Master
+        .byte   $3F,$65,$00,$65,$00,$00,$00,$65     ; Doc Robot
         .byte   $00,$65
-LA14B:  .byte   $89,$00,$77,$3C,$00,$C4,$00,$00
-        .byte   $00,$89,$00,$77,$3C,$00,$C4,$00
+; Table 2: scroll sub-pixel speed → $0410
+LA14B:  .byte   $89,$00,$77,$3C,$00,$C4,$00,$00     ; Robot Master
+        .byte   $00,$89,$00,$77,$3C,$00,$C4,$00     ; Doc Robot
         .byte   $00,$00
-LA15D:  .byte   $03,$00,$FC,$02,$00,$FD,$03,$00
-        .byte   $FD,$03,$00,$FC,$02,$00,$FD,$03
+; Table 3: scroll whole-pixel speed (signed) → $0430
+LA15D:  .byte   $03,$00,$FC,$02,$00,$FD,$03,$00     ; Robot Master
+        .byte   $FD,$03,$00,$FC,$02,$00,$FD,$03     ; Doc Robot
         .byte   $00,$FD
-LA16F:  .byte   $C0,$D4,$C0,$79,$00,$79,$A8,$54
-        .byte   $A8,$C0,$D4,$C0,$79,$00,$79,$A8
+; Table 4: boss sprite Y position → $0450
+LA16F:  .byte   $C0,$D4,$C0,$79,$00,$79,$A8,$54     ; Robot Master
+        .byte   $A8,$C0,$D4,$C0,$79,$00,$79,$A8     ; Doc Robot
         .byte   $54,$A8
-LA181:  .byte   $FF,$02,$FF,$04,$00,$04,$05,$06
-        .byte   $05,$FF,$02,$FF,$04,$00,$04,$05
+; Table 5: scroll direction flag (bit 7 = special) → $0470
+LA181:  .byte   $FF,$02,$FF,$04,$00,$04,$05,$06     ; Robot Master
+        .byte   $05,$FF,$02,$FF,$04,$00,$04,$05     ; Doc Robot
         .byte   $06,$05
-LA193:  .byte   $30,$30,$30,$70,$70,$70,$B0,$B0
-        .byte   $B0,$30,$30,$30,$70,$70,$70,$B0
+; Table 6: scroll limit / Y position → $03D0
+LA193:  .byte   $30,$30,$30,$70,$70,$70,$B0,$B0     ; Robot Master
+        .byte   $B0,$30,$30,$30,$70,$70,$70,$B0     ; Doc Robot
         .byte   $B0,$B0
-LA1A5:  .byte   $30,$80,$D0,$30,$80,$D0,$30,$80
-        .byte   $D0,$30,$80,$D0,$30,$80,$D0,$30
+; Table 7: BG scroll initial Y (3-phase: $30/$80/$D0) → $0370
+LA1A5:  .byte   $30,$80,$D0,$30,$80,$D0,$30,$80     ; Robot Master
+        .byte   $D0,$30,$80,$D0,$30,$80,$D0,$30     ; Doc Robot
         .byte   $80,$D0
-LA1B7:  .byte   $28,$26,$25,$24,$00,$2A,$27,$23
-        .byte   $29,$1E,$00,$1E,$00,$00,$00,$1E
+; CHR bank number per stage (via $938B)
+LA1B7:  .byte   $28,$26,$25,$24,$00,$2A,$27,$23     ; RM: Spark,Snake,Needle,Hard,-,Top,Gemini,Magnet,Shadow
+        .byte   $29,$1E,$00,$1E,$00,$00,$00,$1E     ; Doc Robot
         .byte   $00,$1E
-LA1C9:  .byte   $04,$03,$05,$06,$02,$02,$08,$03
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
+; Anim sync phase per stage# (wait for entity $10 anim phase to match)
+LA1C9:  .byte   $04,$03,$05,$06,$02,$02,$08,$03     ; Needle,Magnet,Gemini,Hard,Top,Snake,Spark,Shadow
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00     ; (unused padding)
+; Intro sprite palette (8 bytes: SP 0 + SP 1)
 LA1D9:  .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
 
-; Intro sprite palette data (8 bytes → SP 0 + SP 1)
+; ===========================================================================
+; Boss name text + intro OAM sprite data + nametable write commands
+; ===========================================================================
+; Boss names at $A1E1 (10 tiles each, tile encoding: $0A=A...$23=Z, $25=space)
+; OAM data for boss intro sprites follows (Y, tile, attr, X format)
+; Then nametable write command sequences for stage select/password screens
+; ---------------------------------------------------------------------------
 transition_sprite_palette:  .byte   $17,$0E,$0E,$0D,$15,$0E,$25,$16
         .byte   $0A,$17,$16,$0A,$10,$17,$0E,$1D
         .byte   $25,$16,$0A,$17,$10,$0E,$16,$12
@@ -390,15 +410,30 @@ transition_sprite_palette:  .byte   $17,$0E,$0E,$0D,$15,$0E,$25,$16
         .byte   $A3,$A3,$A3,$A3,$A4,$A4,$A4,$A4
         .byte   $A4,$A4,$A4,$A4,$A4,$A4,$A4,$A4
         .byte   $A5,$A5
-code_A593:  lda     #$00
+; =============================================================================
+; PASSWORD ENTRY UI
+; =============================================================================
+; Displays the password grid and handles d-pad navigation + A/B input.
+; Grid: 6 columns × 6 rows = 36 cells ($0150-$017F), indexed by $10+$11.
+;   $10 = column cursor (0-5), wraps with left/right
+;   $11 = row offset (0, 6, 12, 18, 24, 30), wraps with up/down
+;   $13 = dot color (0=red, 1=blue)
+; A button toggles dot on/off at cursor position.
+; Pressing A on "END" ($10=$24) → calls stage_select_progression to decode.
+; Pressing A on special row ($10=$26) → not used (exit path).
+; B button returns to grid from "END" highlight.
+; OAM sprites at $0204+ draw the cursor box (4 tiles from LA6FF).
+; =============================================================================
+
+code_A593:  lda     #$00                    ; clear all 48 password cells
         sta     $11
         ldy     #$2F
 code_A599:  sta     $0150,y
         dey
         bpl     code_A599
-        lda     #$24
+        lda     #$24                    ; start cursor at "END" option
         sta     $10
-        ldy     #$14
+        ldy     #$14                    ; load cursor OAM sprites (6 tiles)
 code_A5A5:  lda     LA6FF,y
         sta     $0204,y
         lda     LA700,y
@@ -412,31 +447,32 @@ code_A5A5:  lda     LA6FF,y
         dey
         dey
         bpl     code_A5A5
-code_A5C3:  lda     joy1_press
+; --- main input loop ---
+code_A5C3:  lda     joy1_press              ; A pressed? → confirm
         and     #BTN_A
         bne     code_A603
-        lda     joy1_press
+        lda     joy1_press              ; left/right pressed?
         and     #$03
         beq     code_A5E2
-        lda     $10
-        cmp     #$26
+        lda     $10                     ; handle left/right on bottom row
+        cmp     #$26                    ; if on special option, stay
         beq     code_A5F2
         lda     #$24
         cmp     $10
         bne     code_A5DD
-        lda     #$25
+        lda     #$25                    ; toggle END↔NEXT
 code_A5DD:  sta     $10
         jmp     code_A5F2
 
-code_A5E2:  lda     joy1_press
+code_A5E2:  lda     joy1_press              ; up/down pressed?
         and     #$0C
         beq     code_A5F2
-        lda     #$26
+        lda     #$26                    ; toggle between grid and bottom row
         cmp     $10
         bne     code_A5F0
         lda     #$24
 code_A5F0:  sta     $10
-code_A5F2:  jsr     code_A681
+code_A5F2:  jsr     code_A681               ; update cursor sprite positions
         lda     #$00
         sta     nmi_skip
         jsr     LFF21
@@ -444,29 +480,32 @@ code_A5F2:  jsr     code_A681
         inc     $95
         jmp     code_A5C3
 
+; --- A pressed: confirm selection ---
 code_A603:  lda     $10
-        cmp     #$26
+        cmp     #$26                    ; on special option?
         bne     code_A60C
-        jmp     stage_select_progression
+        jmp     stage_select_progression ; decode password and start game
 
-code_A60C:  lda     $10
+code_A60C:  lda     $10                     ; $13 = color (0=red, 1=blue)
         and     #$01
         sta     $13
-        lda     #$00
+        lda     #$00                    ; reset cursor to cell (0,0)
         sta     $10
         lda     #$00
         sta     $11
-        beq     code_A66D
+        beq     code_A66D               ; enter grid editing mode
+
+; --- grid editing mode: navigate cells and toggle dots ---
 code_A61C:  lda     joy1_press
-        and     #BTN_B
+        and     #BTN_B                  ; B → back to bottom row
         beq     code_A62D
         lda     #$24
         sta     $10
         lda     #$00
         sta     $11
-        jmp     code_A5C3
+        jmp     code_A5C3               ; return to main input loop
 
-code_A62D:  lda     joy1_press
+code_A62D:  lda     joy1_press              ; A → toggle dot at cursor
         and     #BTN_A
         beq     code_A66D
         lda     $10
@@ -505,15 +544,16 @@ code_A66D:  jsr     code_A6AF
         inc     $95
         jmp     code_A61C
 
-code_A681:  lda     $10
+; --- update cursor sprite positions from grid position ---
+code_A681:  lda     $10                     ; compute cell index = col + row_offset
         clc
         adc     $11
         tay
-        lda     LA717,y
+        lda     LA717,y                 ; look up X position
         sta     $00
-        lda     LA73E,y
+        lda     LA73E,y                 ; look up Y position
         sta     $01
-        ldx     #$0C
+        ldx     #$0C                    ; 4 cursor corner sprites
         ldy     #$03
 code_A695:  lda     $00
         clc
@@ -531,59 +571,63 @@ code_A695:  lda     $00
         bpl     code_A695
         rts
 
-code_A6AF:  lda     joy1_press
+; --- handle d-pad navigation in grid ---
+code_A6AF:  lda     joy1_press              ; left/right?
         and     #$03
         beq     code_A6CF
-        and     #$01
+        and     #$01                    ; right pressed
         beq     code_A6C7
-        inc     $10
+        inc     $10                     ; column++
         lda     $10
-        cmp     #$06
+        cmp     #$06                    ; wrap at 6
         bne     code_A6CF
         lda     #$00
         sta     $10
         beq     code_A6CF
-code_A6C7:  dec     $10
+code_A6C7:  dec     $10                     ; column-- (left)
         bpl     code_A6CF
-        lda     #$05
+        lda     #$05                    ; wrap to rightmost
         sta     $10
-code_A6CF:  lda     joy1_press
+code_A6CF:  lda     joy1_press              ; up/down?
         and     #$0C
         beq     code_A6F6
-        and     #$04
+        and     #$04                    ; down pressed
         bne     code_A6E7
-        lda     $11
+        lda     $11                     ; up: row_offset -= 6
         sec
         sbc     #$06
         sta     $11
         bcs     code_A6E6
-        lda     #$1E
+        lda     #$1E                    ; wrap to bottom row
         sta     $11
 code_A6E6:  rts
 
-code_A6E7:  lda     $11
+code_A6E7:  lda     $11                     ; down: row_offset += 6
         clc
         adc     #$06
         sta     $11
-        cmp     #$1F
+        cmp     #$1F                    ; wrap to top row
         bcc     code_A6F6
         lda     #$00
         sta     $11
 code_A6F6:  rts
 
-LA6F7:  .byte   $FC,$FC,$04,$04
-LA6FB:  .byte   $FC,$04,$FC,$04
+LA6F7:  .byte   $FC,$FC,$04,$04         ; cursor corner Y offsets (-4,-4,+4,+4)
+LA6FB:  .byte   $FC,$04,$FC,$04         ; cursor corner X offsets (-4,+4,-4,+4)
+; Cursor OAM sprite template (6 entries × 4 bytes: Y, tile, attr, X)
 LA6FF:  .byte   $3B
 LA700:  .byte   $EE
 LA701:  .byte   $00
 LA702:  .byte   $B4,$3B,$EE,$40,$BC,$43,$EE,$80
         .byte   $B4,$43,$EE,$C0,$BC,$3F,$E4,$00
         .byte   $B8,$3F,$E5,$00,$C8
+; Password grid X positions (6 cols × 6 rows = 36 cells + 3 bottom options)
 LA717:  .byte   $38,$48,$58,$68,$78,$88,$38,$48
         .byte   $58,$68,$78,$88,$38,$48,$58,$68
         .byte   $78,$88,$38,$48,$58,$68,$78,$88
         .byte   $38,$48,$58,$68,$78,$88,$38,$48
         .byte   $58,$68,$78,$88,$B8,$C8,$C0
+; Password grid Y positions (same layout as X table)
 LA73E:  .byte   $27,$27,$27,$27,$27,$27,$37,$37
         .byte   $37,$37,$37,$37,$47,$47,$47,$47
         .byte   $47,$47,$5F,$5F,$5F,$5F,$5F,$5F
@@ -741,11 +785,14 @@ code_A885:  sta     $0150,y
         bpl     code_A885
         jmp     LCBCE
 
+; --- restore weapon energy from password data ---
+; Reads completion flags from $0150 and restores weapon HP ($A2-$AD)
+; for all weapons the player has obtained.
 code_A88E:  sty     $00
         ldy     #$00
-code_A892:  ldx     LA9B1,y
+code_A892:  ldx     LA9B1,y                 ; Robot Master slot
         lda     $0150,x
-        beq     code_A8A9
+        beq     code_A8A9               ; not beaten → check Doc Robot
         pha
         ldx     LA9EC,y
         lda     #$9C
@@ -779,11 +826,19 @@ code_A8D6:  lda     #$02
         ldy     $00
         rts
 
+; =============================================================================
+; PASSWORD ENCODING → OAM DOT DISPLAY
+; =============================================================================
+; Converts the current game state ($61=bosses_beaten, $60=stage_select_page)
+; into visible dots on the password grid. Reads the lookup tables to
+; determine which cells get red/blue dots for each boss pair.
+; =============================================================================
+
         lda     bosses_beaten
         sta     $10
         lda     stage_select_page
         beq     code_A8E9
-        lda     #$FF
+        lda     #$FF                    ; if in Doc Robot or Wily tier, show all
         sta     $10
 code_A8E9:  ldy     #$00
 code_A8EB:  lda     #$00
@@ -883,27 +938,45 @@ code_A988:  sty     $00
         ldy     $00
         rts
 
-; stage_select_progression lookup tables:
-; $A9B1: Robot Master completion slot indices (y=0..5)
-; $A9B7: Doc Robot completion slot indices (y=0..5)
-; $A9BE: E-tank/item slot indices (y=0..9)
-; $A9C8: Robot Master defeat bitmask per pair (y=0..5)
-; $A9CE: Doc Robot defeat bitmask per pair (y=0..5)
-; $A9D4: combined bitmask (both tiers)
-; $A9DF: initial scan slot indices (y=0..12)
+; ===========================================================================
+; Stage select progression lookup tables
+; ===========================================================================
+; Used by stage_select_progression and password encoding to map between
+; password cell indices ($0150+), boss-defeated bitmasks ($61), and
+; weapon energy slots ($A2+).
+; ---------------------------------------------------------------------------
 
+; Robot Master completion cells in $0150 (y=0..5, paired with Doc Robot)
 LA9B1:  .byte   $14,$0A,$02,$21,$07,$00
+; Doc Robot completion cells in $0150 (y=0..5, +1 for Break Man at y=6)
 LA9B7:  .byte   $22,$0F,$23,$17,$0B,$03,$18
+; E-tank and item completion cells (y=0..9)
 LA9BE:  .byte   $10,$1D,$1B,$09,$04,$0C,$13,$0E
         .byte   $1F,$05
+; Robot Master defeat bitmask per pair (ORed into $61)
 LA9C8:  .byte   $01,$04,$10,$40,$3B,$7A
+; Doc Robot defeat bitmask per pair (ORed into $61)
 LA9CE:  .byte   $02,$08,$20,$80,$3E,$BA,$FF
+; E-tank count table (indexed by completion scan)
 LA9D5:  .byte   $00,$01,$02,$03,$04,$05,$06,$07
         .byte   $08,$09
+; Initial scan slot indices for password validation (y=0..12)
 LA9DF:  .byte   $01,$06,$08,$0D,$11,$12,$15,$16
         .byte   $19,$1A,$1C,$1E,$20
+; Weapon energy restore: Robot Master weapon index → $A2 offset
 LA9EC:  .byte   $02,$01,$05,$08,$00,$00
-LA9F2:  .byte   $04,$03,$06,$0A,$00,$24,$80,$58
+; Weapon energy restore: Doc Robot weapon index → $A2 offset
+LA9F2:  .byte   $04,$03,$06,$0A
+
+; =============================================================================
+; HARD MAN STAGE DATA
+; =============================================================================
+; Bank $03 doubles as Hard Man stage data ($22=$03).
+; Contains compressed stage layout (metatile columns, enemy spawn tables,
+; collision data, palette assignments). Runs from ~$A9F8 to $BFFF.
+; =============================================================================
+
+        .byte   $00,$24,$80,$58
         .byte   $80,$D0,$82,$91,$80,$00,$00,$01
         .byte   $02,$03,$04,$05,$06,$07,$08,$09
         .byte   $0A,$0B,$0C,$0D,$0E,$0F,$10,$11
