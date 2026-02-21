@@ -1,88 +1,114 @@
 ; =============================================================================
-; MEGA MAN 3 (U) — BANK $09 — PER-FRAME ENTITY SUBSYSTEMS
+; MEGA MAN 3 (U) — BANK $09 — PER-FRAME SUBSYSTEMS
 ; =============================================================================
-; Per-frame entity processing subsystems called from the main game loop.
+; Mapped to $8000-$9FFF. Called 7 times every gameplay frame from the fixed
+; bank's gameplay_frame_loop. Contains per-frame subsystems for:
+;   1. Stage clear entity spawning (falling debris / transition effects)
+;   2. Wily 3 entity spawning (scripted enemy placement)
+;   3. Palette animation cycling (water, lava, conveyor colors)
+;   4. Gemini Man platform animation (stage $05 only)
+;   5. Item pickup/drop entity spawning
+;   6. Wily 2 camera Y-axis transition
+;   7. Doc Robot Gemini stage nametable preparation
 ;
-; Annotation: 0% — unannotated da65 output
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $09 — PER-FRAME ENTITY SUBSYSTEMS
-; =============================================================================
-; Mapped to $8000-$9FFF. Called every gameplay frame from gameplay_frame_loop
-; (step 4) via `LDA #$09 / STA $F4`. Contains stage-specific entity
-; processing, weapon behavior updates, and per-frame game logic that runs
-; after the main entity AI loop. Also serves as Doc Robot Gemini stage
-; data bank ($22=$09) when mapped to $A000-$BFFF.
+; Also serves as Doc Robot Gemini stage data bank ($22=$09) when this bank
+; is mapped to $A000-$BFFF. Stage layout data occupies $8660-$9FFF.
 ;
-; Annotation: light — all labels auto-generated, per-frame subsystem logic bare
+; Key zero-page vars:
+;   $22 = stage ID        $55-$57 = Gemini platform state
+;   $64-$67 = stage clear state   $68 = item drop state
+;   $F8 = scroll mode     $F9 = current screen
+;
+; Annotation: annotated — labels named, per-frame subsystem logic documented
 ; =============================================================================
 
         .setcpu "6502"
 
-LE8B4           := $E8B4
-LEEAB           := $EEAB
-LEF8C           := $EF8C
-LF835           := $F835
-LF846           := $F846
-LF89A           := $F89A
-LFC43           := $FC43
-LFC53           := $FC53
-LFF3C           := $FF3C
-LFF6B           := $FF6B
+; ---------------------------------------------------------------------------
+; Fixed bank subroutine imports
+; ---------------------------------------------------------------------------
+metatile_column_ptr_by_id   := $E8B4   ; set metatile column pointer by ID
+queue_metatile_update       := $EEAB   ; build PPU buffer for 4x4 metatile
+fill_nametable_progressive  := $EF8C   ; fill nametable 4 columns per call
+reset_sprite_anim           := $F835   ; set entity OAM animation (X = slot)
+init_child_entity           := $F846   ; init child entity (Y = slot)
+submit_sound_ID             := $F89A   ; submit sound effect to queue
+find_enemy_freeslot_x       := $FC43   ; find empty entity slot -> X
+find_enemy_freeslot_y       := $FC53   ; find empty entity slot -> Y
+update_CHR_banks            := $FF3C   ; update CHR bank selection
+select_PRG_banks            := $FF6B   ; MMC3 PRG bank switch
 
 .segment "BANK09"
 
-code_8000:  jmp     code_82D1
+; ===========================================================================
+; JUMP TABLE — entry points called from fixed bank gameplay_frame_loop
+; ===========================================================================
+; The fixed bank dispatches these 7 per-frame calls in order:
+;   $8000 → Wily 2 camera Y transition
+;   $8003 → Stage clear / scroll-triggered entity spawning
+;   $8006 → Wily 3 scripted entity spawning
+;   $8009 → Gemini Man platform animation
+;   $800C → Item pickup / drop entity spawning
+;   $800F → Palette animation cycling
+;   $8012 → Doc Robot Gemini nametable prep
+;   $8015/$8018 are aliases for $8000/$8003 (unused alternate entries)
+; ===========================================================================
+subsys_wily_camera_y:  jmp     wily_camera_y_check     ; entry 0: $8000
+subsys_stage_clear:  jmp     stage_clear_spawner       ; entry 1: $8003
+        jmp     wily3_entity_spawn                      ; entry 2: $8006
+        jmp     gemini_platform_update                  ; entry 3: $8009
+        jmp     item_drop_update                        ; entry 4: $800C
+        jmp     palette_anim_update                     ; entry 5: $800F
+        jmp     docrobot_gemini_prep                    ; entry 6: $8012
+        jmp     subsys_wily_camera_y                    ; alias: $8015
+        jmp     subsys_stage_clear                      ; alias: $8018
 
-code_8003:  jmp     code_8332
-
-        jmp     code_84A0
-
-        jmp     code_801B
-
-        jmp     code_81CA
-
-        jmp     code_8518
-
-        jmp     code_82F9
-
-        jmp     code_8000
-
-        jmp     code_8003
-
-code_801B:  lda     $22
-        cmp     #$05
-        bne     code_802B
+; ===========================================================================
+; SUBSYSTEM 4: Gemini Man platform animation (stage $05 only)
+; ===========================================================================
+; Animates the moving platforms in Gemini Man's stage (screens $05 and $0E).
+; Uses a two-phase system:
+;   Phase 0 ($55=0): Tile animation — cycles platform tile graphics every
+;     8 frames using banked CHR data from $BB00-$BE00. Builds PPU update
+;     buffer entries at $0780+ for 6 platform columns, shifting right by
+;     8px each cycle.
+;   Phase 1 ($55>0): Platform spawning — spawns 8 entity $71 (platform
+;     pieces) one per frame, clearing metatiles as they detach.
+;
+; State: $55=spawn counter, $56=anim frame, $57=anim cycle
+; ===========================================================================
+gemini_platform_update:  lda     $22
+        cmp     #$05            ; Gemini Man stage?
+        bne     gemini_platform_clear
         ldy     $F9
-        cpy     #$05
-        beq     code_8034
-        cpy     #$0E
-        beq     code_8034
-code_802B:  lda     #$00
-        sta     $56
-        sta     $57
-        sta     $55
+        cpy     #$05            ; screen $05?
+        beq     gemini_platform_active
+        cpy     #$0E            ; screen $0E?
+        beq     gemini_platform_active
+gemini_platform_clear:  lda     #$00
+        sta     $56             ; reset animation frame
+        sta     $57             ; reset animation cycle
+        sta     $55             ; reset spawn counter
         rts
 
-code_8034:  sta     $F5
-        jsr     LFF6B
+gemini_platform_active:  sta     $F5
+        jsr     select_PRG_banks ; swap in stage data bank
         lda     $55
-        beq     code_8040
-        jmp     code_815D
+        beq     gemini_tile_animate ; $55=0: tile animation phase
+        jmp     gemini_platform_spawn ; $55>0: spawn platform entities
 
-code_8040:  lda     $56
-        inc     $56
-        and     #$07
+; --- Tile animation: update platform graphics every 8 frames ---
+gemini_tile_animate:  lda     $56
+        inc     $56             ; advance frame counter
+        and     #$07            ; only act on frames 0 and 1 of each 8
         cmp     #$00
-        beq     code_8072
+        beq     gemini_tile_init  ; frame 0: init PPU entries + tile data
         cmp     #$01
-        bne     code_8071
+        bne     gemini_tile_done  ; frame 1: shift columns right
         ldx     #$00
-        lda     #$06
+        lda     #$06            ; 6 platform columns
         sta     $00
-code_8054:  lda     $0781,x
+gemini_shift_cols:  lda     $0781,x ; shift each PPU entry address right by 8
         clc
         adc     #$08
         sta     $0781,x
@@ -91,23 +117,24 @@ code_8054:  lda     $0781,x
         adc     #$0B
         tax
         dec     $00
-        bne     code_8054
+        bne     gemini_shift_cols
         lda     #$FF
-        sta     $19
-        ldx     #$18
-        jsr     code_80ED
-        inc     $57
-code_8071:  rts
+        sta     $19             ; flag: PPU buffer needs flush
+        ldx     #$18            ; attribute table offset
+        jsr     gemini_write_attrs
+        inc     $57             ; advance cycle counter
+gemini_tile_done:  rts
 
-code_8072:  ldx     #$00
+; --- Frame 0: init 6 PPU update entries and load tile data from CHR ROM ---
+gemini_tile_init:  ldx     #$00
         ldy     #$00
-code_8076:  lda     L8141,y
+gemini_setup_ppu:  lda     gemini_nt_addr_hi,y ; set up PPU buffer entries
         sta     $0780,x
-        lda     L8147,y
+        lda     gemini_nt_addr_lo,y
         clc
         adc     $00
         sta     $0781,x
-        lda     #$07
+        lda     #$07            ; 7 bytes per PPU column entry
         sta     $0782,x
         txa
         clc
@@ -115,24 +142,25 @@ code_8076:  lda     L8141,y
         tax
         iny
         cpy     #$06
-        bne     code_8076
+        bne     gemini_setup_ppu
         lda     #$00
         sta     $02
-code_8098:  lda     $57
-        and     #$03
+; Load 4 groups of 3 tile rows from banked CHR ($BB00-$BE00) into PPU buffer
+gemini_group_loop:  lda     $57
+        and     #$03            ; cycle 0-3 selects tile frame
         tax
-        ldy     $02
-        lda     L8135,x
+        ldy     $02             ; $02 = group index (0-3)
+        lda     gemini_frame_base,x
         clc
-        adc     L8139,y
+        adc     gemini_col_offsets,y
         sta     $00
-        ldx     L813D,y
+        ldx     gemini_ppu_offsets,y
         lda     #$03
         sta     $01
-code_80AF:  ldy     $00
-        lda     L8105,y
-        tay
-        lda     $BB00,y
+gemini_row_loop:  ldy     $00             ; tile index into lookup table
+        lda     gemini_tile_indices,y
+        tay                     ; Y = CHR source tile ID
+        lda     $BB00,y         ; load 2x2 tile from banked CHR
         sta     $0783,x
         lda     $BC00,y
         sta     $0784,x
@@ -146,116 +174,130 @@ code_80AF:  ldy     $00
         adc     #$16
         tax
         dec     $01
-        bne     code_80AF
+        bne     gemini_row_loop
         inc     $02
         lda     $02
         cmp     #$04
-        bne     code_8098
+        bne     gemini_group_loop
         lda     #$FF
         sta     $07C2
         sta     $19
         ldx     #$1C
-        jsr     code_80ED
+        jsr     gemini_write_attrs
         rts
 
-code_80ED:  lda     #$04
+; Write 4 attribute bytes for the current animation cycle
+gemini_write_attrs:  lda     #$04
         sta     $00
         lda     $57
-        and     #$03
+        and     #$03            ; cycle 0-3
         asl     a
-        asl     a
+        asl     a               ; * 4 (4 attr bytes per cycle)
         tay
-code_80F8:  lda     L814D,y
+gemini_attr_loop:  lda     gemini_attr_data,y
         sta     $03C0,x
         iny
         inx
         dec     $00
-        bne     code_80F8
+        bne     gemini_attr_loop
         rts
 
-L8105:  .byte   $83,$84,$85,$80,$81,$82,$83,$84
+; --- Gemini platform tile/attribute data tables ---
+gemini_tile_indices:  .byte   $83,$84,$85,$80,$81,$82,$83,$84
         .byte   $85,$81,$82,$80,$81,$82,$80,$83
         .byte   $84,$85,$80,$81,$82,$83,$84,$85
         .byte   $83,$84,$85,$81,$82,$80,$83,$84
         .byte   $85,$80,$81,$82,$80,$81,$82,$83
         .byte   $84,$85,$81,$82,$80,$83,$84,$85
-L8135:  .byte   $00,$0C,$18,$24
-L8139:  .byte   $00,$03,$06,$09
-L813D:  .byte   $00,$02,$04,$06
-L8141:  .byte   $21,$22,$22,$22,$22,$22
-L8147:  .byte   $EC,$0C,$2C,$4C,$6C,$8C
-L814D:  .byte   $88,$90,$98,$90,$90,$98,$90,$88
+gemini_frame_base:  .byte   $00,$0C,$18,$24
+gemini_col_offsets:  .byte   $00,$03,$06,$09
+gemini_ppu_offsets:  .byte   $00,$02,$04,$06
+gemini_nt_addr_hi:  .byte   $21,$22,$22,$22,$22,$22
+gemini_nt_addr_lo:  .byte   $EC,$0C,$2C,$4C,$6C,$8C
+gemini_attr_data:  .byte   $88,$90,$98,$90,$90,$98,$90,$88
         .byte   $98,$90,$88,$90,$90,$88,$90,$98
-code_815D:  lda     $55
+; --- Phase 1: spawn platform entities (one per frame, 8 total) ---
+gemini_platform_spawn:  lda     $55
         and     #$0F
-        cmp     #$08
-        bcs     code_81B1
+        cmp     #$08            ; spawned all 8?
+        bcs     per_frame_rts
         tax
-        lda     L81B2,x
-        sta     $28
+        lda     gemini_metatile_ids,x
+        sta     $28             ; metatile position to clear
         lda     #$00
         sta     $10
         ldy     #$1E
-        jsr     LEEAB
+        jsr     queue_metatile_update ; remove platform tile from nametable
         ldx     #$00
-        jsr     LFC53
-        bcs     code_81AF
-        lda     #$71
-        jsr     LF846
+        jsr     find_enemy_freeslot_y
+        bcs     gemini_spawn_next
+        lda     #$71            ; entity type $71 = platform piece
+        jsr     init_child_entity
         lda     #$19
-        sta     $0320,y
+        sta     $0320,y         ; entity timer
         lda     #$00
         sta     $0500,y
         sta     $0480,y
-        lda     $0380
+        lda     $0380           ; copy player screen
         sta     $0380,y
         lda     $55
         and     #$07
         tax
-        lda     L81BA,x
-        sta     $03C0,y
-        lda     L81C2,x
-        sta     $0360,y
+        lda     gemini_spawn_x,x
+        sta     $03C0,y         ; entity X position
+        lda     gemini_spawn_y,x
+        sta     $0360,y         ; entity Y position
         lda     $55
         and     #$03
-        bne     code_81AF
-        lda     #$27
-        jsr     LF89A
-code_81AF:  inc     $55
-code_81B1:  rts
+        bne     gemini_spawn_next
+        lda     #$27            ; sound: platform detach
+        jsr     submit_sound_ID
+gemini_spawn_next:  inc     $55
+per_frame_rts:  rts              ; shared RTS for early returns
 
-L81B2:  .byte   $05,$06,$07,$0D,$0E,$0F,$17,$1F
-L81BA:  .byte   $10,$10,$10,$30,$30,$30,$50,$70
-L81C2:  .byte   $B0,$D0,$F0,$B0,$D0,$F0,$F0,$F0
-code_81CA:  lda     $68
-        bpl     code_81B1
-        and     #$0F
-        ldy     $22
+; --- Gemini platform spawn data (8 platform pieces) ---
+gemini_metatile_ids:  .byte   $05,$06,$07,$0D,$0E,$0F,$17,$1F
+gemini_spawn_x:  .byte   $10,$10,$10,$30,$30,$30,$50,$70
+gemini_spawn_y:  .byte   $B0,$D0,$F0,$B0,$D0,$F0,$F0,$F0
+; ===========================================================================
+; SUBSYSTEM 5: Item pickup / drop entity spawning
+; ===========================================================================
+; When $68 bit 7 is set, spawns one item entity per frame from per-stage
+; tables. Each item clears its metatile and spawns entity $71.
+; When all items spawned ($FF terminator), clears $68 bit 7.
+; Special case: stage $02 (Gemini Man) reloads palette + CHR after items.
+;
+; State: $68 bit 7 = active, $68 bits 0-3 = current item index
+; ===========================================================================
+item_drop_update:  lda     $68
+        bpl     per_frame_rts   ; bit 7 clear = no items pending
+        and     #$0F            ; current item index
+        ldy     $22             ; stage ID
         clc
-        adc     L8271,y
+        adc     item_stage_offsets,y ; base offset for this stage
         tay
-        lda     L8279,y
-        cmp     #$FF
-        beq     code_822C
-        sta     $11
-        lda     L828F,y
-        sta     $28
+        lda     item_entity_types,y
+        cmp     #$FF            ; $FF = all items done
+        beq     item_drop_done
+        sta     $11             ; entity type for metatile update
+        lda     item_metatile_pos,y
+        sta     $28             ; metatile position
         tya
         pha
         lda     #$00
         sta     $10
-        jsr     LEEAB
-        inc     $68
+        jsr     queue_metatile_update ; clear the metatile from nametable
+        inc     $68             ; advance to next item
         pla
         tay
-        jsr     LFC43
-        bcs     code_8270
-        lda     #$71
-        jsr     LF835
+        jsr     find_enemy_freeslot_x
+        bcs     item_drop_rts
+        lda     #$71            ; entity type $71 = item pickup
+        jsr     reset_sprite_anim
         lda     #$19
-        sta     $0320,x
+        sta     $0320,x         ; entity timer
         lda     #$80
-        sta     $0300,x
+        sta     $0300,x         ; entity flags (active)
         lda     #$90
         sta     $0580,x
         lda     #$00
@@ -263,324 +305,399 @@ code_81CA:  lda     $68
         sta     $0480,x
         sta     $0500,x
         lda     $F9
-        sta     $0380,x
-        lda     L82A5,y
-        sta     $03C0,x
-        lda     L82BB,y
-        sta     $0360,x
-        lda     #$27
-        jmp     LF89A
+        sta     $0380,x         ; entity screen = current screen
+        lda     item_spawn_x,y
+        sta     $03C0,x         ; entity X position
+        lda     item_spawn_y,y
+        sta     $0360,x         ; entity Y position
+        lda     #$27            ; sound: item spawn
+        jmp     submit_sound_ID
 
-code_822C:  lda     $68
-        and     #$7F
+; --- All items done: clear active flag, handle stage-specific palette ---
+item_drop_done:  lda     $68
+        and     #$7F            ; clear bit 7 (no more items)
         sta     $68
         lda     $22
-        cmp     #$02
-        bne     code_8270
-        lda     #$4E
+        cmp     #$02            ; Gemini Man stage?
+        bne     item_drop_rts
+        lda     #$4E            ; Gemini stage: reload CHR banks
         sta     $E9
-        jsr     LFF3C
+        jsr     update_CHR_banks
         ldy     #$0F
-code_8241:  lda     $AABE,y
-        sta     $0600,y
-        sta     $0620,y
+item_load_palette:  lda     $AABE,y ; load 16 bytes of new palette from bank data
+        sta     $0600,y         ; palette buffer 1
+        sta     $0620,y         ; palette buffer 2
         dey
-        bpl     code_8241
-        sty     $18
+        bpl     item_load_palette
+        sty     $18             ; $18 = $FF: force palette update
         ldx     #$00
-        ldy     #$4C
-code_8253:  lda     $AA82,y
+        ldy     #$4C            ; offset into stage bank palette anim data
+item_init_pal_anim:  lda     $AA82,y ; load palette animation entry
         pha
-        and     #$80
-        sta     $0100,x
+        and     #$80            ; bit 7 = active flag
+        sta     $0100,x         ; pal anim slot active
         pla
-        and     #$7F
-        sta     $0108,x
+        and     #$7F            ; bits 0-6 = palette ID
+        sta     $0108,x         ; pal anim slot palette ID
         lda     #$00
-        sta     $0104,x
-        sta     $010C,x
+        sta     $0104,x         ; pal anim slot frame = 0
+        sta     $010C,x         ; pal anim slot tick = 0
         iny
         inx
-        cpx     #$04
-        bne     code_8253
-code_8270:  rts
+        cpx     #$04            ; 4 palette animation slots
+        bne     item_init_pal_anim
+item_drop_rts:  rts
 
-L8271:  .byte   $FF,$00,$0F,$03,$FF,$FF,$FF,$0C
-L8279:  .byte   $43,$43,$FF,$86,$86,$86,$86,$86
+; --- Item drop data tables (per-stage item definitions) ---
+; item_stage_offsets: base index into item tables for each stage ($FF = none)
+; item_entity_types: entity type per item ($FF = end of list)
+; item_metatile_pos: nametable metatile position to clear
+; item_spawn_x/y: entity spawn coordinates
+item_stage_offsets:  .byte   $FF,$00,$0F,$03,$FF,$FF,$FF,$0C
+item_entity_types:  .byte   $43,$43,$FF,$86,$86,$86,$86,$86
         .byte   $86,$86,$86,$FF,$3B,$38,$FF,$00
         .byte   $00,$00,$00,$00,$00,$FF
-L828F:  .byte   $31,$39,$FF,$23,$24,$2B,$2C,$33
+item_metatile_pos:  .byte   $31,$39,$FF,$23,$24,$2B,$2C,$33
         .byte   $34,$3B,$3C,$FF,$31,$32,$FF,$2B
         .byte   $2C,$33,$34,$3B,$3C,$FF
-L82A5:  .byte   $C0,$D0,$FF,$90,$90,$B0,$B0,$D0
+item_spawn_x:  .byte   $C0,$D0,$FF,$90,$90,$B0,$B0,$D0
         .byte   $D0,$E0,$E0,$FF,$C0,$D0,$FF,$C0
         .byte   $B0,$D0,$E0,$C0,$B0,$FF
-L82BB:  .byte   $18,$28,$FF,$70,$90,$70,$90,$70
+item_spawn_y:  .byte   $18,$28,$FF,$70,$90,$70,$90,$70
         .byte   $90,$70,$90,$FF,$18,$28,$FF,$68
         .byte   $88,$90,$78,$78,$88,$FF
-code_82D1:  lda     $F8
-        cmp     #$09
-        beq     code_82F6
+; ===========================================================================
+; SUBSYSTEM 6: Wily 2 camera Y-axis transition
+; ===========================================================================
+; On Wily 2 (stage $0E), screens $09/$0A: initiates vertical camera scroll
+; by setting scroll mode $F8=$09. Once active, increments $69 each frame
+; (the fixed bank uses $69 to drive the Y scroll offset).
+; ===========================================================================
+wily_camera_y_check:  lda     $F8
+        cmp     #$09            ; Y transition already active?
+        beq     wily_camera_y_tick
         lda     $22
-        cmp     #$0E
-        bne     code_82F8
+        cmp     #$0E            ; Wily 2 stage?
+        bne     wily_camera_y_rts
         lda     $F9
-        cmp     #$09
-        beq     code_82E7
-        cmp     #$0A
-        bne     code_82F8
-code_82E7:  lda     #$00
-        sta     $69
-        sta     $73
+        cmp     #$09            ; screen $09?
+        beq     wily_camera_y_init
+        cmp     #$0A            ; screen $0A?
+        bne     wily_camera_y_rts
+wily_camera_y_init:  lda     #$00
+        sta     $69             ; clear Y transition counter
+        sta     $73             ; clear transition state
         lda     #$09
-        sta     $F8
+        sta     $F8             ; scroll mode = Y transition
         lda     #$2F
-        sta     $5E
+        sta     $5E             ; camera Y target
         rts
 
-code_82F6:  inc     $69
-code_82F8:  rts
+wily_camera_y_tick:  inc     $69   ; advance Y transition counter
+wily_camera_y_rts:  rts
 
-code_82F9:  lda     $22
-        cmp     #$08
-        bne     code_8331
+; ===========================================================================
+; SUBSYSTEM 7: Doc Robot Gemini stage nametable preparation
+; ===========================================================================
+; On Doc Robot stage ($08), screens $15/$1A: when entity slot 31 ($033F)
+; reaches position $FC, fills nametable column $1F progressively and sets
+; scroll mode to $03 when complete. This prepares the stage layout for the
+; Gemini-style section of the Doc Robot stage.
+; ===========================================================================
+docrobot_gemini_prep:  lda     $22
+        cmp     #$08            ; Doc Robot stage?
+        bne     docrobot_rts
         lda     $F9
-        cmp     #$15
-        beq     code_8309
-        cmp     #$1A
-        bne     code_8331
-code_8309:  lda     $F8
-        cmp     #$03
-        beq     code_8331
-        lda     $033F
-        cmp     #$FC
-        bne     code_8331
+        cmp     #$15            ; screen $15?
+        beq     docrobot_check_scroll
+        cmp     #$1A            ; screen $1A?
+        bne     docrobot_rts
+docrobot_check_scroll:  lda     $F8
+        cmp     #$03            ; already in scroll mode $03?
+        beq     docrobot_rts
+        lda     $033F           ; entity[31] position
+        cmp     #$FC            ; reached trigger position?
+        bne     docrobot_rts
         lda     $22
         sta     $F5
-        jsr     LFF6B
-        lda     #$1F
-        jsr     LE8B4
+        jsr     select_PRG_banks ; swap in stage data bank
+        lda     #$1F            ; metatile column $1F
+        jsr     metatile_column_ptr_by_id
         lda     #$08
         sta     $10
-        jsr     LEF8C
-        lda     $70
-        bne     code_8331
-        lda     #$03
+        jsr     fill_nametable_progressive ; draw columns progressively
+        lda     $70             ; $70 = columns remaining
+        bne     docrobot_rts    ; still drawing?
+        lda     #$03            ; done: set scroll mode $03
         sta     $F8
-code_8331:  rts
+docrobot_rts:  rts
 
-code_8332:  lda     $22
-        cmp     #$0C
-        beq     code_8367
-        cmp     #$01
-        bne     code_835A
-        lda     $0380
-        cmp     #$0C
-        bcc     code_835A
+; ===========================================================================
+; SUBSYSTEM 1: Stage clear / scroll-triggered entity spawning
+; ===========================================================================
+; Spawns waves of entity $2C (debris/effects) triggered by camera scroll
+; position. Active on stage $01 (scroll zones 0-3) and stage $0C screen $0D
+; (zone 4). Each zone has a cycle count and spawn data index.
+; Every 60 frames ($3C), spawns a group of entities from the data tables.
+;
+; State: $64=zone, $65=timer, $66=data index, $67=cycle counter
+; ===========================================================================
+stage_clear_spawner:  lda     $22
+        cmp     #$0C            ; Wily 1 / Break Man stage?
+        beq     stage_clear_wily1
+        cmp     #$01            ; stage $01?
+        bne     stage_clear_reset
+        lda     $0380           ; player screen (camera hi)
+        cmp     #$0C            ; past screen $0C?
+        bcc     stage_clear_reset
         ldy     #$00
-code_8345:  lda     $0360
+; --- Check which scroll zone the camera is in ---
+stage_clear_zone_check:  lda     $0360
         sec
-        sbc     L83E6,y
+        sbc     clear_threshold_lo,y ; 16-bit compare: camera vs zone boundary
         lda     $0380
-        sbc     L83EA,y
-        bcc     code_836F
+        sbc     clear_threshold_hi,y
+        bcc     stage_clear_set_zone  ; camera < threshold → in this zone
         iny
         cpy     #$04
-        bne     code_8345
-        rts
+        bne     stage_clear_zone_check
+        rts                     ; past all zones
 
-code_835A:  lda     #$3C
+stage_clear_reset:  lda     #$3C  ; reset timer to 60 frames
         sta     $65
         lda     #$00
-        sta     $64
-        sta     $67
-        sta     $66
+        sta     $64             ; zone = 0
+        sta     $67             ; cycle = 0
+        sta     $66             ; data index = 0
         rts
 
-code_8367:  lda     $F9
-        cmp     #$0D
-        bne     code_835A
-        ldy     #$04
-code_836F:  cpy     $64
-        beq     code_8382
-        sty     $64
+stage_clear_wily1:  lda     $F9
+        cmp     #$0D            ; screen $0D only
+        bne     stage_clear_reset
+        ldy     #$04            ; zone 4 (Wily 1 specific)
+; --- Enter/update zone ---
+stage_clear_set_zone:  cpy     $64
+        beq     stage_clear_tick ; same zone: just tick
+        sty     $64             ; new zone
         lda     #$3C
-        sta     $65
+        sta     $65             ; reset timer
         lda     #$00
-        sta     $67
-        lda     L83F3,y
-        sta     $66
-code_8382:  dec     $65
-        bne     code_83E5
+        sta     $67             ; reset cycle counter
+        lda     clear_zone_data_idx,y
+        sta     $66             ; set spawn data start index
+; --- Timer tick: spawn on zero ---
+stage_clear_tick:  dec     $65
+        bne     stage_clear_rts ; not time yet
         ldy     $66
-        lda     L83F8,y
+        lda     clear_spawn_x,y ; first byte = entity count - 1
         sta     $00
-        inc     $66
-code_838F:  jsr     LFC43
-        lda     #$2C
-        jsr     LF835
+        inc     $66             ; skip count byte
+; --- Spawn loop: spawn $00+1 entities ---
+stage_clear_spawn_loop:  jsr     find_enemy_freeslot_x
+        lda     #$2C            ; entity type $2C = debris effect
+        jsr     reset_sprite_anim
         lda     #$80
-        sta     $0300,x
+        sta     $0300,x         ; entity flags (active)
         lda     #$9A
         sta     $0580,x
         lda     #$00
-        sta     $0320,x
+        sta     $0320,x         ; entity timer
         sta     $03E0,x
         lda     #$17
-        sta     $0480,x
+        sta     $0480,x         ; entity behavior type
         ldy     $66
-        lda     L83F8,y
-        sta     $0360,x
-        lda     L8430,y
-        sta     $0380,x
-        lda     L8468,y
-        sta     $03C0,x
-        inc     $66
+        lda     clear_spawn_x,y
+        sta     $0360,x         ; entity Y position
+        lda     clear_spawn_screen,y
+        sta     $0380,x         ; entity screen
+        lda     clear_spawn_attr,y
+        sta     $03C0,x         ; entity X / attribute
+        inc     $66             ; next data entry
         dec     $00
-        bpl     code_838F
-        lda     #$23
-        jsr     LF89A
+        bpl     stage_clear_spawn_loop
+        lda     #$23            ; sound: debris spawn
+        jsr     submit_sound_ID
         lda     #$3C
-        sta     $65
+        sta     $65             ; reset timer for next wave
         ldy     $64
-        inc     $67
+        inc     $67             ; increment cycle
         lda     $67
-        cmp     L83EE,y
-        bne     code_83E5
-        lda     #$00
+        cmp     clear_zone_cycles,y ; all cycles done for this zone?
+        bne     stage_clear_rts
+        lda     #$00            ; reset cycle to loop
         sta     $67
-        lda     L83F3,y
-        sta     $66
-code_83E5:  rts
+        lda     clear_zone_data_idx,y
+        sta     $66             ; reset data index to zone start
+stage_clear_rts:  rts
 
-L83E6:  .byte   $E0,$80,$40,$C0
-L83EA:  .byte   $0C,$0D,$0E,$0F
-L83EE:  .byte   $06,$05,$04,$04,$07
-L83F3:  .byte   $00,$0F,$1A,$22,$2A
-L83F8:  .byte   $01,$48,$A8,$00,$78,$00,$58,$00
+; --- Stage clear spawn data tables ---
+; clear_threshold_lo/hi: 16-bit camera position boundaries for 4 zones
+; clear_zone_cycles: spawn cycles per zone before reset
+; clear_zone_data_idx: starting index into spawn data for each zone
+; clear_spawn_x: interleaved (count-1, Y pos, Y pos, ...) per group
+; clear_spawn_screen: screen number for each spawned entity
+; clear_spawn_attr: X position / attribute for each spawned entity
+clear_threshold_lo:  .byte   $E0,$80,$40,$C0
+clear_threshold_hi:  .byte   $0C,$0D,$0E,$0F
+clear_zone_cycles:  .byte   $06,$05,$04,$04,$07
+clear_zone_data_idx:  .byte   $00,$0F,$1A,$22,$2A
+clear_spawn_x:  .byte   $01,$48,$A8,$00,$78,$00,$58,$00
         .byte   $98,$01,$38,$C0,$01,$98,$C0,$01
         .byte   $28,$58,$00,$08,$00,$58,$00,$28
         .byte   $00,$68,$00,$E8,$00,$18,$00,$F8
         .byte   $00,$38,$00,$F8,$00,$18,$00,$38
         .byte   $00,$68,$00,$C8,$00,$A8,$00,$88
         .byte   $00,$88,$00,$58,$00,$38,$00,$28
-L8430:  .byte   $01,$0C,$0C,$00,$0C,$00,$0C,$00
+clear_spawn_screen:  .byte   $01,$0C,$0C,$00,$0C,$00,$0C,$00
         .byte   $0C,$01,$0C,$0C,$01,$0C,$0C,$01
         .byte   $0D,$0D,$00,$0D,$00,$0D,$00,$0D
         .byte   $00,$0D,$00,$0D,$00,$0E,$00,$0D
         .byte   $00,$0E,$00,$0E,$00,$0F,$00,$0F
         .byte   $00,$0F,$00,$0D,$00,$0D,$00,$0D
         .byte   $00,$0D,$00,$0D,$00,$0D,$00,$0D
-L8468:  .byte   $01,$98,$40,$00,$88,$00,$58,$00
+clear_spawn_attr:  .byte   $01,$98,$40,$00,$88,$00,$58,$00
         .byte   $70,$01,$78,$90,$01,$98,$60,$01
         .byte   $98,$98,$00,$78,$00,$78,$00,$48
         .byte   $00,$58,$00,$98,$00,$98,$00,$68
         .byte   $00,$68,$00,$78,$00,$B8,$00,$88
         .byte   $00,$98,$00,$88,$00,$68,$00,$59
         .byte   $00,$98,$00,$98,$00,$88,$00,$68
-code_84A0:  lda     $22
-        cmp     #$0F
-        bne     code_84FF
+; ===========================================================================
+; SUBSYSTEM 2: Wily 3 scripted entity spawning
+; ===========================================================================
+; On Wily 3 (stage $0F), screen $08: places 8 entities into slots 24-31
+; using a bitmask ($6E) to track which have already been spawned.
+; Skipped when entity[31] is active ($031F bit 7) or game state = $11.
+; ===========================================================================
+wily3_entity_spawn:  lda     $22
+        cmp     #$0F            ; Wily 3 stage?
+        bne     wily3_rts
         lda     $F9
-        cmp     #$08
-        bne     code_84FF
-        lda     $031F
-        bmi     code_84FF
-        lda     $30
+        cmp     #$08            ; screen $08?
+        bne     wily3_rts
+        lda     $031F           ; entity[31] flags
+        bmi     wily3_rts       ; active → skip
+        lda     $30             ; game substate
         cmp     #$11
-        beq     code_84FF
-        ldy     #$07
-        lda     $6E
+        beq     wily3_rts       ; state $11 → skip
+        ldy     #$07            ; 8 entities (slots 24-31)
+        lda     $6E             ; spawn bitmask
         sta     $00
-code_84BD:  asl     $00
-        bcs     code_84FC
+wily3_spawn_loop:  asl     $00   ; shift out next bit
+        bcs     wily3_spawn_skip ; bit=1: already spawned, skip
         lda     #$80
-        sta     $0318,y
+        sta     $0318,y         ; entity_flags[24+Y] = active
         lda     #$90
         sta     $0598,y
         lda     #$EB
-        sta     $0338,y
+        sta     $0338,y         ; entity_health[24+Y]
         lda     #$67
-        sta     $05D8,y
+        sta     $05D8,y         ; entity_anim[24+Y]
         lda     #$00
         sta     $05F8,y
         sta     $05B8,y
         sta     $03F8,y
         lda     #$0B
-        sta     $0498,y
+        sta     $0498,y         ; entity_behavior[24+Y]
         lda     $F9
-        sta     $0398,y
-        lda     L8500,y
-        sta     $0378,y
-        lda     L8508,y
-        sta     $03D8,y
-        lda     L8510,y
-        sta     $04D8,y
-code_84FC:  dey
-        bpl     code_84BD
-code_84FF:  rts
+        sta     $0398,y         ; entity_screen[24+Y]
+        lda     wily3_spawn_x,y
+        sta     $0378,y         ; entity_x[24+Y]
+        lda     wily3_spawn_y,y
+        sta     $03D8,y         ; entity_y[24+Y]
+        lda     wily3_spawn_type,y
+        sta     $04D8,y         ; entity_subtype[24+Y]
+wily3_spawn_skip:  dey
+        bpl     wily3_spawn_loop
+wily3_rts:  rts
 
-L8500:  .byte   $30,$30,$30,$70,$90,$D0,$D0,$D0
-L8508:  .byte   $30,$70,$B0,$B0,$B0,$30,$70,$B0
-L8510:  .byte   $12,$13,$14,$15,$16,$17,$18,$19
-code_8518:  lda     $72
-        ora     $1C
-        bne     code_853E
+; --- Wily 3 spawn position tables (8 entities) ---
+wily3_spawn_x:  .byte   $30,$30,$30,$70,$90,$D0,$D0,$D0
+wily3_spawn_y:  .byte   $30,$70,$B0,$B0,$B0,$30,$70,$B0
+wily3_spawn_type:  .byte   $12,$13,$14,$15,$16,$17,$18,$19
+; ===========================================================================
+; SUBSYSTEM 3: Palette animation cycling
+; ===========================================================================
+; Processes 4 palette animation slots ($0100-$010F). Each slot has:
+;   $0100+slot = active flag (bit 7)
+;   $0104+slot = current frame index
+;   $0108+slot = palette animation ID (indexes pal_anim_offsets)
+;   $010C+slot = tick counter
+;
+; Each animation ID maps to a packed header in the data stream:
+;   header+0 = max frame index     header+1 = ticks per frame
+;   header+2 = palette buffer dest  header+3.. = frame sequence data
+; Each frame indexes pal_color_sets (3 bytes per color set) written to
+; $0600/$0620 palette buffers.
+;
+; Skipped when game is paused ($72) or fading ($1C).
+; ===========================================================================
+palette_anim_update:  lda     $72
+        ora     $1C             ; paused or fading?
+        bne     palette_anim_rts
         lda     #$03
-        sta     $10
+        sta     $10             ; loop 4 slots (3 down to 0)
         lda     $18
-        and     #$01
+        and     #$01            ; save palette-update-needed flag
         sta     $11
         lda     #$00
+        sta     $18             ; clear palette update flag
+palette_slot_loop:  ldx     $10
+        lda     $0100,x         ; slot active?
+        bpl     palette_slot_next
+        jsr     palette_anim_tick ; process this slot
+palette_slot_next:  dec     $10
+        bpl     palette_slot_loop
+        lda     $11             ; restore palette update flag
         sta     $18
-code_852C:  ldx     $10
-        lda     $0100,x
-        bpl     code_8536
-        jsr     code_853F
-code_8536:  dec     $10
-        bpl     code_852C
-        lda     $11
-        sta     $18
-code_853E:  rts
+palette_anim_rts:  rts
 
-code_853F:  ldy     $0108,x
-        lda     L8600,y
-        tay
-        lda     $010C,x
+; --- Process one palette animation slot ---
+palette_anim_tick:  ldy     $0108,x ; palette animation ID
+        lda     pal_anim_offsets,y
+        tay                     ; Y = header offset
+        lda     $010C,x         ; current tick
         inc     $010C,x
-        cmp     L860F,y
-        bne     code_858D
+        cmp     pal_tick_rate,y ; time for next frame?
+        bne     palette_tick_rts ; not yet
         lda     #$00
-        sta     $010C,x
-        lda     $0104,x
+        sta     $010C,x         ; reset tick counter
+        lda     $0104,x         ; current frame
         inc     $0104,x
-        cmp     L860E,y
-        bne     code_8566
-        lda     #$00
+        cmp     pal_frame_count,y ; past max frame?
+        bne     palette_advance_frame
+        lda     #$00            ; wrap to frame 0
         sta     $0104,x
-code_8566:  tya
+palette_advance_frame:  tya     ; Y = header offset
         clc
-        adc     $0104,x
+        adc     $0104,x         ; + current frame
         tax
-        lda     L8611,x
+        lda     pal_sequence_data,x ; frame data = color set index
         asl     a
-        adc     L8611,x
+        adc     pal_sequence_data,x ; * 3 (3 bytes per color set)
         tax
-        lda     L8610,y
+        lda     pal_dest_offset,y ; destination in palette buffer
         tay
-        lda     #$03
+        lda     #$03            ; 3 color bytes to copy
         sta     $00
-code_857C:  lda     L858E,x
-        sta     $0600,y
-        sta     $0620,y
+palette_write_colors:  lda     pal_color_sets,x
+        sta     $0600,y         ; write to palette buffer 1
+        sta     $0620,y         ; write to palette buffer 2
         iny
         inx
         dec     $00
-        bne     code_857C
-        inc     $11
-code_858D:  rts
+        bne     palette_write_colors
+        inc     $11             ; flag: palette was updated
+palette_tick_rts:  rts
 
-L858E:  .byte   $20,$31,$21,$20,$21,$21,$00,$32
+; ---------------------------------------------------------------------------
+; Palette animation data tables
+; ---------------------------------------------------------------------------
+; pal_color_sets: 38 color sets, 3 NES palette values each (114 bytes)
+; pal_anim_offsets: header offsets for 14 animation definitions
+; pal_frame_count..pal_sequence_data: packed animation headers + frame data
+; ---------------------------------------------------------------------------
+pal_color_sets:  .byte   $20,$31,$21,$20,$21,$21,$00,$32
         .byte   $22,$33,$0F,$18,$0F,$33,$18,$3C
         .byte   $07,$0F,$10,$00,$07,$00,$10,$27
         .byte   $36,$27,$07,$20,$36,$27,$20,$20
@@ -595,12 +712,12 @@ L858E:  .byte   $20,$31,$21,$20,$21,$21,$00,$32
         .byte   $0F,$02,$10,$31,$30,$21,$14,$03
         .byte   $03,$04,$14,$03,$03,$04,$14,$03
         .byte   $03,$04
-L8600:  .byte   $00,$05,$0A,$11,$18,$1E,$24,$2A
+pal_anim_offsets:  .byte   $00,$05,$0A,$11,$18,$1E,$24,$2A
         .byte   $2F,$34,$39,$3F,$46,$4B
-L860E:  .byte   $01
-L860F:  .byte   $08
-L8610:  .byte   $0D
-L8611:  .byte   $00,$01,$01,$02,$0D,$03,$04,$03
+pal_frame_count:  .byte   $01
+pal_tick_rate:  .byte   $08
+pal_dest_offset:  .byte   $0D
+pal_sequence_data:  .byte   $00,$01,$01,$02,$0D,$03,$04,$03
         .byte   $08,$05,$06,$07,$14,$07,$03,$08
         .byte   $09,$08,$09,$0A,$09,$02,$10,$01
         .byte   $0B,$0C,$0D,$02,$10,$05,$0E,$0F
@@ -609,7 +726,16 @@ L8611:  .byte   $00,$01,$01,$02,$0D,$03,$04,$03
         .byte   $15,$01,$04,$0D,$17,$18,$02,$08
         .byte   $05,$19,$1A,$1B,$03,$04,$0D,$1C
         .byte   $1D,$1E,$21,$01,$02,$05,$1F,$20
-        .byte   $03,$02,$05,$22,$23,$24,$25,$FF
+        .byte   $03,$02,$05,$22,$23,$24,$25
+; ===========================================================================
+; DOC ROBOT GEMINI STAGE DATA ($8660-$9FFF)
+; ===========================================================================
+; When bank $09 is mapped at $A000-$BFFF (as the stage data bank for
+; Doc Robot Gemini, $22=$09), this data provides the stage layout:
+; screen data, metatile definitions, enemy placement, and palette configs.
+; Accessed via addresses $A660-$BFFF from the fixed bank's stage loader.
+; ===========================================================================
+        .byte   $FF
         .byte   $DF,$FF,$7F,$FF,$FD,$FF,$DF,$FF
         .byte   $FD,$FF,$FD,$FF,$F7,$FF,$7F,$FF
         .byte   $F7,$FF,$D7,$FF,$F7,$FD,$FF,$FF

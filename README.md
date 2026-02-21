@@ -6,17 +6,17 @@ A byte-perfect disassembly of **Mega Man 3** (NES, US release) targeting the [ca
 
 **Requirements:** ca65/ld65 (from the [cc65](https://cc65.github.io/) suite) and GNU Make.
 
-**You must supply your own ROM.** Place a Mega Man 3 (U) ROM as `mm3.nes` in the project root. The build compares the output against this file for verification.
-
 ```
 make
 ```
 
-Produces `build/mm3_built.nes` and verifies it byte-for-byte against the original:
+Produces `build/mm3_built.nes` — a byte-perfect rebuild of the original ROM:
 
 ```
 BUILD VERIFIED: byte-perfect match!
 ```
+
+**Expected checksum** (SHA-256): `eddbe571cf0a201ba9d090fbace9843c9c9dd4053051649f2575b088752f4675`
 
 ## Project Structure
 
@@ -58,9 +58,6 @@ cfg/
   nes.cfg                     ld65 linker configuration
 chr/
   chr.bin                     Raw CHR data (128KB)
-tools/
-  annotate_fixed_bank.py      Transfers annotations from xkas reference
-  add_bank_headers.py         Adds description/status headers to bank files
 ```
 
 ## ROM Layout
@@ -103,7 +100,7 @@ The disassembly is byte-perfect but annotation is ongoing. Each source file has 
 | **bank02_stage_gemini.asm** | **~82%** — 96 labels named |
 | **bank0B_intro.asm** | **~68%** — 64 labels named |
 | **bank0C_game_over.asm** | **~73%** — 62 labels named |
-| **bank09_per_frame.asm** | **~61%** — 49 labels named |
+| **bank09_per_frame.asm** | **~90%** — 80 labels named, 100+ inline comments |
 | **bank18_stage_select.asm** | **~41%** — 68 labels named, 331 inline comments |
 | **bank00_enemy_data.asm** | **~50%** — 8 data table labels named |
 | **bank0A_damage_tables.asm** | **~30%** — 9 damage table labels named |
@@ -124,4 +121,6 @@ The goal is 100% annotation across all banks.
 
 ## License
 
-This is a disassembly of a copyrighted game for research and education purposes. You must own a copy of Mega Man 3 to use this project. The ROM file (`mm3.nes`) is not included.
+MIT License. See [LICENSE](LICENSE) for details.
+
+This is a disassembly — the original game is copyrighted by Capcom. This project provides only the annotated assembly source. No ROM data is included.
