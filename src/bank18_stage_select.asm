@@ -112,7 +112,7 @@ select_PRG_banks           := $FF6B
 
 .segment "BANK18"
 
-LA000:  .byte   $28,$30,$50,$70,$01,$90,$0D,$00
+data_compressed_nametable_start:  .byte   $28,$30,$50,$70,$01,$90,$0D,$00
         .byte   $AF,$8D,$88,$12,$28,$C0,$16,$CA
         .byte   $8A,$8D,$0E,$01,$BF,$EB,$02,$00
         .byte   $CA,$17,$17,$17,$17,$00,$C0,$26
@@ -183,10 +183,10 @@ LA000:  .byte   $28,$30,$50,$70,$01,$90,$0D,$00
         .byte   $03,$76,$78,$B9,$60,$79,$7B,$79
         .byte   $98,$96,$94,$98,$D6,$09,$01,$08
         .byte   $1C
-LA231:  .byte   $03
-LA232:  .byte   $71
-LA233:  .byte   $71
-LA234:  .byte   $6F,$91,$09,$02,$6A,$72,$71,$04
+stage_select_oam_y_table:  .byte   $03
+stage_select_oam_tile_table:  .byte   $71
+stage_select_oam_attr_table:  .byte   $71
+stage_select_oam_x_table:  .byte   $6F,$91,$09,$02,$6A,$72,$71,$04
         .byte   $08,$08,$20,$B2,$60,$08,$1C,$6A
         .byte   $72,$71,$08,$20,$B2,$60,$08,$1C
         .byte   $68,$72,$71,$94,$72,$92,$91,$6F
@@ -290,13 +290,13 @@ LA234:  .byte   $6F,$91,$09,$02,$6A,$72,$71,$04
         .byte   $00,$40,$02,$FF,$03,$02,$00,$42
         .byte   $02,$FF,$03,$02,$00,$43,$02,$FF
         .byte   $03
-LA56D:  .byte   $02,$00,$45,$02,$FF,$03,$02,$00
+ppu_write_table_low_ptr:  .byte   $02,$00,$45,$02,$FF,$03,$02,$00
         .byte   $47,$02,$FF,$03,$02,$00,$49,$02
         .byte   $FF,$03,$02
-LA580:  .byte   $00,$4A,$02,$FF,$03,$02,$04,$08
+ppu_write_table_high_ptr:  .byte   $00,$4A,$02,$FF,$03,$02,$04,$08
         .byte   $3E,$02,$FF,$03,$02,$00,$40,$02
         .byte   $FF,$03,$02
-LA593:  .byte   $00,$42,$02,$FF,$03,$02,$00,$43
+bank03_stage_select_entry:  .byte   $00,$42,$02,$FF,$03,$02,$00,$43
         .byte   $02,$FF,$03,$02,$00,$45,$02,$FF
         .byte   $03,$02,$00,$47,$02,$FF,$03,$02
         .byte   $00,$49,$02,$FF,$03,$02,$00,$4A
@@ -389,7 +389,7 @@ LA593:  .byte   $00,$42,$02,$FF,$03,$02,$00,$43
         .byte   $02,$FF,$08,$02,$FF,$10,$0E,$0D
         .byte   $35,$0F,$63,$44,$0D,$28,$E6,$7F
         .byte   $38,$0D,$32,$0F,$2E,$03
-LA879:  .byte   $02,$FF,$0A,$0E,$04,$05,$58,$04
+bank03_wily_stage_entry:  .byte   $02,$FF,$0A,$0E,$04,$05,$58,$04
         .byte   $A1,$31,$04,$05,$03,$FF,$08,$02
         .byte   $FF,$03,$02,$0F,$3A,$80,$0F,$FF
         .byte   $4F,$02,$05,$1D,$02,$01,$37,$54
@@ -402,7 +402,7 @@ LA879:  .byte   $02,$FF,$0A,$0E,$04,$05,$58,$04
         .byte   $B3,$09,$01,$08,$00,$07,$0A,$65
         .byte   $65,$60,$68,$68,$60,$6A,$6A,$60
         .byte   $6C,$6C,$60,$6F
-LA8DD:  .byte   $60,$70,$60,$71,$71,$74,$73,$6F
+bank03_portrait_setup_routine:  .byte   $60,$70,$60,$71,$71,$74,$73,$6F
         .byte   $71,$60,$71,$74,$73,$6F,$02,$71
         .byte   $17,$06,$C8,$07,$0A,$08,$06,$09
         .byte   $02,$18,$40,$76,$71,$6F,$6A,$60
@@ -786,19 +786,19 @@ stage_select_init:  lda     #$36        ; CHR bank $36 for sprite tiles
 
 ; Load sprite palettes from $9C23 ($9C23)
         ldy     #$0F                    ; counter = 16 bytes
-LB0DD:  lda     $9C23,y                 ; load sprite palette color
+sprite_palette_load_loop:  lda     $9C23,y                 ; load sprite palette color
         sta     $0610,y                 ; store to sprite palette buffer
         dey
-        bpl     LB0DD                   ; loop Y=$0F down to $00
+        bpl     sprite_palette_load_loop                   ; loop Y=$0F down to $00
         sty     palette_dirty                     ; Y=$FF, trigger palette update
 
 ; Determine fresh start vs return: check if OAM is initialized
         ldy     #$00                    ; assume fresh start (Y=0)
         lda     $0200                   ; check OAM sprite 0 Y position
         cmp     #$97                    ; $97 = sentinel for uninitialized
-        beq     LB0F2                   ; fresh start → Y stays 0
+        beq     stage_select_init_fresh_vs_return                   ; fresh start → Y stays 0
         iny                             ; returning from stage → Y=1
-LB0F2:  sty     $0F                     ; $0F = 0 (fresh) or 1 (return)
+stage_select_init_fresh_vs_return:  sty     $0F                     ; $0F = 0 (fresh) or 1 (return)
         lda     $9BFD,y                 ; select music track
         jsr     submit_sound_ID_D9                   ; play stage select music
         lda     #$00
@@ -808,34 +808,34 @@ LB0F2:  sty     $0F                     ; $0F = 0 (fresh) or 1 (return)
         lda     #$04
         sta     oam_ptr
         jsr     prepare_oam_buffer                   ; clear unused OAM sprites
-LB10B:  lda     #$04
+stage_select_nametable_fill_wait_loop:  lda     #$04
         sta     $10
         jsr     fill_nametable_progressive
         jsr     task_yield                   ; wait for NMI
         lda     $70
-        bne     LB10B                   ; loop until NMI complete
+        bne     stage_select_nametable_fill_wait_loop                   ; loop until NMI complete
 
 ; Load BG palettes — offset depends on fresh start vs return
         ldy     $0F                     ; Y = 0 (fresh) or 1 (return)
-        beq     LB126                   ; skip portrait restore if fresh
+        beq     stage_select_defeated_portrait_restore                   ; skip portrait restore if fresh
         lda     #$04
         sta     $10
         ldx     #$00
         jsr     write_ppu_data_from_table                   ; restore defeated boss portraits
-LB126:  lda     $9C65,y                 ; load scroll params
+stage_select_defeated_portrait_restore:  lda     $9C65,y                 ; load scroll params
         sta     $10
         lda     $9C67,y
         sta     $11
         jsr     rendering_off                   ; disable PPU rendering
         ldx     $9C01,y                 ; X = offset into $9C03
         ldy     #$00
-LB138:  lda     $9C03,x                 ; load BG palette color
+bg_palette_load_loop:  lda     $9C03,x                 ; load BG palette color
         sta     $0600,y                 ; store to BG palette buffer
         sta     $0620,y                 ; store to working copy
         inx
         iny
         cpy     #$10                    ; 16 bytes = 4 palettes × 4 colors
-        bne     LB138
+        bne     bg_palette_load_loop
         sty     palette_dirty                     ; Y=$10, trigger palette update
         lda     #$20
         ldx     #$24
@@ -952,7 +952,7 @@ code_91EF:  jsr     proto_man_sprite_control               ; update_password_cur
         lda     #$03
         sta     prg_bank
         jsr     select_PRG_banks
-        jmp     LA593                   ; → bank03 stage select entry
+        jmp     bank03_stage_select_entry                   ; → bank03 stage select entry
 
 ; --- Game Start: clear all OAM sprites except sprite 0 ---
 code_9212:  ldy     #$04                ; start at sprite 1
@@ -1092,7 +1092,7 @@ code_9291:  lda     $12                 ; combine column + row
         adc     $01                     ; ×12 = OAM data offset for grid pos
         tax
         ldy     #$00
-LB2A2:  lda     $9C75,x                 ; cursor selector OAM data (12 bytes/pos)
+cursor_selector_sprite_load_loop:  lda     $9C75,x                 ; cursor selector OAM data (12 bytes/pos)
         sta     $0299,y                 ; → OAM sprites at $0298+
         lda     $9C76,x
         sta     $029A,y
@@ -1103,7 +1103,7 @@ LB2A2:  lda     $9C75,x                 ; cursor selector OAM data (12 bytes/pos
         iny
         iny                             ; Y += 4 (OAM entry size)
         cpy     #$18                    ; 6 sprites × 4 bytes = $18
-        bne     LB2A2
+        bne     cursor_selector_sprite_load_loop
 
 ; --- Cursor bolt sprites (4 corner bolts) ---
 ; Position from $9CF3/$9CFC tables, offsets from $9D05/$9D09.
@@ -1128,7 +1128,7 @@ LB2A2:  lda     $9C75,x                 ; cursor selector OAM data (12 bytes/pos
         sta     $02
         ldx     #$03                    ; 4 bolts (3→0)
         ldy     #$C8                    ; OAM offset $C8 (sprite 50-53)
-LB2D4:  lda     L0000                   ; Y base
+cursor_bolt_sprite_load_loop:  lda     L0000                   ; Y base
         clc
         adc     $9D05,x                 ; + Y offset (0 or 38 for top/bottom)
         sta     $0200,y                 ; → OAM Y
@@ -1143,7 +1143,7 @@ LB2D4:  lda     L0000                   ; Y base
         dey
         dey                             ; Y -= 4 (next OAM slot, backwards)
         dex
-        bpl     LB2D4
+        bpl     cursor_bolt_sprite_load_loop
 code_92F2:  lda     #$00
         sta     nmi_skip
         jsr     task_yield
@@ -1176,13 +1176,13 @@ code_92F2:  lda     #$00
         adc     $13                     ; $13 = cursor row offset (0/3/6)
         tay                             ; Y = grid index (0-8)
         cpy     #$04                    ; index 4 = center position
-        bne     LB316                   ; not center → try select
+        bne     stage_select_check_beaten_boss                   ; not center → try select
         lda     stage_select_page                     ; center only selectable when
         cmp     #$12                    ; $60 == $12 (all Doc Robots beaten)
-        bne     LB316
+        bne     stage_select_check_beaten_boss
         jmp     wily_gate_entry                   ; → Wily fortress entrance
 
-LB316:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
+stage_select_check_beaten_boss:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
         and     $9DED,y                 ; check if this boss already beaten
         bne     code_92F2               ; already beaten → back to select loop
         lda     stage_select_page                     ; $60 = game progression page
@@ -1241,24 +1241,24 @@ LB316:  lda     bosses_beaten                     ; $61 = boss-defeated bitmask
 ; fill_nametable_progressive writes 4 tile rows per call.
 ; 16 calls × 4 rows = 64 rows → full nametable.
 ; When $70 reaches $40, it writes the attribute table and resets $70 to 0.
-LB35F:  lda     $10                     ; preserve nametable select
+boss_intro_nametable_fill_wait_loop:  lda     $10                     ; preserve nametable select
         pha
         jsr     fill_nametable_progressive                   ; write 4 rows to PPU queue
         jsr     task_yield                   ; wait for NMI (PPU uploads queued data)
         pla                             ; restore nametable select
         sta     $10
         lda     $70                     ; $70 = 0 when fill complete
-        bne     LB35F                   ; loop until done
+        bne     boss_intro_nametable_fill_wait_loop                   ; loop until done
 
 ; --- Load transition palette and jump to bank03 ---
 ; $9C53: 16-byte palette for the boss intro screen (BG palettes only).
 ; This replaces the stage select palettes with the intro band colors.
         ldy     #$0F
-LB371:  lda     $9C53,y                 ; copy 16 bytes from $9C53
+transition_palette_load_loop:  lda     $9C53,y                 ; copy 16 bytes from $9C53
         sta     $0600,y                 ; to BG palette buffer
         sta     $0620,y                 ; and working copy
         dey
-        bpl     LB371
+        bpl     transition_palette_load_loop
         sty     palette_dirty                     ; $18 = $FF → flag palette upload
 
 ; Jump to bank03 entry point.
@@ -1269,7 +1269,7 @@ LB371:  lda     $9C53,y                 ; copy 16 bytes from $9C53
         sta     prg_bank
         jsr     select_PRG_banks
         ldy     $0F                     ; Y = adjusted grid index
-        jmp     LA000                   ; → bank03 stage_transition_entry
+        jmp     data_compressed_nametable_start                   ; → bank03 stage_transition_entry
 
 ; --- Unused bank-call helper ($938B) ---
 ; Dead code (unreferenced): calls bank01 $A000, then restores bank03.
@@ -1278,7 +1278,7 @@ LB371:  lda     $9C53,y                 ; copy 16 bytes from $9C53
         sta     prg_bank
         jsr     select_PRG_banks
         pla
-        jsr     LA000
+        jsr     data_compressed_nametable_start
         lda     #$03
         sta     prg_bank
         jmp     select_PRG_banks
@@ -1307,15 +1307,15 @@ write_ppu_data_from_bank03:
         sta     prg_bank                     ; (contains PPU data tables)
         jsr     select_PRG_banks
         ldx     $05                     ; X = table index
-        lda     LA56D,x                 ; ($02/$03) = pointer to PPU data
+        lda     ppu_write_table_low_ptr,x                 ; ($02/$03) = pointer to PPU data
         sta     $02                     ; low byte from $A56D+X
-        lda     LA580,x                 ; high byte from $A580+X
+        lda     ppu_write_table_high_ptr,x                 ; high byte from $A580+X
         sta     $03
         ldy     #$00
-LB3BA:  lda     ($02),y                 ; PPU high address
+ppu_write_queue_read_addr:  lda     ($02),y                 ; PPU high address
         ora     $10                     ; OR nametable select bit
         sta     $0780,y                 ; store to PPU write queue
-        bmi     LB3DE                   ; bit 7 set = terminator ($FF)
+        bmi     ppu_write_queue_done                   ; bit 7 set = terminator ($FF)
         iny
         lda     ($02),y                 ; PPU low address
         sta     $0780,y
@@ -1324,13 +1324,13 @@ LB3BA:  lda     ($02),y                 ; PPU high address
         sta     $0780,y
         sta     L0000                   ; save count for loop
         iny
-LB3D2:  lda     ($02),y                 ; tile data byte
+ppu_write_queue_tile_loop:  lda     ($02),y                 ; tile data byte
         sta     $0780,y
         iny
         dec     L0000
-        bpl     LB3D2
-        bmi     LB3BA                   ; next PPU entry (always branches)
-LB3DE:  sta     nametable_dirty                     ; $19 = $FF → flag PPU write pending
+        bpl     ppu_write_queue_tile_loop
+        bmi     ppu_write_queue_read_addr                   ; next PPU entry (always branches)
+ppu_write_queue_done:  sta     nametable_dirty                     ; $19 = $FF → flag PPU write pending
         pla                             ; restore original PRG bank
         sta     prg_bank
         jsr     select_PRG_banks
@@ -1392,20 +1392,20 @@ code_940F:  rts
 ; ---------------------------------------------------------------------------
 
         ldy     #$0B                    ; refill weapon energy
-LB412:  lda     player_hp,y                   ; $A2-$AD = weapon ammo
-        bpl     LB41C                   ; if negative (depleted), set to full
+weapon_energy_refill_loop:  lda     player_hp,y                   ; $A2-$AD = weapon ammo
+        bpl     weapon_energy_refill_continue                   ; if negative (depleted), set to full
         lda     #$9C                    ; $9C = full energy (28 units)
         sta     player_hp,y
-LB41C:  dey
-        bpl     LB412
+weapon_energy_refill_continue:  dey
+        bpl     weapon_energy_refill_loop
         lda     stage_id                     ; stage < $08 = Robot Master
         cmp     #STAGE_DOC_NEEDLE                    ; stage >= $08 = Doc Robot/Wily
-        bcc     LB428
+        bcc     robot_master_intro_entry
         jmp     stage_loading_entry                   ; → skip to stage loading for Doc/Wily
 
 ; --- Robot Master intro animation ---
 
-LB428:  jsr     fade_palette_in                   ; disable sprites/rendering
+robot_master_intro_entry:  jsr     fade_palette_in                   ; disable sprites/rendering
         lda     #$04                    ; set rendering mode
         sta     oam_ptr
         jsr     prepare_oam_buffer                   ; configure PPU
@@ -1424,12 +1424,12 @@ LB428:  jsr     fade_palette_in                   ; disable sprites/rendering
         sta     stage_id
         lda     #$07                    ; metatile column 7
         jsr     metatile_column_ptr_by_id                   ; pointer → $B0C0 in bank $13
-LB449:  lda     #$00                    ; $10 = 0 → write to nametable $2000
+robot_master_nametable_fill_wait_loop:  lda     #$00                    ; $10 = 0 → write to nametable $2000
         sta     $10
         jsr     fill_nametable_progressive                   ; write 4 tile rows
         jsr     task_yield                   ; wait for NMI
         lda     $70                     ; $70 = 0 when complete
-        bne     LB449
+        bne     robot_master_nametable_fill_wait_loop
         pla                             ; restore real stage number
         sta     stage_id
 
@@ -1452,16 +1452,16 @@ LB449:  lda     #$00                    ; $10 = 0 → write to nametable $2000
 ; $9D46: 6 bytes of CHR bank IDs → $E8-$ED
 ; $9D16: 32 bytes of palette data (BG + sprite) → $0620 working copy
         ldy     #$05
-LB471:  lda     $9D46,y
+intro_chr_bank_load_loop:  lda     $9D46,y
         sta     $E8,y
         dey
-        bpl     LB471
+        bpl     intro_chr_bank_load_loop
         jsr     update_CHR_banks
         ldy     #$1F
-LB47F:  lda     $9D16,y                 ; 32 bytes: BG ($0620-$062F) + sprite ($0630-$063F)
+intro_palette_load_loop:  lda     $9D16,y                 ; 32 bytes: BG ($0620-$062F) + sprite ($0630-$063F)
         sta     $0620,y
         dey
-        bpl     LB47F
+        bpl     intro_palette_load_loop
 
 ; --- Set up boss entity and begin drop animation ---
 ; Entity slot 0: the boss sprite (reused as the intro display entity).
@@ -1483,24 +1483,24 @@ LB47F:  lda     $9D16,y                 ; 32 bytes: BG ($0620-$062F) + sprite ($
 ; Boss drop loop: decrement Y from $E8 to $74 at 4px/frame.
 ; ($E8 - $74) / 4 = 29 frames for the boss to slide down.
 ; When anim phase (ent_anim_state) reaches $02, switch to idle anim $1A.
-LB4A7:  lda     ent_y_px                   ; if Y == $74, skip decrement
+boss_drop_animation_loop:  lda     ent_y_px                   ; if Y == $74, skip decrement
         cmp     #$74                    ; (target reached)
-        beq     LB4B9
+        beq     boss_drop_anim_phase_check
         sec                             ; Y -= 4
         sbc     #$04
         sta     ent_y_px
         lda     #$00                    ; reset anim frame counter
         sta     ent_anim_frame                   ; (keep animation progressing)
-LB4B9:  lda     ent_anim_state                   ; check animation phase
+boss_drop_anim_phase_check:  lda     ent_anim_state                   ; check animation phase
         cmp     #$02                    ; phase 2 = intro anim done
-        bne     LB4C7
+        bne     boss_drop_frame_process_loop
         ldx     #$00                    ; switch to idle animation $1A
         lda     #$1A
         jsr     reset_sprite_anim
-LB4C7:  jsr     process_frame_yield_full                   ; process sprites + wait for NMI
+boss_drop_frame_process_loop:  jsr     process_frame_yield_full                   ; process sprites + wait for NMI
         lda     ent_anim_id                   ; check current OAM ID
         cmp     #$1A                    ; $1A = idle pose active
-        bne     LB4A7                   ; loop until idle
+        bne     boss_drop_animation_loop                   ; loop until idle
         ldx     #$3C                    ; wait $3C (60) frames
         jsr     task_yield_x                   ; (boss stands idle)
 
@@ -1509,7 +1509,7 @@ LB4C7:  jsr     process_frame_yield_full                   ; process sprites + w
 ; (Teleporting from below the blue band upward into view.)
         lda     ent_x_px                   ; if X == $C0, done
         cmp     #$C0
-        beq     LB4E9
+        beq     boss_idle_wait_before_fadeout
         clc                             ; X += 2
         adc     #$02                    ; (note: using ent_x_px which is
         sta     ent_x_px                   ; the X position for the entity)
@@ -1521,7 +1521,7 @@ LB4C7:  jsr     process_frame_yield_full                   ; process sprites + w
 ; Each call to fade_palette_to_black subtracts $10 per step
 ; from palette colors, 4 frames per step, until all reach $0F.
 
-LB4E9:  ldx     #$3C                    ; wait $3C (60) frames
+boss_idle_wait_before_fadeout:  ldx     #$3C                    ; wait $3C (60) frames
         jsr     task_yield_x
         lda     #$00                    ; clear NMI skip flag
         sta     nmi_skip
@@ -1546,10 +1546,10 @@ LB4E9:  ldx     #$3C                    ; wait $3C (60) frames
 
 boss_face_palette_flash:  lda     #$10  ; $10 = flash counter (17 iterations)
         sta     $10
-LB50D:  ldy     #$03                    ; process 4 palette colors (Y=3..0)
+boss_face_flash_frame_loop:  ldy     #$03                    ; process 4 palette colors (Y=3..0)
         lda     $10                     ; even/odd toggle
         and     #$01
-        bne     LB52F                   ; odd → restore defaults
+        bne     boss_face_default_palette_restore_loop                   ; odd → restore defaults
 
 ; Even frames: load boss face colors from $9BB7 table.
 ; $9BB7 + stage*8 = 8-byte palette (bright + dark variant).
@@ -1560,27 +1560,27 @@ LB50D:  ldy     #$03                    ; process 4 palette colors (Y=3..0)
         asl     a
         ora     #$03
         tax
-LB51D:  lda     $9BB7,x                 ; bright variant → SP 0
+boss_face_bright_palette_load_loop:  lda     $9BB7,x                 ; bright variant → SP 0
         sta     $0610,y
         lda     $9BBB,x                 ; dark variant → SP 1
         sta     $0618,y
         dex
         dey
-        bne     LB51D
-        beq     LB53E                   ; (always branches)
+        bne     boss_face_bright_palette_load_loop
+        beq     boss_face_flash_complete_check                   ; (always branches)
 
 ; Odd frames: copy default palettes back from $0630/$0638 working copy.
-LB52F:  lda     $0630,y                 ; default SP 0
+boss_face_default_palette_restore_loop:  lda     $0630,y                 ; default SP 0
         sta     $0610,y
         lda     $0638,y                 ; default SP 1
         sta     $0618,y
         dey
-        bne     LB52F
-LB53E:  inc     palette_dirty                     ; flag palette upload
+        bne     boss_face_default_palette_restore_loop
+boss_face_flash_complete_check:  inc     palette_dirty                     ; flag palette upload
         ldx     #$02                    ; wait 2 frames per flash
         jsr     task_yield_x
         dec     $10                     ; decrement flash counter
-        bpl     LB50D
+        bpl     boss_face_flash_frame_loop
         rts
 
 ; ---------------------------------------------------------------------------
@@ -1598,17 +1598,17 @@ fade_palette_to_black:
         lda     #$30                    ; $10 = starting subtract value
         sta     $10                     ; (decreases $30→$20→$10→$00)
         sty     $11                     ; save palette end index
-LB550:  ldy     $11                     ; restore palette index
+palette_fade_black_color_loop:  ldy     $11                     ; restore palette index
         ldx     #$03                    ; 4 colors per palette group
-LB554:  lda     $0600,y                 ; load base palette color
+palette_fade_subtract_loop:  lda     $0600,y                 ; load base palette color
         sec
         sbc     $10                     ; subtract fade amount
-        bcs     LB55E                   ; if no underflow, use result
+        bcs     palette_fade_store_color                   ; if no underflow, use result
         lda     #$0F                    ; clamp to black ($0F)
-LB55E:  sta     $0604,y                 ; store to working palette
+palette_fade_store_color:  sta     $0604,y                 ; store to working palette
         dey
         dex
-        bpl     LB554
+        bpl     palette_fade_subtract_loop
         sty     palette_dirty                     ; flag palette upload
         ldx     #$04                    ; wait 4 frames per step
         jsr     task_yield_x
@@ -1616,7 +1616,7 @@ LB55E:  sta     $0604,y                 ; store to working palette
         sec
         sbc     #$10
         sta     $10
-        bcs     LB550                   ; loop while $10 >= 0
+        bcs     palette_fade_black_color_loop                   ; loop while $10 >= 0
         lda     $11                     ; if this was BG palette 1 (Y=$07),
         cmp     #$07                    ; chain into boss face flash
         beq     boss_face_palette_flash
@@ -1830,7 +1830,7 @@ code_96DA:  lda     $9C23,y             ; sprite palettes
         lda     #$03
         sta     prg_bank
         jsr     select_PRG_banks
-        jsr     LA8DD                   ; call bank03 routine (portrait setup)
+        jsr     bank03_portrait_setup_routine                   ; call bank03 routine (portrait setup)
         jsr     fade_palette_out        ; enable rendering
 
 ; --- Wait for Start/A button to enter stage select ---
@@ -1856,14 +1856,14 @@ code_9708:  jmp     stage_select_proto_man_oam               ; → clear OAM and
 ; Frame dimensions: 8×6 tiles (64×48 px)
 
         stx     $0F
-LB70D:  lda     $9D4C,y                 ; PPU addr low byte for portrait y
+portrait_frame_addr_load_loop:  lda     $9D4C,y                 ; PPU addr low byte for portrait y
         sta     L0000
         lda     $9D55,y                 ; PPU addr high byte ($20/$21/$22)
         ora     $10
         sta     $01
         ldx     #$00
-LB71B:  lda     $9D5E,x                 ; row Y-offset (bit 7 = end marker)
-        bmi     LB749
+portrait_frame_tile_row_process_loop:  lda     $9D5E,x                 ; row Y-offset (bit 7 = end marker)
+        bmi     portrait_frame_row_complete
         lda     $9D5F,x                 ; row X-offset within nametable
         clc
         adc     L0000                   ; + base low byte
@@ -1877,13 +1877,13 @@ LB71B:  lda     $9D5E,x                 ; row Y-offset (bit 7 = end marker)
         sta     $0780,x
         sta     $02                     ; loop counter
         inx
-LB73C:  lda     $9D5E,x                 ; tile ID
+portrait_frame_tile_write_loop:  lda     $9D5E,x                 ; tile ID
         sta     $0780,x
         inx
         dec     $02
-        bpl     LB73C
-        bmi     LB71B
-LB749:  sta     $0780,x                 ; $FF end marker
+        bpl     portrait_frame_tile_write_loop
+        bmi     portrait_frame_tile_row_process_loop
+portrait_frame_row_complete:  sta     $0780,x                 ; $FF end marker
         sta     nametable_dirty
         tya
         pha
@@ -1891,12 +1891,12 @@ LB749:  sta     $0780,x                 ; $FF end marker
         jsr     task_yield_x                   ; submit PPU update buffer
         pla
         tay
-LB757:  iny
+portrait_frame_next_position_loop:  iny
         iny                             ; y += 2
         cpy     #$04
-        beq     LB757                   ; skip index 4 (center = Mega Man)
+        beq     portrait_frame_next_position_loop                   ; skip index 4 (center = Mega Man)
         cpy     #$09
-        bcc     LB70D                   ; loop until all 9 done
+        bcc     portrait_frame_addr_load_loop                   ; loop until all 9 done
         rts
 
 ; --- write_portrait_faces ---
@@ -1918,7 +1918,7 @@ LB757:  iny
 
         stx     $0F
         ldx     #$03
-LB766:  lda     $9D99,x                 ; face row 0 tiles ($C8-$CB)
+portrait_face_tile_copy_loop:  lda     $9D99,x                 ; face row 0 tiles ($C8-$CB)
         sta     $0783,x
         lda     $9D9D,x                 ; face row 1 tiles ($D8-$DB)
         sta     $078A,x
@@ -1927,9 +1927,9 @@ LB766:  lda     $9D99,x                 ; face row 0 tiles ($C8-$CB)
         lda     $9DA5,x                 ; face row 3 tiles ($F8-$FB)
         sta     $0798,x
         dex
-        bpl     LB766
+        bpl     portrait_face_tile_copy_loop
         ldy     #$00
-LB783:  lda     $9DC9,y                 ; PPU addr high ($20/$21/$22)
+portrait_face_ppu_addr_setup_loop:  lda     $9DC9,y                 ; PPU addr high ($20/$21/$22)
         ora     $10
         sta     $0780                   ; row 0 PPU high
         sta     $0787                   ; row 1 PPU high
@@ -1968,12 +1968,12 @@ LB783:  lda     $9DC9,y                 ; PPU addr high ($20/$21/$22)
         jsr     task_yield_x                   ; submit PPU update buffer
         pla
         tay
-LB7E1:  iny
+portrait_face_next_position_loop:  iny
         iny                             ; y += 2
         cpy     #$04
-        beq     LB7E1                   ; skip center
+        beq     portrait_face_next_position_loop                   ; skip center
         cpy     #$09
-        bcc     LB783
+        bcc     portrait_face_ppu_addr_setup_loop
         rts
 ; ---------------------------------------------------------------------------
 ; write_center_portrait — write Mega Man center face tiles to nametable
@@ -2097,7 +2097,7 @@ code_98AD:  lda     $9C23,y             ; sprite palettes
         lda     #$03
         sta     prg_bank
         jsr     select_PRG_banks
-        jsr     LA8DD                   ; call bank03 portrait routine
+        jsr     bank03_portrait_setup_routine                   ; call bank03 portrait routine
         jsr     task_yield
         jsr     fade_palette_out        ; enable rendering
 ; --- Wait 120 frames ($78) before showing cursor ---
@@ -2154,7 +2154,7 @@ code_992B:  rts
 code_992C:  lda     #$03
         sta     prg_bank
         jsr     select_PRG_banks
-        jmp     LA879                   ; → bank03 Wily stage entry
+        jmp     bank03_wily_stage_entry                   ; → bank03 Wily stage entry
 
 ; ---------------------------------------------------------------------------
 ; reset_stage_state — zero out game state for stage transition
@@ -2164,7 +2164,7 @@ code_992C:  lda     #$03
 ; ---------------------------------------------------------------------------
 
         lda     #$00
-        sta     LA000                   ; reset something in mapped bank
+        sta     data_compressed_nametable_start                   ; reset something in mapped bank
         sta     $59                     ; game sub-state
         sta     camera_screen                     ; camera/scroll page
         sta     ent_x_scr                   ; entity 0 screen page (Y high)
@@ -2294,7 +2294,7 @@ code_9A09:  lda     $9D36,y             ; Doc Robot palettes
         bpl     code_9A09
         sty     palette_dirty           ; flag palette upload
         ldx     #$98                    ; start from OAM offset $98
-; --- Copy OAM data from bank03 LA231 table ---
+; --- Copy OAM data from bank03 stage_select_oam_y_table table ---
 code_9A19:  stx     L0000               ; save start offset
         lda     prg_bank
         pha
@@ -2302,13 +2302,13 @@ code_9A19:  stx     L0000               ; save start offset
         sta     prg_bank
         jsr     select_PRG_banks
         ldx     L0000
-code_9A27:  lda     LA231,x             ; OAM Y position
+code_9A27:  lda     stage_select_oam_y_table,x             ; OAM Y position
         sta     $0200,x
-        lda     LA232,x                 ; OAM tile ID
+        lda     stage_select_oam_tile_table,x                 ; OAM tile ID
         sta     $0201,x
-        lda     LA233,x                 ; OAM attribute
+        lda     stage_select_oam_attr_table,x                 ; OAM attribute
         sta     $0202,x
-        lda     LA234,x                 ; OAM X position
+        lda     stage_select_oam_x_table,x                 ; OAM X position
         sta     $0203,x
         inx
         inx
@@ -2412,7 +2412,7 @@ code_9ABE:
         jsr     clear_entity_table
 ; --- Set up fortress approach ---
         lda     #$01
-        sta     LA000                   ; flag for mapped bank
+        sta     data_compressed_nametable_start                   ; flag for mapped bank
         lda     #$00
         sta     game_mode               ; game mode $00
         sta     $9E
@@ -2570,41 +2570,41 @@ code_9B38:  lda     $9E2A,y             ; fortress palette data (32 bytes)
 ; Used by boss_face_palette_flash to alternate during intro fadeout.
 ; Order: Needle, Magnet, Gemini, Hard, Top, Snake, Spark, Shadow
         .byte   $0F
-        bmi     LBBEA
+        bmi     palette_data_needle_bright
         .byte   $17
         .byte   $0F
         .byte   $07
-        bmi     LBBD6
+        bmi     palette_data_spark_bright
         .byte   $0F
-        bmi     LBBD2
+        bmi     palette_data_section_start
         asl     $0F,x
         asl     $10
         asl     $0F,x
-        bmi     LBBFA
+        bmi     palette_data_gemini_dark
         and     ($0F,x)
         ora     (player_state),y
         and     ($0F,x)
-        bmi     LBBE2
-LBBD2:  ora     ($0F,x)
+        bmi     palette_data_snake_dark
+palette_data_section_start:  ora     ($0F,x)
         .byte   $0C
         .byte   $10
-LBBD6:  ora     ($0F,x)
-        bmi     LBC01
+palette_data_spark_bright:  ora     ($0F,x)
+        bmi     palette_data_hard_dark
         brk
         .byte   $0F
         brk
         plp
         brk
         .byte   $0F
-        bmi     LBC12
-LBBE2:  ora     $090F,y
-        bmi     LBC00
+        bmi     palette_data_top_dark
+palette_data_snake_dark:  ora     $090F,y
+        bmi     palette_data_hard_bright
         .byte   $0F
-        bmi     LBC1A
-LBBEA:  rol     $0F
+        bmi     palette_data_magnet_bright
+palette_data_needle_bright:  rol     $0F
         asl     player_state,x
         rol     $0F
-        bmi     LBC26
+        bmi     palette_data_magnet_dark
         .byte   $14
         .byte   $0F
         .byte   $04
@@ -2612,33 +2612,33 @@ LBBEA:  rol     $0F
         .byte   $14
         .byte   $7C
         ror     $38,x
-LBBFA:  and     $2536,y
-        bpl     LBC0D
+palette_data_gemini_dark:  and     $2536,y
+        bpl     palette_data_top_bright
         .byte   $A7
-LBC00:  .byte   $97
-LBC01:  bmi     LBC43
+palette_data_hard_bright:  .byte   $97
+palette_data_hard_dark:  bmi     palette_data_shadow_dark
         .byte   $0F
         jsr     L0F21
         .byte   $0F
         and     ($20,x)
         ora     #$0F
         .byte   $16
-LBC0D:  jsr     L0F06
+palette_data_top_bright:  jsr     L0F06
         .byte   $20
         .byte   $37
-LBC12:  .byte   $0F
+palette_data_top_dark:  .byte   $0F
         .byte   $0F
-        bmi     LBC52
+        bmi     palette_data_section_middle
         ora     ($0F),y
         asl     $26,x
-LBC1A:  .byte   $27
+palette_data_magnet_bright:  .byte   $27
         .byte   $0F
         ora     ($2C,x)
         ora     ($0F),y
-        bmi     LBC59
+        bmi     palette_data_section_end
         rol     $0F
-        bmi     LBC3B
-LBC26:  ora     ($0F),y
+        bmi     palette_data_shadow_bright
+palette_data_magnet_dark:  ora     ($0F),y
         .byte   $37
         and     ($10,x)
         .byte   $0F
@@ -2651,11 +2651,11 @@ LBC26:  ora     ($0F),y
         jsr     L1121
         .byte   $0F
         jsr     L2937
-LBC3B:  .byte   $0F
+palette_data_shadow_bright:  .byte   $0F
         jsr     L1626
         .byte   $0F
         jsr     L2110
-LBC43:  .byte   $0F
+palette_data_shadow_dark:  .byte   $0F
         jsr     L1121
         .byte   $0F
         jsr     L1137
@@ -2664,12 +2664,12 @@ LBC43:  .byte   $0F
         .byte   $0F
         .byte   $20
         .byte   $37
-LBC52:  .byte   $0F
+palette_data_section_middle:  .byte   $0F
         .byte   $0F
         jsr     L1121
         .byte   $0F
         .byte   $27
-LBC59:  .byte   $17
+palette_data_section_end:  .byte   $17
         asl     $0F
         .byte   $27
         .byte   $17
@@ -2697,10 +2697,10 @@ LBC59:  .byte   $17
 ; Tiles $E6-$FF, $6F, $80-$81 are CHR sprite tiles for face details.
 ;
 ; Position 0 (Spark Man, top-left): eyes look upper-left
-        beq     LBC7A
+        beq     megaman_eye_pos0_tiles
         sbc     ($03),y
         .byte   $F2
-LBC7A:  .byte   $03
+megaman_eye_pos0_tiles:  .byte   $03
         .byte   $F3
         .byte   $03
         .byte   $F4
@@ -2721,7 +2721,7 @@ LBC7A:  .byte   $03
         .byte   $F2
         .byte   $43
         sbc     (tile_at_feet_lo),y
-        beq     LBCD6
+        beq     megaman_eye_pos8_tiles
         sbc     tile_at_feet_lo,x
         .byte   $F4
         .byte   $43
@@ -2787,7 +2787,7 @@ LBC7A:  .byte   $03
 
 ; Position 8 (Shadow Man, bottom-right): eyes look lower-right (pos 6 H-flipped)
         .byte   $E6
-LBCD6:  .byte   $03
+megaman_eye_pos8_tiles:  .byte   $03
         .byte   $6F
         .byte   $03
         inc     tile_at_feet_lo
@@ -2886,14 +2886,14 @@ LBCD6:  .byte   $03
         .byte   $0F
         .byte   $0F
         .byte   $0F
-        bmi     LBD65
+        bmi     center_portrait_border_row0_data
         ora     ($0F),y
         asl     $26,x
         .byte   $27
         .byte   $0F
         ora     ($2C,x)
         ora     ($0F),y
-        bmi     LBD6C
+        bmi     center_portrait_border_row1_data
         rol     $0F
         jsr     L1121
         .byte   $0F
@@ -2945,12 +2945,12 @@ LBCD6:  .byte   $03
         .byte   $07
         eor     $E0
         sbc     ($E2,x)
-LBD65:  .byte   $E2
+center_portrait_border_row0_data:  .byte   $E2
         .byte   $E3
         cpx     $4B
         brk                             ; row 1: L border + interior + R border
         and     ($05,x)
-LBD6C:  cmp     $24,x
+center_portrait_border_row1_data:  cmp     $24,x
         bit     $24
         bit     $D6
         brk                             ; row 2
@@ -3040,7 +3040,7 @@ LBD6C:  cmp     $24,x
 ; --- portrait_beat_oam_offsets ($9DDB) ---
         sei
         .byte   $54
-        bpl     LBE07
+        bpl     cursor_y_position_table
         tya
         rti
 
@@ -3059,12 +3059,12 @@ LBD6C:  cmp     $24,x
 
         jsr     L0801
         brk
-        bpl     LBDF8
+        bpl     stage_lookup_table_data
         .byte   $02
         .byte   $80
         .byte   $63
         .byte   $83
-LBDF8:  .byte   $02
+stage_lookup_table_data:  .byte   $02
         ror     $826B,x
         .byte   $03
         ror     $6B,x
@@ -3072,7 +3072,7 @@ LBDF8:  .byte   $02
         ror     $856B,x
         .byte   $02
         stx     $6B
-LBE07:  stx     $01
+cursor_y_position_table:  stx     $01
         stx     $876B
         ora     ($96,x)
         .byte   $73
@@ -3085,56 +3085,56 @@ LBE07:  stx     $01
         txa
         ora     ($96,x)
         .byte   $0F
-        bmi     LBE32
+        bmi     cursor_bolt_y_offset_table
         ora     ($0F),y
         .byte   $0F
         .byte   $27
         .byte   $17
         .byte   $0F
-        bpl     LBE4C
+        bpl     cursor_direction_offset_table
         .byte   $17
         .byte   $0F
         .byte   $37
         .byte   $3C
         .byte   $0F
         .byte   $0F
-LBE2B:  .byte   $37
+cursor_x_position_table:  .byte   $37
         .byte   $27
         asl     $0F
         .byte   $07
         php
         .byte   $09
-LBE32:  .byte   $0F
+cursor_bolt_y_offset_table:  .byte   $0F
         and     $1929,y
         .byte   $0F
         and     ($08,x)
-        bmi     LBE4A
+        bmi     cursor_bolt_x_offset_table
         .byte   $0F
         bit     $0F11
         .byte   $0F
-        bmi     LBE79
+        bmi     portrait_addr_hi_table
         .byte   $0F
         .byte   $0F
-        bpl     LBE5B
+        bpl     intro_chr_bank_table
         .byte   $0F
         .byte   $0F
         brk
         brk
-LBE4A:  .byte   $20
+cursor_bolt_x_offset_table:  .byte   $20
         rti
 
-LBE4C:  brk
+cursor_direction_offset_table:  brk
         brk
         jsr     L8100
         brk
         brk
-        bpl     LBE75
-        bpl     LBE57
-LBE57:  brk
+        bpl     portrait_addr_lo_table
+        bpl     intro_palette_table
+intro_palette_table:  brk
         brk
         brk
         brk
-LBE5B:  brk
+intro_chr_bank_table:  brk
         brk
         brk
         brk
@@ -3160,11 +3160,11 @@ LBE5B:  brk
         brk
         brk
         brk
-LBE75:  brk
+portrait_addr_lo_table:  brk
         brk
         brk
         brk
-LBE79:  brk
+portrait_addr_hi_table:  brk
         brk
         brk
         .byte   $02
@@ -3211,7 +3211,7 @@ LBE79:  brk
 
         brk
         brk
-        bpl     LBE2B
+        bpl     cursor_x_position_table
         .byte   $04
         brk
         brk
@@ -3226,26 +3226,26 @@ LBE79:  brk
         brk
         brk
         brk
-        bpl     LBEBB
-LBEBB:  brk
+        bpl     portrait_frame_tile_table
+portrait_frame_tile_table:  brk
         brk
         brk
         brk
         brk
         rti
 
-        bpl     LBEC4
+        bpl     face_tile_row0_table
         pha
-LBEC4:  rti
+face_tile_row0_table:  rti
 
         .byte   $04
         brk
         brk
         rti
 
-        bpl     LBECC
+        bpl     face_tile_row1_table
         brk
-LBECC:  brk
+face_tile_row1_table:  brk
         brk
         .byte   $04
         brk
@@ -3261,10 +3261,10 @@ LBECC:  brk
         brk
         ora     (L0000,x)
         brk
-        bpl     LBEDF
-LBEDF:  brk
-        bmi     LBEE2
-LBEE2:  jsr     L0400
+        bpl     face_tile_row2_table
+face_tile_row2_table:  brk
+        bmi     face_tile_row3_table
+face_tile_row3_table:  jsr     L0400
         brk
         brk
         brk
@@ -3324,15 +3324,15 @@ LBEE2:  jsr     L0400
         brk
         ora     (L0000,x)
         brk
-        bpl     LBF2B
-LBF2B:  brk
+        bpl     face_addr_hi_table
+face_addr_hi_table:  brk
         brk
         brk
         brk
         .byte   $04
-        bpl     LBF32
-LBF32:  bpl     LBF34
-LBF34:  brk
+        bpl     face_addr_lo_table
+face_addr_lo_table:  bpl     face_attr_offset_table
+face_attr_offset_table:  brk
         brk
         brk
         brk
@@ -3340,16 +3340,16 @@ LBF34:  brk
         brk
         brk
         brk
-        bpl     LBF7E
+        bpl     center_attr_ppu_addr
         sta     (L0000,x)
-        bpl     LBF82
+        bpl     portrait_oam_offset_table
         brk
         brk
         brk
-        bpl     LBF47
-LBF47:  brk
-        bpl     LBF4A
-LBF4A:  brk
+        bpl     center_portrait_tile_row0
+center_portrait_tile_row0:  brk
+        bpl     center_portrait_tile_row1
+center_portrait_tile_row1:  brk
         brk
         brk
         brk
@@ -3359,12 +3359,12 @@ LBF4A:  brk
         brk
         brk
         php
-        bpl     LBF57
-LBF57:  brk
+        bpl     center_portrait_tile_row2
+center_portrait_tile_row2:  brk
         brk
         .byte   $04
-        bpl     LBF5C
-LBF5C:  brk
+        bpl     center_portrait_tile_row3
+center_portrait_tile_row3:  brk
         brk
         brk
         brk
@@ -3373,8 +3373,8 @@ LBF5C:  brk
         jsr     L0000
         brk
         .byte   $02
-        bpl     LBF69
-LBF69:  brk
+        bpl     center_portrait_addr_ppu
+center_portrait_addr_ppu:  brk
         .byte   $22
         brk
         brk
@@ -3394,13 +3394,13 @@ LBF69:  brk
         brk
         brk
         brk
-LBF7E:  bpl     LBF80
-LBF80:  .byte   $20
+center_attr_ppu_addr:  bpl     center_attr_table_data
+center_attr_table_data:  .byte   $20
         .byte   $01
-LBF82:  brk
+portrait_oam_offset_table:  brk
         brk
-        bvc     LBF86
-LBF86:  ora     (L0000,x)
+        bvc     portrait_sprite_count_table
+portrait_sprite_count_table:  ora     (L0000,x)
         .byte   $80
         brk
         brk
@@ -3408,8 +3408,8 @@ LBF86:  ora     (L0000,x)
         php
         brk
         php
-        bpl     LBF91
-LBF91:  brk
+        bpl     boss_bitmask_table
+boss_bitmask_table:  brk
         php
         brk
         brk
@@ -3451,7 +3451,7 @@ LBF91:  brk
         brk
         brk
         brk
-        bpl     LBFDF
+        bpl     wily_center_sprite_table
         brk
         brk
         .byte   $04
@@ -3482,7 +3482,7 @@ LBF91:  brk
         brk
         brk
         jsr     L0000
-LBFDF:  brk
+wily_center_sprite_table:  brk
         brk
         brk
         .byte   $02

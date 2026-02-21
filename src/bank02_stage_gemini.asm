@@ -14,8 +14,8 @@
 ;
 ;   DATA ($A568-$BFFF):
 ;     - Pause menu lookup tables (nametable addrs, bar tiles, icon ptrs)
-;     - Weapon palette table (LA641, 3 colors x 11 weapons)
-;     - CHR bank assignment per weapon (LA634)
+;     - Weapon palette table (weapon_palette_color_table, 3 colors x 11 weapons)
+;     - CHR bank assignment per weapon (weapon_chr_bank_table)
 ;     - OAM sprite data for Mega Man + weapon icons
 ;     - Gemini Man stage layout: screen map, metatiles, enemy spawns
 ;
@@ -224,7 +224,7 @@ code_A108:  pla                         ; restore coroutine state
         pla
         sta     $EA
         ldy     current_weapon
-        lda     LA634,y                 ; CHR bank for this weapon
+        lda     weapon_chr_bank_table,y                 ; CHR bank for this weapon
         sta     $EB
         lda     #$00
         sta     scroll_lock
@@ -242,7 +242,7 @@ code_A129:  lda     $0630,x             ; restore saved palette
         asl     a                       ; weapon * 4 = palette offset
         tay
         ldx     #$00
-code_A139:  lda     LA641,y             ; copy 3 palette colors
+code_A139:  lda     weapon_palette_color_table,y             ; copy 3 palette colors
         sta     $0611,x                 ; to active sprite palette
         sta     $0631,x                 ; and saved sprite palette
         iny
@@ -321,27 +321,27 @@ code_A18E:  lda     #$1A                ; pause menu open SFX
 code_A1AA:  ldy     scroll_lock
         cpy     #$08                    ; all 8 phases done?
         beq     code_A217               ; yes → load palette
-        ldx     LA575,y                 ; get data offset for this phase
+        ldx     nametable_offset_phase_table,y                 ; get data offset for this phase
         ldy     #$00
 ; --- Decode compressed nametable row data ---
 code_A1B5:  lda     $52
         and     #$0C                    ; base nametable bits
-        ora     LA57D,x                 ; merge PPU control byte
+        ora     nametable_ppu_high_compressed,x                 ; merge PPU control byte
         sta     $0780,y                 ; PPU address high byte
         bmi     code_A1F7               ; $FF terminator → done
-        lda     LA57E,x
+        lda     nametable_ppu_low_compressed,x
         sta     $0781,y                 ; PPU address low byte
-        lda     LA57F,x
+        lda     nametable_tile_count_compressed,x
         sta     $0782,y                 ; tile count
         sta     $00
 code_A1CF:  lda     #$00
         sta     $01                     ; RLE repeat counter
-        lda     LA580,x
+        lda     nametable_tile_data_compressed,x
         bpl     code_A1E0               ; not RLE → single tile
         and     #$7F                    ; extract repeat count
         sta     $01
         inx
-        lda     LA580,x                 ; tile to repeat
+        lda     nametable_tile_data_compressed,x                 ; tile to repeat
 code_A1E0:  sta     $0783,y             ; store tile
         iny
         dec     $00
@@ -384,7 +384,7 @@ code_A217:  lda     #$74
         lda     #$1C
         sta     $ED
         ldx     #$0F
-code_A22D:  lda     LA624,x             ; load menu palette
+code_A22D:  lda     menu_palette_table,x             ; load menu palette
         sta     $0610,x
         dex
         bne     code_A22D
@@ -431,9 +431,9 @@ code_A266:  lda     #$07                ; 7 tile segments per bar
         bpl     code_A29D              ; not owned → skip
         and     #$7F                    ; extract ammo value (0-28)
         sta     $02
-        lda     LA5D8,y                ; PPU address high for this bar
+        lda     weapon_name_ppu_high_table,y                ; PPU address high for this bar
         sta     $0780,x
-        lda     LA5E4,y                ; PPU address low for this bar
+        lda     weapon_name_ppu_low_table,y                ; PPU address low for this bar
         sta     $0781,x
         inx
         inx
@@ -446,7 +446,7 @@ code_A283:  ldy     #$04                ; full segment
         ldy     $02                     ; partial segment
         lda     #$00
 code_A290:  sta     $02
-        lda     LA5F0,y                ; bar tile (empty/1/2/3/full)
+        lda     bar_tile_fill_table,y                ; bar tile (empty/1/2/3/full)
         sta     $0780,x
         inx
         dec     $01
@@ -538,18 +538,18 @@ code_A30C:  lda     $B4
         and     #$08                    ; blink every 8 frames
         beq     code_A320
         ldx     #$0C                    ; show fewer sprites when blinking
-code_A320:  lda     LA670,x             ; Y offset (relative to menu)
+code_A320:  lda     megaman_portrait_y_offset,x             ; Y offset (relative to menu)
         clc
         adc     $51                     ; add menu scroll position
         bcs     code_A341               ; off-screen → skip
         cmp     #$F0
         bcs     code_A341               ; below visible area → skip
         sta     $0200,x                 ; OAM Y
-        lda     LA671,x
+        lda     megaman_portrait_tile_index,x
         sta     $0201,x                 ; OAM tile
-        lda     LA672,x
+        lda     megaman_portrait_attributes,x
         sta     $0202,x                 ; OAM attributes
-        lda     LA673,x
+        lda     megaman_portrait_x_position,x
         sta     $0203,x                 ; OAM X
 code_A341:  dex
         dex
@@ -570,9 +570,9 @@ code_A34C:  clc
         and     #$08                    ; animation frame toggle
         beq     code_A35A
         inx                             ; alternate sprite frame
-code_A35A:  lda     LA690,x             ; sprite data pointer low
+code_A35A:  lda     weapon_icon_sprite_pointer_low,x             ; sprite data pointer low
         sta     $00
-        lda     LA6AE,x                ; sprite data pointer high
+        lda     weapon_icon_sprite_pointer_high,x                ; sprite data pointer high
         sta     $01
         ldx     #$20                    ; OAM slot 8 onwards
         ldy     #$00
@@ -763,13 +763,13 @@ code_A481:  ldx     #$00
 ; --- Copy weapon name entries from table ---
 code_A483:  lda     $52
         and     #$2C                    ; nametable base bits
-        ora     LA5F5,x                ; merge PPU address high
+        ora     weapon_slot_nametable_entries,x                ; merge PPU address high
         sta     $0780,x
         cmp     #$FF                    ; end of table?
         beq     code_A4A0
         inx
         ldy     #$04                    ; copy 4 more bytes per entry
-code_A494:  lda     LA5F5,x
+code_A494:  lda     weapon_slot_nametable_entries,x
         sta     $0780,x
         inx
         dey
@@ -782,9 +782,9 @@ code_A4A0:  lda     #$05                ; 6 slots (0-5)
         ldy     #$03                    ; buffer offset for first slot
 code_A4A8:  lda     player_hp,x         ; weapon owned? (bit 7)
         bpl     code_A4B8              ; not owned → skip
-        lda     LA5D8,x                ; weapon name tile 1
+        lda     weapon_name_ppu_high_table,x                ; weapon name tile 1
         sta     $0780,y
-        lda     LA5E4,x                ; weapon name tile 2
+        lda     weapon_name_ppu_low_table,x                ; weapon name tile 2
         sta     $0781,y
 code_A4B8:  inx
         tya
@@ -807,7 +807,7 @@ code_A4B8:  inx
         sta     $07A6
         sta     $07A7
         bne     code_A4EB
-code_A4E0:  ldy     LA61E,x             ; get buffer offset for this slot
+code_A4E0:  ldy     cursor_blink_buffer_offset_table,x             ; get buffer offset for this slot
         lda     #$25                    ; blank tile
         sta     $0780,y                ; blank the name tiles (blink)
         sta     $0781,y
@@ -845,9 +845,9 @@ code_A50D:  lda     #$1C                ; HP refill tick SFX
         tay
         lda     $52
         and     #$0C                    ; nametable base
-        ora     LA569,y                ; PPU address high for this bar
+        ora     ppu_addr_table_weapon_bars,y                ; PPU address high for this bar
         sta     $0780
-        lda     LA56A,y                ; PPU address low
+        lda     ppu_addr_low_weapon_bars,y                ; PPU address low
         sta     $0781
         lda     #$06                    ; 6 data bytes (header says 7 segments)
         sta     $0782
@@ -864,7 +864,7 @@ code_A533:  ldx     #$04                ; assume full segment
         ldx     $00                     ; partial segment
         lda     #$00
 code_A540:  sta     $00
-        lda     LA5F0,x                ; bar fill tile
+        lda     bar_tile_fill_table,x                ; bar fill tile
         sta     $0783,y
         iny
         cpy     #$07                    ; 7 segments
@@ -887,20 +887,20 @@ code_A561:  lda     #$FF                ; terminate buffer
 
 ; --- PPU addresses for each weapon's energy bar column ---
 ; 6 entries (2 bytes each): high, low. Used by code_A50D.
-LA569:  .byte   $22
-LA56A:  .byte   $E7,$22,$F2,$23,$27,$23,$32,$23
+ppu_addr_table_weapon_bars:  .byte   $22
+ppu_addr_low_weapon_bars:  .byte   $E7,$22,$F2,$23,$27,$23,$32,$23
         .byte   $67,$23,$72
 
 ; --- Nametable data offset table (one per build phase 0-7) ---
-LA575:  .byte   $00,$0D,$15,$25,$2D,$38,$46,$53
+nametable_offset_phase_table:  .byte   $00,$0D,$15,$25,$2D,$38,$46,$53
 
 ; --- Compressed nametable row data for menu layout ---
 ; Format: PPU_high, PPU_low, tile_count, tiles...
 ; Tiles with bit 7 set = RLE: (count | $80), tile_value
-LA57D:  .byte   $22
-LA57E:  .byte   $C0
-LA57F:  .byte   $1F
-LA580:  .byte   $30,$9D,$31,$32,$23,$E8,$07,$87
+nametable_ppu_high_compressed:  .byte   $22
+nametable_ppu_low_compressed:  .byte   $C0
+nametable_tile_count_compressed:  .byte   $1F
+nametable_tile_data_compressed:  .byte   $30,$9D,$31,$32,$23,$E8,$07,$87
         .byte   $00,$FF,$22,$E0,$1F,$33,$9D,$25
         .byte   $34,$FF,$23,$00,$1F,$33,$9A,$25
         .byte   $2B,$00,$00,$34,$23,$F0,$07,$87
@@ -912,59 +912,59 @@ LA580:  .byte   $30,$9D,$31,$32,$23,$E8,$07,$87
         .byte   $25,$34,$23,$F8,$07,$87,$00,$FF
         .byte   $23,$A0,$1F,$35,$9D,$36,$37,$FF
 ; --- Weapon name tile 1 (PPU addr high) per weapon index ---
-LA5D8:  .byte   $19,$10,$17,$11,$16,$1D,$1C,$1B
+weapon_name_ppu_high_table:  .byte   $19,$10,$17,$11,$16,$1D,$1C,$1B
         .byte   $1C,$1B,$1C,$1B
 ; --- Weapon name tile 2 (PPU addr low) per weapon index ---
-LA5E4:  .byte   $25,$0E,$0E,$0A,$0A,$18,$17,$0C
+weapon_name_ppu_low_table:  .byte   $25,$0E,$0E,$0A,$0A,$18,$17,$0C
         .byte   $19,$16,$11,$13
 ; --- Energy bar fill tiles (0=empty, 1-3=partial, 4=full) ---
-LA5F0:  .byte   $24,$2F,$2E,$2D,$2C
+bar_tile_fill_table:  .byte   $24,$2F,$2E,$2D,$2C
 ; --- Weapon slot nametable row entries (5 bytes each, $FF terminated) ---
 ; Each: PPU_high, PPU_low, count, tile1, tile2
-LA5F5:  .byte   $22,$E5,$01,$25,$25,$22,$F0,$01
+weapon_slot_nametable_entries:  .byte   $22,$E5,$01,$25,$25,$22,$F0,$01
         .byte   $25,$25,$23,$25,$01,$25,$25,$23
         .byte   $30,$01,$25,$25,$23,$65,$01,$25
         .byte   $25,$23,$70,$01,$25,$25,$23,$42
         .byte   $01,$38,$39,$23,$62,$01,$3A,$3B
         .byte   $FF
 ; --- Buffer offset for each cursor slot (used for blink blanking) ---
-LA61E:  .byte   $03,$08,$0D,$12,$17,$1C
+cursor_blink_buffer_offset_table:  .byte   $03,$08,$0D,$12,$17,$1C
 ; --- Menu palette data (4 sub-palettes, 4 bytes each) ---
-LA624:  .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$37
+menu_palette_table:  .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$37
         .byte   $0F,$0F,$3C,$11,$0F,$0F,$30,$19
 ; --- CHR bank assignment per weapon (indexed by current_weapon) ---
-LA634:  .byte   $01,$02,$07,$03,$01,$07,$01,$04
+weapon_chr_bank_table:  .byte   $01,$02,$07,$03,$01,$07,$01,$04
         .byte   $06,$02,$06,$03,$0F
 ; --- Weapon palette table (4 bytes per weapon, 3 used + 1 padding) ---
 ; Indexed by current_weapon * 4. Colors applied to sprite palette 1.
-LA641:  .byte   $0F,$2C,$11,$0F,$0F,$30,$21,$0F
+weapon_palette_color_table:  .byte   $0F,$2C,$11,$0F,$0F,$30,$21,$0F
         .byte   $0F,$30,$17,$0F,$0F,$10,$01,$0F
         .byte   $0F,$10,$16,$0F,$0F,$36,$00,$0F
         .byte   $0F,$30,$19,$0F,$0F,$30,$15,$0F
         .byte   $0F,$30,$26,$0F,$0F,$30,$15,$0F
         .byte   $0F,$34,$14,$0F,$0F,$30,$15
 ; --- Mega Man portrait OAM data (8 sprites, Y/tile/attr/X interleaved) ---
-LA670:  .byte   $08                     ; sprite 0 Y offset
-LA671:  .byte   $F3                     ; sprite 0 tile
-LA672:  .byte   $02                     ; sprite 0 attributes
-LA673:  .byte   $D0,$08,$F3,$42,$D8,$10,$F4,$01
+megaman_portrait_y_offset:  .byte   $08                     ; sprite 0 Y offset
+megaman_portrait_tile_index:  .byte   $F3                     ; sprite 0 tile
+megaman_portrait_attributes:  .byte   $02                     ; sprite 0 attributes
+megaman_portrait_x_position:  .byte   $D0,$08,$F3,$42,$D8,$10,$F4,$01
         .byte   $D0,$10,$F4,$41,$D8,$20,$F1,$02
         .byte   $D0,$20,$F2,$02,$D8,$28,$F1,$82
         .byte   $D0,$28,$F2,$82,$D8
 ; --- Weapon icon sprite data pointer table (low bytes) ---
 ; Two entries per weapon (frame 0, frame 1). Indexed by weapon*2.
-LA690:  .byte   $CC,$CC,$CC,$CC,$DD,$DD,$EE,$EE
+weapon_icon_sprite_pointer_low:  .byte   $CC,$CC,$CC,$CC,$DD,$DD,$EE,$EE
         .byte   $FF,$FF,$10,$10,$21,$21,$56,$83
         .byte   $5F,$5F,$56,$83,$BA,$BA,$56,$83
         .byte   $56,$32,$2D,$CB,$2D,$70
 ; --- Weapon icon sprite data pointer table (high bytes) ---
-LA6AE:  .byte   $A6,$A6,$A6,$A6,$A6,$A6,$A6,$A6
+weapon_icon_sprite_pointer_high:  .byte   $A6,$A6,$A6,$A6,$A6,$A6,$A6,$A6
         .byte   $A6,$A6,$A7,$A7,$A7,$A7,$A8,$A8
         .byte   $A7,$A7,$A8,$A8,$A7,$A7,$A8,$A8
         .byte   $A8,$A7,$A8,$A7,$A8,$A7
 ; --- Weapon icon OAM sprite definitions ---
 ; Each weapon has two animation frames (4 bytes per sprite: Y, tile, attr, X).
-; Terminated by $FF. Referenced via LA690/LA6AE pointer tables.
+; Terminated by $FF. Referenced via weapon_icon_sprite_pointer_low/weapon_icon_sprite_pointer_high pointer tables.
         .byte   $08,$4F
         .byte   $03,$10,$08,$5F,$C3,$18,$10,$5F
         .byte   $03,$10,$10,$4F,$C3,$18,$FF,$08

@@ -178,7 +178,7 @@ code_A0F5:  jsr     find_enemy_freeslot_y               ; find free enemy slot
         tay
         lda     ent_x_px,x
         clc
-        adc     LA13A,y
+        adc     doc_flash_projectile_x_offset_table,y
         ldy     L0000
         sta     ent_x_px,y
         lda     ent_x_scr,x
@@ -198,7 +198,7 @@ code_A0F5:  jsr     find_enemy_freeslot_y               ; find free enemy slot
         sta     ent_routine,y
 code_A139:  rts
 
-LA13A:  .byte   $E9,$17                 ; X offset per facing: left=-23, right=+23
+doc_flash_projectile_x_offset_table:  .byte   $E9,$17                 ; X offset per facing: left=-23, right=+23
 
 ; =============================================================================
 ; DOC FLASH HOMING PROJECTILE ($A4)
@@ -225,7 +225,7 @@ code_A13C:  lda     ent_status,x
         tay
         lda     ent_y_px,x
         clc
-        adc     LA1A4,y
+        adc     doc_flash_homing_random_y_offset_table,y
         sta     ent_y_px
         lda     #$00
         sta     $02
@@ -253,18 +253,18 @@ code_A197:  lda     ent_facing,x
 
 code_A1A1:  jmp     move_sprite_left
 
-LA1A4:  .byte   $24,$0C,$10,$00,$E0,$F4,$10,$F8     ; random Y-offset table (16 entries)
+doc_flash_homing_random_y_offset_table:  .byte   $24,$0C,$10,$00,$E0,$F4,$10,$F8     ; random Y-offset table (16 entries)
         .byte   $18,$F0,$08,$10,$00,$F0,$00,$E8
 
 ; --- copy explosion OAM data to sprite page (special death effect) ---
 code_A1B4:  ldy     #$68
-code_A1B6:  lda     LA1E4,y
+code_A1B6:  lda     doc_flash_explosion_oam_data_y,y
         sta     $0200,y
-        lda     LA1E5,y
+        lda     doc_flash_explosion_oam_data_x,y
         sta     $0201,y
-        lda     LA1E6,y
+        lda     doc_flash_explosion_oam_data_flags,y
         sta     $0202,y
-        lda     LA1E7,y
+        lda     doc_flash_explosion_oam_data_palette,y
         sta     $0203,y
         dey
         dey
@@ -285,10 +285,10 @@ code_A1B6:  lda     LA1E4,y
         sta     ent_timer
 code_A1E3:  rts
 
-LA1E4:  .byte   $20
-LA1E5:  .byte   $F7
-LA1E6:  .byte   $03
-LA1E7:  .byte   $20,$20,$F7,$03,$88,$30,$F7,$03
+doc_flash_explosion_oam_data_y:  .byte   $20
+doc_flash_explosion_oam_data_x:  .byte   $F7
+doc_flash_explosion_oam_data_flags:  .byte   $03
+doc_flash_explosion_oam_data_palette:  .byte   $20,$20,$F7,$03,$88,$30,$F7,$03
         .byte   $E0,$40,$F7,$03,$58,$70,$F7,$03
         .byte   $C0,$80,$F7,$03,$50,$B0,$F7,$03
         .byte   $A0,$C0,$F7,$03,$E8,$D0,$F7,$03
@@ -317,14 +317,14 @@ LA1E7:  .byte   $20,$20,$F7,$03,$88,$30,$F7,$03
 code_A250:  lda     ent_status,x            ; dispatch to state handler
         and     #$0F
         tay
-        lda     LA263,y
+        lda     doc_wood_state_handler_low_table,y
         sta     L0000
-        lda     LA269,y
+        lda     doc_wood_state_handler_high_table,y
         sta     $01
         jmp     (L0000)
 
-LA263:  .byte   $6F,$92,$B5,$CA,$FD,$46     ; state handler pointers (low)
-LA269:  .byte   $A2,$A2,$A2,$A2,$A2,$A3     ; state handler pointers (high)
+doc_wood_state_handler_low_table:  .byte   $6F,$92,$B5,$CA,$FD,$46     ; state handler pointers (low)
+doc_wood_state_handler_high_table:  .byte   $A2,$A2,$A2,$A2,$A2,$A3     ; state handler pointers (high)
         lda     #$9E
         sta     ent_yvel_sub,x
         lda     #$04
@@ -525,7 +525,7 @@ code_A3FB:  jsr     find_enemy_freeslot_y               ; find free enemy slot
         sta     ent_routine,y
         stx     $01
         ldx     L0000
-        lda     LA449,x
+        lda     doc_wood_crash_block_x_positions_table,x
         sta     ent_x_px,y
         ldx     $01
         inc     L0000
@@ -534,7 +534,7 @@ code_A3FB:  jsr     find_enemy_freeslot_y               ; find free enemy slot
         bcc     code_A3FB
         rts
 
-LA449:  .byte   $40,$70,$A0,$D0         ; X positions for 4 crash blocks
+doc_wood_crash_block_x_positions_table:  .byte   $40,$70,$A0,$D0         ; X positions for 4 crash blocks
 
 ; =============================================================================
 ; DOC WOOD LEAF — FALLING ($A5)
@@ -714,14 +714,14 @@ code_A599:  lda     #$88                    ; Y velocity = $07.88 (upward)
         sta     $E5
         and     #$03                    ; pick 1 of 4 X velocities
         tay
-        lda     LA5B9,y
+        lda     doc_crash_jump_x_velocity_sub_table,y
         sta     ent_xvel_sub,x
-        lda     LA5BD,y
+        lda     doc_crash_jump_x_velocity_table,y
         sta     ent_xvel,x
         rts
 
-LA5B9:  .byte   $00,$80,$00,$00         ; X velocity sub table
-LA5BD:  .byte   $01,$01,$01,$02         ; X velocity table
+doc_crash_jump_x_velocity_sub_table:  .byte   $00,$80,$00,$00         ; X velocity sub table
+doc_crash_jump_x_velocity_table:  .byte   $01,$01,$01,$02         ; X velocity table
 ; --- face player and flip sprite without changing movement direction ---
 code_A5C1:  lda     ent_facing,x
         sta     ent_var2,x              ; save current facing
@@ -755,7 +755,7 @@ code_A5E7:  cmp     ent_spawn_id,y
         tay
         lda     ent_x_px,x
         clc
-        adc     LA13A,y
+        adc     doc_flash_projectile_x_offset_table,y
         ldy     L0000
         sta     ent_x_px,y
         lda     ent_x_scr,x
@@ -799,7 +799,7 @@ code_A633:  lda     ent_status,x            ; --- init ---
         tay
         lda     ent_x_px,x
         clc
-        adc     LA6E3,y
+        adc     doc_crash_bomb_x_offset_table,y
         sta     ent_x_px,x
         jsr     calc_homing_velocity
         lda     ent_var1,x
@@ -859,7 +859,7 @@ code_A6CE:  dec     ent_timer,x
         sta     ent_routine,x
 code_A6E2:  rts
 
-LA6E3:  .byte   $18,$E8                 ; X offset: right=+24, left=-24
+doc_crash_bomb_x_offset_table:  .byte   $18,$E8                 ; X offset: right=+24, left=-24
 
 ; =============================================================================
 ; DOC METAL MAN AI ($A3)
@@ -1015,18 +1015,18 @@ code_A81F:  lda     $E4                     ; RNG: advance LFSR
         sta     $E5
         and     #$03                    ; pick 1 of 4 velocity sets
         tay
-        lda     LA83E,y
+        lda     doc_metal_jump_y_velocity_sub_table,y
         sta     ent_yvel_sub,x
-        lda     LA842,y
+        lda     doc_metal_jump_y_velocity_table,y
         sta     ent_yvel,x
-        lda     LA846,y
+        lda     doc_metal_jump_throw_interval_table,y
         sta     ent_var1,x              ; throw interval
         sta     ent_var2,x              ; throw interval reload
         rts
 
-LA83E:  .byte   $88,$00,$9E,$88         ; Y velocity sub table
-LA842:  .byte   $06,$08,$04,$06         ; Y velocity table
-LA846:  .byte   $0A,$08,$0D,$0A         ; throw interval table
+doc_metal_jump_y_velocity_sub_table:  .byte   $88,$00,$9E,$88         ; Y velocity sub table
+doc_metal_jump_y_velocity_table:  .byte   $06,$08,$04,$06         ; Y velocity table
+doc_metal_jump_throw_interval_table:  .byte   $0A,$08,$0D,$0A         ; throw interval table
 ; --- spawn Metal Blade projectile ---
 code_A84A:  jsr     find_enemy_freeslot_y               ; find free enemy slot
         bcs     code_A886
@@ -1037,7 +1037,7 @@ code_A84A:  jsr     find_enemy_freeslot_y               ; find free enemy slot
         tay
         lda     ent_x_px,x
         clc
-        adc     LA13A,y
+        adc     doc_flash_projectile_x_offset_table,y
         ldy     L0000
         sta     ent_x_px,y
         lda     ent_x_scr,x

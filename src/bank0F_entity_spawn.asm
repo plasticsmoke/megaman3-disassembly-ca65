@@ -43,7 +43,7 @@ process_frame_yield           := $FD80                ; process_frame_yield — 
         sta     $95
         .byte   $8D
         .byte   $06
-LA006:  ldy     #$85
+credits_enemy_data_start:  ldy     #$85
         inc     a:$8D
         ora     $8D
         jsr     $8D05
@@ -62,7 +62,7 @@ LA006:  ldy     #$85
 ; Scrolls the credits text upward one pixel at a time. Every 8 pixels,
 ; writes a new row of nametable tiles from the credits text data.
 ; Uses $B8 as the text data index, scroll_y as the Y scroll position.
-; The text data pointers are stored in LA24E (low) / LA289 (high).
+; The text data pointers are stored in credits_text_pointer_low_bytes (low) / credits_text_pointer_high_bytes (high).
 ; ===========================================================================
 code_A01B:  lda     ent_status              ; check if credits entity active
         bmi     code_A077               ; if active (bit 7 set), skip scroll
@@ -78,9 +78,9 @@ code_A01B:  lda     ent_status              ; check if credits entity active
         lsr     a
         sta     $02                     ; $02 = current tile row
         ldx     $B8                     ; text data index
-        lda     LA24E,x                 ; load text data pointer (low byte)
+        lda     credits_text_pointer_low_bytes,x                 ; load text data pointer (low byte)
         sta     $00
-        lda     LA289,x                 ; load text data pointer (high byte)
+        lda     credits_text_pointer_high_bytes,x                 ; load text data pointer (high byte)
         sta     $01
         ldy     #$00
         sty     $03                     ; $03/$04 = PPU nametable address
@@ -175,19 +175,19 @@ code_A0D4:  lda     $95
         bne     code_A0EF
         inc     ent_var2                ; count nametable wraps
 ; --- render star sprites for credits background ---
-; Copies 12 OAM entries from LA202 (6 per entity slot), with Y offset from ent_timer.
+; Copies 12 OAM entries from credits_star_sprites_oam_y (6 per entity slot), with Y offset from ent_timer.
 ; Two sets of 6 sprites: first set uses slot 0 timer, second uses slot $20 (1).
 code_A0EF:  ldy     #$00                    ; OAM buffer index
         ldx     #$00                    ; entity slot offset
-code_A0F3:  lda     LA202,y                 ; sprite Y position (base)
+code_A0F3:  lda     credits_star_sprites_oam_y,y                 ; sprite Y position (base)
         clc
         adc     ent_timer,x             ; add vertical scroll offset
         sta     $0200,y                 ; write to OAM Y
-        lda     LA203,y                 ; tile ID
+        lda     credits_star_sprites_oam_tile,y                 ; tile ID
         sta     $0201,y                 ; write to OAM tile
-        lda     LA204,y                 ; sprite attributes
+        lda     credits_star_sprites_oam_attr,y                 ; sprite attributes
         sta     $0202                   ; write to OAM attr
-        lda     LA205,y                 ; sprite X position
+        lda     credits_star_sprites_oam_x,y                 ; sprite X position
         sta     $0203,y                 ; write to OAM X
         iny
         iny
@@ -223,9 +223,9 @@ code_A137:  lda     ent_status
 code_A13E:  lda     #$80
         sta     ent_status,x            ; mark entity active
         sta     ent_flags,x             ; set active flag
-        lda     LA232,x                 ; animation ID from table
+        lda     credits_character_anim_ids,x                 ; animation ID from table
         sta     ent_anim_id,x
-        lda     LA234,x                 ; initial Y position from table
+        lda     credits_character_y_positions,x                 ; initial Y position from table
         sta     ent_y_px,x
         lda     #$F8                    ; start off-screen right
         sta     ent_x_px,x
@@ -269,9 +269,9 @@ code_A18B:  lda     ent_anim_id             ; slot 0 animation state
         ldx     ent_var3                ; current letter index
         cpx     #$0C                    ; all 12 chars placed?
         beq     code_A1CA
-        lda     LA236,x                 ; top row tile for this letter
+        lda     credits_presented_by_capcom_top,x                 ; top row tile for this letter
         sta     $0783
-        lda     LA242,x                 ; bottom row tile for this letter
+        lda     credits_presented_by_capcom_bottom,x                 ; bottom row tile for this letter
         sta     $0787
         lda     #$FF
         sta     $0788                   ; terminator
@@ -308,33 +308,33 @@ code_A1FF:  jmp     code_A0EF               ; back to star sprite render loop
 ; OAM entries for 12 star sprites (two groups of 6).
 ; Format: Y-pos, tile, attr, X-pos (4 bytes per sprite).
 ; ===========================================================================
-LA202:  .byte   $28
-LA203:  .byte   $F1
-LA204:  .byte   $02
-LA205:  .byte   $28,$90,$F1,$02,$50,$D0,$F1,$02
+credits_star_sprites_oam_y:  .byte   $28
+credits_star_sprites_oam_tile:  .byte   $F1
+credits_star_sprites_oam_attr:  .byte   $02
+credits_star_sprites_oam_x:  .byte   $28,$90,$F1,$02,$50,$D0,$F1,$02
         .byte   $68,$60,$F1,$02,$90,$B0,$F1,$02
         .byte   $C0,$70,$F1,$02,$E0,$68,$F2,$02
         .byte   $18,$E0,$F2,$02,$40,$40,$F2,$02
         .byte   $68,$80,$F2,$02,$A0,$20,$F2,$02
         .byte   $D0,$D0,$F2,$02,$F0
 ; --- entity animation IDs for credits characters ---
-LA232:  .byte   $01,$D7                 ; anim IDs for slots 0, 1
+credits_character_anim_ids:  .byte   $01,$D7                 ; anim IDs for slots 0, 1
 ; --- initial Y positions for credits characters ---
-LA234:  .byte   $74,$82                 ; Y positions for slots 0, 1
+credits_character_y_positions:  .byte   $74,$82                 ; Y positions for slots 0, 1
 ; --- "PRESENTED BY CAPCOM" letter tiles (top row) ---
-LA236:  .byte   $22,$0B,$24,$0D,$0E,$1D,$17,$0E
+credits_presented_by_capcom_top:  .byte   $22,$0B,$24,$0D,$0E,$1D,$17,$0E
         .byte   $1C,$0E,$1B,$19
 ; --- "PRESENTED BY CAPCOM" letter tiles (bottom row) ---
-LA242:  .byte   $24,$24,$24,$16,$18,$0C,$19,$0A
+credits_presented_by_capcom_bottom:  .byte   $24,$24,$24,$16,$18,$0C,$19,$0A
         .byte   $0C,$24,$24,$24
 ; ===========================================================================
 ; CREDITS TEXT DATA POINTERS
 ; ===========================================================================
 ; 59 entries ($3B) indexing into the credits text data.
-; LA24E = low bytes, LA289 = high bytes of text data pointers.
+; credits_text_pointer_low_bytes = low bytes, credits_text_pointer_high_bytes = high bytes of text data pointers.
 ; Each entry points to a row: [expected_row, left_pad, text_len, tiles...]
 ; ===========================================================================
-LA24E:  .byte   $C4,$D9,$E4,$F0,$FC,$03,$0D,$1D
+credits_text_pointer_low_bytes:  .byte   $C4,$D9,$E4,$F0,$FC,$03,$0D,$1D
         .byte   $26,$33,$39,$3F,$4B,$55,$60,$6F
         .byte   $7D,$86,$91,$A2,$B5,$C7,$D5,$E7
         .byte   $F9,$0E,$21,$32,$47,$5A,$6B,$7D
@@ -343,7 +343,7 @@ LA24E:  .byte   $C4,$D9,$E4,$F0,$FC,$03,$0D,$1D
         .byte   $A0,$B5,$C7,$D6,$E3,$EC,$F7,$02
         .byte   $0D,$16,$22
 ; --- text data pointer high bytes ---
-LA289:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
+credits_text_pointer_high_bytes:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
         .byte   $A3,$A3,$A3,$A3,$A3,$A3,$A3,$A3
         .byte   $A3,$A3,$A3,$A3,$A3,$A3,$A3,$A3
         .byte   $A3,$A4,$A4,$A4,$A4,$A4,$A4,$A4

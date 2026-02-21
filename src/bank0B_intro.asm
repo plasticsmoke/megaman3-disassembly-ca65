@@ -53,7 +53,7 @@ select_PRG_banks           := $FF6B                ; select PRG banks
 ; $8000: intro sequence (called from game mode handler)
 ; $8003: Doc Robot Shadow Man stage entry
 ; ===========================================================================
-        jmp     L8006                   ; entry: intro sequence
+        jmp     intro_phase1_init                   ; entry: intro sequence
 
         jmp     code_8439               ; entry: Doc Robot stage
 
@@ -63,7 +63,7 @@ select_PRG_banks           := $FF6B                ; select PRG banks
 ; Fade in, load stage $16 nametable, set up Mega Man (entity 0) and
 ; Rush (entity 1) sprites, start title music, then enter main loop.
 ; ===========================================================================
-L8006:  lda     #$00
+intro_phase1_init:  lda     #$00
         sta     nmi_skip                ; disable NMI processing
         jsr     fade_palette_in                   ; fade palette to black
         lda     #$04
@@ -94,12 +94,12 @@ code_8038:  lda     #$00
         bne     code_8038               ; loop until nametable fully drawn
 ; --- load palette and CHR bank settings ---
         ldy     #$1F
-code_8048:  lda     L8655,y             ; phase 1 palette (mountain top)
+code_8048:  lda     intro_phase1_palette_table,y             ; phase 1 palette (mountain top)
         sta     $0620,y                 ; write to palette buffer
         dey
         bpl     code_8048
         ldy     #$05
-code_8053:  lda     L86B5,y             ; phase 1 CHR bank assignments
+code_8053:  lda     intro_phase1_chr_bank_table,y             ; phase 1 CHR bank assignments
         sta     $E8,y
         dey
         bpl     code_8053
@@ -110,11 +110,11 @@ code_8061:  lda     #$80
         sta     ent_status,y            ; entity active
         lda     #$90
         sta     ent_flags,y             ; facing left, palette 0
-        lda     L86E3,y
+        lda     intro_phase1_entity_anim_table,y
         sta     ent_anim_id,y           ; anim: $13=Mega Man fall, $60=Rush
-        lda     L86E5,y
+        lda     intro_phase1_entity_x_table,y
         sta     ent_x_px,y              ; x: $D8=MM, $58=Rush
-        lda     L86E7,y
+        lda     intro_phase1_entity_y_table,y
         sta     ent_y_px,y              ; y: $00=MM (top), $A4=Rush (ground)
         lda     #$00
         sta     ent_x_scr,y
@@ -133,7 +133,7 @@ code_8061:  lda     #$80
         bpl     code_8061
 ; --- load initial OAM sprite data (mountain scenery) ---
         ldy     #$07
-code_80A6:  lda     L86E9,y
+code_80A6:  lda     intro_phase1_mountain_oam_table,y
         sta     $0200,y                 ; OAM buffer: mountain decoration sprites
         dey
         bpl     code_80A6
@@ -205,7 +205,7 @@ code_8121:  lda     $95
         adc     $0104                   ; index * 3 = offset into palette table
         tay
         ldx     #$05
-code_8131:  lda     L86C7,y             ; load 3 bytes of cycling palette
+code_8131:  lda     intro_phase1_palette_cycle_table,y             ; load 3 bytes of cycling palette
         sta     $0600,x                 ; write to palette BG color slots 5-7
         iny
         inx
@@ -295,12 +295,12 @@ code_81D6:  lda     #$00
         bne     code_81D6               ; loop until complete
 ; --- load phase 2 palette and CHR banks ---
         ldy     #$1F
-code_81E6:  lda     L8675,y             ; phase 2 palette (night sky)
+code_81E6:  lda     intro_phase2_palette_table,y             ; phase 2 palette (night sky)
         sta     $0620,y                 ; write to palette buffer
         dey
         bpl     code_81E6
         ldy     #$05
-code_81F1:  lda     L86BB,y             ; phase 2 CHR bank assignments
+code_81F1:  lda     intro_phase2_chr_bank_table,y             ; phase 2 CHR bank assignments
         sta     $E8,y
         dey
         bpl     code_81F1
@@ -350,7 +350,7 @@ code_823D:  lda     ent_y_scr
         adc     $0104                   ; * 3 for table offset
         tay
         ldx     #$05
-code_8255:  lda     L86D9,y             ; night sky flash palette
+code_8255:  lda     intro_phase2_flash_palette_table,y             ; night sky flash palette
         sta     $0600,x                 ; BG palette bytes 5-7
         iny
         inx
@@ -367,7 +367,7 @@ code_8269:  lda     $95
         inc     $0105
         and     #$03                    ; cycle through 4 star brightness levels
         tay
-        lda     L86DF,y                 ; star color: $04, $14, $0F, $0F
+        lda     intro_star_twinkle_color_table,y                 ; star color: $04, $14, $0F, $0F
         sta     $060D                   ; sprite palette slot for stars
 ; --- wind sound effect (every 16 frames) ---
 code_827E:  lda     $95
@@ -553,13 +553,13 @@ code_83EA:  lda     ent_var2            ; star scroll accumulator
         adc     ent_yvel                ; add vertical speed
         sta     ent_var2
         ldx     #$00
-code_83F6:  lda     L8735,x             ; star Y position (base)
+code_83F6:  lda     intro_star_field_y_table,x             ; star Y position (base)
         sta     $0200,x
-        lda     L8736,x                 ; star tile
+        lda     intro_star_field_tile_table,x                 ; star tile
         sta     $0201,x
-        lda     L8737,x                 ; star attribute
+        lda     intro_star_field_attr_table,x                 ; star attribute
         sta     $0202,x
-        lda     L8738,x                 ; star X position (base)
+        lda     intro_star_field_x_table,x                 ; star X position (base)
         clc
         adc     ent_var2                ; add scroll offset
         sta     $0203,x
@@ -620,19 +620,19 @@ code_8466:  lda     #$00
         bne     code_8466               ; loop until complete
 ; --- load palette, CHR banks, and OAM scenery ---
         ldy     #$1F
-code_8476:  lda     L8695,y             ; Doc Robot stage palette
+code_8476:  lda     intro_doc_robot_palette_table,y             ; Doc Robot stage palette
         sta     $0620,y
         dey
         bpl     code_8476
         ldy     #$05
-code_8481:  lda     L86C1,y             ; Doc Robot CHR bank assignments
+code_8481:  lda     intro_doc_robot_chr_bank_table,y             ; Doc Robot CHR bank assignments
         sta     $E8,y
         dey
         bpl     code_8481
         jsr     update_CHR_banks                   ; update CHR banks via MMC3
 ; --- load background sprite decoration ---
         ldy     #$27
-code_848F:  lda     L86F1,y             ; 40 bytes of OAM sprites (scenery)
+code_848F:  lda     intro_doc_robot_scenery_oam_table,y             ; 40 bytes of OAM sprites (scenery)
         sta     $0200,y
         dey
         bpl     code_848F
@@ -641,7 +641,7 @@ code_848F:  lda     L86F1,y             ; 40 bytes of OAM sprites (scenery)
         jsr     fade_palette_out                   ; fade palette out (reveal scene)
 ; --- load robot master portrait position sprites ---
         ldy     #$13
-code_84A3:  lda     L8719,y             ; 5 robot master icon positions
+code_84A3:  lda     intro_doc_robot_icon_position_table,y             ; 5 robot master icon positions
         sta     $0228,y                 ; OAM: Y, tile, attr, X per icon
         dey
         bpl     code_84A3
@@ -725,7 +725,7 @@ code_8525:  txa
         ldy     $75                     ; boss selection index
         cpy     #$04
         bcs     code_8543               ; skip blink for bosses 4-5
-        ldx     L875E,y                 ; OAM offset for this boss's icon
+        ldx     intro_doc_robot_boss_icon_oam_offset_table,y                 ; OAM offset for this boss's icon
         lda     $95
         lsr     a
         lsr     a
@@ -746,8 +746,8 @@ code_8543:  jsr     process_frame_yield               ; process frame + yield
 ; ===========================================================================
 ; Iterates through boss indices 0-5, skipping the one matching $75
 ; (the selected boss). Each boss's icon is a group of OAM sprites
-; defined in L8774 (Y, tile, attr, X quads). Sprite data index and
-; count come from L8762/L8768 tables.
+; defined in intro_doc_robot_boss_icon_sprite_data_table (Y, tile, attr, X quads). Sprite data index and
+; count come from intro_doc_robot_boss_sprite_data_offset_table/intro_doc_robot_boss_sprite_count_table tables.
 ; ===========================================================================
 code_854B:  lda     #$40
         sta     $10                     ; OAM write cursor (starts at $40)
@@ -756,17 +756,17 @@ code_854B:  lda     #$40
 code_8554:  ldy     ent_timer
         cpy     $75                     ; is this the selected boss?
         beq     code_8590               ; yes — skip it (will be revealed later)
-        ldx     L8762,y                 ; sprite data offset for this boss
-        lda     L8768,y                 ; sprite count for this boss
+        ldx     intro_doc_robot_boss_sprite_data_offset_table,y                 ; sprite data offset for this boss
+        lda     intro_doc_robot_boss_sprite_count_table,y                 ; sprite count for this boss
         sta     $00
         ldy     $10                     ; OAM cursor
-code_8565:  lda     L8774,x             ; sprite Y
+code_8565:  lda     intro_doc_robot_boss_icon_sprite_data_table,x             ; sprite Y
         sta     $0200,y
-        lda     L8775,x                 ; sprite tile
+        lda     intro_doc_robot_boss_icon_tile_continuation,x                 ; sprite tile
         sta     $0201,y
-        lda     L8776,x                 ; sprite attribute
+        lda     intro_doc_robot_boss_icon_attr_continuation,x                 ; sprite attribute
         sta     $0202,y
-        lda     L8777,x                 ; sprite X
+        lda     intro_doc_robot_boss_icon_x_continuation,x                 ; sprite X
         sta     $0203,y
         inx
         inx
@@ -792,18 +792,18 @@ code_8590:  rts
 ; Doc Robot entity.
 ; ===========================================================================
 code_8591:  ldy     ent_timer           ; selected boss index
-        ldx     L8762,y                 ; sprite data offset
-        lda     L8768,y                 ; sprite count
+        ldx     intro_doc_robot_boss_sprite_data_offset_table,y                 ; sprite data offset
+        lda     intro_doc_robot_boss_sprite_count_table,y                 ; sprite count
         sta     $0F
-        lda     L876E,y                 ; OAM base offset for this boss
+        lda     intro_doc_robot_boss_reveal_oam_base_table,y                 ; OAM base offset for this boss
         tay
-code_85A0:  lda     L8774,x             ; copy one sprite to OAM
+code_85A0:  lda     intro_doc_robot_boss_icon_sprite_data_table,x             ; copy one sprite to OAM
         sta     $0240,y                 ; Y pos (at $0240+ for reveal area)
-        lda     L8775,x
+        lda     intro_doc_robot_boss_icon_tile_continuation,x
         sta     $0241,y                 ; tile
-        lda     L8776,x
+        lda     intro_doc_robot_boss_icon_attr_continuation,x
         sta     $0242,y                 ; attribute
-        lda     L8777,x
+        lda     intro_doc_robot_boss_icon_x_continuation,x
         sta     $0243,y                 ; X pos
         inx
         inx
@@ -848,7 +848,7 @@ code_8602:  rts
 ; code_8603: Decrements Y by 1 per frame. Falls through to code_861B
 ;            when Y >= $60 (still on screen).
 ; code_861B: Applies X velocity with sub-pixel precision, then adjusts
-;            X velocity using a 4-phase acceleration table (L872D/L8731)
+;            X velocity using a 4-phase acceleration table (intro_sinusoidal_accel_sub_table/intro_sinusoidal_accel_whole_table)
 ;            to create a sinusoidal left-right weaving motion.
 ;            Each phase lasts $10 frames, cycling through 4 directions.
 ; ===========================================================================
@@ -876,10 +876,10 @@ code_861B:  lda     ent_x_sub
         tay
         lda     ent_xvel_sub
         clc
-        adc     L872D,y                 ; acceleration sub-pixel
+        adc     intro_sinusoidal_accel_sub_table,y                 ; acceleration sub-pixel
         sta     ent_xvel_sub
         lda     ent_xvel
-        adc     L8731,y                 ; acceleration whole: FF,FF,00,00
+        adc     intro_sinusoidal_accel_whole_table,y                 ; acceleration whole: FF,FF,00,00
         sta     ent_xvel
         dec     ent_timer               ; phase duration countdown
         bne     code_8654
@@ -892,80 +892,80 @@ code_8654:  .byte   $60                 ; RTS ($60 opcode)
 ; ===========================================================================
 
 ; --- Phase 1 palette: mountain top / sunset sky (32 bytes) ---
-L8655:  .byte   $0F,$20,$2C,$1C,$0F,$1C,$27,$16
+intro_phase1_palette_table:  .byte   $0F,$20,$2C,$1C,$0F,$1C,$27,$16
         .byte   $0F,$3B,$2B,$1B,$0F,$32,$22,$12
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
         .byte   $0F,$35,$25,$15,$0F,$0F,$30,$11
 ; --- Phase 2 palette: night sky / flying on Rush (32 bytes) ---
-L8675:  .byte   $0F,$20,$1B,$0B,$0F,$1C,$11,$01
+intro_phase2_palette_table:  .byte   $0F,$20,$1B,$0B,$0F,$1C,$11,$01
         .byte   $0F,$28,$18,$08,$0F,$04,$13,$03
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$27
 ; --- Doc Robot stage palette (32 bytes) ---
-L8695:  .byte   $0F,$20,$27,$17,$0F,$3B,$2A,$1A
+intro_doc_robot_palette_table:  .byte   $0F,$20,$27,$17,$0F,$3B,$2A,$1A
         .byte   $0F,$3C,$2C,$1C,$0F,$33,$23,$17
         .byte   $0F,$2A,$27,$17,$0F,$3C,$2C,$1C
         .byte   $0F,$0F,$30,$37,$0F,$0F,$30,$27
 ; --- CHR bank assignments (6 bytes each: banks for $0000-$17FF) ---
 ; Phase 1 CHR banks
-L86B5:  .byte   $78,$7A,$00,$01,$1B,$3B
+intro_phase1_chr_bank_table:  .byte   $78,$7A,$00,$01,$1B,$3B
 ; Phase 2 CHR banks
-L86BB:  .byte   $50,$52,$39,$25,$36,$17
+intro_phase2_chr_bank_table:  .byte   $50,$52,$39,$25,$36,$17
 ; Doc Robot stage CHR banks
-L86C1:  .byte   $70,$72,$09,$39,$36,$35
+intro_doc_robot_chr_bank_table:  .byte   $70,$72,$09,$39,$36,$35
 ; --- Phase 1 sunset palette cycle (6 steps x 3 bytes) ---
-L86C7:  .byte   $1C,$27,$16,$0F,$1C,$1A,$16,$0F
+intro_phase1_palette_cycle_table:  .byte   $1C,$27,$16,$0F,$1C,$1A,$16,$0F
         .byte   $0F,$0F,$1A,$16,$17,$0F,$0F,$1A
         .byte   $16,$0F
 ; --- Phase 2 night sky palette flash (2 steps x 3 bytes) ---
-L86D9:  .byte   $1C,$11,$01,$11,$1C,$01
+intro_phase2_flash_palette_table:  .byte   $1C,$11,$01,$11,$1C,$01
 ; --- Star twinkle colors (4 brightness levels) ---
-L86DF:  .byte   $04,$14,$0F,$0F
+intro_star_twinkle_color_table:  .byte   $04,$14,$0F,$0F
 ; --- Phase 1 entity init: anim ID, X, Y for entities 0-1 ---
-L86E3:  .byte   $13,$60                 ; anim: $13=MM falling, $60=Rush run
-L86E5:  .byte   $D8,$58                 ; x: $D8=Mega Man, $58=Rush
-L86E7:  .byte   $00,$A4                 ; y: $00=top (MM), $A4=ground (Rush)
+intro_phase1_entity_anim_table:  .byte   $13,$60                 ; anim: $13=MM falling, $60=Rush run
+intro_phase1_entity_x_table:  .byte   $D8,$58                 ; x: $D8=Mega Man, $58=Rush
+intro_phase1_entity_y_table:  .byte   $00,$A4                 ; y: $00=top (MM), $A4=ground (Rush)
 ; --- Phase 1 mountain decoration OAM sprites (2 sprites x 4 bytes) ---
-L86E9:  .byte   $68,$BE,$02,$18,$68,$BF,$02,$20
+intro_phase1_mountain_oam_table:  .byte   $68,$BE,$02,$18,$68,$BF,$02,$20
 ; --- Doc Robot stage scenery OAM sprites (10 sprites x 4 bytes) ---
-L86F1:  .byte   $40,$9D,$01,$70,$B8,$9B,$00,$C0
+intro_doc_robot_scenery_oam_table:  .byte   $40,$9D,$01,$70,$B8,$9B,$00,$C0
         .byte   $88,$97,$00,$78,$88,$98,$00,$80
         .byte   $90,$99,$00,$78,$90,$9A,$00,$80
         .byte   $48,$9C,$01,$80,$68,$9C,$01,$78
         .byte   $68,$9C,$01,$80,$68,$9C,$01,$88
 ; --- Doc Robot cutscene: robot master portrait position sprites ---
 ; 5 icon positions (Y, tile, attr, X) at OAM offset $0228
-L8719:  .byte   $C8,$0F,$03,$D8,$A0,$0F,$03,$C8
+intro_doc_robot_icon_position_table:  .byte   $C8,$0F,$03,$D8,$A0,$0F,$03,$C8
         .byte   $78,$0F,$03,$C8,$58,$0F,$03,$B0
         .byte   $30,$0F,$03,$88
 ; --- Sinusoidal X acceleration table (4 phases) ---
 ; Phase 0,1: decelerate (sub=$C0, whole=$FF = -$40)
 ; Phase 2,3: accelerate (sub=$40, whole=$00 = +$40)
-L872D:  .byte   $C0,$C0,$40,$40         ; sub-pixel acceleration per phase
-L8731:  .byte   $FF,$FF,$00,$00         ; whole-pixel acceleration per phase
+intro_sinusoidal_accel_sub_table:  .byte   $C0,$C0,$40,$40         ; sub-pixel acceleration per phase
+intro_sinusoidal_accel_whole_table:  .byte   $FF,$FF,$00,$00         ; whole-pixel acceleration per phase
 ; --- Star field sprite data (10 stars x 4 bytes: Y, tile, attr, X) ---
 ; Each star is tile $F1, attribute $00. X values are offset by scroll.
-L8735:  .byte   $78                     ; star 0 Y
-L8736:  .byte   $F1                     ; star 0 tile
-L8737:  .byte   $00                     ; star 0 attr
-L8738:  .byte   $10,$18,$F1,$00,$20,$D0,$F1,$00
+intro_star_field_y_table:  .byte   $78                     ; star 0 Y
+intro_star_field_tile_table:  .byte   $F1                     ; star 0 tile
+intro_star_field_attr_table:  .byte   $00                     ; star 0 attr
+intro_star_field_x_table:  .byte   $10,$18,$F1,$00,$20,$D0,$F1,$00
         .byte   $30,$38,$F1,$00,$48,$A0,$F1,$00
         .byte   $68,$18,$F1,$00,$98,$60,$F1,$00
         .byte   $B8,$B8,$F1,$00,$D0,$28,$F1,$00
         .byte   $E0,$88,$F1,$00,$E8,$28
 ; --- OAM offsets for boss icon blink animation (bosses 0-3) ---
-L875E:  .byte   $2C,$30,$34,$38
+intro_doc_robot_boss_icon_oam_offset_table:  .byte   $2C,$30,$34,$38
 ; --- Robot master icon sprite data indices and counts ---
-L8762:  .byte   $00,$18,$28,$40,$64,$7C ; sprite data offset per boss (into L8774)
-L8768:  .byte   $05,$03,$05,$08,$05,$03 ; sprite count per boss (0-indexed)
+intro_doc_robot_boss_sprite_data_offset_table:  .byte   $00,$18,$28,$40,$64,$7C ; sprite data offset per boss (into intro_doc_robot_boss_icon_sprite_data_table)
+intro_doc_robot_boss_sprite_count_table:  .byte   $05,$03,$05,$08,$05,$03 ; sprite count per boss (0-indexed)
 ; --- OAM base offset for reveal animation per boss ---
-L876E:  .byte   $00,$18,$28,$40,$64,$7C
+intro_doc_robot_boss_reveal_oam_base_table:  .byte   $00,$18,$28,$40,$64,$7C
 ; --- Robot master icon sprite data (Y, tile, attr, X quads) ---
 ; 6 bosses, variable sprite counts. Used by code_854B and code_8591.
-L8774:  .byte   $C0
-L8775:  .byte   $7F
-L8776:  .byte   $03
-L8777:  .byte   $D8,$B8,$7F,$03,$D8,$B0,$7F,$03
+intro_doc_robot_boss_icon_sprite_data_table:  .byte   $C0
+intro_doc_robot_boss_icon_tile_continuation:  .byte   $7F
+intro_doc_robot_boss_icon_attr_continuation:  .byte   $03
+intro_doc_robot_boss_icon_x_continuation:  .byte   $D8,$B8,$7F,$03,$D8,$B0,$7F,$03
         .byte   $D8,$A8,$7F,$03,$D8,$A0,$7D,$03
         .byte   $D8,$A0,$7E,$03,$D0,$98,$7F,$03
         .byte   $C8,$90,$7F,$03,$C8,$88,$7F,$03

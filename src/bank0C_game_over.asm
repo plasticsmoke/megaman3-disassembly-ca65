@@ -89,13 +89,13 @@ select_PRG_banks           := $FF6B             ; select PRG banks
         jsr     rendering_on                   ; turn on rendering
 ; --- load game over palette ---
         ldy     #$1F
-code_803F:  lda     L863E,y             ; copy 32-byte palette for game over screen
+code_803F:  lda     game_over_palette_table,y             ; copy 32-byte palette for game over screen
         sta     $0620,y                 ; store to palette buffer
         dey
         bpl     code_803F
 ; --- set CHR bank configuration ---
         ldy     #$05
-code_804A:  lda     L8626,y             ; load CHR bank mapping table
+code_804A:  lda     game_over_chr_bank_table,y             ; load CHR bank mapping table
         sta     $E8,y                   ; store to CHR bank registers $E8-$ED
         dey
         bpl     code_804A
@@ -147,11 +147,11 @@ code_809B:  lda     #$80
         sta     ent_status,y            ; mark entity as active
         lda     #$90
         sta     ent_flags,y             ; set entity flags (palette, flip)
-        lda     L86D0,y
+        lda     game_over_anim_entity_anim_table,y
         sta     ent_anim_id,y           ; set animation ID from table
-        lda     L86D2,y
+        lda     game_over_anim_entity_x_table,y
         sta     ent_x_px,y              ; set X position from table
-        lda     L86D4,y
+        lda     game_over_anim_entity_y_table,y
         sta     ent_y_px,y              ; set Y position from table
         lda     #$00
         sta     ent_x_scr,y             ; clear screen-relative X
@@ -164,7 +164,7 @@ code_809B:  lda     #$80
         bpl     code_809B               ; loop for both entities
 ; --- load OAM sprite data for game over letters ---
         ldy     #$07
-code_80D0:  lda     L869E,y             ; 8 bytes of OAM data (2 sprites for "GE" tiles)
+code_80D0:  lda     game_over_fixed_sprites_oam_table,y             ; 8 bytes of OAM data (2 sprites for "GE" tiles)
         sta     $0200,y                 ; write to OAM buffer
         dey
         bpl     code_80D0
@@ -279,7 +279,7 @@ code_81AA:  lda     $95
         adc     $0104                   ; index * 3 = offset into palette table
         tay
         ldx     #$05
-code_81BA:  lda     L86D6,y             ; read 3 palette bytes per cycle step
+code_81BA:  lda     game_over_palette_cycle_and_ppu_write_data,y             ; read 3 palette bytes per cycle step
         sta     $0600,x                 ; write to palette buffer (BG palette 1)
         iny
         inx
@@ -317,7 +317,7 @@ code_81E1:  lda     #$00
         sta     LA000                   ; clear music init flag
 ; --- load results screen palette ---
         ldy     #$0F
-code_81FC:  lda     L865E,y             ; 16-byte palette for results screen
+code_81FC:  lda     results_screen_palette_table,y             ; 16-byte palette for results screen
         sta     $0620,y                 ; store to palette buffer
         dey
         bpl     code_81FC
@@ -344,7 +344,7 @@ code_8226:  lda     #$00
         bne     code_8226               ; loop until complete
 ; --- set CHR banks for results screen ---
         ldy     #$05
-code_8236:  lda     L862C,y             ; results screen CHR bank config
+code_8236:  lda     results_screen_chr_bank_table,y             ; results screen CHR bank config
         sta     $E8,y
         dey
         bpl     code_8236
@@ -583,7 +583,7 @@ code_83DB:  lda     #$65
 code_83EA:  lda     #$80
         sta     $0301,y                 ; ent_status[1+y] = active
         sta     $0581,y                 ; ent_flags[1+y] = active
-        lda     L86A6,y
+        lda     credits_flyby_anim_id_table,y
         sta     $05C1,y                 ; ent_anim_id from table
         lda     #$00
         sta     $05E1,y                 ; clear anim frame
@@ -592,9 +592,9 @@ code_83EA:  lda     #$80
         sta     $0381,y                 ; clear X screen
         sta     $0501,y                 ; clear timer
         sta     $0521,y                 ; clear var1
-        lda     L86A8,y
+        lda     credits_flyby_y_pos_table,y
         sta     $03C1,y                 ; Y position from table
-        lda     L86AA,y
+        lda     credits_flyby_x_pos_table,y
         sta     $0361,y                 ; X position from table
         dey
         bpl     code_83EA
@@ -602,7 +602,7 @@ code_83EA:  lda     #$80
         sta     $0522                   ; entity 2 var1 = 8 (flight timer)
 ; --- load fly-by palette ---
         ldy     #$07
-code_8422:  lda     L86B0,y             ; 8-byte palette subset
+code_8422:  lda     credits_flyby_palette_table,y             ; 8-byte palette subset
         sta     $0618,y                 ; palette buffer slot 3 (BG)
         sta     $0638,y                 ; palette buffer slot 3 (SPR)
         dey
@@ -611,7 +611,7 @@ code_8422:  lda     L86B0,y             ; 8-byte palette subset
 ; --- fly-by animation loop ---
 ; Entities fly leftward across the screen with a sinusoidal vertical
 ; movement pattern. Entity 2 X position decreases each frame, Y oscillates
-; using a 4-step table (L86AC: 0, -1, -1, 0).
+; using a 4-step table (credits_flyby_y_oscillation_table: 0, -1, -1, 0).
 code_8430:  lda     $95
         and     #$01                    ; every other frame
         bne     code_8460
@@ -623,7 +623,7 @@ code_8430:  lda     $95
         lda     $0502                   ; entity 2 timer / oscillation index
         and     #$03                    ; 4-step cycle
         tay
-        lda     L86AC,y                 ; 0=down, FF(-1)=up, FF(-1)=up, 0=down
+        lda     credits_flyby_y_oscillation_table,y                 ; 0=down, FF(-1)=up, FF(-1)=up, 0=down
         bne     code_8450               ; nonzero = move up (INC wraps to up)
         dec     $03C2                   ; move Y down
         bne     code_8453
@@ -685,14 +685,14 @@ code_849E:  lda     #$00
         jsr     task_yield
 ; --- set CHR banks for password screen ---
         ldy     #$05
-code_84C0:  lda     L8632,y             ; password screen CHR config
+code_84C0:  lda     password_screen_chr_bank_table,y             ; password screen CHR config
         sta     $E8,y
         dey
         bpl     code_84C0
         jsr     update_CHR_banks                   ; apply CHR banks
 ; --- load password screen palette ---
         ldy     #$0F
-code_84CE:  lda     L866E,y             ; 16-byte palette for password screen
+code_84CE:  lda     password_screen_palette_table,y             ; 16-byte palette for password screen
         sta     $0620,y
         dey
         bpl     code_84CE
@@ -746,12 +746,12 @@ code_850F:  lda     #$00
         sta     prg_bank                ; bank $01 = robot master portrait data
         jsr     select_PRG_banks
         ldx     ent_timer               ; current RM index (0-7)
-        lda     L86B8,x                 ; portrait animation ID
+        lda     weapon_showcase_portrait_anim_id_table,x                 ; portrait animation ID
         sta     $05D0                   ; ent_anim_id[$10]
         lda     #$00
         sta     $05F0                   ; ent_anim_frame[$10] = 0
         sta     $05B0                   ; ent_anim_state[$10] = 0
-        lda     L86C0,x                 ; RM music/init parameter
+        lda     weapon_showcase_music_init_param_table,x                 ; RM music/init parameter
         jsr     LA000                   ; init portrait (via bank $01 routine)
         jsr     update_CHR_banks                   ; apply CHR banks
         lda     #$80
@@ -759,7 +759,7 @@ code_850F:  lda     #$00
 ; --- wait for portrait animation to reach target frame ---
 code_8544:  jsr     process_frame_yield_full               ; process frame yield (full)
         ldx     ent_timer
-        lda     L86C8,x                 ; target anim state for this RM
+        lda     weapon_showcase_target_anim_state_table,x                 ; target anim state for this RM
         cmp     $05B0                   ; compare to current anim state
         bne     code_8544               ; loop until match
 ; --- play robot master music ---
@@ -796,14 +796,14 @@ code_8577:  ldx     #$B4                ; pause $B4 frames between portraits
 ; ===========================================================================
 
 code_8589:  ldy     #$1F
-code_858B:  lda     L867E,y             ; 32-byte dimmed/black palette
+code_858B:  lda     final_dimmed_palette_table,y             ; 32-byte dimmed/black palette
         sta     $0600,y                 ; write to full palette buffer
         dey
         bpl     code_858B
         sty     palette_dirty           ; flag palette dirty ($FF)
 ; --- set CHR banks for continue screen ---
         ldy     #$05
-code_8598:  lda     L8638,y             ; CHR bank config for continue screen
+code_8598:  lda     continue_screen_chr_bank_table,y             ; CHR bank config for continue screen
         sta     $E8,y
         dey
         bpl     code_8598
@@ -871,7 +871,7 @@ code_85F2:  rts
 ; PPU WRITE BUFFER LOADER ($85F3)
 ; ===========================================================================
 ; Loads a PPU write command sequence into the NMI buffer at $0780.
-; X = index into L8903/L8918 pointer tables (lo/hi byte of source data).
+; X = index into ppu_write_source_pointer_lo_table/ppu_write_source_pointer_hi_table pointer tables (lo/hi byte of source data).
 ; $10 = nametable flags OR'd into the first byte of each command.
 ;
 ; PPU write format (per command):
@@ -881,9 +881,9 @@ code_85F2:  rts
 ;   Bytes 3..3+N: tile data to write
 ; ===========================================================================
 
-code_85F3:  lda     L8903,x             ; source pointer low byte
+code_85F3:  lda     ppu_write_source_pointer_lo_table,x             ; source pointer low byte
         sta     $02
-        lda     L8918,x                 ; source pointer high byte
+        lda     ppu_write_source_pointer_hi_table,x                 ; source pointer high byte
         sta     $03
         ldy     #$00
 ; --- copy PPU write commands to buffer ---
@@ -912,53 +912,53 @@ code_8623:  .byte   $85,$19,$60          ; STA $19 / RTS (set nametable dirty fl
 ; ===========================================================================
 
 ; --- CHR bank configuration tables (6 bytes each: $E8-$ED) ---
-L8626:  .byte   $78,$7A,$00,$01,$1B,$3B  ; game over screen CHR banks
-L862C:  .byte   $78,$7A,$00,$79,$3E,$3F  ; results screen CHR banks
-L8632:  .byte   $7C,$7E,$00,$79,$3E,$3F  ; password screen CHR banks
-L8638:  .byte   $7C,$7E,$00,$03,$15,$17  ; continue/final screen CHR banks
+game_over_chr_bank_table:  .byte   $78,$7A,$00,$01,$1B,$3B  ; game over screen CHR banks
+results_screen_chr_bank_table:  .byte   $78,$7A,$00,$79,$3E,$3F  ; results screen CHR banks
+password_screen_chr_bank_table:  .byte   $7C,$7E,$00,$79,$3E,$3F  ; password screen CHR banks
+continue_screen_chr_bank_table:  .byte   $7C,$7E,$00,$03,$15,$17  ; continue/final screen CHR banks
 ; --- palette tables (NES palette values) ---
 ; Game over palette: 32 bytes (4 BG palettes + 4 sprite palettes)
-L863E:  .byte   $0F,$20,$2C,$1C,$0F,$1C,$27,$16
+game_over_palette_table:  .byte   $0F,$20,$2C,$1C,$0F,$1C,$27,$16
         .byte   $0F,$3B,$2B,$1B,$0F,$32,$22,$12
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
         .byte   $0F,$35,$25,$15,$0F,$0F,$30,$11
 ; Results screen palette: 16 bytes (BG palettes only)
-L865E:  .byte   $0F,$0F,$1C,$21,$0F,$20,$21,$1C
+results_screen_palette_table:  .byte   $0F,$0F,$1C,$21,$0F,$20,$21,$1C
         .byte   $0F,$2A,$1A,$0A,$0F,$0F,$08,$0A
 ; Password screen palette: 16 bytes
-L866E:  .byte   $0F,$20,$21,$11,$0F,$27,$17,$06
+password_screen_palette_table:  .byte   $0F,$20,$21,$11,$0F,$27,$17,$06
         .byte   $0F,$27,$17,$21,$0F,$20,$10,$21
 ; Dimmed/final palette: 32 bytes (mostly black, for fade-to-password)
-L867E:  .byte   $0F,$20,$0F,$0F,$0F,$20,$0F,$0F
+final_dimmed_palette_table:  .byte   $0F,$20,$0F,$0F,$0F,$20,$0F,$0F
         .byte   $0F,$20,$0F,$0F,$0F,$20,$0F,$0F
         .byte   $0F,$0F,$30,$15,$0F,$0F,$30,$37
         .byte   $0F,$0F,$30,$19,$0F,$0F,$30,$16
 ; --- OAM sprite data for game over fixed sprites (2 sprites, 4 bytes each) ---
 ; Y, tile, attrib, X
-L869E:  .byte   $68,$BE,$02,$18         ; sprite 0: tile $BE at (24, 104)
+game_over_fixed_sprites_oam_table:  .byte   $68,$BE,$02,$18         ; sprite 0: tile $BE at (24, 104)
         .byte   $68,$BF,$02,$20         ; sprite 1: tile $BF at (32, 104)
 ; --- fly-by entity init data ---
-L86A6:  .byte   $66,$63                 ; animation IDs for fly-by entities
-L86A8:  .byte   $38,$10                 ; Y positions
-L86AA:  .byte   $30,$F8                 ; X positions
+credits_flyby_anim_id_table:  .byte   $66,$63                 ; animation IDs for fly-by entities
+credits_flyby_y_pos_table:  .byte   $38,$10                 ; Y positions
+credits_flyby_x_pos_table:  .byte   $30,$F8                 ; X positions
 ; --- fly-by Y oscillation pattern (4-step cycle) ---
-L86AC:  .byte   $00,$FF,$FF,$00         ; 0=down, -1=up, -1=up, 0=down
+credits_flyby_y_oscillation_table:  .byte   $00,$FF,$FF,$00         ; 0=down, -1=up, -1=up, 0=down
 ; --- fly-by palette (8 bytes, BG palette 3) ---
-L86B0:  .byte   $0F,$2C,$2C,$2C,$0F,$3C,$2C,$1C
+credits_flyby_palette_table:  .byte   $0F,$2C,$2C,$2C,$0F,$3C,$2C,$1C
 ; --- robot master portrait data (8 entries, one per RM) ---
-L86B8:  .byte   $26,$1F,$32,$2B,$45,$22,$36,$3F  ; portrait anim IDs
-L86C0:  .byte   $25,$23,$27,$24,$2A,$26,$28,$29  ; music/init params
-L86C8:  .byte   $04,$03,$05,$06,$02,$02,$08,$03  ; target anim states
+weapon_showcase_portrait_anim_id_table:  .byte   $26,$1F,$32,$2B,$45,$22,$36,$3F  ; portrait anim IDs
+weapon_showcase_music_init_param_table:  .byte   $25,$23,$27,$24,$2A,$26,$28,$29  ; music/init params
+weapon_showcase_target_anim_state_table:  .byte   $04,$03,$05,$06,$02,$02,$08,$03  ; target anim states
 ; --- game over entity init data (slots 0-1) ---
-L86D0:  .byte   $01,$60                 ; animation IDs (Mega Man, shadow)
-L86D2:  .byte   $98,$58                 ; X positions
-L86D4:  .byte   $A4,$A4                 ; Y positions
+game_over_anim_entity_anim_table:  .byte   $01,$60                 ; animation IDs (Mega Man, shadow)
+game_over_anim_entity_x_table:  .byte   $98,$58                 ; X positions
+game_over_anim_entity_y_table:  .byte   $A4,$A4                 ; Y positions
 ; --- palette cycling data for game over animation ---
 ; 6 steps x 3 bytes = 18 bytes, cycled into BG palette 1 colors 1-3
-; NOTE: L86D6 first 18 bytes are palette cycling data, then continues
+; NOTE: game_over_palette_cycle_and_ppu_write_data first 18 bytes are palette cycling data, then continues
 ; immediately into PPU write buffer data (nametable commands for the
 ; game over border/frame graphics and results screen text).
-L86D6:  .byte   $1C,$27,$16,$0F,$1C,$1A,$16,$0F
+game_over_palette_cycle_and_ppu_write_data:  .byte   $1C,$27,$16,$0F,$1C,$1A,$16,$0F
         .byte   $0F,$0F,$1A,$16,$17,$0F,$0F,$1A
         .byte   $16,$0F,$26,$46,$13,$6C,$6D,$EE  ; PPU write data begins here
         .byte   $EE,$EE,$EE,$EE,$EE,$EE,$EE,$EE
@@ -1029,13 +1029,13 @@ L86D6:  .byte   $1C,$27,$16,$0F,$1C,$1A,$16,$0F
         .byte   $25,$25,$25,$25,$25,$25,$25,$25
         .byte   $25,$25,$25,$25,$FF
 ; --- PPU write buffer pointer tables ---
-; L8903 = low byte, L8918 = high byte. 21 entries ($00-$14).
+; ppu_write_source_pointer_lo_table = low byte, ppu_write_source_pointer_hi_table = high byte. 21 entries ($00-$14).
 ; Each pointer addresses a PPU write command sequence within the data above.
 ; Used by code_85F3 to look up the source data for a given buffer index.
-L8903:  .byte   $E8,$8E,$D4,$1A,$61,$A8,$B4,$E5  ; low bytes (entries $00-$07)
+ppu_write_source_pointer_lo_table:  .byte   $E8,$8E,$D4,$1A,$61,$A8,$B4,$E5  ; low bytes (entries $00-$07)
         .byte   $16,$43,$73,$AA,$DF,$0C,$32,$67  ; low bytes (entries $08-$0F)
         .byte   $2E,$75,$A8,$C0,$C9              ; low bytes (entries $10-$14)
-L8918:  .byte   $86,$87,$87,$88,$88,$88,$A3,$A3  ; high bytes (entries $00-$07)
+ppu_write_source_pointer_hi_table:  .byte   $86,$87,$87,$88,$88,$88,$A3,$A3  ; high bytes (entries $00-$07)
         .byte   $A4,$A4,$A4,$A4,$A4,$A5,$A5,$A5  ; high bytes (entries $08-$0F)
         .byte   $87,$87,$A3,$88,$88              ; high bytes (entries $10-$14)
 

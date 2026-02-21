@@ -55,9 +55,9 @@
 ; next frame for the following call.
 ; ===========================================================================
         ldy     ent_var2            ; current portrait index
-        lda     LA04D,y             ; load pointer low byte from table
+        lda     robot_master_portrait_pointer_low,y             ; load pointer low byte from table
         sta     $00                 ; store in ZP pointer ($00)
-        lda     LA056,y             ; load pointer high byte from table
+        lda     robot_master_portrait_pointer_high,y             ; load pointer high byte from table
         sta     $01                 ; (high bytes overlap with sprite data start)
         ldy     #$00                ; start at beginning of OAM buffer
 ; --- copy OAM quads until $FF terminator ---
@@ -85,7 +85,7 @@ code_A02D:  sty     oam_ptr         ; save OAM write position
         asl     a
         tay                         ; Y = palette offset
         ldx     #$00
-code_A03B:  lda     LA360,y         ; read palette byte
+code_A03B:  lda     robot_master_palette_data,y         ; read palette byte
         sta     $0618,x             ; write to palette staging buffer
         iny
         inx
@@ -98,14 +98,14 @@ code_A03B:  lda     LA360,y         ; read palette byte
 ; ===========================================================================
 ; SPRITE FRAME POINTER TABLE ($A04D)
 ; ===========================================================================
-; LA04D: 9-entry pointer low bytes  (high bytes in LA056)
+; robot_master_portrait_pointer_low: 9-entry pointer low bytes  (high bytes in robot_master_portrait_pointer_high)
 ; Together they form 16-bit pointers to the OAM sprite data for each of
 ; the 9 intro cutscene robot master portraits. Each portrait frame is a
 ; list of 4-byte OAM quads (Y, tile, attr, X), terminated by $FF.
 ; ---------------------------------------------------------------------------
-LA04D:  .byte   $5F,$BC,$01,$56,$A3,$04,$55,$A2 ; pointer low bytes [0-7]
+robot_master_portrait_pointer_low:  .byte   $5F,$BC,$01,$56,$A3,$04,$55,$A2 ; pointer low bytes [0-7]
         .byte   $FB                              ; pointer low byte  [8]
-LA056:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; pointer high bytes [0-7]
+robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; pointer high bytes [0-7]
         .byte   $A2                              ; pointer high byte  [8]
 ; ===========================================================================
 ; OAM SPRITE FRAME DATA ($A05F)
@@ -220,7 +220,7 @@ LA056:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; pointer high bytes [0-7]
 ; Index 0 = Needle Man, 1 = unused/blank, 2 = Magnet Man, 3 = Hard Man,
 ; 4 = Top Man, 5 = Snake Man, 6 = Spark Man, 7 = Gemini Man, 8 = Shadow Man
 ; ---------------------------------------------------------------------------
-LA360:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
+robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
         .byte   $0F,$00,$00,$00,$0F,$30,$26,$10 ; palette 1
         .byte   $0F,$15,$05,$10,$0F,$30,$27,$26 ; palette 2 (Magnet Man)
         .byte   $0F,$30,$11,$29,$0F,$30,$37,$26 ; palette 3 (Hard Man)
