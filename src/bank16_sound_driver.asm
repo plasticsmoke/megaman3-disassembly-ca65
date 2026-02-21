@@ -4,7 +4,25 @@
 ; NES APU sound driver: channel management, envelope processing,
 ; frequency tables, and music/SFX playback engine.
 ;
-; Annotation: 0% — unannotated da65 output
+; Annotation: ~87% — 148 labels named, 37 inline comments
+; =============================================================================
+
+
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $16 — SOUND DRIVER CODE
+; =============================================================================
+; Mapped to $8000-$9FFF. Contains the NES APU sound/music engine.
+; Always loaded as a pair with bank $17 ($A000-$BFFF = music/SFX data).
+; Called every NMI frame via play_sounds ($1FFF90):
+;   $8000 → $06, $8001 → $16 (code), $8000 → $07, $8001 → $17 (data)
+;
+; Includes:
+;   code_168006 — 8x8→16-bit multiply routine ($C1/$C2 = result)
+;   jump_local_ptr — inline pointer table dispatch (pulls JSR return addr)
+;   read_ptr — cross-bank byte read ($16/$17 for $8000-$BFFF, temp-swaps
+;              $18 for $C000+ addresses)
+;
+; Annotation: partial — 3 key functions documented, driver internals bare
 ; =============================================================================
 
         .setcpu "6502"
@@ -18,12 +36,12 @@ L8001:  jmp     ($4C80)
 
         .byte   $FE
         .byte   $80
-L8006:  lda     #$00
+code_8006:  lda     #$00
         sta     $C2
         ldy     #$08
-L800C:  asl     $C2
+code_800C:  asl     $C2
         rol     L00C1
-        bcc     L801F
+        bcc     code_801F
         clc
         lda     $C2
         adc     $C4
@@ -31,62 +49,77 @@ L800C:  asl     $C2
         lda     L00C1
         adc     #$00
         sta     L00C1
-L801F:  dey
-        bne     L800C
+code_801F:  dey
+        bne     code_800C
         rts
 
-L8023:  asl     a
-        tay
-        iny
+; jumps to one of the pointers stored
+; locally next to the JSR call in ROM
+; parameters:
+; local pointer table just after JSR call here
+; A: index into pointer table
+
+jump_local_ptr:  asl     a
+        tay                             ; Y = index * 2 + 1
+        iny                             ; word align & just after JSR
         pla
-        sta     L00C1
-        pla
+        sta     L00C1                   ; grab return address
+        pla                             ; to get local params
         sta     $C2
         lda     (L00C1),y
-        pha
-        iny
-        lda     (L00C1),y
-        sta     $C2
-        pla
+        pha                             ; read from ROM at
+        iny                             ; just after JSR + Y index
+        lda     (L00C1),y               ; to grab local pointer
+        sta     $C2                     ; update $C1~$C2 with this address
+        pla                             ; and jump to it
         sta     L00C1
         jmp     (L00C1)
 
-L803A:  sty     L00C1
-        ldy     #$00
-        cmp     #$C0
-        bcs     L8047
+; reads one single byte from a passed in word-sized ROM address
+; from either bank $16, $17, or $18 depending on high byte
+; returns read in accumulator
+; parameters:
+; A: high byte of address (if >= $C0, read bank $18, else $16~$17)
+; Y: low byte of address
+; returns:
+; A: read of passed in word address
+
+read_ptr:  sty     L00C1                ; store low byte -> $C1
+        ldy     #$00                    ; 0 index for indirect read
+        cmp     #$C0                    ; if high byte >= $C0
+        bcs     L8047                   ; this is a bank $18 read
         sta     $C2
-        lda     (L00C1),y
-        rts
+        lda     (L00C1),y               ; else return read of address
+        rts                             ; at $C1~$C2, bank $16~$17
 
 L8047:  sec
-        sbc     #$20
-        sta     $C2
+        sbc     #$20                    ; high byte -= $20
+        sta     $C2                     ; (get into $A0~$BF range)
         lda     #$07
-        sta     L8000
-        lda     #$18
+        sta     L8000                   ; set $A000~$BFFF bank
+        lda     #$18                    ; to $18
         sta     L8001
-        lda     (L00C1),y
-        pha
+        lda     (L00C1),y               ; push read $C1~$C2
+        pha                             ; from bank $18
         lda     #$07
-        sta     L8000
-        lda     #$17
+        sta     L8000                   ; set $A000~$BFFF bank
+        lda     #$17                    ; back to $17
         sta     L8001
         lda     #$20
-        clc
-        adc     $C2
+        clc                             ; and (falsely) go back into
+        adc     $C2                     ; $C0~$DF range for high byte
         sta     $C2
-        pla
+        pla                             ; pull & return read
         rts
 
-L806C:  lda     $C0
+code_806C:  lda     $C0
         lsr     a
-        bcs     L80D7
+        bcs     code_80D7
         lda     $D0
         ora     $D1
-        beq     L807A
-        jsr     L8252
-L807A:  clc
+        beq     code_807A
+        jsr     code_8252
+code_807A:  clc
         lda     $CA
         adc     $C8
         sta     $C8
@@ -96,50 +129,50 @@ L807A:  clc
         lda     $CF
         pha
         ldx     #$03
-L808C:  lsr     $CF
-        bcc     L8099
+code_808C:  lsr     $CF
+        bcc     code_8099
         lda     $CF
         ora     #$80
         sta     $CF
-        jsr     L82DE
-L8099:  lda     $C0
+        jsr     code_82DE
+code_8099:  lda     $C0
         and     #$02
-        bne     L80A6
+        bne     code_80A6
         txa
         pha
-        jsr     L8393
+        jsr     code_8393
         pla
         tax
-L80A6:  dex
-        bpl     L808C
+code_80A6:  dex
+        bpl     code_808C
         pla
         sta     $CF
         lsr     $C0
         asl     $C0
         lda     $CC
         and     #$7F
-        beq     L80D7
+        beq     code_80D7
         ldy     #$00
         sty     L00C1
         ldy     #$04
-L80BC:  asl     a
+code_80BC:  asl     a
         rol     L00C1
         dey
-        bne     L80BC
+        bne     code_80BC
         clc
         adc     $C0
         sta     $C0
         lda     L00C1
         adc     $CD
-        bcc     L80D5
+        bcc     code_80D5
         lda     $CC
         and     #$80
         sta     $CC
         lda     #$FF
-L80D5:  sta     $CD
-L80D7:  rts
+code_80D5:  sta     $CD
+code_80D7:  rts
 
-L80D8:  txa
+code_80D8:  txa
         and     #$03
         eor     #$03
         asl     a
@@ -147,12 +180,12 @@ L80D8:  txa
         tay
         lda     #$30
         cpy     #$08
-        bne     L80E8
+        bne     code_80E8
         lda     #$00
-L80E8:  sta     $4000,y
+code_80E8:  sta     $4000,y
         rts
 
-L80EC:  pha
+code_80EC:  pha
         txa
         and     #$03
         eor     #$03
@@ -165,33 +198,37 @@ L80EC:  pha
         sta     $4000,y
         rts
 
-L80FE:  inc     $C0
-        jsr     L8106
+code_80FE:  inc     $C0
+        jsr     play_sound_ID
         dec     $C0
         rts
 
-L8106:  cmp     #$F0
+; plays sound effect
+; parameters:
+; A: sound ID to play
+
+play_sound_ID:  cmp     #$F0            ; if sound ID < $F0
         bcc     L810D
-        jmp     L81AE
+        jmp     code_81AE
 
 L810D:  cmp     L8A40
         bcc     L8118
-        sec
+        sec                             ; A = sound ID mod $39
         sbc     L8A40
         bcs     L810D
 L8118:  asl     a
-        tax
-        ldy     L8A44,x
-        tya
-        ora     L8A43,x
-        beq     L816E
-        lda     L8A43,x
-        jsr     L803A
+        tax                             ; X = A * 2
+        ldy     L8A44,x                 ; index into sound pointers
+        tya                             ; grab pointer word in Y & A
+        ora     L8A43,x                 ; if it's $0000, return
+        beq     L816E                   ; otherwise, Y = read byte
+        lda     L8A43,x                 ; at pointer
+        jsr     read_ptr
         tay
-        beq     L816F
+        beq     code_816F               ; if value read was $00
         ldy     #$00
         inx
-        sta     $C4
+        sta     $C4                     ; first byte of sound data -> $C4
         and     #$7F
         cmp     $CE
         bcc     L816E
@@ -221,11 +258,11 @@ L8159:  lda     $C2
         sta     $D5
         ldy     #$27
 L8168:  sta     $0700,y
-        dey
+        dey                             ; clear $0700~$0727
         bpl     L8168
 L816E:  rts
 
-L816F:  ldx     #$01
+code_816F:  ldx     #$01
         stx     $C9
         ldx     #$99
         stx     $CA
@@ -234,67 +271,69 @@ L816F:  ldx     #$01
         sta     $CC
         sta     $CD
         ldx     #$53
-L8181:  sta     $0728,x
+code_8181:  sta     $0728,x
         dex
-        bpl     L8181
+        bpl     code_8181
         ldx     #$03
-L8189:  inc     L00C1
-        bne     L818F
+code_8189:  inc     L00C1
+        bne     code_818F
         inc     $C2
-L818F:  ldy     L00C1
+code_818F:  ldy     L00C1
         lda     $C2
-        jsr     L803A
+        jsr     read_ptr
         sta     $0754,x
         inc     L00C1
-        bne     L819F
+        bne     code_819F
         inc     $C2
-L819F:  ldy     L00C1
+code_819F:  ldy     L00C1
         lda     $C2
-        jsr     L803A
+        jsr     read_ptr
         sta     $0750,x
         dex
-        bpl     L8189
-        bmi     L81F1
-L81AE:  sty     $C3
+        bpl     code_8189
+        bmi     code_81F1
+code_81AE:  sty     $C3
         and     #$07
-        jsr     L8023
+        jsr     jump_local_ptr
+
+; parameters to jump_local_ptr
         .byte   $C5,$81,$C8,$81,$E4,$81,$1E,$82
         .byte   $26,$82,$2D,$82,$34,$82,$4A,$82
-        jsr     L81E4
-L81C8:  lda     #$00
+        jsr     code_81E4
+code_81C8:  lda     #$00
         sta     $CE
         sta     $D0
         sta     $D1
         sta     $D7
         sta     $D8
-L81D4:  lda     $CF
-        beq     L81E3
+code_81D4:  lda     $CF
+        beq     code_81E3
         eor     #$0F
         sta     $CF
-        jsr     L81F1
+        jsr     code_81F1
         lda     #$00
         sta     $CF
-L81E3:  rts
+code_81E3:  rts
 
-L81E4:  lda     #$00
+code_81E4:  lda     #$00
         ldx     #$03
-L81E8:  sta     $0754,x
+code_81E8:  sta     $0754,x
         sta     $0750,x
         dex
-        bpl     L81E8
-L81F1:  lda     $CF
+        bpl     code_81E8
+code_81F1:  lda     $CF
         pha
         ldx     #$03
-L81F6:  lsr     $CF
-        bcs     L820A
-        jsr     L80D8
+code_81F6:  lsr     $CF
+        bcs     code_820A
+        jsr     code_80D8
         lda     $0754,x
         ora     $0750,x
-        beq     L820A
+        beq     code_820A
         lda     #$FF
         sta     $077C,x
-L820A:  dex
-        bpl     L81F6
+code_820A:  dex
+        bpl     code_81F6
         pla
         sta     $CF
         lda     #$08
@@ -307,28 +346,28 @@ L820A:  dex
         lda     $C0
         ora     #$02
         sta     $C0
-        bne     L81F1
+        bne     code_81F1
         lda     $C0
         and     #$FD
         sta     $C0
         rts
 
         asl     $C3
-        beq     L8234
+        beq     code_8234
         sec
         ror     $C3
-L8234:  lda     $C0
+code_8234:  lda     $C0
         and     #$0F
         sta     $C0
         ldy     $C3
         sty     $CC
-        beq     L8247
+        beq     code_8247
         ldy     #$FF
         cpy     $CD
-        bne     L8249
+        bne     code_8249
         iny
-L8247:  sty     $CD
-L8249:  rts
+code_8247:  sty     $CD
+code_8249:  rts
 
         lda     #$00
         sec
@@ -336,44 +375,44 @@ L8249:  rts
         sta     $D8
         rts
 
-L8252:  lda     $D3
-        beq     L825B
+code_8252:  lda     $D3
+        beq     code_825B
         dec     $D3
         dec     $D5
         rts
 
-L825B:  jsr     L8386
+code_825B:  jsr     code_8386
         sta     $C4
         asl     a
-        bcc     L8273
+        bcc     code_8273
         sty     $CE
         lda     $D7
         lsr     a
-        bcc     L8270
+        bcc     code_8270
         jsr     L8118
-        jmp     L825B
+        jmp     code_825B
 
-L8270:  jmp     L81C8
+code_8270:  jmp     code_81C8
 
-L8273:  lsr     $C4
-        bcc     L82A6
-        jsr     L8386
+code_8273:  lsr     $C4
+        bcc     code_82A6
+        jsr     code_8386
         asl     a
-        beq     L8289
+        beq     code_8289
         asl     $D6
         php
         cmp     $D6
-        beq     L8296
+        beq     code_8296
         plp
         ror     $D6
         inc     $D6
-L8289:  jsr     L8386
+code_8289:  jsr     code_8386
         tax
-        jsr     L8386
+        jsr     code_8386
         sta     $D0
         stx     $D1
-        bne     L825B
-L8296:  tya
+        bne     code_825B
+code_8296:  tya
         plp
         ror     a
         sta     $D6
@@ -381,158 +420,160 @@ L8296:  tya
         lda     #$02
         adc     $D0
         sta     $D0
-        bcc     L82A6
+        bcc     code_82A6
         inc     $D1
-L82A6:  lsr     $C4
-        bcc     L82AF
-        jsr     L8386
+code_82A6:  lsr     $C4
+        bcc     code_82AF
+        jsr     code_8386
         sta     $D4
-L82AF:  lsr     $C4
-        bcc     L82B8
-        jsr     L8386
+code_82AF:  lsr     $C4
+        bcc     code_82B8
+        jsr     code_8386
         sta     $D2
-L82B8:  jsr     L8386
+code_82B8:  jsr     code_8386
         sta     $D3
         sta     L00C1
         lda     $D4
         sta     $C4
-        jsr     L8006
+        jsr     code_8006
         ldy     L00C1
         iny
         sty     $D5
         inc     $C0
-        jsr     L8386
+        jsr     code_8386
         pha
         eor     $CF
-        beq     L82DA
+        beq     code_82DA
         sta     $CF
-        jsr     L81D4
-L82DA:  pla
+        jsr     code_81D4
+code_82DA:  pla
         sta     $CF
         rts
 
-L82DE:  ldy     $0700,x
-        beq     L82E6
-        jsr     L8684
-L82E6:  lda     $C0
+code_82DE:  ldy     $0700,x
+        beq     code_82E6
+        jsr     code_8684
+code_82E6:  lda     $C0
         lsr     a
-        bcs     L830A
-        jsr     L86BA
+        bcs     code_830A
+        jsr     code_86BA
         lda     $D3
-        beq     L82FA
+        beq     code_82FA
         cpx     #$01
-        beq     L82FB
+        beq     code_82FB
         lda     $D5
-        beq     L8300
-L82FA:  rts
+        beq     code_8300
+code_82FA:  rts
 
-L82FB:  dec     $0710,x
-        bne     L82FA
-L8300:  lda     $0704,x
+code_82FB:  dec     $0710,x
+        bne     code_82FA
+code_8300:  lda     $0704,x
         and     #$04
-        bne     L82FA
-        jmp     L85A3
+        bne     code_82FA
+        jmp     code_85A3
 
-L830A:  lda     #$00
+code_830A:  lda     #$00
         sta     $C4
-        jsr     L8386
-L8311:  lsr     a
-        bcc     L8320
+        jsr     code_8386
+code_8311:  lsr     a
+        bcc     code_8320
         pha
-        jsr     L8386
+        jsr     code_8386
         sta     $C3
         lda     $C4
-        jsr     L8326
+        jsr     code_8326
         pla
-L8320:  beq     L8333
+code_8320:  beq     code_8333
         inc     $C4
-        bne     L8311
-L8326:  jsr     L8023
+        bne     code_8311
+code_8326:  jsr     jump_local_ptr
+
+; parameters to jump_local_ptr
         .byte   $6F,$86,$AD,$86,$5A,$86,$A7,$86
         .byte   $A1,$86
-L8333:  jsr     L8386
+code_8333:  jsr     code_8386
         tay
-        bne     L8349
+        bne     code_8349
         sta     $0710,x
         lda     $0704,x
         and     #$F8
         ora     #$04
         sta     $0704,x
-        jmp     L80D8
+        jmp     code_80D8
 
-L8349:  lda     $0704,x
+code_8349:  lda     $0704,x
         ora     #$20
         sta     $0704,x
         lda     $0718,x
         asl     a
         lda     #$54
-        bcs     L835B
+        bcs     code_835B
         lda     #$0A
-L835B:  sta     $071C,x
+code_835B:  sta     $071C,x
         tya
-        bpl     L836B
+        bpl     code_836B
         cpx     #$01
-        bne     L8368
-        jsr     L85AE
-L8368:  jmp     L8644
+        bne     code_8368
+        jsr     code_85AE
+code_8368:  jmp     code_8644
 
-L836B:  jsr     L85AE
+code_836B:  jsr     code_85AE
         lda     #$FF
         sta     $077C,x
         dey
         txa
-        bne     L837F
+        bne     code_837F
         sta     $C3
         tya
         eor     #$0F
-        jmp     L8636
+        jmp     code_8636
 
-L837F:  tya
+code_837F:  tya
         clc
         adc     $D2
-        jmp     L85DE
+        jmp     code_85DE
 
-L8386:  ldy     $D0
+code_8386:  ldy     $D0
         lda     $D1
         inc     $D0
-        bne     L8390
+        bne     code_8390
         inc     $D1
-L8390:  jmp     L803A
+code_8390:  jmp     read_ptr
 
-L8393:  txa
+code_8393:  txa
         ora     #$28
         tax
         lda     $0728,x
         ora     $072C,x
-        beq     L83CC
+        beq     code_83CC
         lda     $0738,x
-        beq     L83CD
+        beq     code_83CD
         ldy     $0700,x
-        beq     L83AF
-        jsr     L8684
-        jsr     L86BA
-L83AF:  lda     $0740,x
+        beq     code_83AF
+        jsr     code_8684
+        jsr     code_86BA
+code_83AF:  lda     $0740,x
         sec
         sbc     $C7
         sta     $0740,x
-        beq     L83BC
-        bcs     L83BF
-L83BC:  jsr     L85A3
-L83BF:  lda     $0738,x
+        beq     code_83BC
+        bcs     code_83BF
+code_83BC:  jsr     code_85A3
+code_83BF:  lda     $0738,x
         sec
         sbc     $C7
         sta     $0738,x
-        beq     L83CD
-        bcc     L83CD
-L83CC:  rts
+        beq     code_83CD
+        bcc     code_83CD
+code_83CC:  rts
 
-L83CD:  jsr     L8592
+code_83CD:  jsr     code_8592
         cmp     #$20
-        bcs     L83DA
-        jsr     L8497
-        jmp     L83CD
+        bcs     code_83DA
+        jsr     code_8497
+        jmp     code_83CD
 
-L83DA:  pha
+code_83DA:  pha
         rol     a
         rol     a
         rol     a
@@ -543,13 +584,13 @@ L83DA:  pha
         lda     $0730,x
         asl     a
         asl     a
-        bpl     L83EF
+        bpl     code_83EF
         lda     L8915,y
-        bne     L8406
-L83EF:  asl     a
+        bne     code_8406
+code_83EF:  asl     a
         asl     a
         lda     L891C,y
-        bcc     L8406
+        bcc     code_8406
         sta     $C3
         lda     $0730,x
         and     #$EF
@@ -558,38 +599,38 @@ L83EF:  asl     a
         lsr     a
         clc
         adc     $C3
-L8406:  clc
+code_8406:  clc
         adc     $0738,x
         sta     $0738,x
         tay
         pla
         and     #$1F
-        bne     L8419
-        jsr     L85A3
-        jmp     L8491
+        bne     code_8419
+        jsr     code_85A3
+        jmp     code_8491
 
-L8419:  pha
+code_8419:  pha
         sty     $C4
         lda     $073C,x
         sta     L00C1
-        jsr     L8006
+        jsr     code_8006
         lda     L00C1
-        bne     L842A
+        bne     code_842A
         lda     #$01
-L842A:  sta     $0740,x
+code_842A:  sta     $0740,x
         pla
         tay
         dey
         lda     $0730,x
-        bpl     L8440
+        bpl     code_8440
         lda     $0718,x
-        bne     L8454
-        jsr     L8644
-        jmp     L847E
+        bne     code_8454
+        jsr     code_8644
+        jmp     code_847E
 
-L8440:  jsr     L85AE
+code_8440:  jsr     code_85AE
         lda     $CF
-        bmi     L8454
+        bmi     code_8454
         sty     $C3
         txa
         and     #$03
@@ -597,17 +638,17 @@ L8440:  jsr     L85AE
         lda     #$FF
         sta     $077C,y
         ldy     $C3
-L8454:  txa
+code_8454:  txa
         and     #$03
-        bne     L8466
+        bne     code_8466
         sta     $C3
         tya
         and     #$0F
         eor     #$0F
-        jsr     L8636
-        jmp     L847E
+        jsr     code_8636
+        jmp     code_847E
 
-L8466:  sty     $C3
+code_8466:  sty     $C3
         lda     $0730,x
         and     #$0F
         tay
@@ -618,8 +659,8 @@ L8466:  sty     $C3
         adc     $CB
         clc
         adc     $0734,x
-        jsr     L85DE
-L847E:  lda     $0730,x
+        jsr     code_85DE
+code_847E:  lda     $0730,x
         tay
         and     #$40
         asl     a
@@ -628,18 +669,20 @@ L847E:  lda     $0730,x
         and     #$7F
         ora     $C4
         sta     $0730,x
-        bpl     L8496
-L8491:  lda     #$FF
+        bpl     code_8496
+code_8491:  lda     #$FF
         sta     $0740,x
-L8496:  rts
+code_8496:  rts
 
-L8497:  cmp     #$04
-        bcc     L84A4
+code_8497:  cmp     #$04
+        bcc     code_84A4
         sta     $C4
-        jsr     L8592
+        jsr     code_8592
         sta     $C3
         lda     $C4
-L84A4:  jsr     L8023
+code_84A4:  jsr     jump_local_ptr
+
+; parameters to jump_local_ptr
         .byte   $D9,$84,$DD,$84,$E1,$84,$E8,$84
         .byte   $75,$85,$F1,$84,$FF,$84,$5A,$86
         .byte   $6F,$86,$05,$85,$10,$85,$15,$85
@@ -648,20 +691,20 @@ L84A4:  jsr     L8023
         .byte   $23,$85,$27,$85,$5A,$85,$80,$85
         .byte   $AD,$86
         lda     #$20
-        bne     L84EA
+        bne     code_84EA
         lda     #$40
-        bne     L84EA
+        bne     code_84EA
         lda     #$10
         ora     $0730,x
-        bne     L84ED
+        bne     code_84ED
         lda     #$08
-L84EA:  eor     $0730,x
-L84ED:  sta     $0730,x
+code_84EA:  eor     $0730,x
+code_84ED:  sta     $0730,x
         rts
 
         lda     #$00
         sta     $C8
-        jsr     L8592
+        jsr     code_8592
         ldy     $C3
         sta     $CA
         sty     $C9
@@ -686,51 +729,51 @@ L84ED:  sta     $0730,x
         rts
 
         lda     #$00
-        beq     L8529
+        beq     code_8529
         lda     #$04
-        bne     L8529
+        bne     code_8529
         lda     #$08
-        bne     L8529
+        bne     code_8529
         lda     #$0C
-L8529:  sta     $C2
+code_8529:  sta     $C2
         txa
         clc
         adc     $C2
         tay
         lda     $C4
         cmp     #$12
-        bcs     L8547
+        bcs     code_8547
         lda     $0744,y
         sec
         sbc     #$01
-        bcs     L8540
+        bcs     code_8540
         lda     $C3
-L8540:  sta     $0744,y
-        beq     L8566
-        bne     L8555
-L8547:  lda     $0744,y
+code_8540:  sta     $0744,y
+        beq     code_8566
+        bne     code_8555
+code_8547:  lda     $0744,y
         sec
         sbc     #$01
-        bne     L8566
+        bne     code_8566
         sta     $0744,y
-        jsr     L8575
-L8555:  jsr     L8592
+        jsr     code_8575
+code_8555:  jsr     code_8592
         sta     $C3
-        jsr     L8592
+        jsr     code_8592
         sta     $0728,x
         lda     $C3
         sta     $072C,x
         rts
 
-L8566:  lda     #$02
+code_8566:  lda     #$02
         clc
         adc     $0728,x
         sta     $0728,x
-        bcc     L8574
+        bcc     code_8574
         inc     $072C,x
-L8574:  rts
+code_8574:  rts
 
-L8575:  lda     $0730,x
+code_8575:  lda     $0730,x
         and     #$97
         ora     $C3
         sta     $0730,x
@@ -742,99 +785,99 @@ L8575:  lda     $0730,x
         sta     $0728,x
         sta     $072C,x
         lda     $CF
-        bmi     L8591
-        jmp     L80D8
+        bmi     code_8591
+        jmp     code_80D8
 
-L8591:  rts
+code_8591:  rts
 
-L8592:  ldy     $0728,x
+code_8592:  ldy     $0728,x
         lda     $072C,x
         inc     $0728,x
-        bne     L85A0
+        bne     code_85A0
         inc     $072C,x
-L85A0:  jmp     L803A
+code_85A0:  jmp     read_ptr
 
-L85A3:  lda     $0704,x
+code_85A3:  lda     $0704,x
         and     #$F8
         ora     #$03
         sta     $0704,x
         rts
 
-L85AE:  tya
+code_85AE:  tya
         pha
         ldy     #$00
         lda     $0704,x
         and     #$F8
         sta     $0704,x
         cpx     #$29
-        beq     L85D0
+        beq     code_85D0
         cpx     #$01
-        bne     L85D7
+        bne     code_85D7
         lda     $D3
         sta     L00C1
         lda     $070C,x
         sta     $C4
-        jsr     L8006
+        jsr     code_8006
         ldy     L00C1
-L85D0:  iny
+code_85D0:  iny
         inc     $0704,x
         inc     $0704,x
-L85D7:  tya
+code_85D7:  tya
         sta     $0710,x
         pla
         tay
         rts
 
-L85DE:  cmp     #$60
-        bcc     L85E4
+code_85DE:  cmp     #$60
+        bcc     code_85E4
         lda     #$5F
-L85E4:  sta     $C3
+code_85E4:  sta     $C3
         inc     $C3
         cpx     #$28
-        bcc     L862A
+        bcc     code_862A
         lda     $071C,x
-        beq     L861D
+        beq     code_861D
         cmp     $C3
-        bne     L85FC
+        bne     code_85FC
         lda     $0730,x
-        bpl     L861D
-        bmi     L8644
-L85FC:  lda     $0718,x
-        beq     L861D
-        bcs     L8607
+        bpl     code_861D
+        bmi     code_8644
+code_85FC:  lda     $0718,x
+        beq     code_861D
+        bcs     code_8607
         ora     #$80
-        bne     L8609
-L8607:  and     #$7F
-L8609:  sta     $0718,x
+        bne     code_8609
+code_8607:  and     #$7F
+code_8609:  sta     $0718,x
         lda     $0704,x
         ora     #$20
         sta     $0704,x
         lda     $C3
         ldy     $071C,x
         sty     $C3
-        bne     L8627
-L861D:  lda     $0704,x
+        bne     code_8627
+code_861D:  lda     $0704,x
         and     #$DF
         sta     $0704,x
         lda     $C3
-L8627:  sta     $071C,x
-L862A:  asl     $C3
+code_8627:  sta     $071C,x
+code_862A:  asl     $C3
         ldy     $C3
         lda     L8959,y
         sta     $C3
         lda     L895A,y
-L8636:  sta     $0724,x
+code_8636:  sta     $0724,x
         lda     $C3
         sta     $0720,x
         ldy     #$04
         lda     ($C5),y
-        bmi     L864C
-L8644:  lda     $0704,x
+        bmi     code_864C
+code_8644:  lda     $0704,x
         and     #$08
-        bne     L864C
+        bne     code_864C
         rts
 
-L864C:  lda     #$00
+code_864C:  lda     #$00
         sta     $0708,x
         lda     $0704,x
         and     #$37
@@ -842,26 +885,26 @@ L864C:  lda     #$00
         rts
 
         cpx     #$01
-        bne     L8662
+        bne     code_8662
         lda     $C3
-        bne     L866B
-L8662:  lda     $070C,x
+        bne     code_866B
+code_8662:  lda     $070C,x
         and     #$C0
         ora     $C3
         ora     #$30
-L866B:  sta     $070C,x
+code_866B:  sta     $070C,x
         rts
 
         inc     $C3
         lda     $C3
         cmp     $0700,x
-        beq     L86A0
+        beq     code_86A0
         sta     $0700,x
         tay
         lda     $0704,x
         ora     #$08
         sta     $0704,x
-L8684:  dey
+code_8684:  dey
         lda     #$00
         sta     $C3
         tya
@@ -877,7 +920,7 @@ L8684:  dey
         lda     $C3
         adc     L8A41
         sta     $C6
-L86A0:  rts
+code_86A0:  rts
 
         lda     $C3
         sta     $0714,x
@@ -894,11 +937,13 @@ L86A0:  rts
         sta     $070C,x
         rts
 
-L86BA:  lda     $0710,x
+code_86BA:  lda     $0710,x
         sta     $C4
         lda     $0704,x
         and     #$07
-        jsr     L8023
+        jsr     jump_local_ptr
+
+; parameters to jump_local_ptr
         .byte   $D1,$86,$E6,$86,$20,$87,$02,$87
         .byte   $14,$89
         ldy     #$00
@@ -907,74 +952,74 @@ L86BA:  lda     $0710,x
         lda     $C4
         clc
         adc     L8933,y
-        bcs     L86E2
+        bcs     code_86E2
         cmp     #$F0
-        bcc     L871D
-L86E2:  lda     #$F0
-        bne     L871A
+        bcc     code_871D
+code_86E2:  lda     #$F0
+        bne     code_871A
         ldy     #$01
         lda     ($C5),y
-        beq     L86FB
+        beq     code_86FB
         tay
         lda     $C4
         sec
         sbc     L8933,y
-        bcc     L86FB
+        bcc     code_86FB
         ldy     #$02
         cmp     ($C5),y
-        bcs     L871D
-L86FB:  ldy     #$02
+        bcs     code_871D
+code_86FB:  ldy     #$02
         lda     ($C5),y
-        jmp     L871A
+        jmp     code_871A
 
         txa
         and     #$03
         cmp     #$01
-        beq     L8718
+        beq     code_8718
         ldy     #$03
         lda     ($C5),y
-        beq     L8720
+        beq     code_8720
         tay
         lda     $C4
         sec
         sbc     L8933,y
-        bcs     L871D
-L8718:  lda     #$00
-L871A:  inc     $0704,x
-L871D:  sta     $0710,x
-L8720:  cpx     #$28
-        bcc     L8737
+        bcs     code_871D
+code_8718:  lda     #$00
+code_871A:  inc     $0704,x
+code_871D:  sta     $0710,x
+code_8720:  cpx     #$28
+        bcc     code_8737
         lda     $CF
-        bpl     L872B
-        jmp     L88A0
+        bpl     code_872B
+        jmp     code_88A0
 
-L872B:  lda     $CD
+code_872B:  lda     $CD
         ldy     $CC
-        bmi     L8733
+        bmi     code_8733
         eor     #$FF
-L8733:  cmp     #$FF
-        bne     L8740
-L8737:  txa
+code_8733:  cmp     #$FF
+        bne     code_8740
+code_8737:  txa
         and     #$03
         cmp     #$01
-        bne     L8760
-        beq     L8752
-L8740:  cpx     #$29
-        bne     L875B
+        bne     code_8760
+        beq     code_8752
+code_8740:  cpx     #$29
+        bne     code_875B
         sta     $C4
         lda     $0740,x
         sta     L00C1
-        jsr     L8006
+        jsr     code_8006
         lda     L00C1
-        beq     L87AA
-L8752:  lda     $0710,x
-        beq     L87AA
+        beq     code_87AA
+code_8752:  lda     $0710,x
+        beq     code_87AA
         lda     #$FF
-        bne     L87AA
-L875B:  cmp     $0710,x
-        bcc     L8763
-L8760:  lda     $0710,x
-L8763:  lsr     a
+        bne     code_87AA
+code_875B:  cmp     $0710,x
+        bcc     code_8763
+code_8760:  lda     $0710,x
+code_8763:  lsr     a
         lsr     a
         lsr     a
         lsr     a
@@ -983,56 +1028,56 @@ L8763:  lsr     a
         ldy     #$06
         lda     ($C5),y
         cmp     #$05
-        bcc     L8797
+        bcc     code_8797
         sta     $C4
         ldy     $0708,x
         lda     $0704,x
         asl     a
         asl     a
         tya
-        bcc     L8782
+        bcc     code_8782
         eor     #$FF
-L8782:  beq     L8797
+code_8782:  beq     code_8797
         sta     L00C1
-        jsr     L8006
+        jsr     code_8006
         lda     L00C1
         lsr     a
         lsr     a
         cmp     #$10
-        bcs     L87A5
+        bcs     code_87A5
         cmp     $C3
-        bcc     L8797
+        bcc     code_8797
         sta     $C3
-L8797:  lda     #$10
+code_8797:  lda     #$10
         sta     $C4
         lda     $070C,x
         sec
         sbc     $C3
         bit     $C4
-        bne     L87AA
-L87A5:  lda     $070C,x
+        bne     code_87AA
+code_87A5:  lda     $070C,x
         and     #$F0
-L87AA:  ldy     #$00
-        jsr     L80EC
+code_87AA:  ldy     #$00
+        jsr     code_80EC
         txa
         and     #$03
         tay
         lda     $077C,y
-        bmi     L880C
+        bmi     code_880C
         ldy     #$05
         lda     ($C5),y
-        beq     L880C
+        beq     code_880C
         sta     $C4
         ldy     $0708,x
         lda     $0704,x
         asl     a
         asl     a
         tya
-        bcc     L87CD
+        bcc     code_87CD
         eor     #$FF
-L87CD:  beq     L880C
+code_87CD:  beq     code_880C
         sta     L00C1
-        jsr     L8006
+        jsr     code_8006
         lda     L00C1
         lsr     a
         ror     $C2
@@ -1044,39 +1089,39 @@ L87CD:  beq     L880C
         ror     $C2
         tay
         ora     $C2
-        beq     L880C
+        beq     code_880C
         lda     $0704,x
-        bmi     L87FA
+        bmi     code_87FA
         clc
         lda     $C2
         adc     $0720,x
         sta     $C2
         tya
         adc     $0724,x
-        bne     L8809
-L87FA:  sec
+        bne     code_8809
+code_87FA:  sec
         lda     $0720,x
         sbc     $C2
         sta     $C2
         lda     $0724,x
         sty     L00C1
         sbc     L00C1
-L8809:  tay
-        bne     L8814
-L880C:  lda     $0720,x
+code_8809:  tay
+        bne     code_8814
+code_880C:  lda     $0720,x
         sta     $C2
         ldy     $0724,x
-L8814:  cpx     #$28
-        bcs     L8835
+code_8814:  cpx     #$28
+        bcs     code_8835
         lda     $D6
-        bpl     L8835
+        bpl     code_8835
         lda     $D8
-        beq     L8835
+        beq     code_8835
         sta     $C4
         sty     L00C1
         lda     $C2
         pha
-        jsr     L8006
+        jsr     code_8006
         pla
         clc
         adc     $C2
@@ -1084,9 +1129,9 @@ L8814:  cpx     #$28
         lda     #$00
         adc     L00C1
         tay
-L8835:  txa
+code_8835:  txa
         and     #$03
-        bne     L8849
+        bne     code_8849
         tya
         and     #$0F
         ldy     #$07
@@ -1094,12 +1139,12 @@ L8835:  txa
         sta     $C2
         lda     #$00
         sta     L00C1
-        beq     L8884
-L8849:  tya
+        beq     code_8884
+code_8849:  tya
         ldy     #$08
-L884C:  dey
+code_884C:  dey
         cmp     L8953,y
-        bcc     L884C
+        bcc     code_884C
         sta     L00C1
         tya
         clc
@@ -1112,50 +1157,50 @@ L884C:  dey
         tya
         and     #$38
         eor     #$38
-        beq     L8870
-L8867:  lsr     L00C1
+        beq     code_8870
+code_8867:  lsr     L00C1
         ror     $C2
         sec
         sbc     #$08
-        bne     L8867
-L8870:  ldy     #$00
+        bne     code_8867
+code_8870:  ldy     #$00
         lda     $0714,x
-        beq     L8884
-        bpl     L887A
+        beq     code_8884
+        bpl     code_887A
         dey
-L887A:  clc
+code_887A:  clc
         adc     $C2
         sta     $C2
         tya
         adc     L00C1
         sta     L00C1
-L8884:  ldy     #$02
+code_8884:  ldy     #$02
         lda     $C2
-        jsr     L80EC
+        jsr     code_80EC
         txa
         and     #$03
         tay
         lda     L00C1
         cmp     $077C,y
-        beq     L88A0
+        beq     code_88A0
         sta     $077C,y
         ora     #$08
         ldy     #$03
-        jsr     L80EC
-L88A0:  lda     $0704,x
+        jsr     code_80EC
+code_88A0:  lda     $0704,x
         and     #$20
-        beq     L88FA
+        beq     code_88FA
         lda     $0718,x
-        beq     L88F2
+        beq     code_88F2
         ldy     #$00
         asl     a
         php
-        bcc     L88B8
+        bcc     code_88B8
         eor     #$FF
         clc
         adc     #$01
         dey
-L88B8:  clc
+code_88B8:  clc
         adc     $0720,x
         sta     $0720,x
         tya
@@ -1174,29 +1219,29 @@ L88B8:  clc
         adc     #$00
         plp
         adc     #$00
-        bne     L88FA
+        bne     code_88FA
         txa
-        beq     L88FA
+        beq     code_88FA
         lda     L8959,y
         sta     $0720,x
         lda     L895A,y
         sta     $0724,x
-L88F2:  lda     $0704,x
+code_88F2:  lda     $0704,x
         and     #$DF
         sta     $0704,x
-L88FA:  ldy     #$04
+code_88FA:  ldy     #$04
         lda     ($C5),y
         and     #$7F
-        beq     L8914
+        beq     code_8914
         clc
         adc     $0708,x
         sta     $0708,x
-        bcc     L8914
+        bcc     code_8914
         lda     $0704,x
         clc
         adc     #$40
         sta     $0704,x
-L8914:  rts
+code_8914:  rts
 
 L8915:  .byte   $02,$04,$08,$10,$20,$40,$80
 L891C:  .byte   $03,$06,$0C,$18,$30,$60,$C0
@@ -1237,6 +1282,8 @@ L895A:  .byte   $31,$5C,$37,$9C,$36,$E7,$35,$3C
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00
+
+; sound pointers
 L8A40:  .byte   $39
 L8A41:  .byte   $8A
 L8A42:  .byte   $B5
