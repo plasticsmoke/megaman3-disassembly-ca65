@@ -1,13 +1,3 @@
-main_doc_flash_j:
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $04 — DOC ROBOT AI (FLASH/WOOD/CRASH/METAL)
-; =============================================================================
-; Doc Robot AI routines mimicking Flash Man, Wood Man, Crash Man, and Metal Man.
-;
-; Annotation: 0% — unannotated da65 output
-; =============================================================================
-
-
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $04 — DOC ROBOT AI (FLASH/WOOD/CRASH/METAL)
 ; =============================================================================
@@ -16,8 +6,19 @@ main_doc_flash_j:
 ; Entry points: main_doc_flash_j, main_doc_wood_j, main_doc_crash_j,
 ; main_doc_metal_j. Also doubles as Top Man stage data ($22=$04).
 ;
-; Annotation: light — entry trampolines named, AI internals bare
+; Routine index mapping (from bank1C_1D dispatch):
+;   $A0 → main_doc_flash_j    (Doc Flash Man boss AI)
+;   $A1 → main_doc_wood_j     (Doc Wood Man boss AI)
+;   $A2 → main_doc_crash_j    (Doc Crash Man boss AI)
+;   $A3 → main_doc_metal_j    (Doc Metal Man boss AI)
+;   $A4 → code_A13C           (Doc Flash projectile — homing magnet)
+;   $A5 → code_A44D           (Doc Wood leaf — falling)
+;   $A6 → code_A465           (Doc Wood leaf — bouncing)
+;   $A7 → code_A633           (Doc Crash bomb projectile)
+;   $A8 → code_A887           (unused)
+;   $A9 → code_A01E           (stub RTS)
 ; =============================================================================
+main_doc_flash_j:
 
         .setcpu "6502"
 
@@ -45,28 +46,20 @@ LFC63           := $FC63
 
 .segment "BANK04"
 
-        jmp     code_A030
+; --- Entry trampolines (dispatched from bank1C_1D entity AI) ----------------
+        jmp     code_A030               ; $A0 — Doc Flash Man boss AI
 main_doc_wood_j:
-
-        jmp     code_A250
+        jmp     code_A250               ; $A1 — Doc Wood Man boss AI
 main_doc_crash_j:
-
-        jmp     code_A49A
+        jmp     code_A49A               ; $A2 — Doc Crash Man boss AI
 main_doc_metal_j:
-
-        jmp     code_A6E5
-
-        jmp     code_A13C
-
-        jmp     code_A44D
-
-        jmp     code_A465
-
-        jmp     code_A633
-
-        jmp     code_A887
-
-        jmp     code_A01E
+        jmp     code_A6E5               ; $A3 — Doc Metal Man boss AI
+        jmp     code_A13C               ; $A4 — Flash projectile (homing magnet)
+        jmp     code_A44D               ; $A5 — Wood leaf (falling)
+        jmp     code_A465               ; $A6 — Wood leaf (bouncing)
+        jmp     code_A633               ; $A7 — Crash bomb projectile
+        jmp     code_A887               ; $A8 — unused
+        jmp     code_A01E               ; $A9 — stub RTS
 
 code_A01E:  rts
 
@@ -74,20 +67,30 @@ code_A01E:  rts
         .byte   $37,$28,$DF,$8A,$3D,$A2
         jmp     code_A887
 
-code_A030:  lda     ent_status,x
+; =============================================================================
+; DOC FLASH MAN AI ($A0)
+; =============================================================================
+; Mimics Flash Man from MM2. Two phases:
+;   Phase 1 (status & $01): walk toward player, apply gravity
+;   Phase 2 (status & $02): Time Stopper — spawn projectiles every 8 frames,
+;     after 6 projectiles revert to phase 1
+; The Time Stopper attack triggers the special_death state ($07) on the player.
+; =============================================================================
+
+code_A030:  lda     ent_status,x            ; --- init (status low nibble == 0) ---
         and     #$0F
         bne     code_A04C
         lda     ent_status,x
-        ora     #$40
+        ora     #$40                    ; set invincibility flag
         sta     ent_status,x
-        inc     ent_status,x
+        inc     ent_status,x            ; advance to phase 1
         lda     #$60
-        sta     ent_timer,x
+        sta     ent_timer,x             ; walk timer = 96 frames
         lda     #$08
-        sta     ent_var1,x
-code_A04C:  lda     ent_status,x
+        sta     ent_var1,x              ; projectile spawn interval
+code_A04C:  lda     ent_status,x            ; --- phase dispatch ---
         and     #$02
-        bne     code_A0A7
+        bne     code_A0A7               ; phase 2: Time Stopper attack
         ldy     #$1E
         jsr     LF67C
         rol     $0F
@@ -128,8 +131,9 @@ code_A09A:  lda     ent_anim_id,x
         jsr     LF835
 code_A0A6:  rts
 
+; --- phase 2: Time Stopper attack ---
 code_A0A7:  lda     ent_anim_id,x
-        cmp     #$06
+        cmp     #$06                    ; check if Time Stopper anim playing
         bne     code_A0C5
         lda     ent_anim_frame,x
         ora     ent_anim_state,x
@@ -141,22 +145,22 @@ code_A0A7:  lda     ent_anim_id,x
         jsr     LF883
         rts
 
-code_A0C5:  dec     ent_var1,x
+code_A0C5:  dec     ent_var1,x              ; count down spawn interval
         bne     code_A0F4
         lda     #$08
-        sta     ent_var1,x
-        jsr     code_A0F5
-        inc     ent_timer,x
+        sta     ent_var1,x              ; reset interval
+        jsr     code_A0F5               ; spawn projectile
+        inc     ent_timer,x             ; count projectiles spawned
         lda     ent_timer,x
-        cmp     #$06
+        cmp     #$06                    ; spawned all 6?
         bcs     code_A0DD
         rts
 
-code_A0DD:  lda     #$05
+code_A0DD:  lda     #$05                    ; done — revert to walk anim
         jsr     LF835
         lda     #$60
-        sta     ent_timer,x
-        dec     ent_status,x
+        sta     ent_timer,x             ; reset walk timer
+        dec     ent_status,x            ; back to phase 1
         lda     player_state                     ; if player already dead ($0E),
         cmp     #PSTATE_DEATH                    ; don't reset state
         beq     code_A0F4
@@ -164,8 +168,9 @@ code_A0DD:  lda     #$05
         sta     player_state                     ; release player from Doc Robot
 code_A0F4:  rts
 
-code_A0F5:  jsr     LFC53
-        bcs     code_A139
+; --- spawn Doc Flash projectile ---
+code_A0F5:  jsr     LFC53               ; find free enemy slot
+        bcs     code_A139               ; no slot available
         sty     L0000
         lda     ent_facing,x
         sta     ent_facing,y
@@ -193,7 +198,16 @@ code_A0F5:  jsr     LFC53
         sta     ent_routine,y
 code_A139:  rts
 
-LA13A:  .byte   $E9,$17
+LA13A:  .byte   $E9,$17                 ; X offset per facing: left=-23, right=+23
+
+; =============================================================================
+; DOC FLASH HOMING PROJECTILE ($A4)
+; =============================================================================
+; Homing projectile used by Doc Flash Man's Time Stopper attack.
+; Calculates homing velocity toward player on init, then moves in that
+; direction. Uses random Y-offset table to vary target position.
+; =============================================================================
+
 code_A13C:  lda     ent_status,x
         and     #$0F
         bne     code_A182
@@ -239,8 +253,10 @@ code_A197:  lda     ent_facing,x
 
 code_A1A1:  jmp     LF73B
 
-LA1A4:  .byte   $24,$0C,$10,$00,$E0,$F4,$10,$F8
+LA1A4:  .byte   $24,$0C,$10,$00,$E0,$F4,$10,$F8     ; random Y-offset table (16 entries)
         .byte   $18,$F0,$08,$10,$00,$F0,$00,$E8
+
+; --- copy explosion OAM data to sprite page (special death effect) ---
 code_A1B4:  ldy     #$68
 code_A1B6:  lda     LA1E4,y
         sta     $0200,y
@@ -286,7 +302,19 @@ LA1E7:  .byte   $20,$20,$F7,$03,$88,$30,$F7,$03
         .byte   $80,$88,$F9,$03,$E8,$B8,$F9,$03
         .byte   $30,$C0,$F9,$03,$C8,$D8,$F9,$03
         .byte   $D8
-code_A250:  lda     ent_status,x
+; =============================================================================
+; DOC WOOD MAN AI ($A1)
+; =============================================================================
+; Mimics Wood Man from MM2. State machine with 6 states:
+;   0: init — set upward velocity, spawn leaf shield
+;   1: throw leaves every 18 frames, after 4 throws wait 46 frames
+;   2: wait for var1 countdown, then spawn 4 falling crash blocks
+;   3: wait for var2 countdown, search for leaf shield entity, make it attack
+;   4: fall — walk and apply gravity, transition on landing
+;   5: land — wait for landing anim, then decrement back to state 1
+; =============================================================================
+
+code_A250:  lda     ent_status,x            ; dispatch to state handler
         and     #$0F
         tay
         lda     LA263,y
@@ -295,8 +323,8 @@ code_A250:  lda     ent_status,x
         sta     $01
         jmp     (L0000)
 
-LA263:  .byte   $6F,$92,$B5,$CA,$FD,$46
-LA269:  .byte   $A2,$A2,$A2,$A2,$A2,$A3
+LA263:  .byte   $6F,$92,$B5,$CA,$FD,$46     ; state handler pointers (low)
+LA269:  .byte   $A2,$A2,$A2,$A2,$A2,$A3     ; state handler pointers (high)
         lda     #$9E
         sta     ent_yvel_sub,x
         lda     #$04
@@ -415,13 +443,15 @@ code_A357:  dec     ent_var3,x
         jsr     code_A382
 code_A376:  rts
 
+; --- utility: force animation to advance one frame ---
 code_A377:  lda     #$01
         sta     ent_anim_state,x
         lda     #$00
         sta     ent_anim_frame,x
         rts
 
-code_A382:  jsr     LFC53
+; --- spawn leaf shield entity (orbits Doc Wood Man) ---
+code_A382:  jsr     LFC53               ; find free enemy slot
         bcs     code_A3FA
         lda     ent_facing,x
         sta     ent_facing,y
@@ -446,7 +476,8 @@ code_A382:  jsr     LFC53
         sta     ent_xvel,y
         rts
 
-code_A3C1:  jsr     LFC53
+; --- spawn leaf projectile (thrown at player) ---
+code_A3C1:  jsr     LFC53               ; find free enemy slot
         bcs     code_A3FA
         lda     ent_facing,x
         sta     ent_facing,y
@@ -469,7 +500,8 @@ code_A3C1:  jsr     LFC53
         sta     ent_routine,y
 code_A3FA:  rts
 
-code_A3FB:  jsr     LFC53
+; --- spawn 4 falling crash blocks (called recursively) ---
+code_A3FB:  jsr     LFC53               ; find free enemy slot
         bcs     code_A3FA
         lda     #$02
         sta     ent_facing,y
@@ -502,7 +534,14 @@ code_A3FB:  jsr     LFC53
         bcc     code_A3FB
         rts
 
-LA449:  .byte   $40,$70,$A0,$D0
+LA449:  .byte   $40,$70,$A0,$D0         ; X positions for 4 crash blocks
+
+; =============================================================================
+; DOC WOOD LEAF — FALLING ($A5)
+; =============================================================================
+; Leaf entity that falls upward. Despawns when Y < 4.
+; =============================================================================
+
 code_A44D:  lda     #$00
         sta     ent_anim_frame,x
         sta     ent_anim_state,x
@@ -514,13 +553,19 @@ code_A44D:  lda     #$00
         sta     ent_status,x
 code_A464:  rts
 
+; =============================================================================
+; DOC WOOD LEAF — BOUNCING ($A6)
+; =============================================================================
+; Leaf entity that bounces diagonally, reversing direction every 15 frames.
+; =============================================================================
+
 code_A465:  lda     ent_status,x
         and     #$0F
         bne     code_A474
         lda     #$0F
-        sta     ent_timer,x
+        sta     ent_timer,x             ; bounce direction timer
         inc     ent_status,x
-code_A474:  lda     ent_facing,x
+code_A474:  lda     ent_facing,x            ; move horizontally
         and     #$01
         beq     code_A481
         jsr     LF71D
@@ -537,10 +582,20 @@ code_A484:  jsr     LF759
         sta     ent_timer,x
 code_A499:  rts
 
-code_A49A:  lda     ent_status,x
+; =============================================================================
+; DOC CRASH MAN AI ($A2)
+; =============================================================================
+; Mimics Crash Man from MM2. Two phases:
+;   Phase 1 (status & $01): walk left/right, bounce off walls at X=$CC/$34.
+;     Jumps on B-press or after 150-frame timer. Random X velocity on jump.
+;   Phase 2 (status & $02): airborne — face player while ascending,
+;     spawn Crash Bomb at apex, land and revert to phase 1.
+; =============================================================================
+
+code_A49A:  lda     ent_status,x            ; --- init ---
         and     #$0F
         bne     code_A4B9
-        jsr     LF81B
+        jsr     LF81B                   ; reset gravity
         lda     ent_status,x
         ora     #$40
         sta     ent_status,x
@@ -649,14 +704,15 @@ code_A593:  lda     #$03
         jsr     LF835
 code_A598:  rts
 
-code_A599:  lda     #$88
+; --- set random jump velocity ---
+code_A599:  lda     #$88                    ; Y velocity = $07.88 (upward)
         sta     ent_yvel_sub,x
         lda     #$07
         sta     ent_yvel,x
-        lda     $E4
+        lda     $E4                     ; RNG: advance LFSR
         adc     $E5
         sta     $E5
-        and     #$03
+        and     #$03                    ; pick 1 of 4 X velocities
         tay
         lda     LA5B9,y
         sta     ent_xvel_sub,x
@@ -664,23 +720,25 @@ code_A599:  lda     #$88
         sta     ent_xvel,x
         rts
 
-LA5B9:  .byte   $00,$80,$00,$00
-LA5BD:  .byte   $01,$01,$01,$02
+LA5B9:  .byte   $00,$80,$00,$00         ; X velocity sub table
+LA5BD:  .byte   $01,$01,$01,$02         ; X velocity table
+; --- face player and flip sprite without changing movement direction ---
 code_A5C1:  lda     ent_facing,x
-        sta     ent_var2,x
+        sta     ent_var2,x              ; save current facing
         lda     ent_facing,x
         pha
-        jsr     LF869
+        jsr     LF869                   ; face player
         pla
         cmp     ent_facing,x
         beq     code_A5DC
-        lda     ent_flags,x
+        lda     ent_flags,x             ; facing changed — flip sprite H
         eor     #$40
         sta     ent_flags,x
-code_A5DC:  lda     ent_var2,x
+code_A5DC:  lda     ent_var2,x              ; restore original facing
         sta     ent_facing,x
         rts
 
+; --- spawn Crash Bomb projectile (checks for existing one first) ---
 code_A5E3:  ldy     #$1F
         lda     #$80
 code_A5E7:  cmp     ent_spawn_id,y
@@ -716,11 +774,20 @@ code_A5E7:  cmp     ent_spawn_id,y
         sta     ent_routine,y
 code_A632:  rts
 
-code_A633:  lda     ent_status,x
+; =============================================================================
+; DOC CRASH BOMB PROJECTILE ($A7)
+; =============================================================================
+; Crash Bomb projectile AI. Moves vertically/horizontally toward target using
+; homing velocity calculation. Two phases:
+;   Phase 1: move toward target, set explosion anim on wall contact
+;   Phase 2: play explosion anim, then despawn via routine $48
+; =============================================================================
+
+code_A633:  lda     ent_status,x            ; --- init ---
         and     #$0F
         bne     code_A66E
         lda     #$1E
-        sta     ent_timer,x
+        sta     ent_timer,x             ; explosion countdown = 30 frames
         lda     #$00
         sta     $02
         lda     #$04
@@ -792,22 +859,35 @@ code_A6CE:  dec     ent_timer,x
         sta     ent_routine,x
 code_A6E2:  rts
 
-LA6E3:  .byte   $18,$E8
-code_A6E5:  lda     ent_status,x
+LA6E3:  .byte   $18,$E8                 ; X offset: right=+24, left=-24
+
+; =============================================================================
+; DOC METAL MAN AI ($A3)
+; =============================================================================
+; Mimics Metal Man from MM2. State machine with 3 main states:
+;   State 1: patrol — face player, wait for B-press or 180-frame timer
+;     If player close (<$28 px), jump high immediately
+;   State 2: jumping — apply gravity, throw Metal Blades while ascending
+;     (var1 counts down throw interval, var2 reloads it)
+;   State 3: wall bounce — reverse direction on landing, re-jump
+; Uses random velocity tables for jump height/speed variation.
+; =============================================================================
+
+code_A6E5:  lda     ent_status,x            ; --- init ---
         and     #$0F
         bne     code_A6FC
         lda     #$B4
-        sta     ent_timer,x
+        sta     ent_timer,x             ; patrol timer = 180 frames
         lda     #$07
-        sta     ent_var3,x
-        jsr     code_A81F
+        sta     ent_var3,x              ; throw delay after anim
+        jsr     code_A81F               ; set random jump velocity
         inc     ent_status,x
-code_A6FC:  lda     ent_status,x
+code_A6FC:  lda     ent_status,x            ; --- state dispatch ---
         and     #$0F
         cmp     #$02
-        beq     code_A73C
+        beq     code_A73C               ; state 2: jumping
         cmp     #$03
-        beq     code_A77E
+        beq     code_A77E               ; state 3: wall bounce
         jsr     code_A377
         jsr     LF8C2
         cmp     #$28
@@ -929,24 +1009,26 @@ code_A809:  jsr     LF869
         sta     ent_facing,x
 code_A81E:  rts
 
-code_A81F:  lda     $E4
+; --- set random jump velocity from lookup tables ---
+code_A81F:  lda     $E4                     ; RNG: advance LFSR
         adc     $E5
         sta     $E5
-        and     #$03
+        and     #$03                    ; pick 1 of 4 velocity sets
         tay
         lda     LA83E,y
         sta     ent_yvel_sub,x
         lda     LA842,y
         sta     ent_yvel,x
         lda     LA846,y
-        sta     ent_var1,x
-        sta     ent_var2,x
+        sta     ent_var1,x              ; throw interval
+        sta     ent_var2,x              ; throw interval reload
         rts
 
-LA83E:  .byte   $88,$00,$9E,$88
-LA842:  .byte   $06,$08,$04,$06
-LA846:  .byte   $0A,$08,$0D,$0A
-code_A84A:  jsr     LFC53
+LA83E:  .byte   $88,$00,$9E,$88         ; Y velocity sub table
+LA842:  .byte   $06,$08,$04,$06         ; Y velocity table
+LA846:  .byte   $0A,$08,$0D,$0A         ; throw interval table
+; --- spawn Metal Blade projectile ---
+code_A84A:  jsr     LFC53               ; find free enemy slot
         bcs     code_A886
         sty     L0000
         lda     ent_facing,x
@@ -972,6 +1054,13 @@ code_A84A:  jsr     LFC53
         sta     ent_routine,y
 code_A886:  rts
 
+; =============================================================================
+; METAL BLADE PROJECTILE AI ($A8)
+; =============================================================================
+; Metal Blade projectile. Calculates homing direction on init, then moves
+; vertically and horizontally toward target.
+; =============================================================================
+
 code_A887:  lda     ent_status,x
         and     #$0F
         bne     code_A8A1
@@ -991,6 +1080,13 @@ code_A8A1:  lda     ent_facing,x
 
 code_A8AE:  jsr     LF759
 code_A8B1:  jmp     code_A197
+
+; =============================================================================
+; TOP MAN STAGE DATA
+; =============================================================================
+; Bank $04 doubles as Top Man stage data ($22=$04).
+; Raw stage tilemap/level layout data follows.
+; =============================================================================
 
         .byte   $08,$FC,$88,$BF,$08,$B6,$88,$50
         .byte   $A8,$C5,$A2,$BF,$8A,$ED,$28,$A0
