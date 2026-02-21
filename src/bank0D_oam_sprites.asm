@@ -1,8 +1,10 @@
-; da65 V2.18 - Ubuntu 2.19-1
-; Created:    2026-02-21 05:24:06
-; Input file: /home/kn/megamanforever/megaman3-disassembly-ca65/tools/../build/bank0D.bin
-; Page:       1
-
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $0D — OAM/SPRITE ANIMATION + WILY 2/3/5 STAGE
+; =============================================================================
+; OAM sprite animation dispatch and Wily Castle stages 2, 3, 5 data.
+;
+; Annotation: 0% — unannotated da65 output
+; =============================================================================
 
         .setcpu "6502"
 

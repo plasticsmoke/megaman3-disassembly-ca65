@@ -1,8 +1,11 @@
-; da65 V2.18 - Ubuntu 2.19-1
-; Created:    2026-02-21 05:25:00
-; Input file: build/bank1A_1B.bin
-; Page:       1
-
+; =============================================================================
+; MEGA MAN 3 (U) — BANKS $1A-$1B — OAM ANIMATION SEQUENCES
+; =============================================================================
+; OAM animation sequence tables and enemy spawn/check routines.
+; Bank $1A at $8000, Bank $1B at $A000.
+;
+; Annotation: 0% — unannotated da65 output
+; =============================================================================
 
         .setcpu "6502"
 

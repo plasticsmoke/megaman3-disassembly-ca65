@@ -1,8 +1,10 @@
-; da65 V2.18 - Ubuntu 2.19-1
-; Created:    2026-02-21 05:24:06
-; Input file: /home/kn/megamanforever/megaman3-disassembly-ca65/tools/../build/bank0F.bin
-; Page:       1
-
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $0F — ENTITY SPAWNING / PROJECTILE DISPATCH + WILY 4
+; =============================================================================
+; Entity spawn routing, projectile dispatch tables, and Wily Castle stage 4 data.
+;
+; Annotation: 0% — unannotated da65 output
+; =============================================================================
 
         .setcpu "6502"
 

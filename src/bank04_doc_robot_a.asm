@@ -1,8 +1,10 @@
-; da65 V2.18 - Ubuntu 2.19-1
-; Created:    2026-02-21 05:24:06
-; Input file: /home/kn/megamanforever/megaman3-disassembly-ca65/tools/../build/bank04.bin
-; Page:       1
-
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $04 — DOC ROBOT AI (FLASH/WOOD/CRASH/METAL)
+; =============================================================================
+; Doc Robot AI routines mimicking Flash Man, Wood Man, Crash Man, and Metal Man.
+;
+; Annotation: 0% — unannotated da65 output
+; =============================================================================
 
         .setcpu "6502"
 

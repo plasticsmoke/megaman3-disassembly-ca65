@@ -1,8 +1,10 @@
-; da65 V2.18 - Ubuntu 2.19-1
-; Created:    2026-02-21 05:24:06
-; Input file: /home/kn/megamanforever/megaman3-disassembly-ca65/tools/../build/bank0B.bin
-; Page:       1
-
+; =============================================================================
+; MEGA MAN 3 (U) — BANK $0B — INTRO SEQUENCE + DOC ROBOT SHADOW STAGE
+; =============================================================================
+; Opening intro cinematic sequence and Doc Robot Shadow Man stage data.
+;
+; Annotation: 0% — unannotated da65 output
+; =============================================================================
 
         .setcpu "6502"
 
