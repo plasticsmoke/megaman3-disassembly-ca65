@@ -94,32 +94,32 @@ chr/
 
 ## Annotation Progress
 
-The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. All auto-labels have been replaced with descriptive names. Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, music/SFX IDs, and NES hardware registers. Data-vs-code regions have been corrected across all files.
+The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. All auto-labels (`L_XXXX`) and internal branch targets (`code_XXXX`) have been replaced with descriptive names (~3,310 total). Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, music/SFX IDs, and NES hardware registers. Data-vs-code regions have been corrected across all files. An automated health check verifies comment accuracy across 18 categories.
 
 | Bank | File | Annotation |
 |------|------|------------|
-| $12 | bank12_fortress_bosses.asm | ~78% — 407 labels, 2470 comments |
-| Fixed | fixed_bank.asm | ~69% — 922 labels, 4879 comments |
-| $1C/$1D | bank1C_1D_entity_ai.asm | ~68% — 945 labels, 4539 comments |
-| $18 | bank18_stage_select.asm | ~60% — 175 labels, 1239 comments |
-| $16 | bank16_sound_driver.asm | ~54% — 170 labels, 1027 comments |
-| $07 | bank07_robot_masters_b.asm | ~51% — 150 labels, 889 comments |
-| $06 | bank06_robot_masters_a.asm | ~48% — 141 labels, 837 comments |
-| $04 | bank04_doc_robot_a.asm | ~45% — 123 labels, 750 comments |
-| $05 | bank05_doc_robot_b.asm | ~44% — 152 labels, 748 comments |
-| $0B | bank0B_intro.asm | ~43% — 94 labels, 669 comments |
-| $0C | bank0C_game_over.asm | ~41% — 85 labels, 627 comments |
-| $02 | bank02_stage_gemini.asm | ~38% — 117 labels, 595 comments |
-| $03 | bank03_stage_hard.asm | ~38% — 107 labels, 575 comments |
-| $09 | bank09_per_frame.asm | ~31% — 80 labels, 432 comments |
-| $0A | bank0A_damage_tables.asm | ~31% — 9 labels, 322 comments |
-| $0F | bank0F_entity_spawn.asm | ~17% — 30 labels, 206 comments |
-| $10 | bank10_stage_setup.asm | ~15% — 21 labels, 176 comments |
-| $00 | bank00_enemy_data.asm | ~11% — 8 labels, 121 comments |
-| $0E | bank0E_anim_frames.asm | ~7% — 14 labels, 80 comments |
-| $1A/$1B | bank1A_1B_oam_sequences.asm | ~5% — 30 labels, 109 comments |
-| $0D | bank0D_oam_sprites.asm | ~4% — 6 labels, 44 comments |
-| $01 | bank01_stage_magnet.asm | ~3% — 4 labels, 41 comments |
+| $10 | bank10_stage_setup.asm | ~100% — 21 labels, 373 comments |
+| $0E | bank0E_anim_frames.asm | ~100% — 14 labels, 298 comments |
+| $03 | bank03_stage_hard.asm | ~94% — 107 labels, 731 comments |
+| $0B | bank0B_intro.asm | ~93% — 94 labels, 866 comments |
+| $16 | bank16_sound_driver.asm | ~92% — 170 labels, 1072 comments |
+| $18 | bank18_stage_select.asm | ~91% — 175 labels, 1771 comments |
+| $07 | bank07_robot_masters_b.asm | ~91% — 150 labels, 1041 comments |
+| $06 | bank06_robot_masters_a.asm | ~91% — 141 labels, 956 comments |
+| $09 | bank09_per_frame.asm | ~91% — 80 labels, 585 comments |
+| $0F | bank0F_entity_spawn.asm | ~89% — 30 labels, 372 comments |
+| $04 | bank04_doc_robot_a.asm | ~88% — 123 labels, 864 comments |
+| $0C | bank0C_game_over.asm | ~88% — 85 labels, 848 comments |
+| $12 | bank12_fortress_bosses.asm | ~85% — 407 labels, 2501 comments |
+| $02 | bank02_stage_gemini.asm | ~84% — 117 labels, 785 comments |
+| $05 | bank05_doc_robot_b.asm | ~81% — 152 labels, 906 comments |
+| $1A/$1B | bank1A_1B_oam_sequences.asm | ~81% — 30 labels, 303 comments |
+| Fixed | fixed_bank.asm | ~71% — 922 labels, 6901 comments |
+| $1C/$1D | bank1C_1D_entity_ai.asm | ~71% — 945 labels, 5360 comments |
+| $01 | bank01_stage_magnet.asm | ~69% — 4 labels, 184 comments |
+| $0D | bank0D_oam_sprites.asm | ~68% — 6 labels, 236 comments |
+| $00 | bank00_enemy_data.asm | Data — 8 labels, 364 comments |
+| $0A | bank0A_damage_tables.asm | Data — 9 labels, 539 comments |
 | Data | banks 08, 11, 13-15, 17, 19 | Section headers only |
 
 ## Technical Notes
