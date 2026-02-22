@@ -8,13 +8,13 @@
 ;
 ; Routine index mapping (from bank1C_1D dispatch):
 ;   $D0 → main_hard_man_j    (Hard Man boss AI)
-;   $D1 → code_A277           (Hard Man fist projectile)
+;   $D1 → hard_man_fist_main           (Hard Man fist projectile)
 ;   $D2 → main_spark_man_j   (Spark Man boss AI)
 ;   $D3 → (unused — 3x NOP)
 ;   $D4 → main_snake_man_j   (Snake Man boss AI)
 ;   $D5 → (unused — 3x NOP)
 ;   $D6 → main_gemini_man_j  (Gemini Man boss AI)
-;   $D7 → code_A972           (Gemini Man clone AI)
+;   $D7 → gemini_man_clone_main           (Gemini Man clone AI)
 ;   $D8 → stub RTS
 ; =============================================================================
 main_hard_man_j:
@@ -47,18 +47,18 @@ calc_homing_velocity           := $FC63
 .segment "BANK07"
 
 ; --- Entry trampolines (dispatched from bank1C_1D entity AI) ----------------
-        jmp     code_A019               ; $D0 — Hard Man boss AI
+        jmp     hard_man_state_dispatch               ; $D0 — Hard Man boss AI
                                         ; $D1 — Hard Man fist projectile
-        jmp     code_A277
+        jmp     hard_man_fist_main
 main_spark_man_j:
                                         ; $D2 — Spark Man boss AI
-        jmp     code_A319
+        jmp     spark_man_state_dispatch
                                         ; $D3 — unused
         nop
         nop
         nop
 main_snake_man_j:
-        jmp     code_A51B               ; $D4 — Snake Man boss AI
+        jmp     snake_man_state_dispatch               ; $D4 — Snake Man boss AI
                                         ; $D5 — unused
         nop
         nop
@@ -66,7 +66,7 @@ main_snake_man_j:
 main_gemini_man_j:
         jmp     main_gemini_man         ; $D6 — Gemini Man boss AI
                                         ; $D7 — Gemini Man clone AI
-        jmp     code_A972
+        jmp     gemini_man_clone_main
                                         ; $D8 — stub RTS
         rts
 
@@ -81,7 +81,7 @@ main_gemini_man_j:
 ;   Phase 4 ($A1CF): cooldown, then reset to phase 1
 ; =============================================================================
 
-code_A019:  lda     ent_status,x        ; --- state dispatch ---
+hard_man_state_dispatch:  lda     ent_status,x        ; --- state dispatch ---
         and     #$0F                    ; isolate phase number (low nibble)
         tay                             ; use as table index
         lda     hard_man_state_ptrs_low_table,y ; load state handler address low byte
@@ -112,32 +112,32 @@ hard_man_state_ptrs_high_table:  .byte   $A0,$A0,$A0,$A1,$A1 ; high bytes for ph
         jsr     face_player             ; face player
         pla                             ; recover old facing
         cmp     ent_facing,x            ; did facing direction change?
-        beq     code_A067               ; same direction → skip flip
+        beq     hard_man_walk_check_timer               ; same direction → skip flip
         lda     ent_flags,x             ; load sprite flags
         eor     #$40                    ; flip sprite horizontally
         sta     ent_flags,x             ; store updated flags
-code_A067:  lda     ent_timer,x
-        bne     code_A079               ; timer nonzero → already fired once
+hard_man_walk_check_timer:  lda     ent_timer,x
+        bne     hard_man_walk_check_second_shot               ; timer nonzero → already fired once
         lda     ent_anim_state,x        ; check current anim state
         cmp     #$05                    ; at anim frame 5?
-        bne     code_A08B               ; not at frame 5 → skip
-        jsr     code_A22E               ; spawn fist projectile (first shot)
+        bne     hard_man_walk_check_anim_done               ; not at frame 5 → skip
+        jsr     hard_man_spawn_fist               ; spawn fist projectile (first shot)
         inc     ent_timer,x             ; mark first shot fired
-code_A079:  lda     ent_var1,x
-        bne     code_A08B               ; var1 nonzero → already fired
+hard_man_walk_check_second_shot:  lda     ent_var1,x
+        bne     hard_man_walk_check_anim_done               ; var1 nonzero → already fired
         lda     ent_anim_state,x        ; check current anim state
         cmp     #$08                    ; at anim frame 8?
-        bne     code_A08B               ; not at frame 8 → skip
-        jsr     code_A22E               ; spawn fist projectile (second shot)
+        bne     hard_man_walk_check_anim_done               ; not at frame 8 → skip
+        jsr     hard_man_spawn_fist               ; spawn fist projectile (second shot)
         inc     ent_var1,x              ; mark second shot fired
-code_A08B:  lda     ent_anim_state,x
+hard_man_walk_check_anim_done:  lda     ent_anim_state,x
         cmp     #$0B                    ; walk anim finished?
-        bne     code_A0B1               ; anim not done → keep walking
+        bne     hard_man_walk_done               ; anim not done → keep walking
         lda     #$2F                    ; jump anim ID
         jsr     reset_sprite_anim       ; set jump anim
         lda     #$00                    ; zero
         sta     ent_timer,x             ; clear timer for next phase
-        jsr     code_A1FF               ; set X velocity based on distance to player
+        jsr     hard_man_set_jump_xvel               ; set X velocity based on distance to player
         lda     #$68                    ; sub-pixel
         sta     ent_yvel_sub,x          ; Y velocity = $08.68 (jump upward)
         lda     #$08                    ; whole pixels upward
@@ -145,11 +145,11 @@ code_A08B:  lda     ent_anim_state,x
         inc     ent_status,x            ; advance to phase 2
         lda     #$1E                    ; 30 frames
         sta     ent_var1,x              ; invulnerable timer = 30 frames
-code_A0B1:  rts
+hard_man_walk_done:  rts
 
 ; --- phase 2: ascending / descending toward player ---
         lda     ent_var1,x              ; invulnerable countdown?
-        beq     code_A0C5               ; zero → invulnerability ended
+        beq     hard_man_airborne_check_timer               ; zero → invulnerability ended
         dec     ent_var1,x              ; count down invulnerable timer
         lda     #$00                    ; zero
         sta     ent_anim_frame,x        ; hold jump anim frame 1
@@ -157,20 +157,20 @@ code_A0B1:  rts
         sta     ent_anim_state,x        ; hold jump anim state
         rts                             ; return while invulnerable
 
-code_A0C5:  lda     ent_timer,x         ; timer == 0 → first descent
-        bne     code_A128               ; timer != 0 → head-butt descent
+hard_man_airborne_check_timer:  lda     ent_timer,x         ; timer == 0 → first descent
+        bne     hard_man_headbutt_descent               ; timer != 0 → head-butt descent
         lda     ent_facing,x            ; get facing direction
         and     #$01                    ; check bit 0 (right)
-        beq     code_A0D9               ; facing left → branch
+        beq     hard_man_move_left               ; facing left → branch
         ldy     #$22                    ; collision mask index
         jsr     move_right_collide      ; move right with collision
-        jmp     code_A0DE               ; skip left movement
+        jmp     hard_man_apply_gravity               ; skip left movement
 
-code_A0D9:  ldy     #$23
+hard_man_move_left:  ldy     #$23
         jsr     move_left_collide       ; move left with collision
-code_A0DE:  ldy     #$26
+hard_man_apply_gravity:  ldy     #$26
         jsr     move_vertical_gravity   ; apply gravity
-        bcc     code_A106               ; not on ground yet
+        bcc     hard_man_check_dive_distance               ; not on ground yet
         lda     #$30                    ; landing anim ID
         jsr     reset_sprite_anim       ; set landing anim
         lda     #$04                    ; anim state 4 = landed
@@ -182,19 +182,19 @@ code_A0DE:  ldy     #$26
 ; Hard Man ground slam — stun the player
         lda     player_state            ; check player state
         cmp     #PSTATE_DEATH           ; if dead, don't stun
-        beq     code_A165
+        beq     hard_man_stun_done
         cmp     #PSTATE_STUNNED         ; if already stunned, skip
-        beq     code_A165
+        beq     hard_man_stun_done
         lda     #PSTATE_STUNNED         ; state → $0F (stunned)
         sta     player_state            ; player frozen in midair
         rts
 
-code_A106:  lda     #$00                ; still in air — check if close to player
+hard_man_check_dive_distance:  lda     #$00                ; still in air — check if close to player
         sta     ent_anim_frame,x        ; reset anim frame
         sta     ent_anim_state,x        ; reset anim state
         jsr     entity_x_dist_to_player ; get X distance to player
         cmp     #$08                    ; close enough to dive?
-        bcs     code_A127               ; no — keep falling
+        bcs     hard_man_airborne_rts               ; no — keep falling
         lda     #$30                    ; head-butt anim ID
         jsr     reset_sprite_anim       ; set head-butt anim
         inc     ent_timer,x             ; mark: switch to head-butt descent
@@ -202,12 +202,12 @@ code_A106:  lda     #$00                ; still in air — check if close to pla
         sta     ent_yvel_sub,x          ; Y velocity = $05.00 (fall fast)
         lda     #$05                    ; fast fall speed
         sta     ent_yvel,x              ; set fast downward velocity
-code_A127:  rts
+hard_man_airborne_rts:  rts
 
 ; --- head-butt descent: fast drop straight down ---
-code_A128:  lda     ent_anim_state,x
+hard_man_headbutt_descent:  lda     ent_anim_state,x
         cmp     #$03                    ; wait for anim to reach frame 3
-        bne     code_A127               ; not at frame 3 → wait
+        bne     hard_man_airborne_rts               ; not at frame 3 → wait
         lda     #$03                    ; hold at anim state 3
         sta     ent_anim_state,x        ; hold on anim state 3
         lda     #$00                    ; zero
@@ -216,7 +216,7 @@ code_A128:  lda     ent_anim_state,x
         jsr     submit_sound_ID         ; play stomp sound
         ldy     #$26                    ; collision mask index
         jsr     move_down_collide       ; move down with collision check
-        bcc     code_A127               ; not on ground → keep falling
+        bcc     hard_man_airborne_rts               ; not on ground → keep falling
         lda     #$30                    ; landing anim ID
         jsr     reset_sprite_anim       ; set landing anim
         lda     #$04                    ; anim state 4 = landed
@@ -228,18 +228,18 @@ code_A128:  lda     ent_anim_state,x
 ; Hard Man body slam — stun the player (second attack variant)
         lda     player_state            ; check player state
         cmp     #PSTATE_DEATH           ; if dead, don't stun
-        beq     code_A165               ; dead → skip stun
+        beq     hard_man_stun_done               ; dead → skip stun
         cmp     #PSTATE_STUNNED         ; if already stunned, skip
-        beq     code_A165               ; already stunned → skip
+        beq     hard_man_stun_done               ; already stunned → skip
         lda     #PSTATE_STUNNED         ; state → $0F (stunned)
         sta     player_state            ; player frozen in midair
-code_A165:  rts
+hard_man_stun_done:  rts
 
 ; --- phase 3: screen shake after ground slam ---
         lda     ent_var3,x              ; shake counter
-        beq     code_A1A0               ; done shaking → land
+        beq     hard_man_shake_finished               ; done shaking → land
         dec     ent_var3,x              ; count down shake counter
-        beq     code_A1A0               ; reached zero → stop shaking
+        beq     hard_man_shake_finished               ; reached zero → stop shaking
         lda     #$CA                    ; wide hitbox ID
         sta     ent_hitbox,x            ; wide contact hitbox during shake
         lda     #$04                    ; anim state 4 = grounded
@@ -252,14 +252,14 @@ code_A165:  rts
         sta     ent_yvel,x              ; set bounce velocity
         lda     ent_var3,x              ; read shake counter
         and     #$01                    ; alternate screen shake direction
-        bne     code_A198               ; odd → shift screen up
+        bne     hard_man_shake_screen_up               ; odd → shift screen up
         lda     scroll_y                ; even frame: shift screen down
         clc
         adc     #$02                    ; shift down by 2 pixels
         sta     scroll_y                ; update scroll Y
         rts                             ; done this frame
 
-code_A198:  lda     scroll_y            ; odd frame: shift screen up
+hard_man_shake_screen_up:  lda     scroll_y            ; odd frame: shift screen up
         sec
         sbc     #$02                    ; shift up by 2 pixels
         sta     scroll_y                ; update scroll Y
@@ -267,32 +267,32 @@ code_A198:  lda     scroll_y            ; odd frame: shift screen up
 
 ; Hard Man landing — launches player into the air on impact
 
-code_A1A0:  ldy     #$26                ; collision check
+hard_man_shake_finished:  ldy     #$26                ; collision check
         jsr     move_vertical_gravity   ; is Hard Man near ground?
-        bcc     code_A1BA               ; no → still falling
+        bcc     hard_man_still_falling               ; no → still falling
         lda     player_state            ; if player dead ($0E),
         cmp     #PSTATE_DEATH           ; don't launch
-        beq     code_A1B1               ; if player dead ($0E),
+        beq     hard_man_enter_cooldown               ; if player dead ($0E),
         lda     #PSTATE_AIRBORNE        ; set airborne state
         sta     player_state            ; player bounced into the air
-code_A1B1:  inc     ent_status,x
+hard_man_enter_cooldown:  inc     ent_status,x
         lda     #$10                    ; 16 frames cooldown
         sta     ent_var2,x              ; set cooldown timer
         rts                             ; done — enter phase 4
 
-code_A1BA:  lda     #$D0                ; still falling — set normal hitbox
+hard_man_still_falling:  lda     #$D0                ; still falling — set normal hitbox
         sta     ent_hitbox,x            ; restore normal hitbox
         lda     ent_anim_state,x        ; check current anim state
         cmp     #$04                    ; still at state 4?
-        bne     code_A1CE               ; no → already advanced
+        bne     hard_man_falling_rts               ; no → already advanced
         lda     #$00                    ; zero
         sta     ent_anim_frame,x        ; reset anim frame
         inc     ent_anim_state,x        ; advance anim to state 5
-code_A1CE:  rts
+hard_man_falling_rts:  rts
 
 ; --- phase 4: cooldown after landing, then loop back to phase 1 ---
         dec     ent_var2,x              ; count down cooldown timer
-        bne     code_A1EF               ; still counting down → idle
+        bne     hard_man_cooldown_idle               ; still counting down → idle
         lda     #$C1                    ; reset status to phase 1 + invincibility
         sta     ent_status,x            ; status = phase 1 + invincible
         lda     #$00                    ; zero
@@ -305,7 +305,7 @@ code_A1CE:  rts
         jsr     reset_sprite_anim       ; set walk anim
         rts
 
-code_A1EF:  lda     #$2F                ; still cooling down — set jump pose
+hard_man_cooldown_idle:  lda     #$2F                ; still cooling down — set jump pose
         jsr     reset_sprite_anim       ; set jump anim
         lda     #$00                    ; zero
         sta     ent_anim_frame,x        ; reset anim frame
@@ -314,13 +314,13 @@ code_A1EF:  lda     #$2F                ; still cooling down — set jump pose
         rts                             ; done cooling down
 
 ; --- set Hard Man X velocity based on distance to player ---
-code_A1FF:  jsr     entity_x_dist_to_player ; get X distance to player
+hard_man_set_jump_xvel:  jsr     entity_x_dist_to_player ; get X distance to player
         ldy     #$06                    ; start at bracket 6 (closest)
-code_A204:  cmp     hard_man_jump_xvel_distance_thresholds_table,y ; find matching distance bracket
-        bcc     code_A20C               ; below threshold → use this
+hard_man_xvel_bracket_loop:  cmp     hard_man_jump_xvel_distance_thresholds_table,y ; find matching distance bracket
+        bcc     hard_man_apply_xvel               ; below threshold → use this
         dey                             ; try next bracket
-        bne     code_A204               ; loop until bracket 0
-code_A20C:  lda     hard_man_jump_xvel_sub_table,y ; set X velocity sub-pixel
+        bne     hard_man_xvel_bracket_loop               ; loop until bracket 0
+hard_man_apply_xvel:  lda     hard_man_jump_xvel_sub_table,y ; set X velocity sub-pixel
         sta     ent_xvel_sub,x          ; store sub-pixel velocity
         lda     hard_man_jump_xvel_whole_table,y ; set X velocity whole pixel
         sta     ent_xvel,x              ; store whole pixel velocity
@@ -331,8 +331,8 @@ hard_man_jump_xvel_distance_thresholds_table:  .byte   $79,$6A,$5B,$4C,$3D,$2E,$
 hard_man_jump_xvel_sub_table:  .byte   $80,$00,$80,$00,$80,$00,$80 ; X velocity sub-pixel
 hard_man_jump_xvel_whole_table:  .byte   $03,$03,$02,$02,$01,$01,$00 ; X velocity whole pixel
 ; --- spawn Hard Man fist projectile ---
-code_A22E:  jsr     find_enemy_freeslot_y ; find free enemy slot → Y
-        bcs     code_A272               ; no slot → bail
+hard_man_spawn_fist:  jsr     find_enemy_freeslot_y ; find free enemy slot → Y
+        bcs     hard_man_spawn_fist_done               ; no slot → bail
         sty     L0000                   ; save free slot index
         lda     ent_facing,x            ; copy facing direction
         sta     ent_facing,y            ; projectile inherits facing
@@ -360,7 +360,7 @@ code_A22E:  jsr     find_enemy_freeslot_y ; find free enemy slot → Y
         sta     ent_hitbox,y            ; set projectile hitbox
         lda     #$D1                    ; routine $D1 = fist AI
         sta     ent_routine,y           ; routine $D1 → Hard Man fist AI
-code_A272:  rts
+hard_man_spawn_fist_done:  rts
 
 ; Hard Man fist spawn X offsets (facing right / facing left)
 hard_man_fist_xoffset_table:  .byte   $04
@@ -373,49 +373,49 @@ hard_man_fist_screen_offset_table:  .byte   $00,$FC,$FF
 ;   Phase 2: return to Hard Man after reaching player
 ; =============================================================================
 
-code_A277:  lda     ent_status,x        ; --- init ---
+hard_man_fist_main:  lda     ent_status,x        ; --- init ---
         and     #$0F                    ; isolate phase number
-        bne     code_A28F               ; nonzero → already inited
+        bne     hard_man_fist_phase_dispatch               ; nonzero → already inited
         sta     ent_timer,x             ; clear timer
         sta     ent_var1,x              ; clear return flag
         lda     #$0C                    ; 12 frames between re-homes
         sta     ent_var2,x              ; frames between homing recalculations
-        jsr     code_A308               ; calculate homing velocity toward player
+        jsr     hard_man_fist_calc_homing               ; calculate homing velocity toward player
         inc     ent_status,x            ; advance to phase 1
-code_A28F:  lda     ent_status,x        ; --- phase dispatch ---
+hard_man_fist_phase_dispatch:  lda     ent_status,x        ; --- phase dispatch ---
         and     #$02                    ; check bit 1 (return phase)
-        bne     code_A2EE               ; phase 2: returning
+        bne     hard_man_fist_return_phase               ; phase 2: returning
         lda     ent_facing,x            ; --- phase 1: fly toward player ---
         and     #$08                    ; check vertical direction
-        beq     code_A2A8               ; bit 3 clear → move down
+        beq     hard_man_fist_move_down               ; bit 3 clear → move down
         jsr     move_sprite_up          ; move up
         lda     ent_y_scr,x             ; check if off-screen
-        bne     code_A302               ; off-screen → despawn
-        jmp     code_A2B0               ; skip to horizontal move
+        bne     hard_man_fist_despawn               ; off-screen → despawn
+        jmp     hard_man_fist_move_horiz               ; skip to horizontal move
 
-code_A2A8:  jsr     move_sprite_down    ; move down
+hard_man_fist_move_down:  jsr     move_sprite_down    ; move down
         lda     ent_y_scr,x             ; check if off-screen
-        bne     code_A302               ; off-screen → despawn
-code_A2B0:  jsr     set_sprite_hflip    ; update sprite flip
+        bne     hard_man_fist_despawn               ; off-screen → despawn
+hard_man_fist_move_horiz:  jsr     set_sprite_hflip    ; update sprite flip
         lda     ent_facing,x            ; get facing direction
         and     #$01                    ; check bit 0 (right)
-        beq     code_A2C0               ; facing left → branch
+        beq     hard_man_fist_move_left               ; facing left → branch
         jsr     move_sprite_right       ; move right
-        jmp     code_A2C3               ; skip to distance check
+        jmp     hard_man_fist_check_reached               ; skip to distance check
 
-code_A2C0:  jsr     move_sprite_left    ; move left
-code_A2C3:  lda     ent_timer,x         ; already reached player?
-        bne     code_A2D3               ; already reached → start return
+hard_man_fist_move_left:  jsr     move_sprite_left    ; move left
+hard_man_fist_check_reached:  lda     ent_timer,x         ; already reached player?
+        bne     hard_man_fist_check_return               ; already reached → start return
         jsr     entity_x_dist_to_player ; get X distance to player
         cmp     #$0C                    ; close enough?
-        bcs     code_A2D2               ; no → keep flying
+        bcs     hard_man_fist_rts               ; no → keep flying
         inc     ent_timer,x             ; mark: reached player
-code_A2D2:  rts
+hard_man_fist_rts:  rts
 
-code_A2D3:  lda     ent_var1,x          ; already started return?
-        bne     code_A2D2               ; already returning → wait
+hard_man_fist_check_return:  lda     ent_var1,x          ; already started return?
+        bne     hard_man_fist_rts               ; already returning → wait
         dec     ent_var2,x              ; count down return delay
-        bne     code_A2D2               ; delay not done → wait
+        bne     hard_man_fist_rts               ; delay not done → wait
         lda     #$0C                    ; reset return delay to 12
         sta     ent_var2,x              ; store return delay
         inc     ent_var1,x              ; mark return started
@@ -425,21 +425,21 @@ code_A2D3:  lda     ent_var1,x          ; already started return?
         rts
 
 ; --- phase 2: return to Hard Man ---
-code_A2EE:  lda     ent_anim_frame,x
+hard_man_fist_return_phase:  lda     ent_anim_frame,x
         ora     ent_anim_state,x        ; check if anim finished
-        bne     code_A301               ; still playing → wait
+        bne     hard_man_fist_return_wait               ; still playing → wait
         lda     #$2D                    ; flying anim ID
         jsr     reset_sprite_anim       ; reset to flying anim
-        jsr     code_A308               ; recalculate homing velocity toward Hard Man
+        jsr     hard_man_fist_calc_homing               ; recalculate homing velocity toward Hard Man
         dec     ent_status,x            ; back to phase 1 (re-home)
-code_A301:  rts
+hard_man_fist_return_wait:  rts
 
-code_A302:  lda     #$00                ; off-screen → despawn
+hard_man_fist_despawn:  lda     #$00                ; off-screen → despawn
         sta     ent_status,x            ; despawn fist
         rts                             ; done
 
 ; --- calculate homing velocity toward player (or back to owner) ---
-code_A308:  lda     #$4C                ; speed parameter low
+hard_man_fist_calc_homing:  lda     #$4C                ; speed parameter low
         sta     $02                     ; store speed low byte
         lda     #$03                    ; speed parameter high
         sta     $03                     ; store speed high byte
@@ -460,41 +460,41 @@ code_A308:  lda     #$4C                ; speed parameter low
 ; Uses 8 fixed X-position waypoints (spark_man_waypoint_xpos_table) for landing spots.
 ; =============================================================================
 
-code_A319:  lda     ent_status,x        ; --- main dispatch ---
+spark_man_state_dispatch:  lda     ent_status,x        ; --- main dispatch ---
         and     #$0F                    ; isolate phase number
-        beq     code_A323               ; phase 0: jumping/bouncing
-        jmp     code_A3E7               ; phase 1: attack
+        beq     spark_man_cooldown_check               ; phase 0: jumping/bouncing
+        jmp     spark_man_attack_phase               ; phase 1: attack
 
 ; --- phase 0: jumping between platforms ---
-code_A323:  lda     ent_timer,x         ; cooldown timer active?
-        beq     code_A339               ; no → check bounce state
+spark_man_cooldown_check:  lda     ent_timer,x         ; cooldown timer active?
+        beq     spark_man_check_ground_state               ; no → check bounce state
         dec     ent_timer,x             ; count down cooldown
-        bne     code_A330               ; not zero → still cooling
+        bne     spark_man_face_player_and_reset               ; not zero → still cooling
         dec     ent_anim_state,x        ; timer expired → reset anim
-code_A330:  jsr     code_A35D           ; face player (preserve facing)
-code_A333:  lda     #$00                ; reset anim frame
+spark_man_face_player_and_reset:  jsr     face_player_preserve_facing           ; face player (preserve facing)
+spark_man_reset_anim_frame:  lda     #$00                ; reset anim frame
         sta     ent_anim_frame,x        ; reset anim frame
         rts                             ; done cooling down
 
-code_A339:  lda     ent_anim_state,x    ; on the ground?
-        beq     code_A36C               ; yes → start new jump
+spark_man_check_ground_state:  lda     ent_anim_state,x    ; on the ground?
+        beq     spark_man_init_jump               ; yes → start new jump
         lda     ent_anim_frame,x        ; check landing anim frame
         cmp     #$08                    ; landing anim done?
-        bne     code_A301               ; not done → wait
+        bne     hard_man_fist_return_wait               ; not done → wait
         dec     ent_var2,x              ; decrement bounce counter
-        beq     code_A355               ; all bounces done → attack
-code_A34A:  lda     #$88                ; set jump velocity $06.88
+        beq     spark_man_start_attack               ; all bounces done → attack
+spark_man_set_jump_velocity:  lda     #$88                ; set jump velocity $06.88
         sta     ent_yvel_sub,x          ; set Y velocity sub-pixel
         lda     #$06                    ; whole pixels upward
         sta     ent_yvel,x              ; set Y velocity whole
         rts                             ; done setting jump velocity
 
-code_A355:  lda     #$38                ; set Spark Shock attack anim
+spark_man_start_attack:  lda     #$38                ; set Spark Shock attack anim
         jsr     reset_sprite_anim       ; set jump anim
         inc     ent_status,x            ; advance to phase 1
 
 ; --- face player utility (preserves original facing for movement) ---
-code_A35D:  lda     ent_facing,x
+face_player_preserve_facing:  lda     ent_facing,x
         pha                             ; save old facing
         jsr     face_player             ; face player
         jsr     set_sprite_hflip        ; update sprite flip
@@ -503,12 +503,12 @@ code_A35D:  lda     ent_facing,x
         rts                             ; done
 
 ; --- start new jump from ground ---
-code_A36C:  lda     ent_var2,x          ; bounce counter initialized?
-        bne     code_A38A               ; already initialized → skip
+spark_man_init_jump:  lda     ent_var2,x          ; bounce counter initialized?
+        bne     spark_man_jump_apply_gravity               ; already initialized → skip
         lda     #$37                    ; jump anim ID
         jsr     reset_sprite_anim       ; set jump anim
         jsr     set_sprite_hflip        ; update sprite flip
-        jsr     code_A34A               ; set jump velocity
+        jsr     spark_man_set_jump_velocity               ; set jump velocity
         lda     $E4                     ; RNG: random bounce count 1-4
         adc     $E6                     ; mix with second RNG byte
         sta     $E7                     ; store mixed RNG result
@@ -516,10 +516,10 @@ code_A36C:  lda     ent_var2,x          ; bounce counter initialized?
         clc
         adc     #$01                    ; add 1 → range 1-4
         sta     ent_var2,x              ; store bounce count
-code_A38A:  ldy     #$1E
+spark_man_jump_apply_gravity:  ldy     #$1E
         jsr     move_vertical_gravity   ; apply gravity
-        bcs     code_A3B7               ; landed → snap to waypoint
-        jsr     code_A333               ; in air: reset anim frame
+        bcs     spark_man_snap_to_waypoint               ; landed → snap to waypoint
+        jsr     spark_man_reset_anim_frame               ; in air: reset anim frame
         lda     ent_var1,x              ; get current waypoint index
         and     #$03                    ; isolate waypoint sub-index
         tay
@@ -529,45 +529,45 @@ code_A38A:  ldy     #$1E
         sta     ent_xvel,x              ; set X velocity whole
         lda     ent_facing,x            ; get facing direction
         and     #$02                    ; check horizontal direction
-        beq     code_A3B2               ; facing right → branch
+        beq     spark_man_move_right               ; facing right → branch
         ldy     #$21                    ; left collision mask index
         jmp     move_left_collide       ; move left with collision
 
-code_A3B2:  ldy     #$20
+spark_man_move_right:  ldy     #$20
         jmp     move_right_collide      ; move right with collision
 
 ; --- landed on ground: snap to waypoint X position ---
-code_A3B7:  lda     ent_var1,x
+spark_man_snap_to_waypoint:  lda     ent_var1,x
         tay
         lda     spark_man_waypoint_xpos_table,y ; get fixed X position for this waypoint
         sta     ent_x_px,x              ; snap X to waypoint
         inc     ent_anim_state,x        ; signal: on ground
-        jsr     code_A333               ; reset anim frame on landing
+        jsr     spark_man_reset_anim_frame               ; reset anim frame on landing
         inc     ent_var1,x              ; advance to next waypoint
         lda     ent_var1,x              ; read new waypoint index
         and     #$07                    ; wrap waypoint index 0-7
         sta     ent_var1,x              ; store wrapped index
         and     #$03                    ; check if multiple of 4
-        bne     code_A3E6               ; every 4 waypoints → reverse direction
-code_A3D6:  lda     ent_facing,x        ; flip horizontal direction
+        bne     flip_direction_done               ; every 4 waypoints → reverse direction
+flip_direction:  lda     ent_facing,x        ; flip horizontal direction
         eor     #$03                    ; toggle right/left bits
         sta     ent_facing,x            ; store flipped facing
         lda     ent_flags,x             ; load sprite flags
         eor     #$40                    ; flip sprite
         sta     ent_flags,x             ; store flipped sprite
-code_A3E6:  rts
+flip_direction_done:  rts
 
 ; --- phase 1: Spark Shock attack ---
-code_A3E7:  jsr     code_A35D           ; face player
+spark_man_attack_phase:  jsr     face_player_preserve_facing           ; face player
         lda     ent_anim_state,x        ; check anim state
         ora     ent_anim_frame,x        ; combine with anim frame
-        bne     code_A40D               ; anim still playing
+        bne     spark_man_attack_check_frame               ; anim still playing
         lda     #$39                    ; check if large spark anim
         cmp     ent_anim_id,x           ; is it large spark anim?
-        beq     code_A3FC               ; yes → handle large spark
+        beq     spark_man_attack_finished               ; yes → handle large spark
         jmp     reset_sprite_anim       ; set large spark anim $39
 
-code_A3FC:  lda     #$37                ; large spark done → set idle anim
+spark_man_attack_finished:  lda     #$37                ; large spark done → set idle anim
         jsr     reset_sprite_anim       ; advance anim state
         inc     ent_anim_state,x        ; signal: spark anim started
         lda     #$64                    ; 100 frames
@@ -575,27 +575,27 @@ code_A3FC:  lda     #$37                ; large spark done → set idle anim
         dec     ent_status,x            ; return to phase 0
         rts
 
-code_A40D:  lda     ent_anim_frame,x    ; check attack anim progress
-        bne     code_A3E6               ; not at frame 0 → skip
+spark_man_attack_check_frame:  lda     ent_anim_frame,x    ; check attack anim progress
+        bne     flip_direction_done               ; not at frame 0 → skip
         lda     #$39                    ; large spark anim ID
         cmp     ent_anim_id,x           ; large spark anim?
-        beq     code_A423               ; yes → handle large spark
+        beq     spark_man_large_spark_check               ; yes → handle large spark
         lda     ent_anim_state,x        ; small spark: wait for anim state 3
         cmp     #$03                    ; wait for anim state 3
-        bne     code_A3E6               ; not yet → wait
-        jmp     code_A42D               ; spawn 8-way spark projectiles
+        bne     flip_direction_done               ; not yet → wait
+        jmp     spark_man_spawn_8way_sparks               ; spawn 8-way spark projectiles
 
-code_A423:  lda     ent_anim_state,x    ; large spark: wait for anim state $0A
+spark_man_large_spark_check:  lda     ent_anim_state,x    ; large spark: wait for anim state $0A
         cmp     #$0A                    ; wait for anim state $0A
-        bne     code_A3E6               ; not yet → wait
-        jmp     code_A485               ; spawn homing spark ball
+        bne     flip_direction_done               ; not yet → wait
+        jmp     spark_man_spawn_homing_ball               ; spawn homing spark ball
 
 ; --- spawn 8-directional spark projectiles (small spark attack) ---
-code_A42D:  stx     L0000               ; save Spark Man slot
+spark_man_spawn_8way_sparks:  stx     L0000               ; save Spark Man slot
         lda     #$07                    ; spawn 8 projectiles (indices 7→0)
         sta     $01                     ; store projectile counter
-code_A433:  jsr     find_enemy_freeslot_y ; find free enemy slot → Y
-        bcs     code_A482               ; no slot → done
+spark_man_spawn_spark_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot → Y
+        bcs     spark_man_spawn_sparks_done               ; no slot → done
         ldx     $01                     ; load projectile index
         lda     spark_man_8way_xvel_sub_table,x ; set X velocity sub from table
         sta     ent_xvel_sub,y          ; set projectile X vel sub
@@ -623,14 +623,14 @@ code_A433:  jsr     find_enemy_freeslot_y ; find free enemy slot → Y
         sbc     #$08                    ; offset slightly above center
         sta     ent_y_px,y              ; set projectile Y position
         dec     $01                     ; next projectile
-        bpl     code_A433               ; more to spawn → loop
-code_A482:  ldx     L0000
+        bpl     spark_man_spawn_spark_loop               ; more to spawn → loop
+spark_man_spawn_sparks_done:  ldx     L0000
         rts                             ; done spawning projectiles
 
 ; --- spawn homing spark ball (large spark attack) ---
-code_A485:  stx     $0E                 ; save Spark Man slot
+spark_man_spawn_homing_ball:  stx     $0E                 ; save Spark Man slot
         jsr     find_enemy_freeslot_y   ; find free enemy slot → Y
-        bcs     code_A4DC               ; no slot → bail
+        bcs     spark_man_spawn_ball_done               ; no slot → bail
         lda     ent_y_px,x              ; get Spark Man Y position
         clc
         adc     #$05                    ; spawn slightly below center
@@ -665,7 +665,7 @@ code_A485:  stx     $0E                 ; save Spark Man slot
         lda     ent_x_scr,y             ; get child screen X
         adc     spark_man_homing_ball_xoffset_table,x ; add screen carry offset
         sta     ent_x_scr,y             ; store adjusted screen X
-code_A4DC:  ldx     $0E                 ; restore Spark Man slot
+spark_man_spawn_ball_done:  ldx     $0E                 ; restore Spark Man slot
         rts
 
 ; --- Spark Man data tables ---
@@ -694,90 +694,90 @@ spark_man_8way_facing_table:  .byte   $02,$02,$02,$02,$01,$01,$01,$01 ; facing d
 ; Search Snake ($BA) is spawned as a homing projectile.
 ; =============================================================================
 
-code_A51B:  lda     ent_status,x        ; --- main dispatch ---
+snake_man_state_dispatch:  lda     ent_status,x        ; --- main dispatch ---
         and     #$0F                    ; isolate phase number
-        beq     code_A525               ; phase 0
-        jmp     code_A5D8               ; phase 1: airborne
+        beq     snake_man_ground_phase               ; phase 0
+        jmp     snake_man_airborne_phase               ; phase 1: airborne
 
 ; --- phase 0: on ground ---
-code_A525:  ldy     #$00                ; gravity type = normal
+snake_man_ground_phase:  ldy     #$00                ; gravity type = normal
         jsr     move_vertical_gravity   ; apply gravity
-        bcs     code_A535               ; on ground → walk logic
-code_A52C:  lda     #$23                ; in air → set fall anim
+        bcs     snake_man_on_ground               ; on ground → walk logic
+snake_man_set_fall_anim:  lda     #$23                ; in air → set fall anim
         jsr     reset_sprite_anim
         inc     ent_anim_state,x        ; advance anim state
         rts                             ; return
 
-code_A535:  lda     #$23                ; check if walk anim is active
+snake_man_on_ground:  lda     #$23                ; check if walk anim is active
         cmp     ent_anim_id,x           ; is current anim = fall?
-        bne     code_A561               ; different anim → start walking
+        bne     snake_man_walk               ; different anim → start walking
         lda     ent_anim_state,x        ; check anim state
         cmp     #$01                    ; walk anim at state 1?
-        bne     code_A54B               ; not state 1 yet
+        bne     snake_man_pause_check               ; not state 1 yet
         lda     #$02                    ; advance to walk state 2
         sta     ent_anim_state,x        ; set walk state 2
-        jmp     code_A612               ; reset anim frame
+        jmp     snake_man_reset_anim_frame               ; reset anim frame
 
-code_A54B:  lda     ent_var2,x          ; pause timer active?
-        beq     code_A559               ; no pause → continue
+snake_man_pause_check:  lda     ent_var2,x          ; pause timer active?
+        beq     snake_man_wait_anim_frame               ; no pause → continue
         dec     ent_var2,x              ; decrement pause timer
         lda     #$00                    ; freeze animation
         sta     ent_anim_frame,x        ; hold current frame during pause
         rts                             ; wait for timer
 
-code_A559:  lda     ent_anim_frame,x    ; wait for anim frame 4
+snake_man_wait_anim_frame:  lda     ent_anim_frame,x    ; wait for anim frame 4
         cmp     #$04                    ; reached frame 4?
-        beq     code_A561               ; yes → start walking
+        beq     snake_man_walk               ; yes → start walking
         rts                             ; wait for frame 4
 
 ; --- walking: check waypoint and decide action ---
-code_A561:  jsr     set_sprite_hflip    ; update sprite flip
+snake_man_walk:  jsr     set_sprite_hflip    ; update sprite flip
         lda     #$25                    ; set walk anim
         cmp     ent_anim_id,x           ; already walking?
-        beq     code_A56E               ; yes → skip anim reset
+        beq     snake_man_walk_move               ; yes → skip anim reset
         jsr     reset_sprite_anim       ; set walk anim
-code_A56E:  jsr     code_A745           ; move horizontally
-        bcc     code_A577               ; no wall hit → check waypoint
+snake_man_walk_move:  jsr     move_horizontal_facing           ; move horizontally
+        bcc     snake_man_check_waypoint               ; no wall hit → check waypoint
         ldy     #$00                    ; hit wall → jump (Search Snake type 0)
-        beq     code_A5C2               ; always branch to jump
-code_A577:  lda     ent_timer,x         ; current waypoint index
+        beq     snake_man_start_jump               ; always branch to jump
+snake_man_check_waypoint:  lda     ent_timer,x         ; current waypoint index
         tay                             ; waypoint index to Y
         lda     ent_facing,x            ; get facing direction
         and     #$02                    ; check facing direction
-        beq     code_A58B               ; facing right → branch
+        beq     snake_man_check_waypoint_right               ; facing right → branch
         lda     snake_man_waypoint_xpos_table,y ; facing left: check if passed waypoint
         cmp     ent_x_px,x              ; compare with X position
-        bcs     code_A594               ; reached waypoint → jump/fire
+        bcs     snake_man_waypoint_reached               ; reached waypoint → jump/fire
         rts                             ; not at waypoint yet
 
-code_A58B:  lda     snake_man_waypoint_xpos_table,y ; facing right: check if passed waypoint
+snake_man_check_waypoint_right:  lda     snake_man_waypoint_xpos_table,y ; facing right: check if passed waypoint
         cmp     ent_x_px,x              ; compare with X position
-        bcc     code_A594               ; reached waypoint → jump/fire
+        bcc     snake_man_waypoint_reached               ; reached waypoint → jump/fire
         rts                             ; not at waypoint yet
 
 ; --- waypoint reached: advance and decide action ---
-code_A594:  inc     ent_timer,x         ; next waypoint
+snake_man_waypoint_reached:  inc     ent_timer,x         ; next waypoint
         lda     ent_timer,x             ; get updated waypoint index
         and     #$03                    ; wrap 0-3
         sta     ent_timer,x
         and     #$01                    ; check odd/even waypoint
-        bne     code_A5A6               ; odd → skip direction flip
-        jsr     code_A3D6               ; every 2 waypoints → reverse direction
-code_A5A6:  ldy     #$0F                ; scan enemy slots for existing Search Snake
-code_A5A8:  lda     $0310,y             ; check entity status high
-        bpl     code_A5B8               ; slot inactive → skip
+        bne     snake_man_scan_search_snake               ; odd → skip direction flip
+        jsr     flip_direction               ; every 2 waypoints → reverse direction
+snake_man_scan_search_snake:  ldy     #$0F                ; scan enemy slots for existing Search Snake
+snake_man_scan_slot_loop:  lda     $0310,y             ; check entity status high
+        bpl     snake_man_scan_next_slot               ; slot inactive → skip
         lda     $0330,y                 ; check routine ID
         cmp     #$BA                    ; is it a Search Snake?
-        bne     code_A5B8               ; not Search Snake → skip
+        bne     snake_man_scan_next_slot               ; not Search Snake → skip
         ldy     #$00                    ; Search Snake exists → small jump (type 0)
-        beq     code_A5C2               ; always branch to jump
-code_A5B8:  dey                         ; next slot down
-        bne     code_A5A8               ; continue scanning
+        beq     snake_man_start_jump               ; always branch to jump
+snake_man_scan_next_slot:  dey                         ; next slot down
+        bne     snake_man_scan_slot_loop               ; continue scanning
         lda     $E4                     ; no Search Snake → RNG pick jump type
         adc     $E6                     ; add second RNG byte
         and     #$01                    ; 0 = small jump, 1 = high jump + fire
         tay                             ; jump type index to Y
-code_A5C2:  lda     snake_man_jump_anim_table,y ; set jump anim based on type
+snake_man_start_jump:  lda     snake_man_jump_anim_table,y ; set jump anim based on type
         jsr     reset_sprite_anim       ; apply jump anim
         lda     snake_man_jump_yvel_sub_table,y ; set Y velocity sub based on type
         sta     ent_yvel_sub,x          ; set Y velocity sub
@@ -787,58 +787,58 @@ code_A5C2:  lda     snake_man_jump_anim_table,y ; set jump anim based on type
         rts                             ; return
 
 ; --- phase 1: airborne ---
-code_A5D8:  ldy     #$00                ; gravity type = normal
+snake_man_airborne_phase:  ldy     #$00                ; gravity type = normal
         jsr     move_vertical_gravity   ; apply gravity
-        bcs     code_A5F8               ; landed → return to phase 0
+        bcs     snake_man_landed               ; landed → return to phase 0
         lda     ent_anim_id,x           ; get current anim ID
         cmp     #$24                    ; firing anim active?
-        beq     code_A5E9               ; yes → skip horizontal move
-        jsr     code_A745               ; move horizontally
-code_A5E9:  lda     ent_yvel,x          ; check Y velocity sign
-        bpl     code_A612               ; still rising → reset frame
+        beq     snake_man_check_falling               ; yes → skip horizontal move
+        jsr     move_horizontal_facing               ; move horizontally
+snake_man_check_falling:  lda     ent_yvel,x          ; check Y velocity sign
+        bpl     snake_man_reset_anim_frame               ; still rising → reset frame
         lda     #$24                    ; falling → check if firing anim
         cmp     ent_anim_id,x
-        beq     code_A618               ; yes → fire Search Snake logic
-        jmp     code_A52C               ; set fall anim
+        beq     snake_man_fire_check               ; yes → fire Search Snake logic
+        jmp     snake_man_set_fall_anim               ; set fall anim
 
 ; --- landed on ground ---
-code_A5F8:  lda     ent_anim_id,x       ; get current anim ID
+snake_man_landed:  lda     ent_anim_id,x       ; get current anim ID
         cmp     #$24                    ; was firing anim active?
-        bne     code_A604               ; not firing → skip pause
+        bne     snake_man_reset_vars               ; not firing → skip pause
         lda     #$1A                    ; pause = 26 frames
         sta     ent_var2,x              ; set pause timer after landing from firing
-code_A604:  lda     #$00                ; clear fire cooldown
+snake_man_reset_vars:  lda     #$00                ; clear fire cooldown
         sta     ent_var1,x              ; reset var1
         dec     ent_status,x            ; return to phase 0
-        jsr     code_A52C               ; set fall anim
+        jsr     snake_man_set_fall_anim               ; set fall anim
         inc     ent_anim_state,x        ; advance anim state
-code_A612:  lda     #$00                ; clear frame counter
+snake_man_reset_anim_frame:  lda     #$00                ; clear frame counter
         sta     ent_anim_frame,x        ; reset anim frame
-code_A617:  rts                         ; return
+snake_man_rts:  rts                         ; return
 
 ; --- airborne firing: Search Snake spawn logic ---
-code_A618:  lda     ent_var1,x          ; fire cooldown active?
-        beq     code_A633               ; no → spawn Search Snake
+snake_man_fire_check:  lda     ent_var1,x          ; fire cooldown active?
+        beq     snake_man_spawn_search_snake               ; no → spawn Search Snake
         dec     ent_var1,x              ; decrement cooldown
         lda     ent_anim_state,x        ; check anim state
         cmp     #$02                    ; at fire pose state?
-        bne     code_A612               ; no → reset anim frame
+        bne     snake_man_reset_anim_frame               ; no → reset anim frame
         lda     ent_anim_frame,x        ; check anim frame
         cmp     #$08                    ; at frame 8?
-        bne     code_A617               ; no → return
+        bne     snake_man_rts               ; no → return
         dec     ent_anim_state,x        ; advance firing anim
-        bne     code_A612               ; always → reset anim frame
+        bne     snake_man_reset_anim_frame               ; always → reset anim frame
 
 ; --- spawn Search Snake projectile ---
-code_A633:  lda     #$02                ; set firing anim state
+snake_man_spawn_search_snake:  lda     #$02                ; set firing anim state
         sta     ent_anim_state,x        ; apply to anim state
-        jsr     code_A612               ; reset anim frame
-        jsr     code_A35D               ; face player (preserve facing)
+        jsr     snake_man_reset_anim_frame               ; reset anim frame
+        jsr     face_player_preserve_facing               ; face player (preserve facing)
         lda     #$14
         sta     ent_var1,x              ; fire cooldown = 20 frames
         stx     L0000                   ; save Snake Man slot
         jsr     find_enemy_freeslot_y   ; find free enemy slot → Y
-        bcs     code_A6A1               ; no slot → bail
+        bcs     snake_man_spawn_done               ; no slot → bail
         lda     #$52                    ; Search Snake anim ID
         jsr     init_child_entity       ; init child entity with Search Snake anim
         lda     #$CB                    ; Search Snake hitbox ID
@@ -874,7 +874,7 @@ code_A633:  lda     #$02                ; set firing anim state
         ldx     L0000                   ; restore Snake Man slot
         pla                             ; recover saved facing
         sta     ent_facing,x            ; restore Snake Man's original facing
-code_A6A1:  ldx     L0000               ; restore Snake Man slot
+snake_man_spawn_done:  ldx     L0000               ; restore Snake Man slot
         rts                             ; return
 
 ; --- Snake Man data tables ---
@@ -891,7 +891,7 @@ snake_man_search_snake_xoffset_table:  .byte   $00,$E2,$FF
 ; GEMINI MAN AI ($D6)
 ; =============================================================================
 ; Three phases:
-;   Phase 0: init — set fall velocity, spawn clone via code_A880, set anim.
+;   Phase 0: init — set fall velocity, spawn clone via gemini_man_spawn_clone, set anim.
 ;     The clone is a second Gemini Man entity linked via ent_var1.
 ;   Phase 1: dual Gemini Man — two copies run around. Syncs HP between
 ;     original and clone. When HP drops below 15, the clone gets destroyed
@@ -903,11 +903,11 @@ snake_man_search_snake_xoffset_table:  .byte   $00,$E2,$FF
 main_gemini_man:  lda     ent_status,x  ; get entity status
         and     #$0F                    ; isolate phase number
         cmp     #$02                    ; phase 2?
-        bne     code_A6BE               ; not phase 2 → check 0/1
-        jmp     code_A7F1               ; solo phase
+        bne     gemini_man_check_phase1               ; not phase 2 → check 0/1
+        jmp     gemini_man_solo_phase               ; solo phase
 
-code_A6BE:  cmp     #$01                ; phase 1?
-        beq     code_A6E1               ; already initialized → skip init
+gemini_man_check_phase1:  cmp     #$01                ; phase 1?
+        beq     gemini_man_dual_sync_hp               ; already initialized → skip init
 
 ; --- phase 0: init ---
         lda     #$3D                    ; fall velocity sub = $3D
@@ -918,25 +918,25 @@ code_A6BE:  cmp     #$01                ; phase 1?
         lda     #$33                    ; Gemini Man run anim
         jsr     reset_sprite_anim       ; set Gemini Man run anim
         lda     ent_timer,x             ; clone already spawned?
-        bne     code_A6E1               ; skip a little bit
-        jsr     code_A880               ; spawn clone entity
+        bne     gemini_man_dual_sync_hp               ; skip a little bit
+        jsr     gemini_man_spawn_clone               ; spawn clone entity
         lda     #$01                    ; set timer = 1
         sta     ent_timer,x             ; mark: clone spawned
 
 ; --- phase 1: dual mode — sync HP between original and clone ---
-code_A6E1:  lda     ent_timer,x         ; check clone status flag
-        bmi     code_A715               ; timer negative → clone destroyed
+gemini_man_dual_sync_hp:  lda     ent_timer,x         ; check clone status flag
+        bmi     gemini_man_movement_dispatch               ; timer negative → clone destroyed
         ldy     ent_var1,x              ; Y = clone entity slot
         lda     ent_status,y            ; check clone active bit
-        bpl     code_A715               ; clone inactive → skip sync
+        bpl     gemini_man_movement_dispatch               ; clone inactive → skip sync
         jsr     L8003                   ; check collision with player
-        bcs     code_A715
+        bcs     gemini_man_movement_dispatch
         ldy     ent_var1,x              ; reload clone slot
         lda     ent_hp,x                ; sync HP: copy to clone
         and     #$1F                    ; mask HP to 5 bits
         sta     ent_hp,y                ; sync HP to clone
         cmp     #$0F                    ; HP < 15?
-        bcs     code_A715               ; no → keep dual mode
+        bcs     gemini_man_movement_dispatch               ; no → keep dual mode
         lda     ent_hitbox,y            ; yes → destroy clone
         ora     #$40                    ; set clone invincible (dying)
         sta     ent_hitbox,y            ; apply invincible flag
@@ -947,58 +947,58 @@ code_A6E1:  lda     ent_timer,x         ; check clone status flag
         rts                             ; return
 
 ; --- phase 1 continued: movement and attack dispatch ---
-code_A715:  lda     ent_anim_id,x       ; check current anim
+gemini_man_movement_dispatch:  lda     ent_anim_id,x       ; check current anim
         cmp     #$35                    ; running anim?
-        beq     code_A795               ; yes → run logic
+        beq     gemini_man_run_check_shoot               ; yes → run logic
         cmp     #$34                    ; shooting anim?
-        bne     code_A723               ; not shooting → check clone
-        jmp     code_A7C7               ; yes → shooting logic
+        bne     gemini_man_check_clone_shooting               ; not shooting → check clone
+        jmp     gemini_man_shoot_anim               ; yes → shooting logic
 
 ; --- check if clone is shooting (wait for clone to finish) ---
-code_A723:  lda     ent_timer,x         ; check clone alive flag
-        bmi     code_A739               ; clone destroyed → skip
+gemini_man_check_clone_shooting:  lda     ent_timer,x         ; check clone alive flag
+        bmi     gemini_man_apply_gravity               ; clone destroyed → skip
         lda     ent_var1,x              ; get clone slot index
         tay                             ; clone slot to Y
         lda     ent_anim_id,y           ; is clone shooting?
         cmp     #$34                    ; shooting anim ID?
-        bne     code_A739               ; clone not shooting → go
+        bne     gemini_man_apply_gravity               ; clone not shooting → go
         lda     #$00                    ; yes → hold position
         sta     ent_anim_frame,x        ; freeze anim frame
-code_A738:  rts                         ; return
+gemini_man_rts:  rts                         ; return
 
 ; --- gravity and horizontal movement ---
-code_A739:  ldy     #$00                ; gravity type = normal
+gemini_man_apply_gravity:  ldy     #$00                ; gravity type = normal
         jsr     move_vertical_gravity   ; apply gravity
-        bcs     code_A756               ; on ground
+        bcs     gemini_man_ground_check_reverse               ; on ground
         lda     #$00                    ; in air → reset anim frame
         sta     ent_anim_frame,x        ; clear anim frame
 
 ; --- horizontal movement utility (shared with Snake Man) ---
-code_A745:  lda     ent_facing,x        ; get facing direction
+move_horizontal_facing:  lda     ent_facing,x        ; get facing direction
         and     #$02                    ; isolate left-facing bit
-        beq     code_A751               ; facing right → branch
+        beq     move_horizontal_right               ; facing right → branch
         ldy     #$01                    ; collision check slot 1
         jmp     move_left_collide       ; move left with collision
 
-code_A751:  ldy     #$00                ; collision check slot 0
+move_horizontal_right:  ldy     #$00                ; collision check slot 0
         jmp     move_right_collide      ; move right with collision
 
 ; --- on ground: check if should reverse direction ---
-code_A756:  lda     ent_anim_state,x    ; check anim state
-        beq     code_A738               ; anim not ready
+gemini_man_ground_check_reverse:  lda     ent_anim_state,x    ; check anim state
+        beq     gemini_man_rts               ; anim not ready
         lda     ent_anim_frame,x        ; check anim frame
         cmp     #$04                    ; at frame 4?
-        bne     code_A738               ; no → wait
+        bne     gemini_man_rts               ; no → wait
         lda     #$35                    ; running anim ID
         jsr     reset_sprite_anim       ; set running anim
-        jsr     code_A3D6               ; reverse direction
+        jsr     flip_direction               ; reverse direction
         lda     #$28                    ; left boundary X = $28
         sta     ent_x_px,x              ; reset X position to left side
         lda     ent_timer,x             ; check clone status
-        bpl     code_A795               ; clone alive → run mode
+        bpl     gemini_man_run_check_shoot               ; clone alive → run mode
 
 ; --- solo mode: set running velocity, advance to phase 2 ---
-code_A774:  lda     #$4C                ; X velocity sub = $4C
+gemini_man_set_solo_speed:  lda     #$4C                ; X velocity sub = $4C
         sta     ent_xvel_sub,x          ; X velocity = $01.4C
         lda     #$01                    ; X velocity whole = $01
         sta     ent_xvel,x              ; set run speed
@@ -1007,7 +1007,7 @@ code_A774:  lda     #$4C                ; X velocity sub = $4C
         jsr     set_sprite_hflip        ; update sprite flip
 
 ; --- set random timer for next action ---
-code_A787:  lda     $E6                 ; RNG
+gemini_man_set_random_timer:  lda     $E6                 ; RNG
         adc     $E7                     ; add second RNG byte
         and     #$01                    ; mask to 0 or 1
         tay                             ; timer index to Y
@@ -1016,46 +1016,46 @@ code_A787:  lda     $E6                 ; RNG
         rts
 
 ; --- running mode: check for B press to shoot ---
-code_A795:  lda     joy1_press          ; read button presses
+gemini_man_run_check_shoot:  lda     joy1_press          ; read button presses
         and     #BTN_B                  ; B button pressed?
-        beq     code_A7A6               ; no B press → keep running
+        beq     gemini_man_run_move               ; no B press → keep running
         jsr     face_player             ; face player
         jsr     set_sprite_hflip
         lda     #$34                    ; set shooting anim
         jmp     reset_sprite_anim       ; apply shooting anim
 
 ; --- running: move horizontally, check right wall ---
-code_A7A6:  jsr     code_A745           ; move horizontally
+gemini_man_run_move:  jsr     move_horizontal_facing           ; move horizontally
         lda     #$D8                    ; right boundary
         cmp     ent_x_px,x              ; past right boundary?
-        bcs     code_A7C6               ; not at boundary yet
+        bcs     gemini_man_run_rts               ; not at boundary yet
         sta     ent_x_px,x              ; clamp to boundary
         lda     ent_timer,x             ; check clone status
-        bpl     code_A7BB               ; clone alive → reverse
-        jmp     code_A774               ; solo → set new velocity
+        bpl     gemini_man_reverse_dual               ; clone alive → reverse
+        jmp     gemini_man_set_solo_speed               ; solo → set new velocity
 
 ; --- reverse direction at wall (dual mode) ---
-code_A7BB:  dec     ent_status,x        ; back to phase 1 (dual)
-        jsr     code_A3D6               ; flip direction
+gemini_man_reverse_dual:  dec     ent_status,x        ; back to phase 1 (dual)
+        jsr     flip_direction               ; flip direction
         lda     #$33                    ; set run anim
         jmp     reset_sprite_anim       ; apply anim and return
 
-code_A7C6:  rts                         ; return
+gemini_man_run_rts:  rts                         ; return
 
 ; --- shooting anim logic: spawn Gemini Laser ---
-code_A7C7:  lda     ent_anim_frame,x    ; check anim frame
-        bne     code_A7D6               ; not frame 0 → continue
+gemini_man_shoot_anim:  lda     ent_anim_frame,x    ; check anim frame
+        bne     gemini_man_shoot_check_end               ; not frame 0 → continue
         lda     ent_anim_state,x        ; check anim state
         cmp     #$01                    ; at shoot frame 1?
-        bne     code_A7D6               ; not state 1 → continue
-        jmp     code_A8D3               ; spawn Gemini Laser projectile
+        bne     gemini_man_shoot_check_end               ; not state 1 → continue
+        jmp     gemini_man_spawn_laser               ; spawn Gemini Laser projectile
 
-code_A7D6:  lda     ent_anim_frame,x    ; check anim frame
+gemini_man_shoot_check_end:  lda     ent_anim_frame,x    ; check anim frame
         cmp     #$04                    ; frame 4 = last frame?
-        bne     code_A7C6               ; not done yet → return
+        bne     gemini_man_run_rts               ; not done yet → return
         lda     ent_anim_state,x        ; check anim state
         cmp     #$02                    ; shoot anim done?
-        bne     code_A7C6
+        bne     gemini_man_run_rts
         lda     #$01                    ; facing = right
         sta     ent_facing,x            ; face right
         jsr     set_sprite_hflip        ; update sprite flip
@@ -1063,43 +1063,43 @@ code_A7D6:  lda     ent_anim_frame,x    ; check anim frame
         jmp     reset_sprite_anim
 
 ; --- phase 2: solo Gemini Man ---
-code_A7F1:  ldy     #$00                ; no floor check
+gemini_man_solo_phase:  ldy     #$00                ; no floor check
         jsr     move_vertical_gravity   ; apply gravity
-        bcs     code_A800               ; on ground
+        bcs     gemini_man_solo_ground               ; on ground
         lda     #$00                    ; in air → reset frame, move horizontally
         sta     ent_anim_frame,x
-        jmp     code_A745
+        jmp     move_horizontal_facing
 
 ; --- on ground: solo behavior ---
-code_A800:  lda     ent_anim_id,x
+gemini_man_solo_ground:  lda     ent_anim_id,x
         cmp     #$34                    ; shooting anim?
-        beq     code_A854               ; yes → shooting logic
+        beq     gemini_man_solo_shoot_anim               ; yes → shooting logic
         lda     ent_timer,x             ; shoot cooldown?
-        bne     code_A81C               ; timer active → decrement
+        bne     gemini_man_solo_dec_timer               ; timer active → decrement
         lda     $0310                   ; check if entity slot 0 active
-        bmi     code_A81F               ; active → skip shooting
+        bmi     gemini_man_solo_check_anim               ; active → skip shooting
         jsr     face_player             ; face player
         jsr     set_sprite_hflip        ; update sprite flip
         lda     #$34                    ; start shooting anim
         jmp     reset_sprite_anim
 
-code_A81C:  dec     ent_timer,x         ; count down shoot cooldown
-code_A81F:  lda     ent_anim_id,x
+gemini_man_solo_dec_timer:  dec     ent_timer,x         ; count down shoot cooldown
+gemini_man_solo_check_anim:  lda     ent_anim_id,x
         cmp     #$35                    ; running anim?
-        beq     code_A837               ; yes → run
+        beq     gemini_man_solo_run               ; yes → run
         lda     ent_anim_state,x        ; transition to running anim
-        beq     code_A87F               ; anim not started → rts
+        beq     gemini_man_solo_rts               ; anim not started → rts
         lda     ent_anim_frame,x        ; check anim frame
         cmp     #$04                    ; frame 4 = last frame?
-        bne     code_A87F               ; not done → rts
+        bne     gemini_man_solo_rts               ; not done → rts
         lda     #$35                    ; running anim ID
         jsr     reset_sprite_anim       ; set running anim
-code_A837:  jsr     code_A745           ; move horizontally
-        bcc     code_A83F               ; no wall hit → check jump
-        jsr     code_A3D6               ; hit wall → reverse direction
-code_A83F:  lda     joy1_press
+gemini_man_solo_run:  jsr     move_horizontal_facing           ; move horizontally
+        bcc     gemini_man_solo_check_jump               ; no wall hit → check jump
+        jsr     flip_direction               ; hit wall → reverse direction
+gemini_man_solo_check_jump:  lda     joy1_press
         and     #BTN_B                  ; B pressed → jump
-        beq     code_A87F               ; no B press → rts
+        beq     gemini_man_solo_rts               ; no B press → rts
         lda     #$AB                    ; jump velocity sub = $AB
         sta     ent_yvel_sub,x          ; Y velocity = $05.AB (jump)
         lda     #$05
@@ -1108,31 +1108,31 @@ code_A83F:  lda     joy1_press
         jmp     reset_sprite_anim
 
 ; --- solo shooting anim: spawn Gemini Laser or scatter shot ---
-code_A854:  lda     ent_anim_frame,x    ; check anim frame
-        bne     code_A863               ; not frame 0 → check end
+gemini_man_solo_shoot_anim:  lda     ent_anim_frame,x    ; check anim frame
+        bne     gemini_man_solo_shoot_end               ; not frame 0 → check end
         lda     ent_anim_state,x        ; check anim state
         cmp     #$01                    ; state 1 = shoot trigger?
-        bne     code_A863               ; no → check anim end
-        jmp     code_A92A               ; spawn scatter shot (3 projectiles)
+        bne     gemini_man_solo_shoot_end               ; no → check anim end
+        jmp     gemini_man_spawn_scatter_shot               ; spawn scatter shot (3 projectiles)
 
-code_A863:  lda     ent_anim_frame,x    ; check anim frame
+gemini_man_solo_shoot_end:  lda     ent_anim_frame,x    ; check anim frame
         cmp     #$04                    ; frame 4 = last frame?
-        bne     code_A87F               ; not done → rts
+        bne     gemini_man_solo_rts               ; not done → rts
         lda     ent_anim_state,x        ; check anim state
         cmp     #$02                    ; shoot anim done?
-        bne     code_A87F
+        bne     gemini_man_solo_rts
         jsr     face_player             ; face player
         jsr     set_sprite_hflip        ; update sprite flip
-        jsr     code_A787               ; set random timer for next action
+        jsr     gemini_man_set_random_timer               ; set random timer for next action
         lda     #$35                    ; resume running anim
         jmp     reset_sprite_anim
 
-code_A87F:  rts
+gemini_man_solo_rts:  rts
 
 ; --- spawn Gemini Man clone ---
-code_A880:  stx     L0000               ; save caller X
+gemini_man_spawn_clone:  stx     L0000               ; save caller X
         jsr     find_enemy_freeslot_y   ; find free enemy slot → Y
-        bcs     code_A8D0               ; no slot → bail
+        bcs     gemini_man_spawn_clone_done               ; no slot → bail
         tya                             ; A = clone slot
         sta     ent_var1,x              ; link: original → clone
         txa                             ; A = original slot
@@ -1161,13 +1161,13 @@ code_A880:  stx     L0000               ; save caller X
         sta     ent_routine,y           ; clone AI routine ($D7)
         lda     ent_facing,x            ; copy facing direction
         sta     ent_facing,y
-code_A8D0:  ldx     L0000               ; restore caller X
+gemini_man_spawn_clone_done:  ldx     L0000               ; restore caller X
         rts
 
 ; --- spawn Gemini Laser projectile ---
-code_A8D3:  stx     L0000               ; save caller X
+gemini_man_spawn_laser:  stx     L0000               ; save caller X
         jsr     find_enemy_freeslot_y   ; find free enemy slot → Y
-        bcs     code_A927               ; no slot → bail
+        bcs     gemini_man_spawn_laser_done               ; no slot → bail
         lda     #$40
         sta     ent_routine,y           ; generic projectile routine
         lda     #$00
@@ -1178,7 +1178,7 @@ code_A8D3:  stx     L0000               ; save caller X
         jsr     init_child_entity       ; init child with Gemini Laser anim
 
 ; --- shared: copy position from owner to child entity, offset X by facing ---
-code_A8EE:  lda     #$8B
+gemini_man_copy_pos_to_child:  lda     #$8B
         sta     ent_hitbox,y            ; projectile hitbox
         lda     ent_x_px,x              ; copy full position
         sta     ent_x_px,y              ; copy X pixel
@@ -1199,14 +1199,14 @@ code_A8EE:  lda     #$8B
         lda     ent_x_scr,y             ; add screen carry
         adc     gemini_man_laser_xoffset_table,x
         sta     ent_x_scr,y             ; store adjusted screen
-code_A927:  ldx     L0000               ; restore caller X
+gemini_man_spawn_laser_done:  ldx     L0000               ; restore caller X
         rts
 
 ; --- spawn scatter shot (3 bouncing projectiles, slots $10-$12) ---
-code_A92A:  stx     L0000               ; save caller X
+gemini_man_spawn_scatter_shot:  stx     L0000               ; save caller X
         ldy     #$10                    ; start at entity slot $10
-code_A92E:  lda     ent_status,y
-        bmi     code_A969               ; slot in use → skip remaining
+gemini_man_scatter_slot_loop:  lda     ent_status,y
+        bmi     gemini_man_scatter_done               ; slot in use → skip remaining
         lda     #$B9
         sta     ent_routine,y           ; bouncing projectile routine
         lda     #$00
@@ -1222,14 +1222,14 @@ code_A92E:  lda     ent_status,y
         ldx     L0000                   ; restore owner X
         lda     #$4A                    ; scatter shot anim ID
         jsr     init_child_entity       ; init child with scatter anim
-        jsr     code_A8EE               ; copy position + offset X
+        jsr     gemini_man_copy_pos_to_child               ; copy position + offset X
         lda     ent_x_px,y              ; get spawned X position
         and     #$FC                    ; align X to 4-pixel grid
         sta     ent_x_px,y              ; store aligned X
         iny                             ; next slot
         cpy     #$13                    ; spawned 3? (slots $10-$12)
-        bcc     code_A92E               ; loop until 3 spawned
-code_A969:  ldx     L0000               ; restore caller X
+        bcc     gemini_man_scatter_slot_loop               ; loop until 3 spawned
+gemini_man_scatter_done:  ldx     L0000               ; restore caller X
         rts
 
 ; --- Gemini Man data tables ---
@@ -1246,26 +1246,26 @@ gemini_man_laser_xoffset_table:  .byte   $00,$F3,$FF
 ; then sets its own X velocity and delegates to main_gemini_man.
 ; =============================================================================
 
-code_A972:  lda     ent_status,x        ; get clone status
+gemini_man_clone_main:  lda     ent_status,x        ; get clone status
         and     #$0F                    ; check phase bits
-        bne     code_A99C               ; already initialized → run main AI
+        bne     gemini_man_clone_run_ai               ; already initialized → run main AI
         lda     ent_timer,x             ; check init flag
-        bne     code_A98F               ; timer set → start moving
+        bne     gemini_man_clone_set_velocity               ; timer set → start moving
         lda     ent_var1,x              ; Y = original Gemini Man slot
         tay                             ; Y = linked slot index
         lda     ent_x_px,y              ; get original's X pos
         cmp     #$30                    ; original past X=$30?
-        bcc     code_A98F               ; yes → start moving
+        bcc     gemini_man_clone_set_velocity               ; yes → start moving
         lda     #$00                    ; no → hold position
         sta     ent_anim_frame,x
         rts                             ; wait for original
 
-code_A98F:  lda     #$2D                ; set X velocity = $03.2D
+gemini_man_clone_set_velocity:  lda     #$2D                ; set X velocity = $03.2D
         sta     ent_xvel_sub,x          ; set X velocity sub
         lda     #$03                    ; X velocity = 3 px/frame
         sta     ent_xvel,x              ; store X velocity
         sta     ent_timer,x             ; mark: initialized
-code_A99C:  jmp     main_gemini_man     ; delegate to main Gemini Man AI
+gemini_man_clone_run_ai:  jmp     main_gemini_man     ; delegate to main Gemini Man AI
 
 ; =============================================================================
 ; SHADOW MAN STAGE DATA ($A99F-$BFFF)

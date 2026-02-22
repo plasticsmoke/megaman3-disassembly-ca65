@@ -77,9 +77,9 @@ task_yield           := $FF21
 ; $A006: fall-through to nametable_stream_by_index
 ; ===========================================================================
 
-        jmp     code_A05F               ; $A000: init nametable columns
+        jmp     nametable_init_columns               ; $A000: init nametable columns
 
-        jmp     code_A026               ; $A003: advance PPU addr (next row)
+        jmp     nametable_advance_row               ; $A003: advance PPU addr (next row)
 
 ; ===========================================================================
 ; nametable_stream_by_index — stream nametable data for string index X
@@ -111,18 +111,18 @@ task_yield           := $FF21
         sta     $0781                   ; set PPU addr low in buffer
         iny                             ; advance past header bytes
         sty     $B8                     ; offset now at 2 (first tile data)
-        bne     code_A029               ; always taken (Y=2)
+        bne     stream_resume               ; always taken (Y=2)
 ; --- advance row: increment PPU address low byte by 1 ---
-code_A026:  inc     $0781               ; next nametable row
+nametable_advance_row:  inc     $0781               ; next nametable row
 ; --- resume streaming from current offset ---
-code_A029:  ldy     $B8                 ; load current stream offset
+stream_resume:  ldy     $B8                 ; load current stream offset
         cpy     #$FF                    ; stream already finished?
-        beq     code_A05E               ; yes — return immediately
+        beq     stream_rts               ; yes — return immediately
         lda     ($B6),y                 ; read next byte from string data
         cmp     #$FF                    ; $FF = end-of-string marker
-        beq     code_A05A               ; yes: mark stream finished
+        beq     mark_stream_finished               ; yes: mark stream finished
         cmp     #$FE                    ; $FE = set-new-PPU-address command
-        bne     code_A046               ; not $FE: normal tile byte
+        bne     write_tile_to_buffer               ; not $FE: normal tile byte
         iny                             ; skip past $FE command byte
         lda     ($B6),y                 ; new PPU address high byte
         sta     $0780                   ; update PPU addr high
@@ -131,7 +131,7 @@ code_A029:  ldy     $B8                 ; load current stream offset
         sta     $0781                   ; update PPU addr low
         iny                             ; advance to tile data
 ; --- write one tile to the PPU buffer ---
-code_A046:  lda     ($B6),y             ; tile ID byte
+write_tile_to_buffer:  lda     ($B6),y             ; tile ID byte
         sta     $0783                   ; store in PPU buffer data area
         iny                             ; advance stream offset
         sty     $B8                     ; save updated offset
@@ -143,9 +143,9 @@ code_A046:  lda     ($B6),y             ; tile ID byte
         rts                             ; return to caller
 
 ; --- end of string: mark stream as finished ---
-code_A05A:  lda     #$FF                ; end-of-string sentinel
+mark_stream_finished:  lda     #$FF                ; end-of-string sentinel
         sta     $B8                     ; $FF = "stream complete" sentinel
-code_A05E:  rts                         ; return (stream complete)
+stream_rts:  rts                         ; return (stream complete)
 
 ; ===========================================================================
 ; nametable_init_columns — clear 4 pairs of nametable columns
@@ -158,8 +158,8 @@ code_A05E:  rts                         ; return (stream complete)
 ; Uses ppu_nametable_addr_low_col0_buf1/ppu_nametable_addr_low_col0plus_buf2 for PPU address low bytes (column offsets $20/$40/$60/$80)
 ; and ppu_nametable_addr_high_col0_buf1/ppu_nametable_addr_high_col0plus_buf2 for PPU address high bytes ($23 for all = nametable $2300).
 ; ===========================================================================
-code_A05F:  ldx     #$00                ; column pair index (0, 2)
-code_A061:  lda     ppu_nametable_addr_high_col0_buf1,x ; PPU addr high for buffer 1
+nametable_init_columns:  ldx     #$00                ; column pair index (0, 2)
+init_column_pair_loop:  lda     ppu_nametable_addr_high_col0_buf1,x ; PPU addr high for buffer 1
         sta     $0780                   ; set buffer 1 PPU addr high
         lda     ppu_nametable_addr_high_col0plus_buf2,x ; PPU addr high for buffer 2
         sta     $07A3                   ; set buffer 2 PPU addr high
@@ -171,10 +171,10 @@ code_A061:  lda     ppu_nametable_addr_high_col0_buf1,x ; PPU addr high for buff
         sty     $0782                   ; buffer 1 byte count
         sty     $07A5                   ; buffer 2 byte count
         lda     #$00                    ; fill with blank tiles ($00)
-code_A083:  sta     $0783,y             ; clear buffer 1 tile data
+clear_column_data_loop:  sta     $0783,y             ; clear buffer 1 tile data
         sta     $07A6,y                 ; clear buffer 2 tile data
         dey                             ; next byte index
-        bpl     code_A083               ; loop until all 32 done
+        bpl     clear_column_data_loop               ; loop until all 32 done
         lda     #$FF                    ; terminator value
         sta     $07C6                   ; terminator after buffer 2 data
         sta     nametable_dirty         ; signal NMI to flush PPU buffer
@@ -182,7 +182,7 @@ code_A083:  sta     $0783,y             ; clear buffer 1 tile data
         inx                             ; X += 2 (next pair)
         inx                             ; advance to next column pair
         cpx     #$04                    ; done all 4 pairs? (2 pairs x 2 cols)
-        bne     code_A061               ; loop if pairs remain
+        bne     init_column_pair_loop               ; loop if pairs remain
         rts                             ; all columns cleared
 
 ; ===========================================================================

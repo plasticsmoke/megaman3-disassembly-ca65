@@ -660,10 +660,10 @@ bank03_portrait_setup_routine:  .byte   $60,$70,$60,$71,$71,$74,$73,$6F
         jsr     rendering_off           ; rendering_off
         ldy     #$05                    ; index for 6 CHR bank slots
 ; --- Load CHR banks from $9BF7 table ---
-code_9014:  lda     $9BF7,y             ; 6 CHR bank IDs
+chr_bank_load_loop:  lda     $9BF7,y             ; 6 CHR bank IDs
         sta     $E8,y                   ; store to CHR bank shadow
         dey
-        bpl     code_9014               ; loop for all 6 banks
+        bpl     chr_bank_load_loop               ; loop for all 6 banks
         jsr     select_CHR_banks        ; apply CHR bank selection
         lda     #$20                    ; nametable $2000
         ldx     #$24                    ; fill tile $24 (blank)
@@ -672,10 +672,10 @@ code_9014:  lda     $9BF7,y             ; 6 CHR bank IDs
         jsr     rendering_on            ; rendering_on
 ; --- Copy palette working copy from $9C03 ---
         ldy     #$1F                    ; 32 palette bytes
-code_902E:  lda     $9C03,y
+palette_copy_loop:  lda     $9C03,y
         sta     $0620,y                 ; palette working copy
         dey                             ; next byte
-        bpl     code_902E               ; loop all 32 bytes
+        bpl     palette_copy_loop               ; loop all 32 bytes
 ; --- Write title screen nametable data (PPU tables $10/$11 from bank03) ---
         lda     #$00                    ; clear temp
         sta     $10                     ; set PPU write offset
@@ -693,10 +693,10 @@ code_902E:  lda     $9C03,y
         jsr     task_yield              ; wait for fade to complete
         jsr     rendering_off           ; rendering_off
         ldy     #$05                    ; index for 6 CHR bank slots
-code_905E:  lda     $9BF7,y             ; reload CHR banks
+chr_bank_reload_loop:  lda     $9BF7,y             ; reload CHR banks
         sta     $E8,y                   ; store to CHR bank shadow
         dey
-        bpl     code_905E               ; loop for all 6 banks
+        bpl     chr_bank_reload_loop               ; loop for all 6 banks
         jsr     select_CHR_banks        ; apply CHR bank selection
         lda     #$13                    ; bank $13 = metatile data
         sta     prg_bank                ; set PRG bank to $13
@@ -704,7 +704,7 @@ code_905E:  lda     $9BF7,y             ; reload CHR banks
         lda     #$00                    ; start at column 0
         sta     $28                     ; metatile column counter
 ; --- Render 64 metatile columns (stage select background) ---
-code_9075:  ldy     #$00                ; clear sub-index
+metatile_column_loop:  ldy     #$00                ; clear sub-index
         sty     $10                     ; clear PPU write offset
         jsr     queue_metatile_update   ; queue_metatile_update
         jsr     drain_ppu_buffer        ; drain_ppu_buffer
@@ -712,21 +712,21 @@ code_9075:  ldy     #$00                ; clear sub-index
         inc     $28                     ; next column
         lda     $28                     ; read column counter
         and     #$3F                    ; 64 columns
-        bne     code_9075               ; loop until 64 columns done
+        bne     metatile_column_loop               ; loop until 64 columns done
 ; --- Reload palettes and enable rendering ---
         ldy     #$1F                    ; 32 palette bytes
-code_908C:  lda     $9C03,y             ; load palette byte
+palette_reload_loop:  lda     $9C03,y             ; load palette byte
         sta     $0620,y                 ; store to working copy
         dey
-        bpl     code_908C               ; loop all 32 bytes
+        bpl     palette_reload_loop               ; loop all 32 bytes
         jsr     task_yield              ; wait for NMI
         jsr     rendering_on            ; rendering_on
 ; --- Set up initial OAM sprite (password cursor sentinel) ---
         ldx     #$03                    ; 4 OAM bytes (Y/tile/attr/X)
-code_909D:  lda     $9C69,x             ; initial OAM data (4 bytes)
+oam_sentinel_load_loop:  lda     $9C69,x             ; initial OAM data (4 bytes)
         sta     $0200,x                 ; sprite 0: Y=$97, tile=$ED, attr=$01, X=$28
         dex                             ; next OAM byte
-        bpl     code_909D               ; loop all 4 bytes
+        bpl     oam_sentinel_load_loop               ; loop all 4 bytes
         lda     #$00                    ; clear NMI skip
         sta     nmi_skip
         lda     #$13                    ; bank $13 = metatile data
@@ -741,20 +741,20 @@ code_909D:  lda     $9C69,x             ; initial OAM data (4 bytes)
 ; (OAM sprite 0 Y position: $B7 = top, $C7 = bottom).
 ; Start press → jump to stage_select_init.
 ; ===========================================================================
-code_90B4:
+title_wait_start_loop:
         lda     joy1_press              ; read new button presses
         and     #BTN_START              ; check Start button
         bne     stage_select_init       ; Start → enter stage select
         lda     joy1_press              ; re-read button presses
         and     #$0C                    ; Up ($08) / Down ($04)
-        beq     code_90CA               ; no d-pad press → skip
+        beq     title_wait_yield               ; no d-pad press → skip
         lsr     a                       ; shift right 3x: $08→$01
         lsr     a
         lsr     a                       ; $08→$01, $04→$00
         tay                             ; use as table index
         lda     $9BFF,y                 ; Y position lookup: [$00]=$30, [$01]=$40
         sta     $0200                   ; update sprite 0 Y position
-code_90CA:  jsr     task_yield
+title_wait_yield:  jsr     task_yield
         jmp     title_screen_wait_start ; loop back to wait
 
 ; --- stage_select_init ($1890D0) ---
@@ -851,7 +851,7 @@ bg_palette_load_loop:  lda     $9C03,x  ; load BG palette color
 ; $10/$11 = scroll speed (low/high). Scroll increments $FC/$FD until
 ; $FC wraps to 0, then fills the offscreen nametable and swaps.
 ; ===========================================================================
-code_9155:
+scroll_transition_start:
         lda     #$F8                    ; hide sprite 0 (offscreen Y)
         sta     $0200                   ; sprite 0 Y = offscreen
         inc     nmi_skip                ; skip NMI processing
@@ -860,7 +860,7 @@ code_9155:
         lda     #$07                    ; game mode $07 = stage select
         sta     game_mode               ; set stage select mode
 ; --- Scroll loop: increment camera X until low byte wraps ---
-code_9164:  lda     camera_x_lo         ; load scroll X low byte
+scroll_increment_loop:  lda     camera_x_lo         ; load scroll X low byte
         clc                             ; add scroll speed (low)
         adc     $10                     ; add scroll speed low
         sta     camera_x_lo             ; update scroll X low
@@ -873,11 +873,11 @@ code_9164:  lda     camera_x_lo         ; load scroll X low byte
         jsr     task_yield              ; wait for next frame
         inc     nmi_skip                ; block NMI again
         lda     camera_x_lo             ; check if scroll aligned
-        bne     code_9164               ; loop until aligned
+        bne     scroll_increment_loop               ; loop until aligned
 ; --- Check if we need to fill the offscreen nametable ---
         ldy     #$10                    ; palette offset for $9C33
         lda     $11                     ; check scroll direction
-        bmi     code_91C8               ; negative speed → skip fill
+        bmi     palette_buffer_load               ; negative speed → skip fill
 ; --- Fill offscreen nametable ---
         lda     camera_x_hi             ; get current nametable
         eor     #$01                    ; opposite nametable
@@ -889,14 +889,14 @@ code_9164:  lda     camera_x_lo         ; load scroll X low byte
         lda     #$00                    ; init fill counter
         sta     $70                     ; reset fill progress
         sta     nmi_skip                ; allow NMI
-code_9199:  lda     $10                 ; save NT select on stack
+scroll_fill_offscreen_loop:  lda     $10                 ; save NT select on stack
         pha                             ; preserve across JSR
         jsr     fill_nametable_progressive ; fill_nametable_progressive
         pla                             ; restore NT select
         sta     $10                     ; write back to $10
         jsr     task_yield              ; wait for NMI upload
         lda     $70                     ; check fill progress
-        bne     code_9199               ; loop until complete
+        bne     scroll_fill_offscreen_loop               ; loop until complete
 ; --- Write defeated portraits and PPU data ---
         jsr     draw_defeated_portraits ; blank_defeated_portraits
         ldx     #$03                    ; PPU data table $03
@@ -914,13 +914,13 @@ code_9199:  lda     $10                 ; save NT select on stack
         jsr     update_CHR_banks        ; apply CHR bank change
 ; --- Load BG palette from $9C33 table ---
 ; Y=0 for fresh start palettes, Y=$10 for return palettes.
-code_91C8:  ldx     #$00                ; palette buffer index
-code_91CA:  lda     $9C33,y             ; BG palette color
+palette_buffer_load:  ldx     #$00                ; palette buffer index
+palette_buffer_copy_loop:  lda     $9C33,y             ; BG palette color
         sta     $0600,x                 ; store to palette buffer
         iny                             ; next source byte
         inx                             ; next dest byte
         cpx     #$10                    ; 16 bytes
-        bne     code_91CA
+        bne     palette_buffer_copy_loop
         lda     #$FF                    ; set dirty flag
         sta     palette_dirty           ; flag palette upload
 ; --- Initialize cursor at center position ---
@@ -930,25 +930,25 @@ code_91CA:  lda     $9C33,y             ; BG palette color
         sta     $13                     ; store cursor row offset
 ; --- Branch based on scroll direction ---
         lda     $11                     ; check scroll direction
-        bmi     code_91EC               ; negative → password screen mode
+        bmi     password_menu_setup               ; negative → password screen mode
         jsr     load_stage_select_oam   ; load_stage_select_oam
         jmp     stage_select_input_loop ; → stage select main loop
 
 ; --- Password screen mode (negative scroll speed) ---
 ; Shows "Game Start / Stage Select" cursor, waits for Start.
-code_91EC:  jsr     password_cursor_oam_setup ; init_password_cursor
-code_91EF:  jsr     proto_man_sprite_control ; update_password_cursor
+password_menu_setup:  jsr     password_cursor_oam_setup ; init_password_cursor
+password_menu_loop:  jsr     proto_man_sprite_control ; update_password_cursor
         lda     #$00                    ; allow NMI
         sta     nmi_skip                ; clear NMI skip flag
         jsr     task_yield              ; wait for next frame
         inc     nmi_skip                ; block NMI again
         lda     joy1_press              ; check new button presses
         and     #BTN_START
-        beq     code_91EF               ; loop until Start pressed
+        beq     password_menu_loop               ; loop until Start pressed
 ; --- Process password cursor selection ---
         lda     $0200                   ; cursor Y position
         cmp     #$B7                    ; $B7 = "Game Start" row
-        beq     code_9212               ; → Game Start (clear OAM, re-enter)
+        beq     game_start_clear_oam               ; → Game Start (clear OAM, re-enter)
 ; --- Stage Select chosen: jump to bank03 $A593 ---
         lda     #$03                    ; switch to bank $03
         sta     prg_bank                ; set PRG bank register
@@ -956,14 +956,14 @@ code_91EF:  jsr     proto_man_sprite_control ; update_password_cursor
         jmp     bank03_stage_select_entry ; → bank03 stage select entry
 
 ; --- Game Start: clear all OAM sprites except sprite 0 ---
-code_9212:  ldy     #$04                ; start at sprite 1
+game_start_clear_oam:  ldy     #$04                ; start at sprite 1
         lda     #$F8                    ; Y=$F8 = offscreen
-code_9216:  sta     $0200,y             ; clear OAM Y to offscreen
+oam_clear_loop:  sta     $0200,y             ; clear OAM Y to offscreen
         iny                             ; skip tile byte
         iny                             ; skip attr byte
         iny                             ; skip X byte
         iny                             ; next sprite (4 bytes)
-        bne     code_9216               ; loop all 63 remaining sprites
+        bne     oam_clear_loop               ; loop all 63 remaining sprites
 ; --- Play stage select music and rebuild nametable ---
         lda     #$13                    ; bank $13 = metatile data
         sta     prg_bank                ; set PRG bank register
@@ -975,13 +975,13 @@ code_9216:  sta     $0200,y             ; clear OAM Y to offscreen
         sta     $28                     ; clear scroll sub-state
         lda     #$04                    ; metatile column 4
         jsr     metatile_column_ptr_by_id ; metatile_column_ptr_by_id
-code_9236:  lda     #$00                ; clear temp variables
+nametable_fill_sync_loop:  lda     #$00                ; clear temp variables
         sta     nmi_skip                ; allow NMI
         sta     $10                     ; NT select = 0
         jsr     fill_nametable_progressive ; fill_nametable_progressive
         jsr     task_yield              ; wait for NMI upload
         lda     $70                     ; check fill progress
-        bne     code_9236               ; loop until complete
+        bne     nametable_fill_sync_loop               ; loop until complete
 ; --- Set scroll speed and CHR, then scroll into stage select ---
         lda     #$04                    ; scroll speed low = 4
         sta     $10                     ; store scroll speed low
@@ -991,11 +991,11 @@ code_9236:  lda     #$00                ; clear temp variables
         sta     $E8
         jsr     update_CHR_banks
         jmp     stage_select_cursor_init ; → horizontal scroll transition
-code_9258:
+stage_select_input_entry:
 
         lda     joy1_press              ; check new button presses
         and     #$90                    ; A ($80) or Start ($10)
-        beq     code_9261               ; no confirm → d-pad check
+        beq     horizontal_input_check               ; no confirm → d-pad check
         jmp     stage_select_confirm    ; confirm stage selection
 
 ; ==========================================================================
@@ -1054,31 +1054,31 @@ code_9258:
 ; $12 = cursor column (0-2), $13 = cursor row offset (0/3/6)
 ; Combined ($12+$13) = grid index 0-8 into stage lookup table at $9CE1
 
-code_9261:  lda     joy1_press          ; new button presses
+horizontal_input_check:  lda     joy1_press          ; new button presses
         and     #$03                    ; $02=Left, $01=Right
-        beq     code_9279               ; no horizontal input → skip
+        beq     vertical_input_check               ; no horizontal input → skip
         tay                             ; Y = d-pad bits as index
         lda     $12                     ; current column
         clc                             ; prepare for add
         adc     $9D0D,y                 ; add direction offset from table
         cmp     #$03                    ; clamp to 0-2
-        bcs     code_9279               ; out of range → ignore
+        bcs     vertical_input_check               ; out of range → ignore
         sta     $12                     ; update column
         lda     #SFX_CURSOR             ; SFX $1B = cursor move
         jsr     submit_sound_ID
-code_9279:  lda     joy1_press          ; new button presses
+vertical_input_check:  lda     joy1_press          ; new button presses
         and     #$0C                    ; $08=Up, $04=Down
-        beq     code_9291               ; no vertical input → skip
+        beq     cursor_sprite_update               ; no vertical input → skip
         tay                             ; Y = d-pad bits as index
         lda     $13                     ; current row offset
         clc                             ; prepare for add
         adc     $9D0D,y                 ; add direction offset
         cmp     #$07                    ; clamp to 0-6 (rows 0/3/6)
-        bcs     code_9291               ; out of range → ignore
+        bcs     cursor_sprite_update               ; out of range → ignore
         sta     $13                     ; update row
         lda     #SFX_CURSOR             ; SFX $1B = cursor move
         jsr     submit_sound_ID
-code_9291:  lda     $12                 ; combine column + row
+cursor_sprite_update:  lda     $12                 ; combine column + row
         clc                             ; add row offset
         adc     $13                     ; = grid index (0-8)
         sta     L0000                   ; save grid index to $00
@@ -1145,7 +1145,7 @@ cursor_bolt_sprite_load_loop:  lda     L0000 ; Y base
         dey                             ; Y -= 4 (next OAM slot, backwards)
         dex                             ; next bolt (3→0)
         bpl     cursor_bolt_sprite_load_loop
-code_92F2:  lda     #$00                ; allow NMI
+select_loop_next_frame:  lda     #$00                ; allow NMI
         sta     nmi_skip                ; clear NMI skip flag
         jsr     task_yield              ; wait for next frame
         inc     nmi_skip                ; block NMI again
@@ -1185,10 +1185,10 @@ code_92F2:  lda     #$00                ; allow NMI
 
 stage_select_check_beaten_boss:  lda     bosses_beaten ; $61 = boss-defeated bitmask
         and     $9DED,y                 ; check if this boss already beaten
-        bne     code_92F2               ; already beaten → back to select loop
+        bne     select_loop_next_frame               ; already beaten → back to select loop
         lda     stage_select_page       ; $60 = game progression page
         cmp     #$0A                    ; >= $0A = invalid state
-        bcs     code_92F2               ; → back to select loop
+        bcs     select_loop_next_frame               ; → back to select loop
         tya                             ; Y = grid index (0-8)
         clc
         adc     stage_select_page       ; + page offset (0=Robot Masters, $0A=Doc Robot)
@@ -1200,7 +1200,7 @@ stage_select_check_beaten_boss:  lda     bosses_beaten ; $61 = boss-defeated bit
 ;   Boss:  Spark Snake Needl Hard  (n/a) Top   Gemin Magnt Shadw
 ;   Grid:  TL    TM    TR    ML    CTR   MR    BL    BM    BR
         lda     $9CE1,y                 ; look up stage number
-        bmi     code_92F2               ; $FF = center (not selectable)
+        bmi     select_loop_next_frame               ; $FF = center (not selectable)
         sta     stage_id                ; $22 = current stage number
         sty     $0F                     ; $0F = save adjusted grid index
 
@@ -1343,7 +1343,7 @@ ppu_write_queue_done:  sta     nametable_dirty ; $19 = $FF → flag PPU write pe
 ; Sets OAM sprite 0 to the password cursor: Y=$B7, tile=$ED, attr=$00, X=$40.
 ; Y=$B7 = "GAME START" row, Y=$C7 = "STAGE SELECT" row.
 ; ---------------------------------------------------------------------------
-code_93E9:
+password_cursor_init:
         lda     #$B7                    ; Y = $B7 (Game Start row)
         sta     $0200                   ; OAM sprite 0 Y pos
         lda     #$ED                    ; tile $ED = cursor arrow
@@ -1359,16 +1359,16 @@ code_93E9:
 ; ---------------------------------------------------------------------------
 ; D-pad Up ($08) → Y=$B7 (Game Start), Down ($04) → Y=$C7 (Stage Select).
 ; ---------------------------------------------------------------------------
-code_93FE:
+password_cursor_update:
         lda     joy1_press
         and     #$0C                    ; Up ($08) / Down ($04)
-        beq     code_940F               ; no vertical input → skip
+        beq     password_cursor_done               ; no vertical input → skip
         ldy     #$B7                    ; assume Up → Game Start
         and     #$08
-        bne     code_940C               ; if Up, use $B7
+        bne     password_cursor_set_y               ; if Up, use $B7
         ldy     #$C7                    ; Down → Stage Select
-code_940C:  sty     $0200               ; update sprite Y position
-code_940F:  rts
+password_cursor_set_y:  sty     $0200               ; update sprite Y position
+password_cursor_done:  rts
 
 ; ===========================================================================
 ; Robot Master stage intro sequence
@@ -1629,12 +1629,12 @@ palette_fade_store_color:  sta     $0604,y ; store to working palette
 ; ===========================================================================
 ; Called after robot master intro or Doc Robot stage. Checks if all 8 Robot
 ; Masters are beaten ($61=$FF) to trigger Doc Robot stage select setup.
-; Otherwise falls through to normal stage return at code_968C.
+; Otherwise falls through to normal stage return at normal_return_setup.
 ; ===========================================================================
-code_9581:
+stage_load_dispatch:
         lda     bosses_beaten           ; load boss-defeated bitmask
         cmp     #$FF                    ; all 8 Robot Masters beaten?
-        beq     code_958A               ; yes → set up Doc Robot stage select
+        beq     doc_robot_select_setup               ; yes → set up Doc Robot stage select
         jmp     normal_stage_return     ; no → normal return to stage select
 
 ; ===========================================================================
@@ -1649,7 +1649,7 @@ code_9581:
 ; If $60!=0 (returning from Doc Robot): sets $60=$12 (all Doc Robots beaten),
 ;   writes center Mega Man portrait, loads Wily center face sprites.
 ; ===========================================================================
-code_958A:  jsr     fade_palette_in     ; disable rendering
+doc_robot_select_setup:  jsr     fade_palette_in     ; disable rendering
         lda     #$04                    ; set OAM pointer to page 4
         sta     oam_ptr                 ; store OAM page
         jsr     prepare_oam_buffer      ; clear OAM buffer
@@ -1665,12 +1665,12 @@ code_958A:  jsr     fade_palette_in     ; disable rendering
         jsr     metatile_column_ptr_by_id ; set metatile column pointer
         lda     #$00                    ; clear fill progress counter
         sta     $70                     ; store to $70
-code_95AF:  lda     #$00                ; nametable select = $2000
+doc_nt0_fill_loop:  lda     #$00                ; nametable select = $2000
         sta     $10                     ; nametable $2000
         jsr     fill_nametable_progressive ; fill one column of tiles
         jsr     task_yield              ; wait for NMI
         lda     $70                     ; check fill progress
-        bne     code_95AF               ; loop until complete
+        bne     doc_nt0_fill_loop               ; loop until complete
 ; --- Blank defeated boss portraits and write nametable data ---
         lda     #$00                    ; nametable select = $2000
         sta     $10                     ; store to $10
@@ -1688,12 +1688,12 @@ code_95AF:  lda     #$00                ; nametable select = $2000
         jsr     metatile_column_ptr_by_id ; set metatile column pointer
         lda     #$00                    ; clear fill progress counter
         sta     $70                     ; store to $70
-code_95E1:  lda     #$04
+doc_nt1_fill_loop:  lda     #$04
         sta     $10                     ; nametable $2400
         jsr     fill_nametable_progressive ; fill one column of tiles
         jsr     task_yield              ; wait for NMI
         lda     $70                     ; check fill progress
-        bne     code_95E1               ; loop until complete
+        bne     doc_nt1_fill_loop               ; loop until complete
 ; --- Load stage select CHR banks and palettes ---
         lda     #$7C                    ; CHR bank $7C
         sta     $E8                     ; set BG CHR slot 0
@@ -1705,15 +1705,15 @@ code_95E1:  lda     #$04
         sta     $ED                     ; set BG CHR bank
         jsr     update_CHR_banks        ; apply CHR bank settings
         ldy     #$0F                    ; copy 16 bytes (4 palettes)
-code_9604:  lda     $9C33,y             ; load BG palettes (fresh start set)
+doc_bg_palette_loop:  lda     $9C33,y             ; load BG palettes (fresh start set)
         sta     $0620,y                 ; store to BG palette buffer
         dey                             ; decrement index
-        bpl     code_9604               ; loop until all copied
+        bpl     doc_bg_palette_loop               ; loop until all copied
         ldy     #$0F                    ; copy 16 bytes (4 palettes)
-code_960F:  lda     $9C23,y             ; load sprite palettes
+doc_spr_palette_loop:  lda     $9C23,y             ; load sprite palettes
         sta     $0630,y                 ; store to sprite palette buffer
         dey                             ; decrement index
-        bpl     code_960F               ; loop until all copied
+        bpl     doc_spr_palette_loop               ; loop until all copied
         jsr     task_yield              ; wait for NMI
         jsr     load_stage_select_oam   ; load OAM sprites from bank03
 ; --- Enable rendering and enter stage select ---
@@ -1728,7 +1728,7 @@ code_960F:  lda     $9C23,y             ; load sprite palettes
         jsr     fade_palette_out        ; enable rendering
 ; --- Check if first time or returning from Doc Robot ---
         lda     stage_select_page       ; check stage select page
-        beq     code_964D               ; $60=0 → first time all beaten
+        beq     doc_first_time_init               ; $60=0 → first time all beaten
 ; --- Returning from Doc Robot stage: set $60=$12 (all Doc Robots done) ---
         lda     #$12                    ; page $12 = all Doc Robots done
         sta     stage_select_page       ; set stage select page
@@ -1741,7 +1741,7 @@ code_960F:  lda     $9C23,y             ; load sprite palettes
         jmp     boss_intro_sprite_loop  ; → enter stage select loop
 
 ; --- First time all Robot Masters beaten → init Doc Robot phase ---
-code_964D:  ldx     #$F0                ; wait 240 frames (4 seconds)
+doc_first_time_init:  ldx     #$F0                ; wait 240 frames (4 seconds)
         jsr     task_yield_x            ; wait 240 frames
         lda     #$3A                    ; Doc Robot defeated mask (initial)
         sta     bosses_beaten           ; set Doc Robot beaten mask
@@ -1752,11 +1752,11 @@ code_964D:  ldx     #$F0                ; wait 240 frames (4 seconds)
         jsr     update_CHR_banks        ; apply CHR bank settings
 ; --- Load Doc Robot palettes from $9D36 ---
         ldy     #$0F                    ; copy 16 bytes (4 palettes)
-code_9663:  lda     $9D36,y             ; load Doc Robot BG palette
+doc_robot_palette_loop:  lda     $9D36,y             ; load Doc Robot BG palette
         sta     $0600,y                 ; store to base palette
         sta     $0620,y                 ; store to working palette
         dey                             ; decrement index
-        bpl     code_9663               ; loop until all copied
+        bpl     doc_robot_palette_loop               ; loop until all copied
         sty     palette_dirty           ; flag palette upload
 ; --- Write Doc Robot portrait frames and faces ---
         lda     #$00                    ; nametable select = 0
@@ -1768,7 +1768,7 @@ code_9663:  lda     $9D36,y             ; load Doc Robot BG palette
         jsr     write_portrait_faces    ; write_portrait_faces
 
 ; --- Enter stage select loop at center position ---
-code_9681:
+doc_cursor_init:
         lda     #$01                    ; cursor column = 1 (center)
         sta     $12                     ; store cursor column
         lda     #$03                    ; cursor row offset = 3 (middle row)
@@ -1781,7 +1781,7 @@ code_9681:
 ; Rebuilds nametable 1 with stage select layout, loads return palettes
 ; from $9C43, writes PPU data, then enters the stage select loop.
 ; ===========================================================================
-code_968C:
+normal_return_setup:
         jsr     fade_palette_in         ; disable rendering
         lda     #$04                    ; set OAM pointer to page 4
         sta     oam_ptr                 ; store OAM page
@@ -1796,12 +1796,12 @@ code_968C:
         sta     camera_x_hi             ; display nametable 1
         lda     #$02                    ; metatile column 2
         jsr     metatile_column_ptr_by_id ; set metatile column pointer
-code_96AC:  lda     #$04
+return_nt1_fill_loop:  lda     #$04
         sta     $10                     ; nametable $2400
         jsr     fill_nametable_progressive ; fill one column of tiles
         jsr     task_yield              ; wait for NMI
         lda     $70                     ; check fill progress
-        bne     code_96AC               ; loop until complete
+        bne     return_nt1_fill_loop               ; loop until complete
 ; --- Load return palettes and CHR banks ---
         lda     #$7C                    ; CHR bank $7C
         sta     $E8                     ; set BG CHR slot 0
@@ -1813,15 +1813,15 @@ code_96AC:  lda     #$04
         sta     $ED                     ; set BG CHR bank
         jsr     update_CHR_banks        ; apply CHR bank settings
         ldy     #$0F                    ; copy 16 bytes (4 palettes)
-code_96CF:  lda     $9C43,y             ; return-from-stage BG palettes
+return_bg_palette_loop:  lda     $9C43,y             ; return-from-stage BG palettes
         sta     $0620,y                 ; store to BG palette buffer
         dey                             ; decrement index
-        bpl     code_96CF               ; loop until all copied
+        bpl     return_bg_palette_loop               ; loop until all copied
         ldy     #$0F                    ; copy 16 bytes (4 palettes)
-code_96DA:  lda     $9C23,y             ; sprite palettes
+return_spr_palette_loop:  lda     $9C23,y             ; sprite palettes
         sta     $0630,y                 ; store to sprite palette buffer
         dey                             ; decrement index
-        bpl     code_96DA               ; loop until all copied
+        bpl     return_spr_palette_loop               ; loop until all copied
 ; --- Write PPU data and call bank03 for portrait data ---
         lda     #$04
         sta     $10                     ; nametable $2400
@@ -1835,14 +1835,14 @@ code_96DA:  lda     $9C23,y             ; sprite palettes
         jsr     fade_palette_out        ; enable rendering
 
 ; --- Wait for Start/A button to enter stage select ---
-code_96FC:
+return_wait_button:
         lda     joy1_press              ; read new button presses
         and     #$90                    ; Start ($10) or A ($80)
-        bne     code_9708               ; button pressed → proceed
+        bne     return_button_pressed               ; button pressed → proceed
         jsr     task_yield              ; wait for NMI
         jmp     boss_anim_state_check   ; loop back to button check
 
-code_9708:  jmp     stage_select_proto_man_oam ; → clear OAM and re-enter stage select
+return_button_pressed:  jmp     stage_select_proto_man_oam ; → clear OAM and re-enter stage select
 
 ; --- write_portrait_frames ---
 ; Writes portrait frame border tiles to the nametable for all 8 boss positions.
@@ -2004,7 +2004,7 @@ portrait_face_next_position_loop:  iny  ; advance to next portrait
         stx     $0789                   ; row 1 tile count
         stx     $0790                   ; row 2 tile count
         stx     $0797                   ; row 3 tile count
-code_9821:  lda     $9DB4,x             ; center face row 0: $CC-$CF
+center_face_tile_loop:  lda     $9DB4,x             ; center face row 0: $CC-$CF
         sta     $0783,x                 ; store to PPU buffer row 0
         lda     $9DB8,x                 ; center face row 1: $DC-$DF
         sta     $078A,x                 ; store to PPU buffer row 1
@@ -2013,13 +2013,13 @@ code_9821:  lda     $9DB4,x             ; center face row 0: $CC-$CF
         lda     $9DC0,x                 ; center face row 3: $FC-$FF
         sta     $0798,x                 ; store to PPU buffer row 3
         dex                             ; decrement tile index
-        bpl     code_9821               ; loop until all 4 copied
+        bpl     center_face_tile_loop               ; loop until all 4 copied
 ; --- Write center attribute table data ---
         ldx     #$04                    ; copy 5 attr bytes
-code_983E:  lda     $9DC4,x             ; $23DB: attr addr, 2 bytes: $88,$22
+center_attr_copy_loop:  lda     $9DC4,x             ; $23DB: attr addr, 2 bytes: $88,$22
         sta     $079C,x                 ; store to attr buffer
         dex                             ; decrement index
-        bpl     code_983E               ; loop until all copied
+        bpl     center_attr_copy_loop               ; loop until all copied
         sta     $079C                   ; store loaded attr high byte
         ora     $10                     ; OR nametable select
         sta     $079C
@@ -2039,11 +2039,11 @@ code_983E:  lda     $9DC4,x             ; $23DB: attr addr, 2 bytes: $88,$22
 ; After Start is pressed:
 ;   Cursor at $C7 (Stage Select) → normal stage select flow
 ;   Cursor at $B7 (Game Start) → check if stage >= Wily ($0C)
-;     Stage < Wily → clear OAM, enter stage select at code_9212
+;     Stage < Wily → clear OAM, enter stage select at game_start_clear_oam
 ;     Stage >= Wily → jump to bank03 $A879 (Wily stage entry)
 ;   If $60=$12 (all Doc Robots beaten) → Wily fortress gate entrance
 ; ===========================================================================
-code_985D:                              ; (3 seconds on black screen)
+password_screen_init:                              ; (3 seconds on black screen)
         jsr     fade_palette_in         ; disable rendering
         lda     #$04                    ; OAM page 4 ($0400)
         sta     oam_ptr
@@ -2059,12 +2059,12 @@ code_985D:                              ; (3 seconds on black screen)
 ; --- Fill nametable 1 with password screen layout ---
         lda     #$02                    ; metatile column 2
         jsr     metatile_column_ptr_by_id ; set metatile pointer for col 2
-code_987F:  lda     #$04                ; nametable $2400 high byte
+password_nt_fill_loop:  lda     #$04                ; nametable $2400 high byte
         sta     $10                     ; nametable $2400
         jsr     fill_nametable_progressive ; write 4 tile rows to PPU queue
         jsr     task_yield              ; wait for NMI
         lda     $70                     ; check fill progress
-        bne     code_987F               ; loop until complete
+        bne     password_nt_fill_loop               ; loop until complete
 ; --- Load CHR banks and palettes ---
         lda     #$7C                    ; BG CHR bank 0
         sta     $E8                     ; store to CHR slot
@@ -2076,15 +2076,15 @@ code_987F:  lda     #$04                ; nametable $2400 high byte
         sta     $ED                     ; store to sprite CHR slot
         jsr     update_CHR_banks        ; apply CHR bank settings
         ldy     #$0F                    ; 16 palette bytes
-code_98A2:  lda     $9C43,y             ; return-from-stage BG palettes
+password_bg_palette_loop:  lda     $9C43,y             ; return-from-stage BG palettes
         sta     $0620,y                 ; store to BG palette buffer
         dey                             ; next byte
-        bpl     code_98A2               ; loop 16 bytes
+        bpl     password_bg_palette_loop               ; loop 16 bytes
         ldy     #$0F                    ; 16 palette bytes
-code_98AD:  lda     $9C23,y             ; sprite palettes
+password_spr_palette_loop:  lda     $9C23,y             ; sprite palettes
         sta     $0630,y                 ; store to sprite palette buffer
         dey                             ; next byte
-        bpl     code_98AD               ; loop 16 bytes
+        bpl     password_spr_palette_loop               ; loop 16 bytes
         jsr     task_yield              ; wait for NMI
 ; --- Write PPU data and enable rendering ---
         ldx     #$01                    ; PPU data table $01
@@ -2103,12 +2103,12 @@ code_98AD:  lda     $9C23,y             ; sprite palettes
         jsr     fade_palette_out        ; enable rendering
 ; --- Wait 120 frames ($78) before showing cursor ---
         lda     #$78                    ; 120-frame delay
-code_98DC:  pha                         ; save counter
+password_startup_delay_loop:  pha                         ; save counter
         jsr     task_yield              ; wait for NMI
         pla                             ; restore counter
         sec                             ; set carry for subtract
         sbc     #$01                    ; decrement counter
-        bne     code_98DC               ; loop until counter = 0
+        bne     password_startup_delay_loop               ; loop until counter = 0
 ; --- Show "Game Start / Stage Select" cursor ---
         lda     #$04
         sta     $10                     ; nametable $2400
@@ -2117,42 +2117,42 @@ code_98DC:  pha                         ; save counter
         jsr     password_cursor_oam_setup ; set up cursor sprite at Y=$B7
 
 ; --- Password cursor loop: wait for Start ---
-code_98F2:
+password_input_loop:
         jsr     proto_man_sprite_control ; handle cursor Up/Down input
         lda     joy1_press              ; read new button presses
         and     #BTN_START              ; check Start button
-        bne     code_9901               ; Start pressed → process selection
+        bne     password_selection_process               ; Start pressed → process selection
         jsr     task_yield              ; wait for NMI
         jmp     proto_man_anim_loop     ; loop back to cursor input
 
 ; --- Process password selection ---
-code_9901:  ldx     #$0B                ; 12 weapon/HP slots
-code_9903:  lda     player_hp,x         ; check weapon/HP slot
-        bpl     code_990B               ; positive = valid, skip
+password_selection_process:  ldx     #$0B                ; 12 weapon/HP slots
+weapon_slot_check_loop:  lda     player_hp,x         ; check weapon/HP slot
+        bpl     weapon_slot_next               ; positive = valid, skip
         lda     #$9C                    ; set to full HP ($9C)
         sta     player_hp,x             ; fill this weapon/HP slot
-code_990B:  dex                         ; next slot
-        bpl     code_9903               ; loop all 12 slots
+weapon_slot_next:  dex                         ; next slot
+        bpl     weapon_slot_check_loop               ; loop all 12 slots
 ; --- Check cursor position to determine action ---
         lda     $0200                   ; cursor Y position
         cmp     #$C7                    ; $C7 = "Stage Select" row
-        beq     code_991E               ; → set lives and enter stage select
+        beq     password_set_lives               ; → set lives and enter stage select
         lda     stage_id                ; check current stage
         cmp     #STAGE_WILY1            ; stage >= $0C = Wily stages
-        bcs     code_992C               ; → Wily stage entry via bank03
+        bcs     wily_stage_via_bank03               ; → Wily stage entry via bank03
         jsr     stage_select_proto_man_oam ; Game Start: re-enter stage select
 ; --- Set starting lives and check for Wily gate ---
-code_991E:  lda     #$02                ; 2 extra lives (3 total)
+password_set_lives:  lda     #$02                ; 2 extra lives (3 total)
         sta     lives                   ; set starting lives
         lda     stage_select_page       ; check stage select page
         cmp     #$12                    ; $12 = all Doc Robots beaten
-        bne     code_992B               ; not all Doc Robots → return
+        bne     password_done               ; not all Doc Robots → return
         jmp     wily_gate_entry         ; → Wily fortress gate entrance
 
-code_992B:  rts                         ; return to caller
+password_done:  rts                         ; return to caller
 
 ; --- Wily stage entry (stage >= $0C) ---
-code_992C:  lda     #$03                ; bank $03
+wily_stage_via_bank03:  lda     #$03                ; bank $03
         sta     prg_bank                ; set PRG bank
         jsr     select_PRG_banks        ; switch PRG bank
         jmp     bank03_wily_stage_entry ; → bank03 Wily stage entry
@@ -2189,15 +2189,15 @@ code_992C:  lda     #$03                ; bank $03
 ; $61), writes blank tile $24 over the 4×4 face area. Also handles
 ; special cases for Doc Robot phase and Wily gate center portrait.
 ; ---------------------------------------------------------------------------
-code_995C:
+blank_portraits_start:
         jsr     write_portrait_frame_data ; restore portrait frames if needed
         ldx     #$08                    ; iterate grid positions 8→0
-code_9961:  lda     $9DED,x             ; boss bitmask for position X
-        beq     code_99CC               ; $00 = center position (special case)
+blank_portraits_loop:  lda     $9DED,x             ; boss bitmask for position X
+        beq     blank_center_check               ; $00 = center position (special case)
         and     bosses_beaten           ; check if this boss beaten
-        beq     code_99BA               ; not beaten → skip
+        beq     blank_portraits_next               ; not beaten → skip
 ; --- Write blank tiles over defeated boss face ---
-code_996A:  lda     $9DC9,x             ; PPU addr high for face position
+blank_face_write:  lda     $9DC9,x             ; PPU addr high for face position
         ora     $10                     ; OR nametable select
         sta     $0780                   ; row 0 PPU high
         sta     $0787                   ; row 1 PPU high
@@ -2219,35 +2219,35 @@ code_996A:  lda     $9DC9,x             ; PPU addr high for face position
         sta     $0797
         ldy     #$03                    ; loop counter for 4 tiles
         lda     #$24                    ; tile $24 = blank (empty frame interior)
-code_99A3:  sta     $0783,y             ; fill all 4 rows with blank tiles
+blank_face_tile_loop:  sta     $0783,y             ; fill all 4 rows with blank tiles
         sta     $078A,y
         sta     $0791,y
         sta     $0798,y
         dey                             ; next tile
-        bpl     code_99A3               ; loop all 4 tiles
+        bpl     blank_face_tile_loop               ; loop all 4 tiles
         sty     $079C                   ; end marker ($FF)
         sty     nametable_dirty         ; flag PPU write
         jsr     task_yield              ; wait for PPU update
-code_99BA:  dex
-        bpl     code_9961               ; next grid position
+blank_portraits_next:  dex
+        bpl     blank_portraits_loop               ; next grid position
 ; --- If all Doc Robots beaten, write center Mega Man portrait ---
         lda     stage_select_page
-        beq     code_99CB               ; $60=0 → Robot Master phase, skip
+        beq     blank_portraits_done               ; $60=0 → Robot Master phase, skip
         cmp     #$12                    ; $12 = all Doc Robots beaten
-        bne     code_99CB
+        bne     blank_portraits_done
         jsr     write_center_portrait   ; draw center Mega Man face
         jsr     task_yield              ; wait for PPU update
-code_99CB:  rts
+blank_portraits_done:  rts
 
 ; --- Center position special case ---
-code_99CC:  lda     stage_select_page
-        beq     code_99BA               ; $60=0 → skip center
+blank_center_check:  lda     stage_select_page
+        beq     blank_portraits_next               ; $60=0 → skip center
         cmp     #$12                    ; $12 = all Doc Robots beaten
-        beq     code_996A               ; → blank center face too
+        beq     blank_face_write               ; → blank center face too
         lda     bosses_beaten
         cmp     #$FF                    ; all bosses beaten?
-        bne     code_99BA               ; no → skip
-        beq     code_996A               ; yes → blank center face
+        bne     blank_portraits_next               ; no → skip
+        beq     blank_face_write               ; yes → blank center face
 
 ; ---------------------------------------------------------------------------
 ; restore_portrait_frames_if_needed — redraw frames for Doc Robot phase
@@ -2255,21 +2255,21 @@ code_99CC:  lda     stage_select_page
 ; If $60!=0 (Doc Robot or later), redraws portrait frames and faces
 ; since they may have been modified. If $60=$12, also redraws from index 0.
 ; ---------------------------------------------------------------------------
-code_99DC:
+restore_frames_start:
         lda     stage_select_page       ; check stage select page
-        beq     code_99F9               ; $60=0 → nothing to restore
+        beq     restore_frames_done               ; $60=0 → nothing to restore
         ldy     #$01                    ; start from portrait index 1
         ldx     #$01                    ; frame delay = 1
         jsr     write_portrait_frames   ; redraw portrait frames from 1
         lda     stage_select_page       ; re-check stage select page
         cmp     #$12                    ; all Doc Robots beaten?
-        bne     code_99F4
+        bne     restore_faces_call
         ldy     #$00                    ; also redraw from index 0
         ldx     #$01
         jsr     write_portrait_frames   ; redraw portrait frames from 0
-code_99F4:  ldx     #$01                ; delay = 1 frame per face
+restore_faces_call:  ldx     #$01                ; delay = 1 frame per face
         jsr     write_portrait_faces    ; redraw portrait face tiles
-code_99F9:  rts
+restore_frames_done:  rts
 ; ---------------------------------------------------------------------------
 ; load_stage_select_oam — load OAM sprites for stage select screen ($99FA)
 ; ---------------------------------------------------------------------------
@@ -2279,31 +2279,31 @@ code_99F9:  rts
 ; After loading, hides OAM sprites for beaten bosses using $9DDB/$9DE4
 ; tables (Y=$F8 = offscreen).
 ; ---------------------------------------------------------------------------
-code_99FA:
+load_select_oam_start:
         ldx     #$00                    ; start offset (Robot Master phase)
         lda     stage_select_page       ; check stage select page
-        beq     code_9A19               ; $60=0 → use full sprite set
+        beq     oam_copy_start               ; $60=0 → use full sprite set
 ; --- Doc Robot phase: load fewer sprites, different CHR/palettes ---
         lda     #$74                    ; Doc Robot CHR bank
         sta     $E9
         jsr     update_CHR_banks        ; apply CHR bank settings
         ldy     #$0F                    ; 16 palette bytes
-code_9A09:  lda     $9D36,y             ; Doc Robot palettes
+doc_oam_palette_loop:  lda     $9D36,y             ; Doc Robot palettes
         sta     $0600,y                 ; store to BG palette buffer
         sta     $0620,y                 ; store to BG palette working
         dey                             ; next byte
-        bpl     code_9A09
+        bpl     doc_oam_palette_loop
         sty     palette_dirty           ; flag palette upload
         ldx     #$98                    ; start from OAM offset $98
 ; --- Copy OAM data from bank03 stage_select_oam_y_table table ---
-code_9A19:  stx     L0000               ; save start offset
+oam_copy_start:  stx     L0000               ; save start offset
         lda     prg_bank                ; save current PRG bank
         pha                             ; push to stack
         lda     #$03                    ; switch to bank03
         sta     prg_bank
         jsr     select_PRG_banks
         ldx     L0000                   ; restore OAM start offset
-code_9A27:  lda     stage_select_oam_y_table,x ; OAM Y position
+oam_copy_loop:  lda     stage_select_oam_y_table,x ; OAM Y position
         sta     $0200,x                 ; store Y to OAM buffer
         lda     stage_select_oam_tile_table,x ; OAM tile ID
         sta     $0201,x                 ; store tile to OAM buffer
@@ -2316,42 +2316,42 @@ code_9A27:  lda     stage_select_oam_y_table,x ; OAM Y position
         inx
         inx
         cpx     #$CC                    ; copy up to offset $CC (51 sprites)
-        bne     code_9A27               ; loop until all sprites copied
+        bne     oam_copy_loop               ; loop until all sprites copied
         pla                             ; restore saved PRG bank
         sta     prg_bank                ; set PRG bank number
         jsr     select_PRG_banks        ; switch PRG bank back
 ; --- Hide OAM sprites for beaten bosses ---
         ldx     #$08                    ; iterate grid positions 8→0
-code_9A4F:  lda     $9DED,x             ; boss bitmask for position X
-        beq     code_9A71               ; $00 = center (special case)
+beaten_boss_hide_loop:  lda     $9DED,x             ; boss bitmask for position X
+        beq     beaten_center_check               ; $00 = center (special case)
         and     bosses_beaten           ; check if beaten
-        beq     code_9A6D               ; not beaten → keep sprites visible
+        beq     beaten_boss_next               ; not beaten → keep sprites visible
 ; --- Move beaten boss sprites offscreen (Y=$F8) ---
-code_9A58:  ldy     $9DDB,x             ; OAM start offset for this portrait
+hide_portrait_sprites:  ldy     $9DDB,x             ; OAM start offset for this portrait
         lda     $9DE4,x                 ; sprite count for this portrait
         sta     L0000                   ; store sprite count
         lda     #$F8                    ; Y=$F8 = offscreen
-code_9A62:  sta     $0200,y             ; set Y offscreen
+hide_sprite_loop:  sta     $0200,y             ; set Y offscreen
         iny                             ; advance to next OAM entry
         iny
         iny
         iny                             ; next OAM entry
         dec     L0000                   ; decrement sprite count
-        bpl     code_9A62               ; loop until all hidden
-code_9A6D:  dex                         ; next grid position
-        bpl     code_9A4F               ; loop all 9 positions
+        bpl     hide_sprite_loop               ; loop until all hidden
+beaten_boss_next:  dex                         ; next grid position
+        bpl     beaten_boss_hide_loop               ; loop all 9 positions
         rts                             ; return
 
 ; --- Center position special case ---
-code_9A71:  lda     stage_select_page   ; check stage select page
-        beq     code_9A6D               ; $60=0 → skip center hiding
+beaten_center_check:  lda     stage_select_page   ; check stage select page
+        beq     beaten_boss_next               ; $60=0 → skip center hiding
         cmp     #$12                    ; all Doc Robots beaten?
-        beq     code_9A81               ; → load Wily face sprites, then hide
+        beq     wily_center_load               ; → load Wily face sprites, then hide
         lda     bosses_beaten           ; check bosses beaten mask
         cmp     #$FF                    ; all bosses beaten?
-        bne     code_9A6D               ; no → skip
-        beq     code_9A58               ; yes → hide center sprites
-code_9A81:  jsr     load_wily_center_face ; load Wily center face OAM sprites
+        bne     beaten_boss_next               ; no → skip
+        beq     hide_portrait_sprites               ; yes → hide center sprites
+wily_center_load:  jsr     load_wily_center_face ; load Wily center face OAM sprites
         jmp     portrait_oam_write_loop ; hide original center sprites
 ; ---------------------------------------------------------------------------
 ; load_wily_center_sprites — load Wily skull face OAM into center ($9A87)
@@ -2361,10 +2361,10 @@ code_9A81:  jsr     load_wily_center_face ; load Wily center face OAM sprites
 ; $9DF6 to OAM $02DC-$02FC (center portrait area) and loads Wily-specific
 ; sprite palettes from $9E1A.
 ; ---------------------------------------------------------------------------
-code_9A87:
+wily_sprite_copy_start:
         sty     L0000                   ; save Y
         ldy     #$20                    ; copy 9 sprites (offset $20→$00)
-code_9A8B:  lda     $9DF6,y             ; Wily center sprite Y
+wily_sprite_copy_loop:  lda     $9DF6,y             ; Wily center sprite Y
         sta     $02DC,y                 ; store Y to center OAM area
         lda     $9DF7,y                 ; Wily center sprite tile
         sta     $02DD,y                 ; store tile to center OAM area
@@ -2376,14 +2376,14 @@ code_9A8B:  lda     $9DF6,y             ; Wily center sprite Y
         dey                             ; row Y-offset (bit 7 = end marker)
         dey
         dey                             ; row X-offset within nametable
-        bpl     code_9A8B               ; loop until all 9 copied
+        bpl     wily_sprite_copy_loop               ; loop until all 9 copied
 ; --- Load Wily sprite palettes from $9E1A ---
         ldy     #$0F                    ; 16 palette bytes
-code_9AAB:  lda     $9E1A,y             ; Wily sprite palette data
+wily_palette_load_loop:  lda     $9E1A,y             ; Wily sprite palette data
         sta     $0610,y                 ; sprite palette buffer
         sta     $0630,y                 ; sprite palette working copy
         dey
-        bpl     code_9AAB
+        bpl     wily_palette_load_loop
         sty     palette_dirty           ; flag palette upload
         ldy     L0000                   ; restore Y
         rts                             ; return
@@ -2399,11 +2399,11 @@ code_9AAB:  lda     $9E1A,y             ; Wily sprite palette data
 ; approach background, sets up Mega Man entity at X=$30, plays music $0C
 ; (Wily stage theme), then jumps to the fixed bank gate animation at $C9B3.
 ; ===========================================================================
-code_9ABC:                              ; submit PPU update buffer
+wily_gate_discard_ret:                              ; submit PPU update buffer
         pla                             ; discard return address (2 bytes)
         pla                             ; discard return address low
 ; --- Wily gate entry point (also called from $9006 jump table) ---
-code_9ABE:                              ; y += 2
+wily_gate_init:                              ; y += 2
         jsr     fade_palette_in         ; disable rendering
         jsr     reset_stage_state       ; clear scroll/weapon state
         lda     #$04                    ; OAM page 4 ($0400)
@@ -2442,7 +2442,7 @@ code_9ABE:                              ; y += 2
         lda     #$1F                    ; start at screen column $1F
         sta     $24                     ; set current screen column
         lda     #$21                    ; 33 columns to render
-code_9B0E:  pha                         ; save loop counter
+fortress_column_loop:  pha                         ; save loop counter
         lda     #$01                    ; nametable 1
         sta     $10                     ; set nametable select
         jsr     do_render_column        ; do_render_column
@@ -2450,7 +2450,7 @@ code_9B0E:  pha                         ; save loop counter
         pla                             ; restore loop counter
         sec                             ; set carry for subtract
         sbc     #$01                    ; decrement counter
-        bne     code_9B0E               ; loop until all columns done
+        bne     fortress_column_loop               ; loop until all columns done
 ; --- Set up fortress CHR banks and palettes ---
         sta     $2C                     ; clear scroll sub-state
         sta     $2D                     ; clear scroll sub-state
@@ -2465,10 +2465,10 @@ code_9B0E:  pha                         ; save loop counter
         jsr     update_CHR_banks        ; apply CHR bank settings
 ; --- Load fortress palettes from $9E2A ---
         ldy     #$1F                    ; 32 bytes (BG + sprite palettes)
-code_9B38:  lda     $9E2A,y             ; fortress palette data (32 bytes)
+fortress_palette_loop:  lda     $9E2A,y             ; fortress palette data (32 bytes)
         sta     $0620,y                 ; store to palette buffer
         dey                             ; next byte
-        bpl     code_9B38               ; loop until Y < 0 (all 32 bytes)
+        bpl     fortress_palette_loop               ; loop until Y < 0 (all 32 bytes)
 ; --- Set up entity slot $1F for fortress gate ---
         lda     #$2A                    ; fortress gate scroll position
         sta     $52                     ; set gate scroll offset

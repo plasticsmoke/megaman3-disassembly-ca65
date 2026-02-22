@@ -40,12 +40,12 @@ driver_entry_bank:  jmp     ($4C80)     ; MMC3 bank swap indirect jump
 
         .byte   $FE
         .byte   $80
-code_8006:  lda     #$00                ; clear result high byte
+multiply_8x8:  lda     #$00                ; clear result high byte
         sta     $C2                     ; result hi = 0
         ldy     #$08                    ; 8-bit loop counter
-code_800C:  asl     $C2                 ; shift result left
+multiply_shift_loop:  asl     $C2                 ; shift result left
         rol     L00C1                   ; rotate carry into high byte
-        bcc     code_801F               ; skip add if no carry
+        bcc     multiply_next_bit               ; skip add if no carry
         clc                             ; add multiplicand to result
         lda     $C2                     ; result lo += $C4
         adc     $C4                     ; add multiplicand
@@ -53,8 +53,8 @@ code_800C:  asl     $C2                 ; shift result left
         lda     L00C1                   ; propagate carry to high byte
         adc     #$00                    ; add carry
         sta     L00C1                   ; store result high
-code_801F:  dey                         ; decrement bit counter
-        bne     code_800C               ; loop 8 times
+multiply_next_bit:  dey                         ; decrement bit counter
+        bne     multiply_shift_loop               ; loop 8 times
         rts
 
 ; jumps to one of the pointers stored
@@ -116,14 +116,14 @@ read_ptr_bank18_check:  sec
         pla                             ; pull & return read
         rts
 
-code_806C:  lda     $C0                 ; load driver flags
+sound_driver_update:  lda     $C0                 ; load driver flags
         lsr     a                       ; check bit 0 (music active)
-        bcs     code_80D7               ; exit if music not playing
+        bcs     driver_update_done               ; exit if music not playing
         lda     $D0                     ; load sound data ptr lo
         ora     $D1                     ; check if ptr is null
-        beq     code_807A               ; skip data parse if no sound
-        jsr     code_8252               ; parse next sound data byte
-code_807A:  clc                         ; update tempo accumulator
+        beq     update_tempo_accumulator               ; skip data parse if no sound
+        jsr     parse_music_data               ; parse next sound data byte
+update_tempo_accumulator:  clc                         ; update tempo accumulator
         lda     $CA                     ; tempo speed fractional
         adc     $C8                     ; add to tempo accumulator
         sta     $C8                     ; store tempo accum lo
@@ -133,50 +133,50 @@ code_807A:  clc                         ; update tempo accumulator
         lda     $CF                     ; load channel enable mask
         pha                             ; save channel mask
         ldx     #$03                    ; 4 channels (3 downto 0)
-code_808C:  lsr     $CF                 ; shift out channel bit
-        bcc     code_8099               ; skip if channel disabled
+channel_loop_body:  lsr     $CF                 ; shift out channel bit
+        bcc     check_sfx_mute               ; skip if channel disabled
         lda     $CF                     ; preserve remaining bits
         ora     #$80                    ; keep high bit set
         sta     $CF                     ; restore channel mask
-        jsr     code_82DE               ; process music channel X
-code_8099:  lda     $C0                 ; check SFX mute flag
+        jsr     process_music_channel               ; process music channel X
+check_sfx_mute:  lda     $C0                 ; check SFX mute flag
         and     #$02                    ; bit 1 = SFX override
-        bne     code_80A6               ; skip SFX if muted
+        bne     channel_loop_next               ; skip SFX if muted
         txa                             ; save channel index
         pha                             ; push X
-        jsr     code_8393               ; process SFX channel X
+        jsr     process_sfx_channel               ; process SFX channel X
         pla                             ; restore channel index
         tax                             ; pull X
-code_80A6:  dex                         ; next channel
-        bpl     code_808C               ; loop all 4 channels
+channel_loop_next:  dex                         ; next channel
+        bpl     channel_loop_body               ; loop all 4 channels
         pla                             ; restore original channel mask
         sta     $CF                     ; restore $CF
         lsr     $C0                     ; clear bit 0 of driver flags
         asl     $C0                     ; (LSR+ASL clears low bit)
         lda     $CC                     ; load fade rate
         and     #$7F                    ; mask off sign bit
-        beq     code_80D7               ; skip fade if rate = 0
+        beq     driver_update_done               ; skip fade if rate = 0
         ldy     #$00                    ; clear high byte for shift
         sty     L00C1                   ; init shift overflow
         ldy     #$04                    ; shift left 4 times
-code_80BC:  asl     a                   ; A = fade_rate << 4
+fade_shift_loop:  asl     a                   ; A = fade_rate << 4
         rol     L00C1                   ; shift high bits into $C1
         dey                             ; loop counter
-        bne     code_80BC               ; shift 4 bits total
+        bne     fade_shift_loop               ; shift 4 bits total
         clc                             ; add fade delta to flags
         adc     $C0                     ; add lo to driver flags
         sta     $C0                     ; store updated flags
         lda     L00C1                   ; add overflow to fade target
         adc     $CD                     ; fade target += overflow
-        bcc     code_80D5               ; check for saturation
+        bcc     store_fade_target               ; check for saturation
         lda     $CC                     ; on overflow, keep sign only
         and     #$80                    ; preserve fade direction bit
         sta     $CC                     ; clear fade rate on overflow
         lda     #$FF                    ; saturate to $FF
-code_80D5:  sta     $CD                 ; store fade target
-code_80D7:  rts
+store_fade_target:  sta     $CD                 ; store fade target
+driver_update_done:  rts
 
-code_80D8:  txa                         ; get channel index
+silence_channel:  txa                         ; get channel index
         and     #$03                    ; mask to 0-3
         eor     #$03                    ; reverse: 3=pulse1, 0=noise
         asl     a                       ; multiply by 4
@@ -184,12 +184,12 @@ code_80D8:  txa                         ; get channel index
         tay                             ; Y = APU base for channel
         lda     #$30                    ; silence: vol=0, const vol
         cpy     #$08                    ; offset $08 = triangle ch
-        bne     code_80E8               ; use $30 for pulse/noise
+        bne     write_silence_reg               ; use $30 for pulse/noise
         lda     #$00                    ; triangle: linear ctr = 0
-code_80E8:  sta     SQ1_VOL,y           ; write silence to channel
+write_silence_reg:  sta     SQ1_VOL,y           ; write silence to channel
         rts
 
-code_80EC:  pha                         ; save value to write
+write_apu_register:  pha                         ; save value to write
         txa                             ; get channel index
         and     #$03                    ; mask to 0-3
         eor     #$03                    ; reverse channel order
@@ -202,7 +202,7 @@ code_80EC:  pha                         ; save value to write
         sta     SQ1_VOL,y               ; write to APU register
         rts
 
-code_80FE:  inc     $C0                 ; set odd-frame flag
+play_sound_odd_frame:  inc     $C0                 ; set odd-frame flag
         jsr     play_sound_ID           ; play sound with flag set
         dec     $C0                     ; restore driver flags
         rts
@@ -213,7 +213,7 @@ code_80FE:  inc     $C0                 ; set odd-frame flag
 
 play_sound_ID:  cmp     #$F0            ; if sound ID < $F0
         bcc     play_sound_id_bounds_check ; no: normal sound ID
-        jmp     code_81AE               ; handle sound command
+        jmp     dispatch_sound_command               ; handle sound command
 
 play_sound_id_bounds_check:  cmp     sound_id_max ; compare to max sound ID
         bcc     play_sound_id_modulo_loop ; in range: proceed
@@ -229,7 +229,7 @@ play_sound_id_modulo_loop:  asl     a   ; A*2 = pointer table offset
         lda     sound_data_low,x        ; at pointer
         jsr     read_ptr                ; read first byte of snd data
         tay                             ; Y = first sound data byte
-        beq     code_816F               ; if value read was $00
+        beq     init_music_channels               ; if value read was $00
         ldy     #$00                    ; Y = 0 for clearing
         inx                             ; advance to high byte ptr
         sta     $C4                     ; first byte of sound data -> $C4
@@ -266,7 +266,7 @@ play_sound_clear_loop:  sta     $0700,y
         bpl     play_sound_clear_loop
 play_sound_id_return:  rts
 
-code_816F:  ldx     #$01                ; music init: first byte = 0
+init_music_channels:  ldx     #$01                ; music init: first byte = 0
         stx     $C9                     ; tempo speed hi = 1
         ldx     #$99                    ; tempo speed lo = $99
         stx     $CA                     ; set default tempo
@@ -275,69 +275,69 @@ code_816F:  ldx     #$01                ; music init: first byte = 0
         sta     $CC                     ; clear fade rate
         sta     $CD                     ; clear fade target
         ldx     #$53                    ; clear $0728-$077B
-code_8181:  sta     $0728,x             ; clear SFX channel state
+clear_sfx_state_loop:  sta     $0728,x             ; clear SFX channel state
         dex                             ; loop counter
-        bpl     code_8181               ; clear all SFX state
+        bpl     clear_sfx_state_loop               ; clear all SFX state
         ldx     #$03                    ; read 4 channel pointers
-code_8189:  inc     L00C1               ; advance data pointer
-        bne     code_818F               ; skip page inc if no wrap
+read_channel_ptr_loop:  inc     L00C1               ; advance data pointer
+        bne     read_channel_ptr_hi               ; skip page inc if no wrap
         inc     $C2                     ; handle page crossing
-code_818F:  ldy     L00C1               ; Y = ptr lo for read_ptr
+read_channel_ptr_hi:  ldy     L00C1               ; Y = ptr lo for read_ptr
         lda     $C2                     ; A = ptr hi for read_ptr
         jsr     read_ptr                ; read channel ptr high byte
         sta     $0754,x                 ; store ch X ptr high
         inc     L00C1                   ; advance data pointer
-        bne     code_819F               ; skip page inc if no wrap
+        bne     read_channel_ptr_lo               ; skip page inc if no wrap
         inc     $C2                     ; handle page crossing
-code_819F:  ldy     L00C1               ; Y = ptr lo for read_ptr
+read_channel_ptr_lo:  ldy     L00C1               ; Y = ptr lo for read_ptr
         lda     $C2                     ; A = ptr hi for read_ptr
         jsr     read_ptr                ; read channel ptr low byte
         sta     $0750,x                 ; store ch X ptr low
         dex                             ; next channel
-        bpl     code_8189               ; loop all 4 channels
-        bmi     code_81F1               ; always taken: init channels
-code_81AE:  sty     $C3                 ; save Y in temp
+        bpl     read_channel_ptr_loop               ; loop all 4 channels
+        bmi     init_channel_state               ; always taken: init channels
+dispatch_sound_command:  sty     $C3                 ; save Y in temp
         and     #$07                    ; command index = low 3 bits
         jsr     jump_local_ptr          ; dispatch sound command
 
 ; parameters to jump_local_ptr
         .byte   $C5,$81,$C8,$81,$E4,$81,$1E,$82
         .byte   $26,$82,$2D,$82,$34,$82,$4A,$82
-        jsr     code_81E4               ; cmd $F0: init + stop
-code_81C8:  lda     #$00                ; cmd $F2: stop music
+        jsr     clear_channel_ptrs               ; cmd $F0: init + stop
+stop_music:  lda     #$00                ; cmd $F2: stop music
         sta     $CE                     ; clear priority
         sta     $D0                     ; clear data ptr lo
         sta     $D1                     ; clear data ptr hi
         sta     $D7                     ; clear chained sound
         sta     $D8                     ; clear detune
-code_81D4:  lda     $CF                 ; mute unused channels
-        beq     code_81E3               ; no channels: done
+mute_active_channels:  lda     $CF                 ; mute unused channels
+        beq     mute_channels_done               ; no channels: done
         eor     #$0F                    ; invert mask (active->mute)
         sta     $CF                     ; set channels to silence
-        jsr     code_81F1               ; silence those channels
+        jsr     init_channel_state               ; silence those channels
         lda     #$00                    ; clear channel mask
         sta     $CF                     ; all channels off
-code_81E3:  rts
+mute_channels_done:  rts
 
-code_81E4:  lda     #$00                ; clear all channel ptrs
+clear_channel_ptrs:  lda     #$00                ; clear all channel ptrs
         ldx     #$03                    ; 4 channels
-code_81E8:  sta     $0754,x             ; clear ch ptr hi
+clear_channel_ptrs_loop:  sta     $0754,x             ; clear ch ptr hi
         sta     $0750,x                 ; clear ch ptr lo
         dex                             ; next channel
-        bpl     code_81E8               ; loop all 4
-code_81F1:  lda     $CF                 ; load channel enable mask
+        bpl     clear_channel_ptrs_loop               ; loop all 4
+init_channel_state:  lda     $CF                 ; load channel enable mask
         pha                             ; save for restore later
         ldx     #$03                    ; 4 channels
-code_81F6:  lsr     $CF                 ; shift out channel bit
-        bcs     code_820A               ; skip if channel active
-        jsr     code_80D8               ; silence this channel
+init_channel_loop:  lsr     $CF                 ; shift out channel bit
+        bcs     init_channel_next               ; skip if channel active
+        jsr     silence_channel               ; silence this channel
         lda     $0754,x                 ; check ch ptr hi
         ora     $0750,x                 ; OR with ch ptr lo
-        beq     code_820A               ; skip if ptr is null
+        beq     init_channel_next               ; skip if ptr is null
         lda     #$FF                    ; mark channel for update
         sta     $077C,x                 ; set update flag
-code_820A:  dex                         ; next channel
-        bpl     code_81F6               ; loop all 4
+init_channel_next:  dex                         ; next channel
+        bpl     init_channel_loop               ; loop all 4
         pla                             ; restore channel mask
         sta     $CF                     ; restore $CF
         lda     #$08                    ; disable sweep ($08)
@@ -350,28 +350,28 @@ code_820A:  dex                         ; next channel
         lda     $C0                     ; cmd: set SFX mute flag
         ora     #$02                    ; set bit 1 (mute SFX)
         sta     $C0                     ; store updated flags
-        bne     code_81F1               ; reinit channels
+        bne     init_channel_state               ; reinit channels
         lda     $C0                     ; cmd: clear SFX mute flag
         and     #$FD                    ; clear bit 1
         sta     $C0                     ; store updated flags
         rts
 
         asl     $C3                     ; cmd: set fade speed
-        beq     code_8234               ; zero = no fade
+        beq     set_fade_speed               ; zero = no fade
         sec                             ; nonzero: set sign bit
         ror     $C3                     ; sign-extend fade speed
-code_8234:  lda     $C0                 ; keep low nibble of flags
+set_fade_speed:  lda     $C0                 ; keep low nibble of flags
         and     #$0F                    ; mask off upper bits
         sta     $C0                     ; store cleaned flags
         ldy     $C3                     ; load fade speed param
         sty     $CC                     ; set fade rate
-        beq     code_8247               ; zero: reset target
+        beq     store_fade_target_cmd               ; zero: reset target
         ldy     #$FF                    ; init fade target to $FF
         cpy     $CD                     ; already at max?
-        bne     code_8249               ; no: keep $FF target
+        bne     set_fade_done               ; no: keep $FF target
         iny                             ; yes: reset target to 0
-code_8247:  sty     $CD                 ; store fade target
-code_8249:  rts
+store_fade_target_cmd:  sty     $CD                 ; store fade target
+set_fade_done:  rts
 
         lda     #$00                    ; cmd: set detune
         sec                             ; negate param
@@ -379,44 +379,44 @@ code_8249:  rts
         sta     $D8                     ; store as detune value
         rts
 
-code_8252:  lda     $D3                 ; check note duration counter
-        beq     code_825B               ; zero: read next data byte
+parse_music_data:  lda     $D3                 ; check note duration counter
+        beq     read_next_command               ; zero: read next data byte
         dec     $D3                     ; decrement duration
         dec     $D5                     ; decrement total duration
         rts
 
-code_825B:  jsr     code_8386           ; read next sound data byte
+read_next_command:  jsr     read_music_byte           ; read next sound data byte
         sta     $C4                     ; save command/flag byte
         asl     a                       ; check bit 7
-        bcc     code_8273               ; 0 = not end marker
+        bcc     check_ptr_redirect               ; 0 = not end marker
         sty     $CE                     ; clear priority (end of SFX)
         lda     $D7                     ; check for chained sound
         lsr     a                       ; bit 0 = chain flag
-        bcc     code_8270               ; no chain: stop music
+        bcc     jump_stop_music               ; no chain: stop music
         jsr     play_sound_id_modulo_loop ; play chained sound ID
-        jmp     code_825B               ; restart data parsing
+        jmp     read_next_command               ; restart data parsing
 
-code_8270:  jmp     code_81C8           ; no chain: stop all music
+jump_stop_music:  jmp     stop_music           ; no chain: stop all music
 
-code_8273:  lsr     $C4                 ; check bit 0 of flags
-        bcc     code_82A6               ; 0 = no new ptr
-        jsr     code_8386               ; read next data byte
+check_ptr_redirect:  lsr     $C4                 ; check bit 0 of flags
+        bcc     check_duration_flag               ; 0 = no new ptr
+        jsr     read_music_byte               ; read next data byte
         asl     a                       ; check for subsong change
-        beq     code_8289               ; zero: just read new ptr
+        beq     read_new_ptr               ; zero: just read new ptr
         asl     $D6                     ; shift SFX flags
         php                             ; save carry for later
         cmp     $D6                     ; compare subsong IDs
-        beq     code_8296               ; match: skip to ptr update
+        beq     restore_subsong_flags               ; match: skip to ptr update
         plp                             ; restore flags
         ror     $D6                     ; restore $D6 bit
         inc     $D6                     ; increment subsong counter
-code_8289:  jsr     code_8386           ; read new ptr high byte
+read_new_ptr:  jsr     read_music_byte           ; read new ptr high byte
         tax                             ; X = ptr hi
-        jsr     code_8386               ; read new ptr low byte
+        jsr     read_music_byte               ; read new ptr low byte
         sta     $D0                     ; set data ptr lo
         stx     $D1                     ; set data ptr hi
-        bne     code_825B               ; continue parsing
-code_8296:  tya                         ; restore Y
+        bne     read_next_command               ; continue parsing
+restore_subsong_flags:  tya                         ; restore Y
         plp                             ; restore carry
         ror     a                       ; rotate back
         sta     $D6                     ; restore SFX flags
@@ -424,160 +424,160 @@ code_8296:  tya                         ; restore Y
         lda     #$02                    ; advance ptr by 2
         adc     $D0                     ; skip past pointer bytes
         sta     $D0                     ; store updated ptr lo
-        bcc     code_82A6               ; no page cross: continue
+        bcc     check_duration_flag               ; no page cross: continue
         inc     $D1                     ; handle page crossing
-code_82A6:  lsr     $C4                 ; check bit 1 of flags
-        bcc     code_82AF               ; 0 = no new duration mult
-        jsr     code_8386               ; read duration multiplier
+check_duration_flag:  lsr     $C4                 ; check bit 1 of flags
+        bcc     check_transpose_flag               ; 0 = no new duration mult
+        jsr     read_music_byte               ; read duration multiplier
         sta     $D4                     ; set duration multiplier
-code_82AF:  lsr     $C4                 ; check bit 2 of flags
-        bcc     code_82B8               ; 0 = no new transpose
-        jsr     code_8386               ; read transpose value
+check_transpose_flag:  lsr     $C4                 ; check bit 2 of flags
+        bcc     read_note_duration               ; 0 = no new transpose
+        jsr     read_music_byte               ; read transpose value
         sta     $D2                     ; set transpose
-code_82B8:  jsr     code_8386           ; read raw note duration
+read_note_duration:  jsr     read_music_byte           ; read raw note duration
         sta     $D3                     ; set note duration counter
         sta     L00C1                   ; save for multiply
         lda     $D4                     ; duration * multiplier
         sta     $C4                     ; set multiplicand
-        jsr     code_8006               ; multiply duration * scale
+        jsr     multiply_8x8               ; multiply duration * scale
         ldy     L00C1                   ; recover raw duration
         iny                             ; +1 for total ticks
         sty     $D5                     ; set total duration counter
         inc     $C0                     ; set music-active flag
-        jsr     code_8386               ; read channel enable byte
+        jsr     read_music_byte               ; read channel enable byte
         pha                             ; save channel mask
         eor     $CF                     ; check for mask change
-        beq     code_82DA               ; same mask: skip update
+        beq     restore_channel_mask               ; same mask: skip update
         sta     $CF                     ; set changed channels
-        jsr     code_81D4               ; mute changed channels
-code_82DA:  pla                         ; restore new channel mask
+        jsr     mute_active_channels               ; mute changed channels
+restore_channel_mask:  pla                         ; restore new channel mask
         sta     $CF                     ; set active channel mask
         rts
 
-code_82DE:  ldy     $0700,x             ; load envelope position
-        beq     code_82E6               ; skip if no envelope
-        jsr     code_8684               ; process envelope tick
-code_82E6:  lda     $C0                 ; load driver flags
+process_music_channel:  ldy     $0700,x             ; load envelope position
+        beq     check_new_note               ; skip if no envelope
+        jsr     compute_instrument_ptr               ; process envelope tick
+check_new_note:  lda     $C0                 ; load driver flags
         lsr     a                       ; check music-active bit
-        bcs     code_830A               ; bit 0 set: read new note
-        jsr     code_86BA               ; update channel output
+        bcs     parse_note_data               ; bit 0 set: read new note
+        jsr     update_volume_envelope               ; update channel output
         lda     $D3                     ; check note duration
-        beq     code_82FA               ; zero: done with this note
+        beq     music_channel_done               ; zero: done with this note
         cpx     #$01                    ; channel 1 (pulse 2)?
-        beq     code_82FB               ; special handling for ch 1
+        beq     dec_note_timer_ch1               ; special handling for ch 1
         lda     $D5                     ; check total duration left
-        beq     code_8300               ; zero: note finished
-code_82FA:  rts
+        beq     check_sustain_flag               ; zero: note finished
+music_channel_done:  rts
 
-code_82FB:  dec     $0710,x             ; decrement note timer
-        bne     code_82FA               ; not expired: return
-code_8300:  lda     $0704,x             ; load channel flags
+dec_note_timer_ch1:  dec     $0710,x             ; decrement note timer
+        bne     music_channel_done               ; not expired: return
+check_sustain_flag:  lda     $0704,x             ; load channel flags
         and     #$04                    ; check sustain bit
-        bne     code_82FA               ; sustain set: don't cut
-        jmp     code_85A3               ; note-off: silence channel
+        bne     music_channel_done               ; sustain set: don't cut
+        jmp     set_release_phase               ; note-off: silence channel
 
-code_830A:  lda     #$00                ; new note: parse note data
+parse_note_data:  lda     #$00                ; new note: parse note data
         sta     $C4                     ; clear bit counter
-        jsr     code_8386               ; read channel command byte
-code_8311:  lsr     a                   ; shift out flag bits
-        bcc     code_8320               ; bit clear: skip param
+        jsr     read_music_byte               ; read channel command byte
+note_flag_loop:  lsr     a                   ; shift out flag bits
+        bcc     note_flags_done_check               ; bit clear: skip param
         pha                             ; save remaining flags
-        jsr     code_8386               ; read parameter byte
+        jsr     read_music_byte               ; read parameter byte
         sta     $C3                     ; param -> $C3
         lda     $C4                     ; bit index for dispatch
-        jsr     code_8326               ; dispatch channel command
+        jsr     dispatch_note_command               ; dispatch channel command
         pla                             ; restore remaining flags
-code_8320:  beq     code_8333           ; all bits done?
+note_flags_done_check:  beq     read_note_value           ; all bits done?
         inc     $C4                     ; advance bit counter
-        bne     code_8311               ; process next bit
-code_8326:  jsr     jump_local_ptr
+        bne     note_flag_loop               ; process next bit
+dispatch_note_command:  jsr     jump_local_ptr
 
 ; parameters to jump_local_ptr
         .byte   $6F,$86,$AD,$86,$5A,$86,$A7,$86
         .byte   $A1,$86
-code_8333:  jsr     code_8386           ; read note value
+read_note_value:  jsr     read_music_byte           ; read note value
         tay                             ; Y = note value
-        bne     code_8349               ; nonzero: play note
+        bne     play_note               ; nonzero: play note
         sta     $0710,x                 ; zero: set rest timer
         lda     $0704,x                 ; load channel flags
         and     #$F8                    ; clear envelope phase bits
         ora     #$04                    ; set phase = sustain (4)
         sta     $0704,x                 ; store updated flags
-        jmp     code_80D8               ; silence APU register
+        jmp     silence_channel               ; silence APU register
 
-code_8349:  lda     $0704,x             ; load channel flags
+play_note:  lda     $0704,x             ; load channel flags
         ora     #$20                    ; set portamento active bit
         sta     $0704,x                 ; store updated flags
         lda     $0718,x                 ; load slide rate
         asl     a                       ; check slide direction (carry)
         lda     #$54                    ; default: long slide duration
-        bcs     code_835B               ; if sliding up, use long
+        bcs     set_slide_target               ; if sliding up, use long
         lda     #$0A                    ; else short slide duration
-code_835B:  sta     $071C,x             ; set target note index
+set_slide_target:  sta     $071C,x             ; set target note index
         tya                             ; A = note byte
-        bpl     code_836B               ; if note >= $80, skip init
+        bpl     play_note_with_envelope               ; if note >= $80, skip init
         cpx     #$01                    ; is this channel 1 (music)?
-        bne     code_8368               ; other channels skip volume init
-        jsr     code_85AE               ; init volume envelope
-code_8368:  jmp     code_8644           ; reset vibrato & flags
+        bne     jump_reset_vibrato               ; other channels skip volume init
+        jsr     init_volume_envelope               ; init volume envelope
+jump_reset_vibrato:  jmp     check_vibrato_reset           ; reset vibrato & flags
 
-code_836B:  jsr     code_85AE           ; init volume envelope
+play_note_with_envelope:  jsr     init_volume_envelope           ; init volume envelope
         lda     #$FF                    ; force freq hi reload
         sta     $077C,x                 ; invalidate cached freq hi
         dey                             ; note index = Y - 1
         txa                             ; A = channel index
-        bne     code_837F               ; if not channel 0, branch
+        bne     apply_transpose_and_freq               ; if not channel 0, branch
         sta     $C3                     ; channel 0: clear temp
         tya                             ; A = note index
         eor     #$0F                    ; invert low nibble (duty bits)
-        jmp     code_8636               ; write freq directly
+        jmp     write_freq_registers               ; write freq directly
 
-code_837F:  tya                         ; A = note index
+apply_transpose_and_freq:  tya                         ; A = note index
         clc                             ; add transpose offset
         adc     $D2                     ; apply global transpose ($D2)
-        jmp     code_85DE               ; convert to freq & write APU
+        jmp     note_to_frequency               ; convert to freq & write APU
 
-code_8386:  ldy     $D0                 ; Y = data ptr low byte
+read_music_byte:  ldy     $D0                 ; Y = data ptr low byte
         lda     $D1                     ; A = data ptr high byte
         inc     $D0                     ; advance pointer low
-        bne     code_8390               ; if no carry, skip hi inc
+        bne     jump_read_ptr               ; if no carry, skip hi inc
         inc     $D1                     ; advance pointer high
-code_8390:  jmp     read_ptr            ; read byte from data stream
+jump_read_ptr:  jmp     read_ptr            ; read byte from data stream
 
-code_8393:  txa                         ; A = music channel index
+process_sfx_channel:  txa                         ; A = music channel index
         ora     #$28                    ; map to SFX buffer (+$28)
         tax                             ; X = SFX channel offset
         lda     $0728,x                 ; load SFX data ptr low
         ora     $072C,x                 ; OR with data ptr high
-        beq     code_83CC               ; if no SFX data, return
+        beq     sfx_channel_done               ; if no SFX data, return
         lda     $0738,x                 ; load note duration counter
-        beq     code_83CD               ; if zero, read next command
+        beq     sfx_read_command_loop               ; if zero, read next command
         ldy     $0700,x                 ; load instrument index
-        beq     code_83AF               ; if no instrument, skip
-        jsr     code_8684               ; compute instrument ptr
-        jsr     code_86BA               ; run volume envelope update
-code_83AF:  lda     $0740,x             ; load envelope timer
+        beq     sfx_update_envelope_timer               ; if no instrument, skip
+        jsr     compute_instrument_ptr               ; compute instrument ptr
+        jsr     update_volume_envelope               ; run volume envelope update
+sfx_update_envelope_timer:  lda     $0740,x             ; load envelope timer
         sec                             ; subtract tick rate
         sbc     $C7                     ; decrement by speed
         sta     $0740,x                 ; store updated timer
-        beq     code_83BC               ; if exactly zero
-        bcs     code_83BF               ; if timer still positive, skip
-code_83BC:  jsr     code_85A3           ; set envelope to release phase
-code_83BF:  lda     $0738,x             ; load note duration
+        beq     sfx_trigger_release               ; if exactly zero
+        bcs     sfx_update_duration               ; if timer still positive, skip
+sfx_trigger_release:  jsr     set_release_phase           ; set envelope to release phase
+sfx_update_duration:  lda     $0738,x             ; load note duration
         sec                             ; subtract tick rate
         sbc     $C7                     ; decrement by speed
         sta     $0738,x                 ; store updated duration
-        beq     code_83CD               ; if zero, note finished
-        bcc     code_83CD               ; if underflowed, note finished
-code_83CC:  rts
+        beq     sfx_read_command_loop               ; if zero, note finished
+        bcc     sfx_read_command_loop               ; if underflowed, note finished
+sfx_channel_done:  rts
 
-code_83CD:  jsr     code_8592           ; read next byte from stream
+sfx_read_command_loop:  jsr     read_sfx_byte           ; read next byte from stream
         cmp     #$20                    ; is it a note ($20+)?
-        bcs     code_83DA               ; if note, process it
-        jsr     code_8497               ; else it's a command byte
-        jmp     code_83CD               ; loop until note found
+        bcs     sfx_decode_note               ; if note, process it
+        jsr     sfx_dispatch_command               ; else it's a command byte
+        jmp     sfx_read_command_loop               ; loop until note found
 
-code_83DA:  pha                         ; save note+duration byte
+sfx_decode_note:  pha                         ; save note+duration byte
         rol     a                       ; extract duration bits
         rol     a                       ; rotate bits 5-7
         rol     a                       ; into low position
@@ -588,13 +588,13 @@ code_83DA:  pha                         ; save note+duration byte
         lda     $0730,x                 ; load channel control flags
         asl     a                       ; check flag bits
         asl     a                       ; test bit 5 (scale mode)
-        bpl     code_83EF               ; if clear, try alt table
+        bpl     check_alt_duration_flag               ; if clear, try alt table
         lda     frequency_scale_factors_table,y ; power-of-2 scale factor
-        bne     code_8406               ; always taken (nonzero)
-code_83EF:  asl     a                   ; test bit 4 (alt flag)
+        bne     accumulate_duration               ; always taken (nonzero)
+check_alt_duration_flag:  asl     a                   ; test bit 4 (alt flag)
         asl     a                       ; check next bit
         lda     frequency_scale_alt_table,y ; x1.5 scale factor
-        bcc     code_8406               ; if bit clear, use as-is
+        bcc     accumulate_duration               ; if bit clear, use as-is
         sta     $C3                     ; save scale factor
         lda     $0730,x                 ; load control flags
         and     #$EF                    ; clear bit 4
@@ -603,38 +603,38 @@ code_83EF:  asl     a                   ; test bit 4 (alt flag)
         lsr     a                       ; divide by 2
         clc                             ; add half to original
         adc     $C3                     ; result = factor * 1.5
-code_8406:  clc                         ; add to duration counter
+accumulate_duration:  clc                         ; add to duration counter
         adc     $0738,x                 ; accumulate duration
         sta     $0738,x                 ; store total duration
         tay                             ; Y = duration for multiply
         pla                             ; restore note+duration byte
         and     #$1F                    ; mask note index (0-31)
-        bne     code_8419               ; if note > 0, process it
-        jsr     code_85A3               ; note 0 = rest, set release
-        jmp     code_8491               ; set infinite envelope timer
+        bne     sfx_note_setup               ; if note > 0, process it
+        jsr     set_release_phase               ; note 0 = rest, set release
+        jmp     set_infinite_timer               ; set infinite envelope timer
 
-code_8419:  pha                         ; save note index
+sfx_note_setup:  pha                         ; save note index
         sty     $C4                     ; duration -> multiply input
         lda     $073C,x                 ; load duration multiplier
         sta     L00C1                   ; multiplier -> $C1
-        jsr     code_8006               ; duration * multiplier
+        jsr     multiply_8x8               ; duration * multiplier
         lda     L00C1                   ; get multiply result high
-        bne     code_842A               ; if nonzero, use it
+        bne     store_envelope_timer               ; if nonzero, use it
         lda     #$01                    ; minimum duration = 1
-code_842A:  sta     $0740,x             ; set envelope timer
+store_envelope_timer:  sta     $0740,x             ; set envelope timer
         pla                             ; restore note index
         tay                             ; Y = note index
         dey                             ; adjust to 0-based note
         lda     $0730,x                 ; load channel control flags
-        bpl     code_8440               ; if bit 7 clear, normal note
+        bpl     sfx_init_envelope               ; if bit 7 clear, normal note
         lda     $0718,x                 ; load slide rate
-        bne     code_8454               ; if sliding, skip retrigger
-        jsr     code_8644               ; reset vibrato phase
-        jmp     code_847E               ; update control flags
+        bne     sfx_get_channel_index               ; if sliding, skip retrigger
+        jsr     check_vibrato_reset               ; reset vibrato phase
+        jmp     sfx_update_control_flags               ; update control flags
 
-code_8440:  jsr     code_85AE           ; init volume envelope
+sfx_init_envelope:  jsr     init_volume_envelope           ; init volume envelope
         lda     $CF                     ; load channel enable mask
-        bmi     code_8454               ; if SFX active, skip
+        bmi     sfx_get_channel_index               ; if SFX active, skip
         sty     $C3                     ; save note index
         txa                             ; A = SFX channel offset
         and     #$03                    ; mask to music channel 0-3
@@ -642,17 +642,17 @@ code_8440:  jsr     code_85AE           ; init volume envelope
         lda     #$FF                    ; force freq hi reload
         sta     $077C,y                 ; invalidate cached freq hi
         ldy     $C3                     ; restore note index
-code_8454:  txa                         ; A = SFX channel offset
+sfx_get_channel_index:  txa                         ; A = SFX channel offset
         and     #$03                    ; mask to channel 0-3
-        bne     code_8466               ; if not channel 0 (noise)
+        bne     sfx_lookup_frequency               ; if not channel 0 (noise)
         sta     $C3                     ; clear temp
         tya                             ; A = note index
         and     #$0F                    ; mask to 4-bit noise period
         eor     #$0F                    ; invert (higher = lower)
-        jsr     code_8636               ; write noise freq & period
-        jmp     code_847E               ; go to control flag update
+        jsr     write_freq_registers               ; write noise freq & period
+        jmp     sfx_update_control_flags               ; go to control flag update
 
-code_8466:  sty     $C3                 ; save note index
+sfx_lookup_frequency:  sty     $C3                 ; save note index
         lda     $0730,x                 ; load control flags
         and     #$0F                    ; get octave bits (low nibble)
         tay                             ; Y = octave index
@@ -663,8 +663,8 @@ code_8466:  sty     $C3                 ; save note index
         adc     $CB                     ; add master pitch ($CB)
         clc                             ; add channel pitch bend
         adc     $0734,x                 ; add per-channel detune
-        jsr     code_85DE               ; look up freq & write APU
-code_847E:  lda     $0730,x             ; load control flags
+        jsr     note_to_frequency               ; look up freq & write APU
+sfx_update_control_flags:  lda     $0730,x             ; load control flags
         tay                             ; save copy
         and     #$40                    ; isolate bit 6
         asl     a                       ; shift to bit 7
@@ -673,18 +673,18 @@ code_847E:  lda     $0730,x             ; load control flags
         and     #$7F                    ; clear bit 7
         ora     $C4                     ; copy bit 6 into bit 7
         sta     $0730,x                 ; store toggled flags
-        bpl     code_8496               ; if bit 7 clear, done
-code_8491:  lda     #$FF                ; set infinite envelope timer
+        bpl     sfx_note_done               ; if bit 7 clear, done
+set_infinite_timer:  lda     #$FF                ; set infinite envelope timer
         sta     $0740,x                 ; prevent early release
-code_8496:  rts
+sfx_note_done:  rts
 
-code_8497:  cmp     #$04                ; is command >= 4?
-        bcc     code_84A4               ; if < 4, use directly
+sfx_dispatch_command:  cmp     #$04                ; is command >= 4?
+        bcc     sfx_command_jump               ; if < 4, use directly
         sta     $C4                     ; save command index
-        jsr     code_8592               ; read argument byte
+        jsr     read_sfx_byte               ; read argument byte
         sta     $C3                     ; store argument in $C3
         lda     $C4                     ; restore command index
-code_84A4:  jsr     jump_local_ptr      ; dispatch via pointer table
+sfx_command_jump:  jsr     jump_local_ptr      ; dispatch via pointer table
 
 ; parameters to jump_local_ptr
         .byte   $D9,$84,$DD,$84,$E1,$84,$E8,$84
@@ -695,20 +695,20 @@ code_84A4:  jsr     jump_local_ptr      ; dispatch via pointer table
         .byte   $23,$85,$27,$85,$5A,$85,$80,$85
         .byte   $AD,$86
         lda     #$20                    ; cmd 0: toggle bit 5 (legato)
-        bne     code_84EA               ; always branch
+        bne     toggle_control_flag               ; always branch
         lda     #$40                    ; cmd 1: toggle bit 6
-        bne     code_84EA               ; always branch
+        bne     toggle_control_flag               ; always branch
         lda     #$10                    ; cmd 2: set bit 4 (dotted)
         ora     $0730,x                 ; OR into control flags
-        bne     code_84ED               ; always branch
+        bne     store_control_flags               ; always branch
         lda     #$08                    ; cmd 3: toggle bit 3
-code_84EA:  eor     $0730,x             ; XOR toggle flag bits
-code_84ED:  sta     $0730,x             ; store updated control flags
+toggle_control_flag:  eor     $0730,x             ; XOR toggle flag bits
+store_control_flags:  sta     $0730,x             ; store updated control flags
         rts
 
         lda     #$00                    ; cmd 5: reset tempo fraction
         sta     $C8                     ; clear tempo accumulator
-        jsr     code_8592               ; read tempo high byte
+        jsr     read_sfx_byte               ; read tempo high byte
         ldy     $C3                     ; Y = previous arg (tempo lo)
         sta     $CA                     ; set tempo increment high
         sty     $C9                     ; set tempo increment low
@@ -733,51 +733,51 @@ code_84ED:  sta     $0730,x             ; store updated control flags
         rts
 
         lda     #$00                    ; cmd 10: loop group 0
-        beq     code_8529               ; always branch
+        beq     set_loop_group_offset               ; always branch
         lda     #$04                    ; cmd 11: loop group 1
-        bne     code_8529               ; always branch
+        bne     set_loop_group_offset               ; always branch
         lda     #$08                    ; cmd 12: loop group 2
-        bne     code_8529               ; always branch
+        bne     set_loop_group_offset               ; always branch
         lda     #$0C                    ; cmd 13: loop group 3
-code_8529:  sta     $C2                 ; set loop group offset
+set_loop_group_offset:  sta     $C2                 ; set loop group offset
         txa                             ; A = channel offset
         clc                             ; add loop group base
         adc     $C2                     ; index into loop counters
         tay                             ; Y = loop counter index
         lda     $C4                     ; load command byte
         cmp     #$12                    ; check if loop-end variant
-        bcs     code_8547               ; if >= $12, loop-end path
+        bcs     loop_end_check               ; if >= $12, loop-end path
         lda     $0744,y                 ; load loop counter
         sec                             ; decrement counter
         sbc     #$01                    ; subtract 1
-        bcs     code_8540               ; if counter exhausted
+        bcs     store_loop_counter               ; if counter exhausted
         lda     $C3                     ; reload from argument
-code_8540:  sta     $0744,y             ; store loop counter
-        beq     code_8566               ; if zero, skip loop body
-        bne     code_8555               ; else read new address
-code_8547:  lda     $0744,y             ; load loop counter
+store_loop_counter:  sta     $0744,y             ; store loop counter
+        beq     skip_loop_address               ; if zero, skip loop body
+        bne     loop_read_new_address               ; else read new address
+loop_end_check:  lda     $0744,y             ; load loop counter
         sec                             ; decrement
         sbc     #$01                    ; subtract 1
-        bne     code_8566               ; if not zero, skip ahead
+        bne     skip_loop_address               ; if not zero, skip ahead
         sta     $0744,y                 ; store zero (loop done)
-        jsr     code_8575               ; update control flags
-code_8555:  jsr     code_8592           ; read new data ptr high
+        jsr     merge_control_flags               ; update control flags
+loop_read_new_address:  jsr     read_sfx_byte           ; read new data ptr high
         sta     $C3                     ; save as $C3
-        jsr     code_8592               ; read new data ptr low
+        jsr     read_sfx_byte               ; read new data ptr low
         sta     $0728,x                 ; set data pointer low
         lda     $C3                     ; get high byte
         sta     $072C,x                 ; set data pointer high
         rts
 
-code_8566:  lda     #$02                ; skip 2 bytes (loop address)
+skip_loop_address:  lda     #$02                ; skip 2 bytes (loop address)
         clc                             ; advance data pointer
         adc     $0728,x                 ; ptr low += 2
         sta     $0728,x                 ; store advanced pointer
-        bcc     code_8574               ; if no carry, done
+        bcc     skip_loop_done               ; if no carry, done
         inc     $072C,x                 ; carry into high byte
-code_8574:  rts
+skip_loop_done:  rts
 
-code_8575:  lda     $0730,x             ; load control flags
+merge_control_flags:  lda     $0730,x             ; load control flags
         and     #$97                    ; keep bits 7,4,2,1,0
         ora     $C3                     ; merge new flag bits
         sta     $0730,x                 ; store updated flags
@@ -789,99 +789,99 @@ code_8575:  lda     $0730,x             ; load control flags
         sta     $0728,x                 ; data ptr low = 0
         sta     $072C,x                 ; data ptr high = 0
         lda     $CF                     ; load channel enable mask
-        bmi     code_8591               ; if SFX mode, just return
-        jmp     code_80D8               ; silence this channel
+        bmi     end_track_done               ; if SFX mode, just return
+        jmp     silence_channel               ; silence this channel
 
-code_8591:  rts
+end_track_done:  rts
 
-code_8592:  ldy     $0728,x             ; Y = data ptr low
+read_sfx_byte:  ldy     $0728,x             ; Y = data ptr low
         lda     $072C,x                 ; A = data ptr high
         inc     $0728,x                 ; advance pointer low
-        bne     code_85A0               ; if no overflow, skip
+        bne     jump_read_sfx_ptr               ; if no overflow, skip
         inc     $072C,x                 ; advance pointer high
-code_85A0:  jmp     read_ptr            ; read byte at Y/A address
+jump_read_sfx_ptr:  jmp     read_ptr            ; read byte at Y/A address
 
-code_85A3:  lda     $0704,x             ; load channel flags
+set_release_phase:  lda     $0704,x             ; load channel flags
         and     #$F8                    ; clear envelope phase bits
         ora     #$03                    ; set phase = release (3)
         sta     $0704,x                 ; store updated flags
         rts
 
-code_85AE:  tya                         ; save note index
+init_volume_envelope:  tya                         ; save note index
         pha                             ; push Y to stack
         ldy     #$00                    ; initial volume = 0
         lda     $0704,x                 ; load channel flags
         and     #$F8                    ; clear envelope phase bits
         sta     $0704,x                 ; phase = 0 (attack start)
         cpx     #$29                    ; is this noise SFX channel?
-        beq     code_85D0               ; noise: skip duty calc
+        beq     init_envelope_noise               ; noise: skip duty calc
         cpx     #$01                    ; is this music channel 1?
-        bne     code_85D7               ; other channels skip duty
+        bne     store_initial_volume               ; other channels skip duty
         lda     $D3                     ; load note length param
         sta     L00C1                   ; as multiply operand
         lda     $070C,x                 ; load duty/volume register
         sta     $C4                     ; as multiply operand
-        jsr     code_8006               ; duty * note length
+        jsr     multiply_8x8               ; duty * note length
         ldy     L00C1                   ; Y = multiply result
-code_85D0:  iny                         ; start volume at 1
+init_envelope_noise:  iny                         ; start volume at 1
         inc     $0704,x                 ; advance to phase 1
         inc     $0704,x                 ; advance to phase 2 (attack)
-code_85D7:  tya                         ; store initial volume
+store_initial_volume:  tya                         ; store initial volume
         sta     $0710,x                 ; set current volume level
         pla                             ; restore note index
         tay                             ; Y = note index
         rts
 
-code_85DE:  cmp     #$60                ; note index >= 96?
-        bcc     code_85E4               ; if in range, keep it
+note_to_frequency:  cmp     #$60                ; note index >= 96?
+        bcc     store_clamped_note               ; if in range, keep it
         lda     #$5F                    ; clamp to max note 95
-code_85E4:  sta     $C3                 ; store clamped note index
+store_clamped_note:  sta     $C3                 ; store clamped note index
         inc     $C3                     ; note index + 1 (1-based)
         cpx     #$28                    ; is this a SFX channel?
-        bcc     code_862A               ; music channels skip slide
+        bcc     lookup_freq_table               ; music channels skip slide
         lda     $071C,x                 ; load current note
-        beq     code_861D               ; if no current note, direct
+        beq     clear_portamento_flag               ; if no current note, direct
         cmp     $C3                     ; same note as target?
-        bne     code_85FC               ; if different, check slide
+        bne     check_slide_rate               ; if different, check slide
         lda     $0730,x                 ; load control flags
-        bpl     code_861D               ; if legato off, set direct
-        bmi     code_8644               ; legato on: reset vibrato
-code_85FC:  lda     $0718,x             ; load slide rate
-        beq     code_861D               ; if no slide, set direct
-        bcs     code_8607               ; target > current?
+        bpl     clear_portamento_flag               ; if legato off, set direct
+        bmi     check_vibrato_reset               ; legato on: reset vibrato
+check_slide_rate:  lda     $0718,x             ; load slide rate
+        beq     clear_portamento_flag               ; if no slide, set direct
+        bcs     slide_up_clear_sign               ; target > current?
         ora     #$80                    ; slide down: set bit 7
-        bne     code_8609               ; always taken
-code_8607:  and     #$7F                ; slide up: clear bit 7
-code_8609:  sta     $0718,x             ; store slide direction+rate
+        bne     store_slide_direction               ; always taken
+slide_up_clear_sign:  and     #$7F                ; slide up: clear bit 7
+store_slide_direction:  sta     $0718,x             ; store slide direction+rate
         lda     $0704,x                 ; load channel flags
         ora     #$20                    ; set portamento active bit
         sta     $0704,x                 ; store updated flags
         lda     $C3                     ; A = new target note
         ldy     $071C,x                 ; save old note in $C3
         sty     $C3                     ; swap old note to $C3
-        bne     code_8627               ; keep old note as current
-code_861D:  lda     $0704,x             ; load channel flags
+        bne     store_current_note               ; keep old note as current
+clear_portamento_flag:  lda     $0704,x             ; load channel flags
         and     #$DF                    ; clear portamento bit
         sta     $0704,x                 ; store updated flags
         lda     $C3                     ; use new note directly
-code_8627:  sta     $071C,x             ; update current note index
-code_862A:  asl     $C3                 ; note * 2 for table index
+store_current_note:  sta     $071C,x             ; update current note index
+lookup_freq_table:  asl     $C3                 ; note * 2 for table index
         ldy     $C3                     ; Y = table offset
         lda     frequency_high_start,y  ; load freq timer high
         sta     $C3                     ; store in temp
         lda     frequency_period_table,y ; load freq timer low
-code_8636:  sta     $0724,x             ; store freq hi register
+write_freq_registers:  sta     $0724,x             ; store freq hi register
         lda     $C3                     ; get freq high from temp
         sta     $0720,x                 ; store freq lo register
         ldy     #$04                    ; instrument data offset 4
         lda     ($C5),y                 ; load vibrato speed param
-        bmi     code_864C               ; if bit 7 set, reset vibrato
-code_8644:  lda     $0704,x             ; load channel flags
+        bmi     reset_vibrato_phase               ; if bit 7 set, reset vibrato
+check_vibrato_reset:  lda     $0704,x             ; load channel flags
         and     #$08                    ; check new-note flag
-        bne     code_864C               ; if set, reset vibrato
+        bne     reset_vibrato_phase               ; if set, reset vibrato
         rts
 
-code_864C:  lda     #$00                ; clear vibrato phase
+reset_vibrato_phase:  lda     #$00                ; clear vibrato phase
         sta     $0708,x                 ; reset phase accumulator
         lda     $0704,x                 ; load channel flags
         and     #$37                    ; clear vibrato & slide bits
@@ -889,26 +889,26 @@ code_864C:  lda     #$00                ; clear vibrato phase
         rts
 
         cpx     #$01                    ; is this music channel 1?
-        bne     code_8662               ; if not, use default path
+        bne     set_duty_vol_default               ; if not, use default path
         lda     $C3                     ; load argument
-        bne     code_866B               ; if nonzero, set directly
-code_8662:  lda     $070C,x             ; load current duty/vol
+        bne     store_duty_vol               ; if nonzero, set directly
+set_duty_vol_default:  lda     $070C,x             ; load current duty/vol
         and     #$C0                    ; keep duty cycle bits
         ora     $C3                     ; merge new volume bits
         ora     #$30                    ; set length counter halt
-code_866B:  sta     $070C,x             ; store duty/volume register
+store_duty_vol:  sta     $070C,x             ; store duty/volume register
         rts
 
         inc     $C3                     ; cmd: increment instrument
         lda     $C3                     ; load new instrument index
         cmp     $0700,x                 ; same as current?
-        beq     code_86A0               ; if same, skip reload
+        beq     instrument_ptr_done               ; if same, skip reload
         sta     $0700,x                 ; set new instrument index
         tay                             ; Y = instrument index
         lda     $0704,x                 ; load channel flags
         ora     #$08                    ; set new-note flag
         sta     $0704,x                 ; store updated flags
-code_8684:  dey                         ; Y = instrument - 1
+compute_instrument_ptr:  dey                         ; Y = instrument - 1
         lda     #$00                    ; clear high byte
         sta     $C3                     ; init pointer high = 0
         tya                             ; A = instrument - 1
@@ -924,7 +924,7 @@ code_8684:  dey                         ; Y = instrument - 1
         lda     $C3                     ; get high byte
         adc     sound_data_high         ; + sound data base high
         sta     $C6                     ; store ptr high in $C6
-code_86A0:  rts
+instrument_ptr_done:  rts
 
         lda     $C3                     ; cmd: set pitch detune
         sta     $0714,x                 ; store detune offset
@@ -941,7 +941,7 @@ code_86A0:  rts
         sta     $070C,x                 ; store duty/volume register
         rts
 
-code_86BA:  lda     $0710,x             ; load current volume
+update_volume_envelope:  lda     $0710,x             ; load current volume
         sta     $C4                     ; save as multiply input
         lda     $0704,x                 ; load channel flags
         and     #$07                    ; get envelope phase (0-7)
@@ -956,74 +956,74 @@ code_86BA:  lda     $0710,x             ; load current volume
         lda     $C4                     ; load current volume
         clc                             ; add attack increment
         adc     duty_cycle_table,y      ; from duty cycle table
-        bcs     code_86E2               ; if overflow, clamp
+        bcs     clamp_attack_max               ; if overflow, clamp
         cmp     #$F0                    ; reached max ($F0)?
-        bcc     code_871D               ; if not, keep volume
-code_86E2:  lda     #$F0                ; clamp to max volume $F0
-        bne     code_871A               ; advance to next phase
+        bcc     store_envelope_volume               ; if not, keep volume
+clamp_attack_max:  lda     #$F0                ; clamp to max volume $F0
+        bne     advance_envelope_phase               ; advance to next phase
         ldy     #$01                    ; phase 1: decay ramp-down
         lda     ($C5),y                 ; load decay rate
-        beq     code_86FB               ; if zero, use sustain level
+        beq     load_sustain_level               ; if zero, use sustain level
         tay                             ; Y = decay decrement idx
         lda     $C4                     ; load current volume
         sec                             ; subtract decay amount
         sbc     duty_cycle_table,y      ; from duty cycle table
-        bcc     code_86FB               ; if underflow, use sustain
+        bcc     load_sustain_level               ; if underflow, use sustain
         ldy     #$02                    ; offset 2 = sustain level
         cmp     ($C5),y                 ; above sustain level?
-        bcs     code_871D               ; if yes, keep decaying
-code_86FB:  ldy     #$02                ; reached sustain level
+        bcs     store_envelope_volume               ; if yes, keep decaying
+load_sustain_level:  ldy     #$02                ; reached sustain level
         lda     ($C5),y                 ; load sustain level
-        jmp     code_871A               ; advance to sustain phase
+        jmp     advance_envelope_phase               ; advance to sustain phase
 
         txa                             ; phase 2: release ramp-down
         and     #$03                    ; mask to channel 0-3
         cmp     #$01                    ; is this channel 1?
-        beq     code_8718               ; channel 1: fade to zero
+        beq     set_volume_zero               ; channel 1: fade to zero
         ldy     #$03                    ; offset 3 = release rate
         lda     ($C5),y                 ; load release rate
-        beq     code_8720               ; if zero, hold volume
+        beq     route_volume_output               ; if zero, hold volume
         tay                             ; Y = release decrement idx
         lda     $C4                     ; load current volume
         sec                             ; subtract release amount
         sbc     duty_cycle_table,y      ; from duty cycle table
-        bcs     code_871D               ; if underflow, set to zero
-code_8718:  lda     #$00                ; volume = 0 (silent)
-code_871A:  inc     $0704,x             ; advance envelope phase
-code_871D:  sta     $0710,x             ; store updated volume
-code_8720:  cpx     #$28                ; is this a SFX channel?
-        bcc     code_8737               ; music channels: write APU
+        bcs     store_envelope_volume               ; if underflow, set to zero
+set_volume_zero:  lda     #$00                ; volume = 0 (silent)
+advance_envelope_phase:  inc     $0704,x             ; advance envelope phase
+store_envelope_volume:  sta     $0710,x             ; store updated volume
+route_volume_output:  cpx     #$28                ; is this a SFX channel?
+        bcc     get_music_channel_vol               ; music channels: write APU
         lda     $CF                     ; load channel enable mask
-        bpl     code_872B               ; if SFX not active, mix
-        jmp     code_88A0               ; SFX active: write directly
+        bpl     apply_fade_volume               ; if SFX not active, mix
+        jmp     update_portamento               ; SFX active: write directly
 
-code_872B:  lda     $CD                 ; load master volume high
+apply_fade_volume:  lda     $CD                 ; load master volume high
         ldy     $CC                     ; load master volume control
-        bmi     code_8733               ; pitch bend sign is negative?
+        bmi     check_fade_max               ; pitch bend sign is negative?
         eor     #$FF                    ; negate to get absolute value
-code_8733:  cmp     #$FF                ; check if pitch bend is max
-        bne     code_8740               ; nonzero: apply volume scaling
-code_8737:  txa                         ; get channel index (0-3)
+check_fade_max:  cmp     #$FF                ; check if pitch bend is max
+        bne     check_noise_volume               ; nonzero: apply volume scaling
+get_music_channel_vol:  txa                         ; get channel index (0-3)
         and     #$03
         cmp     #$01                    ; channel 1 = pulse 2?
-        bne     code_8760               ; not pulse 2: use envelope vol
-        beq     code_8752               ; pulse 2: use envelope vol only
-code_8740:  cpx     #$29                ; is this the noise channel?
-        bne     code_875B               ; not noise: compare volumes
+        bne     use_envelope_volume               ; not pulse 2: use envelope vol
+        beq     load_envelope_volume               ; pulse 2: use envelope vol only
+check_noise_volume:  cpx     #$29                ; is this the noise channel?
+        bne     compare_fade_envelope               ; not noise: compare volumes
         sta     $C4                     ; pitch bend as multiplier
         lda     $0740,x                 ; load note duration timer
         sta     L00C1                   ; store for multiply
-        jsr     code_8006               ; multiply bend * duration
+        jsr     multiply_8x8               ; multiply bend * duration
         lda     L00C1                   ; get multiply result high
-        beq     code_87AA               ; zero: use result as volume
-code_8752:  lda     $0710,x             ; load current envelope volume
-        beq     code_87AA               ; zero: use as volume output
+        beq     write_volume_to_apu               ; zero: use result as volume
+load_envelope_volume:  lda     $0710,x             ; load current envelope volume
+        beq     write_volume_to_apu               ; zero: use as volume output
         lda     #$FF                    ; set full volume ($FF)
-        bne     code_87AA               ; always branch to write vol
-code_875B:  cmp     $0710,x             ; compare bend with envelope
-        bcc     code_8763               ; use smaller of the two
-code_8760:  lda     $0710,x             ; load current envelope volume
-code_8763:  lsr     a                   ; shift high nibble to low
+        bne     write_volume_to_apu               ; always branch to write vol
+compare_fade_envelope:  cmp     $0710,x             ; compare bend with envelope
+        bcc     compute_volume_atten               ; use smaller of the two
+use_envelope_volume:  lda     $0710,x             ; load current envelope volume
+compute_volume_atten:  lsr     a                   ; shift high nibble to low
         lsr     a
         lsr     a
         lsr     a
@@ -1032,56 +1032,56 @@ code_8763:  lsr     a                   ; shift high nibble to low
         ldy     #$06                    ; instrument offset 6
         lda     ($C5),y                 ; load volume vibrato depth
         cmp     #$05                    ; depth < 5?
-        bcc     code_8797               ; skip vol vibrato if small
+        bcc     apply_volume_atten               ; skip vol vibrato if small
         sta     $C4                     ; depth as multiplier
         ldy     $0708,x                 ; load vibrato phase
         lda     $0704,x                 ; load channel flags
         asl     a                       ; shift bit 6 into carry
         asl     a
         tya                             ; use phase as operand
-        bcc     code_8782               ; check vibrato direction
+        bcc     skip_vol_vibrato_neg               ; check vibrato direction
         eor     #$FF                    ; negate phase if descending
-code_8782:  beq     code_8797           ; zero phase: skip vibrato
+skip_vol_vibrato_neg:  beq     apply_volume_atten           ; zero phase: skip vibrato
         sta     L00C1                   ; store for multiply
-        jsr     code_8006               ; multiply depth * phase
+        jsr     multiply_8x8               ; multiply depth * phase
         lda     L00C1                   ; get result high byte
         lsr     a                       ; divide result by 4
         lsr     a
         cmp     #$10                    ; clamp to 15 max
-        bcs     code_87A5               ; overflow: use raw duty/vol
+        bcs     clamp_volume_zero               ; overflow: use raw duty/vol
         cmp     $C3                     ; compare with attenuation
-        bcc     code_8797               ; use larger attenuation
+        bcc     apply_volume_atten               ; use larger attenuation
         sta     $C3                     ; update volume attenuation
-code_8797:  lda     #$10                ; bit 4 flag for volume test
+apply_volume_atten:  lda     #$10                ; bit 4 flag for volume test
         sta     $C4
         lda     $070C,x                 ; load base duty/volume
         sec
         sbc     $C3                     ; subtract attenuation
         bit     $C4                     ; test bit 4 of result
-        bne     code_87AA               ; underflow: clamp volume
-code_87A5:  lda     $070C,x             ; load raw duty/volume
+        bne     write_volume_to_apu               ; underflow: clamp volume
+clamp_volume_zero:  lda     $070C,x             ; load raw duty/volume
         and     #$F0                    ; keep duty, zero volume
-code_87AA:  ldy     #$00                ; APU reg offset 0 (volume)
-        jsr     code_80EC               ; write volume to APU
+write_volume_to_apu:  ldy     #$00                ; APU reg offset 0 (volume)
+        jsr     write_apu_register               ; write volume to APU
         txa                             ; get channel index
         and     #$03
         tay                             ; Y = channel 0-3
         lda     $077C,y                 ; load cached freq high
-        bmi     code_880C               ; $FF = no prev write, skip
+        bmi     use_base_frequency               ; $FF = no prev write, skip
         ldy     #$05                    ; instrument offset 5
         lda     ($C5),y                 ; load freq vibrato depth
-        beq     code_880C               ; zero: no vibrato
+        beq     use_base_frequency               ; zero: no vibrato
         sta     $C4                     ; depth as multiplier
         ldy     $0708,x                 ; load vibrato phase
         lda     $0704,x                 ; load channel flags
         asl     a                       ; shift bit 6 into carry
         asl     a
         tya                             ; use phase as operand
-        bcc     code_87CD               ; check vibrato direction
+        bcc     skip_freq_vibrato_zero               ; check vibrato direction
         eor     #$FF                    ; negate phase if descending
-code_87CD:  beq     code_880C           ; zero phase: skip vibrato
+skip_freq_vibrato_zero:  beq     use_base_frequency           ; zero phase: skip vibrato
         sta     L00C1                   ; store for multiply
-        jsr     code_8006               ; multiply depth * phase
+        jsr     multiply_8x8               ; multiply depth * phase
         lda     L00C1                   ; result high = Y:$C2
         lsr     a                       ; shift 16-bit result >> 4
         ror     $C2
@@ -1093,39 +1093,39 @@ code_87CD:  beq     code_880C           ; zero phase: skip vibrato
         ror     $C2
         tay                             ; Y = freq offset high
         ora     $C2                     ; check if offset is zero
-        beq     code_880C               ; zero offset: use base freq
+        beq     use_base_frequency               ; zero offset: use base freq
         lda     $0704,x                 ; check vibrato direction bit
-        bmi     code_87FA               ; bit 7 set: subtract freq
+        bmi     vibrato_subtract_freq               ; bit 7 set: subtract freq
         clc
         lda     $C2                     ; add vibrato offset lo
         adc     $0720,x                 ; to base frequency lo
         sta     $C2                     ; store adjusted freq lo
         tya                             ; add vibrato offset hi
         adc     $0724,x                 ; to base frequency hi
-        bne     code_8809               ; nonzero: use adjusted freq
-code_87FA:  sec
+        bne     store_adjusted_freq_hi               ; nonzero: use adjusted freq
+vibrato_subtract_freq:  sec
         lda     $0720,x                 ; base freq lo
         sbc     $C2                     ; subtract vibrato offset lo
         sta     $C2                     ; store adjusted freq lo
         lda     $0724,x                 ; base freq hi
         sty     L00C1                   ; store offset hi for sub
         sbc     L00C1                   ; subtract vibrato offset hi
-code_8809:  tay                         ; Y = adjusted freq hi
-        bne     code_8814               ; nonzero: use adjusted freq
-code_880C:  lda     $0720,x             ; no vibrato: use base freq lo
+store_adjusted_freq_hi:  tay                         ; Y = adjusted freq hi
+        bne     check_sweep_active               ; nonzero: use adjusted freq
+use_base_frequency:  lda     $0720,x             ; no vibrato: use base freq lo
         sta     $C2                     ; store to $C2
         ldy     $0724,x                 ; Y = base freq hi
-code_8814:  cpx     #$28                ; is this a music channel?
-        bcs     code_8835               ; SFX channel: skip sweep
+check_sweep_active:  cpx     #$28                ; is this a music channel?
+        bcs     write_freq_to_apu               ; SFX channel: skip sweep
         lda     $D6                     ; load SFX active flag
-        bpl     code_8835               ; no SFX: skip sweep
+        bpl     write_freq_to_apu               ; no SFX: skip sweep
         lda     $D8                     ; load pitch sweep amount
-        beq     code_8835               ; zero: no sweep active
+        beq     write_freq_to_apu               ; zero: no sweep active
         sta     $C4                     ; sweep as multiplier
         sty     L00C1                   ; save freq hi
         lda     $C2                     ; load freq lo
         pha                             ; save freq lo on stack
-        jsr     code_8006               ; multiply sweep * freq lo
+        jsr     multiply_8x8               ; multiply sweep * freq lo
         pla                             ; restore freq lo
         clc
         adc     $C2                     ; add sweep offset to freq lo
@@ -1133,9 +1133,9 @@ code_8814:  cpx     #$28                ; is this a music channel?
         lda     #$00                    ; propagate carry
         adc     L00C1                   ; add to freq hi
         tay                             ; Y = swept freq hi
-code_8835:  txa                         ; get channel index
+write_freq_to_apu:  txa                         ; get channel index
         and     #$03
-        bne     code_8849               ; nonzero: not triangle
+        bne     calc_pulse_freq               ; nonzero: not triangle
         tya                             ; A = freq hi for triangle
         and     #$0F                    ; mask to low nibble
         ldy     #$07                    ; instrument offset 7
@@ -1143,12 +1143,12 @@ code_8835:  txa                         ; get channel index
         sta     $C2                     ; store as $4008 value
         lda     #$00                    ; clear freq hi
         sta     L00C1                   ; freq hi = 0 for triangle
-        beq     code_8884               ; jump to write freq regs
-code_8849:  tya                         ; A = freq hi
+        beq     write_freq_lo_reg               ; jump to write freq regs
+calc_pulse_freq:  tya                         ; A = freq hi
         ldy     #$08                    ; Y = 8 for threshold scan
-code_884C:  dey                         ; scan downward
+octave_scan_loop:  dey                         ; scan downward
         cmp     volume_thresholds_table,y ; find matching octave range
-        bcc     code_884C               ; loop until A >= threshold
+        bcc     octave_scan_loop               ; loop until A >= threshold
         sta     L00C1                   ; save raw freq hi
         tya                             ; Y = octave index
         clc
@@ -1161,50 +1161,50 @@ code_884C:  dey                         ; scan downward
         tya                             ; get combined index
         and     #$38                    ; extract octave (bits 3-5)
         eor     #$38                    ; invert for shift count
-        beq     code_8870               ; zero shifts needed?
-code_8867:  lsr     L00C1               ; shift mantissa right
+        beq     check_pitch_detune               ; zero shifts needed?
+mantissa_shift_loop:  lsr     L00C1               ; shift mantissa right
         ror     $C2                     ; into freq lo
         sec
         sbc     #$08                    ; decrement shift counter
-        bne     code_8867               ; loop until done
-code_8870:  ldy     #$00                ; Y = 0 for detune check
+        bne     mantissa_shift_loop               ; loop until done
+check_pitch_detune:  ldy     #$00                ; Y = 0 for detune check
         lda     $0714,x                 ; load pitch detune
-        beq     code_8884               ; zero: no detune
-        bpl     code_887A               ; positive detune?
+        beq     write_freq_lo_reg               ; zero: no detune
+        bpl     apply_pitch_detune               ; positive detune?
         dey                             ; Y = $FF for sign extend
-code_887A:  clc                         ; add detune to freq lo
+apply_pitch_detune:  clc                         ; add detune to freq lo
         adc     $C2                     ; add detune to freq lo
         sta     $C2                     ; store adjusted freq lo
         tya                             ; sign extend to high byte
         adc     L00C1                   ; add carry to freq hi
         sta     L00C1                   ; store adjusted freq hi
-code_8884:  ldy     #$02                ; APU reg offset 2 (freq lo)
+write_freq_lo_reg:  ldy     #$02                ; APU reg offset 2 (freq lo)
         lda     $C2                     ; load freq lo
-        jsr     code_80EC               ; write freq lo to APU
+        jsr     write_apu_register               ; write freq lo to APU
         txa                             ; get channel index
         and     #$03
         tay                             ; Y = channel 0-3
         lda     L00C1                   ; load freq hi
         cmp     $077C,y                 ; same as cached value?
-        beq     code_88A0               ; unchanged: skip write
+        beq     update_portamento               ; unchanged: skip write
         sta     $077C,y                 ; update cached freq hi
         ora     #$08                    ; set length counter load bit
         ldy     #$03                    ; APU reg offset 3 (freq hi)
-        jsr     code_80EC               ; write freq hi to APU
-code_88A0:  lda     $0704,x             ; load channel flags
+        jsr     write_apu_register               ; write freq hi to APU
+update_portamento:  lda     $0704,x             ; load channel flags
         and     #$20                    ; test portamento bit
-        beq     code_88FA               ; no portamento: done
+        beq     update_vibrato_phase               ; no portamento: done
         lda     $0718,x                 ; load portamento rate
-        beq     code_88F2               ; zero rate: clear flag
+        beq     clear_portamento_done               ; zero rate: clear flag
         ldy     #$00                    ; Y = 0 (direction up)
         asl     a                       ; double rate, sign to carry
         php                             ; save sign flag
-        bcc     code_88B8               ; positive: slide up
+        bcc     apply_slide_rate               ; positive: slide up
         eor     #$FF                    ; negate for absolute value
         clc
         adc     #$01
         dey                             ; Y = $FF (direction down)
-code_88B8:  clc
+apply_slide_rate:  clc
         adc     $0720,x                 ; add rate to freq lo
         sta     $0720,x                 ; store updated freq lo
         tya                             ; propagate carry/borrow
@@ -1223,29 +1223,29 @@ code_88B8:  clc
         adc     #$00                    ; A = 0 if borrow, 1 if not
         plp                             ; restore slide direction
         adc     #$00                    ; add direction flag
-        bne     code_88FA               ; nonzero: not at target yet
+        bne     update_vibrato_phase               ; nonzero: not at target yet
         txa                             ; check if channel 0
-        beq     code_88FA               ; channel 0: skip clamp
+        beq     update_vibrato_phase               ; channel 0: skip clamp
         lda     frequency_high_start,y  ; clamp to target freq lo
         sta     $0720,x                 ; store clamped freq lo
         lda     frequency_period_table,y ; clamp to target freq hi
         sta     $0724,x                 ; store clamped freq hi
-code_88F2:  lda     $0704,x             ; load channel flags
+clear_portamento_done:  lda     $0704,x             ; load channel flags
         and     #$DF                    ; clear portamento bit
         sta     $0704,x                 ; store updated flags
-code_88FA:  ldy     #$04                ; instrument offset 4
+update_vibrato_phase:  ldy     #$04                ; instrument offset 4
         lda     ($C5),y                 ; load vibrato speed
         and     #$7F                    ; mask off sign bit
-        beq     code_8914               ; zero: no vibrato update
+        beq     vibrato_update_done               ; zero: no vibrato update
         clc
         adc     $0708,x                 ; advance vibrato phase
         sta     $0708,x                 ; store updated phase
-        bcc     code_8914               ; no overflow: done
+        bcc     vibrato_update_done               ; no overflow: done
         lda     $0704,x                 ; load channel flags
         clc
         adc     #$40                    ; toggle vibrato direction
         sta     $0704,x                 ; store updated flags
-code_8914:  rts
+vibrato_update_done:  rts
 
 frequency_scale_factors_table:  .byte   $02,$04,$08,$10,$20,$40,$80
 frequency_scale_alt_table:  .byte   $03,$06,$0C,$18,$30,$60,$C0

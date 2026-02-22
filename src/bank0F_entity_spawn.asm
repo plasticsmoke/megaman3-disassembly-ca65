@@ -58,14 +58,14 @@ process_frame_yield           := $FD80  ; process_frame_yield — render frame +
 ; Uses $B8 as the text data index, scroll_y as the Y scroll position.
 ; The text data pointers are stored in credits_text_pointer_low_bytes (low) / credits_text_pointer_high_bytes (high).
 ; ===========================================================================
-code_A01B:  lda     ent_status          ; check if credits entity active
-        bmi     code_A077               ; if active (bit 7 set), skip scroll
+credits_main_loop:  lda     ent_status          ; check if credits entity active
+        bmi     skip_to_scroll_check               ; if active (bit 7 set), skip scroll
         lda     $95                     ; frame counter
         and     #$01                    ; only process on even frames
-        bne     code_A077
+        bne     skip_to_scroll_check
         lda     scroll_y                ; get Y scroll position
         and     #$07                    ; check if on 8-pixel boundary
-        bne     code_A077               ; not aligned, skip nametable update
+        bne     skip_to_scroll_check               ; not aligned, skip nametable update
         lda     scroll_y                ; convert scroll to tile row
         lsr     a                       ; divide by 8
         lsr     a                       ; (continued shift)
@@ -86,12 +86,12 @@ code_A01B:  lda     ent_status          ; check if credits entity active
         rol     $03                     ; carry into high byte
         sta     $04                     ; store PPU addr low byte
         cpx     #$3B                    ; past end of text data?
-        bcs     code_A059               ; yes: fill with blank tiles
+        bcs     fill_blank_row               ; yes: fill with blank tiles
         lda     ($00),y                 ; read expected row from text data
         cmp     $02                     ; matches current scroll row?
-        beq     code_A07A               ; yes: copy text row to nametable buffer
+        beq     copy_text_row               ; yes: copy text row to nametable buffer
 ; --- fill nametable row with blank tiles ($24 = space) ---
-code_A059:  lda     $03                 ; load PPU addr high byte
+fill_blank_row:  lda     $03                 ; load PPU addr high byte
         ora     #$24                    ; set nametable base ($24xx)
         sta     $0780                   ; PPU address high byte
         lda     $04                     ; load PPU addr low byte
@@ -99,24 +99,24 @@ code_A059:  lda     $03                 ; load PPU addr high byte
         ldy     #$1F                    ; 32 tiles per row
         sty     $0782                   ; tile count
         lda     #$24                    ; blank tile
-code_A06C:  sta     $0783,y             ; fill row buffer with blanks
+fill_blank_loop:  sta     $0783,y             ; fill row buffer with blanks
         dey                             ; next tile slot
-        bpl     code_A06C
+        bpl     fill_blank_loop
         sty     $07A3                   ; terminator
         sty     nametable_dirty         ; signal NMI to upload
-code_A077:  jmp     code_A0C0           ; jump to scroll check
+skip_to_scroll_check:  jmp     check_scroll_done           ; jump to scroll check
 
 ; --- copy text row from credits data to nametable buffer ---
 ; Format: [row#] [left_pad] [text_len] [tile, tile, ...] (padded with blanks)
-code_A07A:  iny                         ; skip row number byte
+copy_text_row:  iny                         ; skip row number byte
         lda     ($00),y                 ; read left padding (spaces before text)
         sta     $05                     ; store left padding count
         ldx     #$00                    ; X = buffer write index
         lda     #$24                    ; blank tile
-code_A083:  sta     $0783,x             ; fill left padding
+fill_left_padding_loop:  sta     $0783,x             ; fill left padding
         inx                             ; advance buffer index
         dec     $05                     ; decrement pad counter
-        bpl     code_A083               ; loop until padding done
+        bpl     fill_left_padding_loop               ; loop until padding done
         lda     $04                     ; load PPU addr low
         sta     $0781                   ; PPU address low byte
         lda     $03                     ; load PPU addr high
@@ -128,52 +128,52 @@ code_A083:  sta     $0783,x             ; fill left padding
         lda     ($00),y                 ; read text length
         sta     $02                     ; store text length
         iny                             ; advance to first tile
-code_A0A2:  lda     ($00),y             ; copy text tiles to buffer
+copy_text_tiles_loop:  lda     ($00),y             ; copy text tiles to buffer
         sta     $0783,x                 ; write tile to buffer
         iny                             ; next source byte
         inx                             ; next buffer position
         dec     $02                     ; decrement text counter
-        bpl     code_A0A2               ; loop until text copied
+        bpl     copy_text_tiles_loop               ; loop until text copied
         lda     #$24                    ; pad remainder with blanks
-code_A0AF:  sta     $0783,x             ; fill remaining with blanks
+fill_right_padding_loop:  sta     $0783,x             ; fill remaining with blanks
         inx                             ; next buffer position
         cpx     #$20                    ; filled all 32 tiles?
-        bne     code_A0AF
+        bne     fill_right_padding_loop
         lda     #$FF                    ; terminator value
         sta     $07A3                   ; terminator
         sta     nametable_dirty         ; signal NMI to upload
         inc     $B8                     ; advance to next text data entry
 ; --- check if credits text finished scrolling ---
-code_A0C0:  lda     scroll_y            ; check scroll position
-        bne     code_A0D4               ; still scrolling
+check_scroll_done:  lda     scroll_y            ; check scroll position
+        bne     advance_scroll               ; still scrolling
         lda     $B8                     ; check text data index
         cmp     #$3B                    ; all 59 text entries displayed?
-        bne     code_A0D4               ; not all shown yet
+        bne     advance_scroll               ; not all shown yet
         lda     ent_var2                ; screen-wrap counter
         cmp     #$02                    ; wrapped twice (full scroll)?
-        bne     code_A0D4               ; not done wrapping
-        jmp     code_A137               ; start "PRESENTED BY CAPCOM" animation
+        bne     advance_scroll               ; not done wrapping
+        jmp     capcom_walkon_init               ; start "PRESENTED BY CAPCOM" animation
 
 ; --- advance Y scroll by 1 pixel (every other frame) ---
-code_A0D4:  lda     $95
+advance_scroll:  lda     $95
         and     #$01                    ; even frames only
-        bne     code_A0EF               ; skip on odd frames
+        bne     render_star_sprites               ; skip on odd frames
         inc     scroll_y                ; scroll Y down 1 pixel
         lda     scroll_y                ; read new scroll value
         cmp     #$F0                    ; past 240 pixels? (nametable wrap)
-        bne     code_A0EF               ; no wrap needed
+        bne     render_star_sprites               ; no wrap needed
         lda     #$00                    ; reset scroll to top
         sta     scroll_y                ; wrap back to 0
         lda     $B8                     ; check text data index
         cmp     #$3B                    ; past end of text data?
-        bne     code_A0EF               ; not finished yet
+        bne     render_star_sprites               ; not finished yet
         inc     ent_var2                ; count nametable wraps
 ; --- render star sprites for credits background ---
 ; Copies 12 OAM entries from credits_star_sprites_oam_y (6 per entity slot), with Y offset from ent_timer.
 ; Two sets of 6 sprites: first set uses slot 0 timer, second uses slot $20 (1).
-code_A0EF:  ldy     #$00                ; OAM buffer index
+render_star_sprites:  ldy     #$00                ; OAM buffer index
         ldx     #$00                    ; entity slot offset
-code_A0F3:  lda     credits_star_sprites_oam_y,y ; sprite Y position (base)
+star_sprite_loop:  lda     credits_star_sprites_oam_y,y ; sprite Y position (base)
         clc                             ; prepare for add
         adc     ent_timer,x             ; add vertical scroll offset
         sta     $0200,y                 ; write to OAM Y
@@ -188,10 +188,10 @@ code_A0F3:  lda     credits_star_sprites_oam_y,y ; sprite Y position (base)
         iny                             ; skip attr byte
         iny                             ; advance to next OAM entry (4 bytes each)
         cpy     #$18                    ; first 6 sprites done?
-        bcc     code_A0F3               ; loop for first 6 sprites
+        bcc     star_sprite_loop               ; loop for first 6 sprites
         ldx     #$20                    ; switch to entity slot 1 offset
         cpy     #$30                    ; all 12 sprites done?
-        bcc     code_A0F3               ; loop for next 6 sprites
+        bcc     star_sprite_loop               ; loop for next 6 sprites
         sty     oam_ptr                 ; mark end of OAM data
         lda     ent_timer               ; advance slot 0 Y offset
         clc                             ; prepare for add
@@ -202,7 +202,7 @@ code_A0F3:  lda     credits_star_sprites_oam_y,y ; sprite Y position (base)
         adc     #$03                    ; move stars downward 3px/frame
         sta     ent_var1
         jsr     process_frame_yield     ; yield frame (process_frame_yield)
-        jmp     code_A01B               ; loop back to credits main
+        jmp     credits_main_loop               ; loop back to credits main
 
 ; ===========================================================================
 ; "PRESENTED BY CAPCOM" — MEGA MAN WALK-ON ANIMATION
@@ -211,10 +211,10 @@ code_A0F3:  lda     credits_star_sprites_oam_y,y ; sprite Y position (base)
 ; entities that walk across the screen. Two nametable rows are cleared
 ; to make space, then characters scroll in from the right.
 ; ===========================================================================
-code_A137:  lda     ent_status          ; check slot 0 status
-        bmi     code_A181               ; already initialized, skip setup
+capcom_walkon_init:  lda     ent_status          ; check slot 0 status
+        bmi     walkon_anim_update               ; already initialized, skip setup
         ldx     #$01                    ; set up entity slots 0 and 1
-code_A13E:  lda     #$80                ; active flag value
+init_character_slot_loop:  lda     #$80                ; active flag value
         sta     ent_status,x            ; mark entity active
         sta     ent_flags,x             ; set active flag
         lda     credits_character_anim_ids,x ; animation ID from table
@@ -227,7 +227,7 @@ code_A13E:  lda     #$80                ; active flag value
         sta     ent_anim_frame,x        ; reset animation
         sta     ent_anim_state,x
         dex                             ; next slot
-        bpl     code_A13E               ; loop for both slots
+        bpl     init_character_slot_loop               ; loop for both slots
         lda     #$25                    ; set up two nametable row clears
         sta     $0780                   ; PPU addr high (row 1)
         lda     #$D6                    ; row 1 PPU addr low = $D6
@@ -241,28 +241,28 @@ code_A13E:  lda     #$80                ; active flag value
         sta     $0786
         sta     ent_timer               ; reset animation timer
 ; --- character walk + text reveal animation ---
-code_A181:  dec     $0361               ; decrement slot 1 X timer
-        bne     code_A18B               ; skip if timer not zero
+walkon_anim_update:  dec     $0361               ; decrement slot 1 X timer
+        bne     walkon_check_anim               ; skip if timer not zero
         lda     #$00                    ; zero = inactive
         sta     $0301                   ; deactivate slot 1
-code_A18B:  lda     ent_anim_id         ; slot 0 animation state
+walkon_check_anim:  lda     ent_anim_id         ; slot 0 animation state
         cmp     #$07                    ; falling animation?
-        beq     code_A1E8               ; yes: handle falling
+        beq     handle_falling               ; yes: handle falling
         dec     ent_x_px                ; move character left 1px
         lda     ent_x_px                ; read current X position
         and     #$07                    ; on 8-pixel boundary?
-        bne     code_A1CA               ; no: skip text reveal
+        bne     check_trigger_fall               ; no: skip text reveal
         lda     ent_x_px                ; check X position range
         cmp     #$B1                    ; past right boundary?
-        bcs     code_A1CA               ; yes: skip text reveal
+        bcs     check_trigger_fall               ; yes: skip text reveal
         cmp     #$50                    ; past left boundary?
-        bcc     code_A1CA               ; yes: skip text reveal
+        bcc     check_trigger_fall               ; yes: skip text reveal
 ; --- reveal "CAPCOM" letters one at a time ---
         dec     $0781                   ; shift nametable column left
         dec     $0785                   ; shift bottom row column left
         ldx     ent_var3                ; current letter index
         cpx     #$0C                    ; all 12 chars placed?
-        beq     code_A1CA               ; yes: skip letter placement
+        beq     check_trigger_fall               ; yes: skip letter placement
         lda     credits_presented_by_capcom_top,x ; top row tile for this letter
         sta     $0783                   ; write to top row buffer
         lda     credits_presented_by_capcom_bottom,x ; bottom row tile for this letter
@@ -272,9 +272,9 @@ code_A18B:  lda     ent_anim_id         ; slot 0 animation state
         sta     nametable_dirty         ; trigger NMI upload
         inc     ent_var3                ; advance to next letter
 ; --- trigger fall when character reaches X=$20 ---
-code_A1CA:  lda     ent_x_px            ; check current X position
+check_trigger_fall:  lda     ent_x_px            ; check current X position
         cmp     #$20                    ; reached left target position?
-        bne     code_A1FF               ; not at target, skip fall
+        bne     walkon_next_frame               ; not at target, skip fall
         lda     #$44                    ; set Y velocity sub-pixel
         sta     ent_yvel_sub
         lda     #$03                    ; set Y velocity (falling speed)
@@ -285,16 +285,16 @@ code_A1CA:  lda     ent_x_px            ; check current X position
         sta     ent_anim_state          ; reset animation state
         sta     ent_anim_frame          ; reset animation frame
 ; --- handle falling animation ---
-code_A1E8:  lda     #$7C                ; ground level Y position
+handle_falling:  lda     #$7C                ; ground level Y position
         cmp     ent_y_px                ; reached ground?
-        bcs     code_A1F7               ; not yet: keep falling
+        bcs     apply_gravity               ; not yet: keep falling
         sta     ent_y_px                ; clamp to ground
         inc     ent_y_px                ; nudge below ground (trigger landing)
-        bcc     code_A1FF               ; continue to sprite render
-code_A1F7:  ldx     #$00                ; entity slot 0
+        bcc     walkon_next_frame               ; continue to sprite render
+apply_gravity:  ldx     #$00                ; entity slot 0
         jsr     apply_y_speed           ; apply_y_speed (gravity)
         inc     ent_x_px                ; drift right slightly while falling
-code_A1FF:  jmp     code_A0EF           ; back to star sprite render loop
+walkon_next_frame:  jmp     render_star_sprites           ; back to star sprite render loop
 
 ; ===========================================================================
 ; CREDITS STAR SPRITE DATA

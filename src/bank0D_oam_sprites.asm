@@ -62,9 +62,9 @@
         sta     $01                     ; (high bytes overlap with sprite data start)
         ldy     #$00                    ; start at beginning of OAM buffer
 ; --- copy OAM quads until $FF terminator ---
-code_A00F:  lda     ($00),y             ; read Y position (or terminator)
+copy_oam_quad_loop:  lda     ($00),y             ; read Y position (or terminator)
         cmp     #$FF                    ; end of sprite frame?
-        beq     code_A02D               ; yes -- done copying
+        beq     copy_portrait_palette               ; yes -- done copying
         sta     $0200,y                 ; write Y position to OAM buffer
         iny
         lda     ($00),y                 ; read tile index
@@ -76,9 +76,9 @@ code_A00F:  lda     ($00),y             ; read Y position (or terminator)
         lda     ($00),y                 ; read X position
         sta     $0200,y                 ; write X position
         iny
-        bne     code_A00F               ; loop (max 64 sprites)
+        bne     copy_oam_quad_loop               ; loop (max 64 sprites)
 ; --- copy palette for this portrait ---
-code_A02D:  sty     oam_ptr             ; save OAM write position
+copy_portrait_palette:  sty     oam_ptr             ; save OAM write position
         sty     ent_var3                ; also store in entity var3
         lda     ent_var2                ; current portrait index
         asl     a                       ; * 8 (each palette is 8 bytes)
@@ -86,12 +86,12 @@ code_A02D:  sty     oam_ptr             ; save OAM write position
         asl     a
         tay                             ; Y = palette offset
         ldx     #$00
-code_A03B:  lda     robot_master_palette_data,y ; read palette byte
+palette_copy_loop:  lda     robot_master_palette_data,y ; read palette byte
         sta     $0618,x                 ; write to palette staging buffer
         iny
         inx
         cpx     #$08                    ; 8 bytes per palette block
-        bne     code_A03B
+        bne     palette_copy_loop
         stx     palette_dirty           ; flag palette as needing PPU update
         inc     ent_var2                ; advance to next portrait for next call
         rts
