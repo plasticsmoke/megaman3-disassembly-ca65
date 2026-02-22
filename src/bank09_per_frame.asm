@@ -247,9 +247,9 @@ gemini_platform_spawn:  lda     $55     ; load spawn counter
         lda     $55                     ; load spawn counter
         and     #$07                    ; index 0-7
         tax                             ; use as table index
-        lda     gemini_spawn_x,x        ; load spawn X coordinate
-        sta     ent_y_px,y              ; entity Y position
         lda     gemini_spawn_y,x        ; load spawn Y coordinate
+        sta     ent_y_px,y              ; entity Y position
+        lda     gemini_spawn_x,x        ; load spawn X coordinate
         sta     ent_x_px,y              ; entity X position
         lda     $55                     ; check spawn counter
         and     #$03                    ; every 4th spawn
@@ -261,8 +261,8 @@ per_frame_rts:  rts                     ; shared RTS for early returns
 
 ; --- Gemini platform spawn data (8 platform pieces) ---
 gemini_metatile_ids:  .byte   $05,$06,$07,$0D,$0E,$0F,$17,$1F
-gemini_spawn_x:  .byte   $10,$10,$10,$30,$30,$30,$50,$70
-gemini_spawn_y:  .byte   $B0,$D0,$F0,$B0,$D0,$F0,$F0,$F0
+gemini_spawn_y:  .byte   $10,$10,$10,$30,$30,$30,$50,$70
+gemini_spawn_x:  .byte   $B0,$D0,$F0,$B0,$D0,$F0,$F0,$F0
 ; ===========================================================================
 ; SUBSYSTEM 5: Item pickup / drop entity spawning
 ; ===========================================================================
@@ -310,9 +310,9 @@ item_drop_update:  lda     proto_man_flag ; load item drop state
         sta     ent_timer,x             ; zero timer
         lda     camera_screen           ; load current screen
         sta     ent_x_scr,x             ; entity screen = current screen
-        lda     item_spawn_x,y          ; load item X coordinate
-        sta     ent_y_px,x              ; entity Y position
         lda     item_spawn_y,y          ; load item Y coordinate
+        sta     ent_y_px,x              ; entity Y position
+        lda     item_spawn_x,y          ; load item X coordinate
         sta     ent_x_px,x              ; entity X position
         lda     #$27                    ; sound: item spawn
         jmp     submit_sound_ID         ; play sound and return
@@ -364,10 +364,10 @@ item_entity_types:  .byte   $43,$43,$FF,$86,$86,$86,$86,$86
 item_metatile_pos:  .byte   $31,$39,$FF,$23,$24,$2B,$2C,$33
         .byte   $34,$3B,$3C,$FF,$31,$32,$FF,$2B
         .byte   $2C,$33,$34,$3B,$3C,$FF
-item_spawn_x:  .byte   $C0,$D0,$FF,$90,$90,$B0,$B0,$D0
+item_spawn_y:  .byte   $C0,$D0,$FF,$90,$90,$B0,$B0,$D0
         .byte   $D0,$E0,$E0,$FF,$C0,$D0,$FF,$C0
         .byte   $B0,$D0,$E0,$C0,$B0,$FF
-item_spawn_y:  .byte   $18,$28,$FF,$70,$90,$70,$90,$70
+item_spawn_x:  .byte   $18,$28,$FF,$70,$90,$70,$90,$70
         .byte   $90,$70,$90,$FF,$18,$28,$FF,$68
         .byte   $88,$90,$78,$78,$88,$FF
 ; ===========================================================================
@@ -514,7 +514,7 @@ stage_clear_spawn_loop:  jsr     find_enemy_freeslot_x ; find free enemy slot
         sta     ent_x_px,x              ; entity X position
         lda     clear_spawn_screen,y
         sta     ent_x_scr,x             ; entity X screen
-        lda     clear_spawn_attr,y
+        lda     clear_spawn_y,y
         sta     ent_y_px,x              ; entity Y position
         inc     $66                     ; next data entry
         dec     $00                     ; decrement entity counter
@@ -540,7 +540,7 @@ stage_clear_rts:  rts
 ; clear_zone_data_idx: starting index into spawn data for each zone
 ; clear_spawn_x: interleaved (count-1, Y pos, Y pos, ...) per group
 ; clear_spawn_screen: screen number for each spawned entity
-; clear_spawn_attr: X position / attribute for each spawned entity
+; clear_spawn_y: Y position for each spawned entity
 clear_threshold_lo:  .byte   $E0,$80,$40,$C0
 clear_threshold_hi:  .byte   $0C,$0D,$0E,$0F
 clear_zone_cycles:  .byte   $06,$05,$04,$04,$07
@@ -559,7 +559,7 @@ clear_spawn_screen:  .byte   $01,$0C,$0C,$00,$0C,$00,$0C,$00
         .byte   $00,$0E,$00,$0E,$00,$0F,$00,$0F
         .byte   $00,$0F,$00,$0D,$00,$0D,$00,$0D
         .byte   $00,$0D,$00,$0D,$00,$0D,$00,$0D
-clear_spawn_attr:  .byte   $01,$98,$40,$00,$88,$00,$58,$00
+clear_spawn_y:  .byte   $01,$98,$40,$00,$88,$00,$58,$00
         .byte   $70,$01,$78,$90,$01,$98,$60,$01
         .byte   $98,$98,$00,$78,$00,$78,$00,$48
         .byte   $00,$58,$00,$98,$00,$98,$00,$68
