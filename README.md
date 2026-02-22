@@ -83,7 +83,7 @@ src/
                                 collision, camera, rendering ($C000-$FFFF)
   chr.asm                       CHR ROM (128 KB pattern tables)
 include/
-  zeropage.inc                  Zero-page variable definitions (~50 vars)
+  zeropage.inc                  Zero-page variable definitions (~80 vars)
   constants.inc                 Named constants (entity arrays, stage/weapon IDs,
                                 button masks, tile types, music/SFX IDs)
 cfg/
@@ -94,7 +94,7 @@ chr/
 
 ## Annotation Progress
 
-The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. All auto-labels (`L_XXXX`) and internal branch targets (`code_XXXX`) have been replaced with descriptive names (~3,310 total). Cross-bank imports have been named where possible (28 of 46 renamed, 17 orphaned artifacts removed). Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, music/SFX IDs, and NES hardware registers. Pure data banks have section boundary markers, record indices, and enemy name annotations. An automated health check verifies comment accuracy and header correctness across 19 categories.
+The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. All auto-labels (`L_XXXX`) and internal branch targets (`code_XXXX`) have been replaced with descriptive names (~3,310 total). Cross-bank imports have been named where possible (28 of 46 renamed, 17 orphaned artifacts removed). Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, music/SFX IDs, and NES hardware registers. Zero-page variables cover ~80 addresses including general-purpose temps ($00-$0F) and sound driver workspace ($C0-$CF). 21 `.byte` code blocks have been converted back to proper instructions across 6 files. Pure data banks have section boundary markers, record indices, and enemy name annotations. An automated health check verifies comment accuracy and header correctness across 19 categories.
 
 | Bank | File | Annotation |
 |------|------|------------|
@@ -110,12 +110,12 @@ The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files hav
 | $0F | bank0F_entity_spawn.asm | ~89% — 30 labels, 372 comments |
 | $04 | bank04_doc_robot_a.asm | ~88% — 123 labels, 864 comments |
 | $0C | bank0C_game_over.asm | ~88% — 85 labels, 848 comments |
-| $12 | bank12_fortress_bosses.asm | ~85% — 407 labels, 2501 comments |
+| $12 | bank12_fortress_bosses.asm | ~85% — 408 labels, 2501 comments |
 | $02 | bank02_stage_gemini.asm | ~84% — 117 labels, 785 comments |
 | $05 | bank05_doc_robot_b.asm | ~81% — 152 labels, 906 comments |
 | $1A/$1B | bank1A_1B_oam_sequences.asm | ~81% — 30 labels, 303 comments |
-| Fixed | fixed_bank.asm | ~71% — 922 labels, 6901 comments |
-| $1C/$1D | bank1C_1D_entity_ai.asm | ~71% — 945 labels, 5360 comments |
+| Fixed | fixed_bank.asm | ~71% — 928 labels, 6901 comments |
+| $1C/$1D | bank1C_1D_entity_ai.asm | ~71% — 946 labels, 5360 comments |
 | $01 | bank01_stage_magnet.asm | ~69% — 4 labels, 184 comments |
 | $0D | bank0D_oam_sprites.asm | ~68% — 6 labels, 236 comments |
 | $00 | bank00_enemy_data.asm | Data — 8 labels, 364 comments |

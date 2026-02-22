@@ -223,7 +223,8 @@ yellow_devil_load_timer:  lda     yellow_devil_timer_table,x ; delay before next
         sta     ent_anim_state,x        ; reset anim state
 yellow_devil_spawn_complete:  rts
 
-        lda     ent_hitbox,x            ; save current hitbox
+; Yellow Devil assembled form — body collision check + eye projectile firing
+yellow_devil_body_attack:  lda     ent_hitbox,x ; save current hitbox
         pha                             ; push to stack
         lda     #$18                    ; temp hitbox for body
         sta     ent_hitbox,x            ; set body hitbox
