@@ -81,15 +81,15 @@ main_needle_man:  lda     ent_status,x
 ; Needle Man state pointer table (lo/hi bytes)
 ; state $00: init  state $01: wait for B  state $02: throw needles
 ; state $03: jump toward player           state $04: headbutt
-needle_man_state_ptr_lo:  .byte   $39,$4D,$68,$F4,$50
-needle_man_state_ptr_hi:  .byte   $A0,$A0,$A0,$A0,$A1
+needle_man_state_ptr_lo:  .byte   $39,$4D,$68,$F4,$50 ; state $00: init
+needle_man_state_ptr_hi:  .byte   $A0,$A0,$A0,$A0,$A1 ; state $04: headbutt
 
 ; state $00: one-frame state for init
 needle_man_init:
         lda     #$78                    ; timer: 120 frames
         sta     ent_timer,x                 ; to wait before acting
-        jsr     needle_man_setup_throw
-        lda     ent_status,x
+        jsr     needle_man_setup_throw  ; timer: 120 frames
+        lda     ent_status,x            ; to wait before acting
         ora     #$40                    ; set boss flag
         sta     ent_status,x
         inc     ent_status,x                 ; next state
@@ -101,16 +101,16 @@ needle_man_wait_B:
         lda     #$00
         sta     ent_anim_frame,x                 ; clear animation
         sta     ent_anim_state,x
-        dec     ent_timer,x
+        dec     ent_timer,x             ; clear animation
         bne     needle_man_wait_b_check_press                   ; if timer expires,
         inc     ent_status,x                 ; go to next state
-        rts
+        rts                             ; if timer expires,
 
 needle_man_wait_b_check_press:  lda     joy1_press
         and     #BTN_B                    ; if player presses B,
         beq     needle_man_wait_b_return                   ; go to next state
-        inc     ent_status,x
-needle_man_wait_b_return:  rts
+        inc     ent_status,x            ; if player presses B,
+needle_man_wait_b_return:  rts          ; go to next state
 
 ; state $02: jumping & throwing needles
 needle_man_throw:
@@ -118,15 +118,15 @@ needle_man_throw:
         lda     ent_anim_id,x
         cmp     #$28                    ; if his animation is throwing
         beq     needle_man_throw_handle_facing                   ; needle, skip some stuff
-        ldy     #$1E
+        ldy     #$1E                    ; if his animation is throwing
         jsr     move_vertical_gravity                   ; I believe this checks for his
         bcc     needle_man_throw_check_yvel                   ; Y value to be back on ground?
         lda     #$29                    ; start animation sequence
         jsr     reset_sprite_anim                   ; for jumping before needle throw
-        lda     #$02
+        lda     #$02                    ; start animation sequence
         sta     ent_anim_state,x                 ; landing pose
         lda     #$00                    ; reset frame counter
-        sta     ent_anim_frame,x
+        sta     ent_anim_frame,x        ; set up animation frame
         lda     #$08                    ; 8 frame timer for a brief pause
         sta     ent_var2,x
         inc     ent_status,x                 ; next state
@@ -135,11 +135,11 @@ needle_man_throw:
 
 needle_man_throw_check_yvel:  lda     ent_yvel,x                 ; if he is moving down
         bmi     needle_man_throw_check_timer
-        lda     #$01
+        lda     #$01                    ; if he is moving down
         sta     ent_anim_state,x                 ; rising pose (moving upward)
         lda     #$00                    ; reset frame counter
-        sta     ent_anim_frame,x
-        rts
+        sta     ent_anim_frame,x        ; if not, set up animation
+        rts                             ; frame for ???
 
 needle_man_throw_check_timer:  lda     ent_var2,x                 ; if timer hasn't expired
         bne     needle_man_throw_timer_dec                   ; for moving down
@@ -148,33 +148,33 @@ needle_man_throw_check_timer:  lda     ent_var2,x                 ; if timer has
 needle_man_throw_handle_facing:  jsr     test_facing_change      ; handle facing change
         lda     ent_timer,x                 ; if first needle has
         bne     needle_man_throw_check_second                   ; been thrown, skip
-        lda     ent_anim_state,x
+        lda     ent_anim_state,x        ; if first needle has
         cmp     #$01                    ; first throw trigger frame
         bne     needle_man_throw_check_complete
         jsr     spawn_needle            ; spawn needle and set
         inc     ent_timer,x                 ; "first needle thrown" flag
 needle_man_throw_check_second:  lda     ent_var1,x                 ; if second needle has
         bne     needle_man_throw_check_complete                   ; been thrown, skip
-        lda     ent_anim_state,x
+        lda     ent_anim_state,x        ; if second needle has
         cmp     #$03                    ; second throw trigger frame
         bne     needle_man_throw_check_complete
         jsr     spawn_needle            ; spawn needle and set
         inc     ent_var1,x                 ; "second needle thrown" flag
-needle_man_throw_check_complete:  lda     ent_anim_state,x
+needle_man_throw_check_complete:  lda     ent_anim_state,x ; else spawn a needle and set
         cmp     #$03                    ; throw animation complete
         bne     needle_man_throw_return
-        lda     #$00
+        lda     #$00                    ; if animation frame is not ???
         sta     ent_timer,x                 ; clear needle thrown flags
         sta     ent_var1,x
         lda     #$29                    ; start animation sequence
         jsr     reset_sprite_anim                   ; for jumping between needle throws
         lda     #$10                    ; give 16 frames between throws
         sta     ent_var2,x                 ; timer
-        rts
+        rts                             ; give 16 frames between throws
 
 needle_man_throw_timer_dec:  dec     ent_var2,x                 ; tick timer down
         bne     needle_man_throw_return                   ; useless branch
-needle_man_throw_return:  rts
+needle_man_throw_return:  rts           ; tick timer down
 
 ; state $03: jump toward player (or pause)
 needle_man_jump_player:
@@ -182,27 +182,27 @@ needle_man_jump_player:
         lda     ent_anim_state,x                 ; check current pose
         cmp     #$02                    ; $02 = ground/pause state
         beq     needle_man_jump_pause_dec                   ; skip movement if paused
-        lda     #$01
+        lda     #$01                    ; this is to skip movement
         sta     ent_anim_state,x                 ; jumping pose
         lda     #$00                    ; reset frame counter
-        sta     ent_anim_frame,x
-        lda     ent_facing,x
+        sta     ent_anim_frame,x        ; set up animation frame
+        lda     ent_facing,x            ; for ???
         and     #$01                    ; if he's not facing right
         beq     needle_man_jump_move_left
         ldy     #$20                    ; move right
         jsr     move_right_collide
-        jmp     needle_man_jump_apply_gravity
+        jmp     needle_man_jump_apply_gravity ; move right
 
 needle_man_jump_move_left:  ldy     #$21                    ; move left
         jsr     move_left_collide
-needle_man_jump_apply_gravity:  ldy     #$1E
+needle_man_jump_apply_gravity:  ldy     #$1E ; move left
         jsr     move_vertical_gravity                   ; I believe this checks for his
         bcc     needle_man_jump_return                   ; Y value to be back on ground?
-        lda     #$02
+        lda     #$02                    ; I believe this checks for his
         sta     ent_anim_state,x                 ; landing pose
         lda     #$00                    ; reset frame counter
-        sta     ent_anim_frame,x
-        jsr     test_facing_change
+        sta     ent_anim_frame,x        ; set up animation frame
+        jsr     test_facing_change      ; for ???
         lda     #$08                    ; 8-frame timer
         sta     ent_var2,x                 ; for extra pause when ground reached
 needle_man_jump_pause_dec:  dec     ent_var2,x                 ; tick timer down
@@ -212,13 +212,13 @@ needle_man_jump_pause_dec:  dec     ent_var2,x                 ; tick timer down
         lda     #$C2                    ; if it was $00 instead
         sta     ent_status,x                 ; go to throw needles state
         jsr     needle_man_setup_throw  ; and setup values for it
-        rts
+        rts                             ; go to throw needles state
 
 needle_man_jump_headbutt_setup:  lda     #$2A                    ; set up headbutt
         jsr     reset_sprite_anim                   ; animation
         lda     #$C4                    ; go to headbutt state
-        sta     ent_status,x
-needle_man_jump_return:  rts
+        sta     ent_status,x            ; animation
+needle_man_jump_return:  rts            ; go to headbutt state
 
 ; state $04: headbutt — Needle Man extends head spike
 needle_man_headbutt:
@@ -253,11 +253,11 @@ needle_man_setup_throw:  lda     $E4
         sta     $E5                     ; and update it as well
         and     #$01                    ; y = random index from 0 to 1
         tay                             ; 50/50
-        lda     needle_man_throw_vel_y_sub,y
+        lda     needle_man_throw_vel_y_sub,y ; y = random index from 0 to 1
         sta     ent_yvel_sub,x                 ; Y velocity = either
         lda     needle_man_throw_vel_y,y ; $093C or $0688
         sta     ent_yvel,x                 ; 50/50 chance
-        rts
+        rts                             ; $093C or $0688
 
 ; values for needle man's throwing of needles
 ; indexed randomly 0 through 1 (50/50 chance each one)
@@ -269,19 +269,19 @@ needle_man_throw_vel_y:  .byte   $06,$09
 needle_man_setup_jump:  lda     #$88
         sta     ent_yvel_sub,x                 ; Y velocity = $0688
         lda     #$06
-        sta     ent_yvel,x
+        sta     ent_yvel,x              ; Y velocity = $0688
         lda     $E4
         adc     $E5                     ; grab RNG value
         sta     $E5                     ; and update it as well
         and     #$07                    ; y = random index from 0 to 7
-        tay
-        lda     needle_man_jump_vel_x_sub,y
+        tay                             ; and update it as well
+        lda     needle_man_jump_vel_x_sub,y ; y = random index from 0 to 7
         sta     ent_xvel_sub,x                 ; one of 8 random X velocity
         lda     needle_man_jump_vel_x,y ; values
-        sta     ent_xvel,x
+        sta     ent_xvel,x              ; one of 8 random X velocity
         lda     needle_man_jump_states,y ; one of 8 random state values
         sta     ent_var3,x                 ; to go onto after jump
-        rts
+        rts                             ; one of 8 random state values
 
 ; values for needle man's jump toward player
 ; indexed randomly 0 through 7 (8 possible values)
@@ -1075,11 +1075,11 @@ test_facing_change:  lda     ent_facing,x
 test_facing_change_return:  rts
 
 ; --- random jump velocity setup for Shadow Man (4 options) ------------------
-code_A84C:  lda     $E4
+code_A84C:  lda     $E4                 ; has changed (left to right
         adc     $E5                     ; RNG
         sta     $E5
         and     #$03                    ; index 0-3
-        tay
+        tay                             ; flip facing-lock flag
         lda     shadow_man_jump_yvel_sub_table,y                 ; Y velocity sub
         sta     ent_yvel_sub,x
         lda     shadow_man_jump_yvel_table,y                 ; Y velocity (jump height)

@@ -181,12 +181,12 @@ code_A0DE:  ldy     #$26
 ; Hard Man ground slam — stun the player
         lda     player_state                     ; check player state
         cmp     #PSTATE_DEATH                    ; if dead, don't stun
-        beq     code_A165
+        beq     code_A165               ; check player state
         cmp     #PSTATE_STUNNED                    ; if already stunned, skip
         beq     code_A165
         lda     #PSTATE_STUNNED                    ; state → $0F (stunned)
         sta     player_state                     ; player frozen in midair
-        rts
+        rts                             ; state → $0F (stunned)
 
 code_A106:  lda     #$00                    ; still in air — check if close to player
         sta     ent_anim_frame,x
@@ -227,12 +227,12 @@ code_A128:  lda     ent_anim_state,x
 ; Hard Man body slam — stun the player (second attack variant)
         lda     player_state                     ; check player state
         cmp     #PSTATE_DEATH                    ; if dead, don't stun
-        beq     code_A165
+        beq     code_A165               ; check player state
         cmp     #PSTATE_STUNNED                    ; if already stunned, skip
         beq     code_A165
         lda     #PSTATE_STUNNED                    ; state → $0F (stunned)
         sta     player_state                     ; player frozen in midair
-code_A165:  rts
+code_A165:  rts                         ; state → $0F (stunned)
 
 ; --- phase 3: screen shake after ground slam ---
         lda     ent_var3,x              ; shake counter
@@ -271,11 +271,11 @@ code_A1A0:  ldy     #$26                ; collision check
         bcc     code_A1BA               ; no → still falling
         lda     player_state                     ; if player dead ($0E),
         cmp     #PSTATE_DEATH                    ; don't launch
-        beq     code_A1B1
+        beq     code_A1B1               ; if player dead ($0E),
         lda     #PSTATE_AIRBORNE                    ; state → $01 (airborne)
         sta     player_state                     ; player bounced into the air
-code_A1B1:  inc     ent_status,x
-        lda     #$10
+code_A1B1:  inc     ent_status,x        ; state → $01 (airborne)
+        lda     #$10                    ; player bounced into the air
         sta     ent_var2,x
         rts
 
@@ -911,13 +911,13 @@ code_A6BE:  cmp     #$01                  ; phase 1?
 ; --- phase 0: init ---
         lda     #$3D
         sta     ent_yvel_sub,x          ; Y velocity = $09.3D (fall)
-        lda     #$09
-        sta     ent_yvel,x
+        lda     #$09                    ; if state == $02
+        sta     ent_yvel,x              ; goto ???
         inc     ent_status,x            ; advance to phase 1
         lda     #$33
         jsr     reset_sprite_anim                   ; set Gemini Man run anim
         lda     ent_timer,x             ; clone already spawned?
-        bne     code_A6E1
+        bne     code_A6E1               ; skip a little bit
         jsr     code_A880              ; spawn clone entity
         lda     #$01
         sta     ent_timer,x             ; mark: clone spawned
