@@ -2,7 +2,7 @@
 
 An experiment in using [Claude Code](https://claude.com/claude-code) to disassemble and cleanly, accurately annotate a NES game. This is a byte-perfect disassembly of **Mega Man 3** (NES, US release) targeting the [ca65](https://cc65.github.io/doc/ca65.html) assembler.
 
-I know very little about disassembling, so this is very much a learning exercise and may contain errors.
+Automated health checks verify comment accuracy against the actual instructions — catching branch condition mismatches, X/Y axis confusion, load/store direction errors, operand value contradictions, and more. The build system verifies byte-perfect ROM output on every build.
 
 ## Building
 
