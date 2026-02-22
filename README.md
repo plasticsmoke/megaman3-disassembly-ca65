@@ -1,6 +1,8 @@
 # Mega Man 3 (U) — ca65 Disassembly
 
-A byte-perfect disassembly of **Mega Man 3** (NES, US release) targeting the [ca65](https://cc65.github.io/doc/ca65.html) assembler.
+An experiment in using [Claude Code](https://claude.com/claude-code) to disassemble and cleanly, accurately annotate a NES game. This is a byte-perfect disassembly of **Mega Man 3** (NES, US release) targeting the [ca65](https://cc65.github.io/doc/ca65.html) assembler.
+
+I know very little about disassembling, so this is very much a learning exercise and may contain errors.
 
 ## Building
 
@@ -92,35 +94,33 @@ chr/
 
 ## Annotation Progress
 
-The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. ~1,495 auto-labels have been replaced with descriptive function names across all files. Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, and 45 music/SFX IDs.
+The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. All auto-labels have been replaced with descriptive names. Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, music/SFX IDs, and NES hardware registers. Data-vs-code regions have been corrected across all files.
 
 | Bank | File | Annotation |
 |------|------|------------|
-| Fixed | fixed_bank.asm | ~52% — 474 labels, ~3970 comments |
-| $1C/$1D | bank1C_1D_entity_ai.asm | ~77% — 674 labels, 1984 comments |
-| $16 | bank16_sound_driver.asm | ~87% — 148 labels |
-| $12 | bank12_fortress_bosses.asm | ~78% — 309 labels |
-| $09 | bank09_per_frame.asm | ~90% — 80 labels |
-| $04 | bank04_doc_robot_a.asm | ~87% — 104 labels |
-| $07 | bank07_robot_masters_b.asm | ~82% — 120 labels |
-| $02 | bank02_stage_gemini.asm | ~82% — 117 labels, 462 comments |
-| $05 | bank05_doc_robot_b.asm | ~75% — 111 labels |
-| $0C | bank0C_game_over.asm | ~73% — 85 labels, 601 comments |
-| $06 | bank06_robot_masters_a.asm | ~70% — 93 labels |
-| $0B | bank0B_intro.asm | ~68% — 94 labels, 543 comments |
-| $03 | bank03_stage_hard.asm | ~65% — 71 labels |
-| $0A | bank0A_damage_tables.asm | ~60% — 9 labels, 322 inline annotations |
-| $00 | bank00_enemy_data.asm | ~55% — 8 labels, 243 comments |
-| $18 | bank18_stage_select.asm | ~55% — 96 labels, 331 comments |
-| $10 | bank10_stage_setup.asm | ~50% — 21 labels |
-| $0F | bank0F_entity_spawn.asm | ~45% — 31 labels |
-| $01 | bank01_stage_magnet.asm | ~45% — 4 labels |
-| $0E | bank0E_anim_frames.asm | ~40% — 14 labels |
-| $0D | bank0D_oam_sprites.asm | ~35% — 6 labels |
-| $1A/$1B | bank1A_1B_oam_sequences.asm | ~28% — 30 labels |
+| $12 | bank12_fortress_bosses.asm | ~78% — 407 labels, 2470 comments |
+| Fixed | fixed_bank.asm | ~69% — 922 labels, 4879 comments |
+| $1C/$1D | bank1C_1D_entity_ai.asm | ~68% — 945 labels, 4539 comments |
+| $18 | bank18_stage_select.asm | ~60% — 175 labels, 1239 comments |
+| $16 | bank16_sound_driver.asm | ~54% — 170 labels, 1027 comments |
+| $07 | bank07_robot_masters_b.asm | ~51% — 150 labels, 889 comments |
+| $06 | bank06_robot_masters_a.asm | ~48% — 141 labels, 837 comments |
+| $04 | bank04_doc_robot_a.asm | ~45% — 123 labels, 750 comments |
+| $05 | bank05_doc_robot_b.asm | ~44% — 152 labels, 748 comments |
+| $0B | bank0B_intro.asm | ~43% — 94 labels, 669 comments |
+| $0C | bank0C_game_over.asm | ~41% — 85 labels, 627 comments |
+| $02 | bank02_stage_gemini.asm | ~38% — 117 labels, 595 comments |
+| $03 | bank03_stage_hard.asm | ~38% — 107 labels, 575 comments |
+| $09 | bank09_per_frame.asm | ~31% — 80 labels, 432 comments |
+| $0A | bank0A_damage_tables.asm | ~31% — 9 labels, 322 comments |
+| $0F | bank0F_entity_spawn.asm | ~17% — 30 labels, 206 comments |
+| $10 | bank10_stage_setup.asm | ~15% — 21 labels, 176 comments |
+| $00 | bank00_enemy_data.asm | ~11% — 8 labels, 121 comments |
+| $0E | bank0E_anim_frames.asm | ~7% — 14 labels, 80 comments |
+| $1A/$1B | bank1A_1B_oam_sequences.asm | ~5% — 30 labels, 109 comments |
+| $0D | bank0D_oam_sprites.asm | ~4% — 6 labels, 44 comments |
+| $01 | bank01_stage_magnet.asm | ~3% — 4 labels, 41 comments |
 | Data | banks 08, 11, 13-15, 17, 19 | Section headers only |
-
-Next steps: Mesen-verified label renaming and detailed comments on remaining unknowns (~445 internal auto-labels, 12 `???` markers).
 
 ## Technical Notes
 

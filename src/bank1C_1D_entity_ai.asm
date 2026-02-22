@@ -1649,9 +1649,7 @@ hammer_joe_spawn_rts:  .byte   $60      ; rts (encoded as .byte $60)
 
 ; hammer X offset: right=$0013, left=$FFED (-19)
 hammer_joe_hammer_x_off:  .byte   $13
-hammer_joe_hammer_x_scr:  brk
-        sbc     proto_man_x_check_byte
-        brk
+hammer_joe_hammer_x_scr:  .byte   $00,$ED,$FF,$A0,$00
         jsr     move_vertical_gravity   ; carry=1 if landed
         rol     $0F                     ; save landed flag in $0F bit 0
         lda     ent_anim_id,x           ; if OAM ID == $6A (crouch anim),
@@ -2496,10 +2494,7 @@ chibee_sprite_oam_table:  .byte   $BD,$BD,$BE,$BE,$BF,$BF,$C0,$C0 ; OAM ID per d
 chibee_facing_flag_table:  .byte   $00,$00,$40,$40,$40,$40,$40,$40 ; facing flag ($00=right, $40=left) (set 1)
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$40,$40,$40,$40,$40,$40 ; facing flag (set 2)
-        .byte   $00,$00,$00,$00,$00
-        brk
-        brk
-        brk
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00
         jsr     check_player_collision  ; check player collision
         bcc     chibee_deactivate       ; no collision: deactivate
         lda     #$00                    ; sign-extend init = 0
@@ -3373,10 +3368,8 @@ metall_dx_after_fire:  ldx     L0000    ; restore parent entity slot
 metall_dx_proj_xvel_sub:  .byte   $DB,$00,$DB
 metall_dx_proj_xvel:  .byte   $00,$00,$00
 metall_dx_proj_yvel_sub:  .byte   $DB,$33,$DB
-metall_dx_proj_yvel:  .byte   $00,$01
-        brk
-metall_dx_proj_facing:  .byte   $02
-        ora     ($01,x)                 ; track player
+metall_dx_proj_yvel:  .byte   $00,$01,$00
+metall_dx_proj_facing:  .byte   $02,$01,$01
 
 ; ---------------------------------------------------------------------------
 ; main_mag_fly — Mag Fly (flying horseshoe magnet, Magnet Man stage)
@@ -3956,9 +3949,7 @@ shotman_set_proj_speed:  lda     shotman_xvel_sub_table,x ; X speed sub from tab
 ; X speed lookup by distance bracket: $4C/$3D/$2E/$1F thresholds
 shotman_distance_table:  .byte   $4C,$3D,$2E,$1F ; distance thresholds
 shotman_xvel_sub_table:  .byte   $00,$80,$00,$80 ; X speed sub values
-shotman_xvel_table:  .byte   $02        ; X speed whole: $02, $01, $01, $00
-        ora     ($01,x)
-        brk
+shotman_xvel_table:  .byte   $02,$01,$01,$00
 ; --- generic projectile AI: gravity + walk, used by new_shotman bullets ---
         ldy     #$12                    ; gravity speed index $12
         jsr     move_vertical_gravity   ; move_vertical_gravity
@@ -4058,10 +4049,7 @@ shotman_debris_facing:  .byte   $01,$01,$02,$02
 shotman_debris_yvel_sub:  .byte   $9E,$44,$9E,$44
 shotman_debris_yvel:  .byte   $04,$03,$04,$03
 shotman_debris_xvel_sub:  .byte   $CC,$80,$CC,$80
-shotman_debris_xvel:  brk
-        brk
-        brk
-        brk
+shotman_debris_xvel:  .byte   $00,$00,$00,$00
 
 ; ---------------------------------------------------------------------------
 ; main_proto_man — Proto Man (Break Man) fighting encounter
@@ -7977,5 +7965,4 @@ surprise_box_alt_routine_ids:  .byte   $66,$67,$64,$65,$69
         .byte   $00,$92,$71,$ED,$15,$67,$54,$7A
         .byte   $54,$A1,$00,$AD,$01,$3A,$00,$DE ; → next tick
         .byte   $04,$82,$51,$90
-        brk
-        asl     $05,x
+        .byte   $00,$16,$05

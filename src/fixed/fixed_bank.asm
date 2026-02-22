@@ -3227,9 +3227,7 @@ init_hard_knuckle_exit:  .byte   $60
 ; Hard Knuckle OAM IDs per player state ($30=0..3)
 ; $AA=ground, $AB=air, $00=skip(slide), $AD=ladder
 init_hard_knuckle_oam_table:  .byte   $AA,$AB,$00,$AD
-init_hard_knuckle_offset_table:  .byte   $01,$07,$00,$0A,$FC,$FF
-        .byte   $04
-        brk
+init_hard_knuckle_offset_table:  .byte   $01,$07,$00,$0A,$FC,$FF,$04,$00
 init_top_spin:
         lda     player_state            ; check if player is airborne
         cmp     #PSTATE_AIRBORNE        ; must be airborne to use Top Spin
@@ -4009,9 +4007,8 @@ death_burst_x_speed:  .byte   $00,$02,$03,$02,$00,$FD,$FD,$FD
 death_burst_y_speed_sub:  .byte   $00,$E1,$00,$1F,$00,$1F,$00,$E1
         .byte   $80,$F1,$00,$0F,$80,$0F,$00,$F1
 death_burst_y_speed:  .byte   $FD,$FD,$00,$02,$03,$02,$00,$FD
-        .byte   $FE,$FE,$00,$01,$01,$01
-        brk
-        inc     a:$A9,x
+        .byte   $FE,$FE,$00,$01,$01,$01,$00,$FE
+        lda     #$00
         sta     ent_anim_frame
         dec     ent_timer               ; decrement explosion animation timer
         bne     death_explosion_loop_return ; not zero → wait
@@ -4718,10 +4715,7 @@ warp_boss_init_table:  .byte   $2B,$1F,$1F,$27
 
 ; weapon ID per stage table (indexed by $22)
 victory_weapon_id_table:  .byte   $02,$04,$01,$03,$05,$00,$02,$04 ; Ndl→$04(Mag) Mag→$01(Gem) Gem→$03(Hrd) Hrd→$05(Top)
-warp_position_table:  .byte   $00,$00,$00,$00,$00
-        asl     $06
-        asl     current_weapon
-        brk
+warp_position_table:  .byte   $00,$00,$00,$00,$00,$06,$06,$06,$A0,$00
         jsr     move_vertical_gravity   ; fill Rush Jet energy ($AD)
         bcc     warp_boss_refight_init  ; airborne → skip standing check
         lda     #$01                    ; set standing OAM when grounded
@@ -8619,12 +8613,8 @@ entity_distance_table_index:  tya       ; table index = quadrant * 4 + sub-angle
         .byte   $04,$08,$07,$06,$04,$0C,$0B,$0A
         .byte   $04,$08,$09,$0A,$04,$04,$03,$02
         .byte   $04,$00,$01,$02,$04,$0C,$0D,$0E
-        .byte   $04
-        brk
-        .byte   $0F
-        asl     $2004
-        cmp     $85F8,y
-        brk
+        .byte   $04,$00,$0F,$0E,$04,$20,$D9,$F8
+        .byte   $85,$00
         lda     ent_facing,x            ; signed circular difference:
         clc                             ; (current + 8 - target) & $0F - 8
         adc     #$08                    ; offset by 8 to center range
@@ -9432,10 +9422,8 @@ call_bank0E_A003:
         .byte   $01,$47,$15,$F7,$11,$47,$44,$17
         .byte   $40,$C2,$40,$28,$11,$CB,$44,$6E
         .byte   $50,$8A,$54,$AE,$10,$2B
-        brk
-        .byte   $53
-        ora     $5D
-        ora     screen_mode,x
+        .byte   $00,$53,$05,$5D,$15
+RESET:  sei                             ; disable interrupts
         cld                             ; clear decimal mode
         lda     #$08                    ; PPUCTRL: sprite table = $1000
         sta     PPUCTRL                 ; (NMI not yet enabled)
@@ -9785,6 +9773,6 @@ process_frame_race_condition:  .byte   $E6,$F7,$60,$05,$10,$11,$04,$41
         .byte   $43,$04,$00,$00,$08,$57
 
 ; interrupt vectors
-        brk
-        cpy     #$00
-        inc     IRQ,x
+        .word   NMI                     ; $FFFA: NMI handler
+        .word   RESET                   ; $FFFC: RESET handler
+        .word   IRQ                     ; $FFFE: IRQ handler

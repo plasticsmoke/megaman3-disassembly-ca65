@@ -1760,6 +1760,4 @@ intro_doc_robot_boss_icon_x_continuation:  .byte   $D8,$B8,$7F,$03,$D8,$B0,$7F,$
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00
 ; --- end padding ---
-        brk
-        brk
-        brk
+        .byte   $00,$00,$00
