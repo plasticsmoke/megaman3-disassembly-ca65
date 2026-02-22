@@ -41,21 +41,14 @@ process_frame_yield           := $FD80  ; process_frame_yield — render frame +
 .segment "BANK0F"
 
         lda     #$00                    ; clear all credits state
-        sta     $95                     ; store to frame counter $95
-        .byte   $8D
-        .byte   $06
-credits_enemy_data_start:  ldy     #$85
-        inc     a:$8D
-        ora     $8D
-        jsr     $8D05
-        rti
-
-        ora     $8D
-        rts
-
-        ora     $8D
-        brk
-        .byte   $03
+        sta     $95
+        sta     $A006
+        sta     nmi_skip
+        sta     ent_timer
+        sta     ent_var1
+        sta     ent_var2
+        sta     ent_var3
+        sta     ent_status
         sta     $0310
 ; ===========================================================================
 ; CREDITS MAIN LOOP — NAMETABLE TEXT SCROLL

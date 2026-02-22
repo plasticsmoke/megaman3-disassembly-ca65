@@ -2570,948 +2570,134 @@ code_9B38:  lda     $9E2A,y             ; fortress palette data (32 bytes)
 ; 8 bosses × 8 bytes: 4 bright + 4 dark palette colors.
 ; Used by boss_face_palette_flash to alternate during intro fadeout.
 ; Order: Needle, Magnet, Gemini, Hard, Top, Snake, Spark, Shadow
-        .byte   $0F
-        bmi     palette_data_needle_bright
-        .byte   $17
-        .byte   $0F
-        .byte   $07
-        bmi     palette_data_spark_bright
-        .byte   $0F
-        bmi     palette_data_section_start
-        asl     $0F,x
-        asl     $10
-        asl     $0F,x
-        bmi     palette_data_gemini_dark
-        and     ($0F,x)
-        ora     (player_state),y
-        and     ($0F,x)
-        bmi     palette_data_snake_dark
-palette_data_section_start:  ora     ($0F,x)
-        .byte   $0C
-        .byte   $10
-palette_data_spark_bright:  ora     ($0F,x)
-        bmi     palette_data_hard_dark
-        brk
-        .byte   $0F
-        brk
-        plp
-        brk
-        .byte   $0F
-        bmi     palette_data_top_dark
-palette_data_snake_dark:  ora     $090F,y
-        bmi     palette_data_hard_bright
-        .byte   $0F
-        bmi     palette_data_magnet_bright
-palette_data_needle_bright:  rol     $0F
-        asl     player_state,x
-        rol     $0F
-        bmi     palette_data_magnet_dark
-        .byte   $14
-        .byte   $0F
-        .byte   $04
-        .byte   $34
-        .byte   $14
-        .byte   $7C
-        ror     $38,x
-palette_data_gemini_dark:  and     $2536,y
-        bpl     palette_data_top_bright
-        .byte   $A7
-palette_data_hard_bright:  .byte   $97
-palette_data_hard_dark:  bmi     palette_data_shadow_dark
-        .byte   $0F
-        jsr     L0F21
-        .byte   $0F
-        and     ($20,x)
-        ora     #$0F
-        .byte   $16
-palette_data_top_bright:  jsr     L0F06
-        .byte   $20
-        .byte   $37
-palette_data_top_dark:  .byte   $0F
-        .byte   $0F
-        bmi     palette_data_section_middle
-        ora     ($0F),y
-        asl     $26,x
-palette_data_magnet_bright:  .byte   $27
-        .byte   $0F
-        ora     ($2C,x)
-        ora     ($0F),y
-        bmi     palette_data_section_end
-        rol     $0F
-        bmi     palette_data_shadow_bright
-palette_data_magnet_dark:  ora     ($0F),y
-        .byte   $37
-        and     ($10,x)
-        .byte   $0F
-        .byte   $37
-        rol     joy1_press_alt
-        .byte   $0F
-        .byte   $37
-        rol     $0F
-        .byte   $0F
-        jsr     L1121
-        .byte   $0F
-        jsr     L2937
-palette_data_shadow_bright:  .byte   $0F
-        jsr     L1626
-        .byte   $0F
-        jsr     L2110
-palette_data_shadow_dark:  .byte   $0F
-        jsr     L1121
-        .byte   $0F
-        jsr     L1137
-        .byte   $0F
-        jsr     L0F10
-        .byte   $0F
-        .byte   $20
-        .byte   $37
-palette_data_section_middle:  .byte   $0F
-        .byte   $0F
-        jsr     L1121
-        .byte   $0F
-        .byte   $27
-palette_data_section_end:  .byte   $17
-        asl     $0F
-        .byte   $27
-        .byte   $17
-        and     ($0F,x)
-        jsr     L2110
-        .byte   $04
-        .byte   $02
-        .byte   $04
-        .byte   $FC
-        brk
-        .byte   $FF
-        .byte   $97
-        sbc     $2801
-        .byte   $47
-        .byte   $67
-        ora     ($C0,x)                 ; (preceding data)
-        .byte   $47
-        pla
-        ora     ($C8,x)
+        .byte   $0F,$30,$30,$17,$0F,$07,$30,$17,$0F,$30,$10,$16,$0F,$06,$10,$16
+        .byte   $0F,$30,$30,$21,$0F,$11,$30,$21,$0F,$30,$10,$01,$0F,$0C,$10
 
-; --- megaman_eye_sprites ($9C75) ---
-; Mega Man center portrait eye/face detail sprites. 6 sprites × 2 bytes (tile, attr)
-; per grid position. Attribute $03 = palette 3, $43 = palette 3 + H-flip.
-; Updates which way Mega Man looks based on cursor position.
-; Tiles $E6-$FF, $6F, $80-$81 are CHR sprite tiles for face details.
-;
-; Position 0 (Spark Man, top-left): eyes look upper-left
-        beq     megaman_eye_pos0_tiles
-        sbc     ($03),y
+palette_data_spark_bright:.byte   $01,$0F,$30,$27,$00,$0F,$00,$28,$00,$0F,$30,$30
+
+palette_data_snake_dark:.byte   $19,$0F,$09,$30,$19,$0F,$30,$30
+
+palette_data_needle_bright:.byte   $26,$0F,$16,$30,$26,$0F,$30,$34,$14,$0F,$04,$34,$14,$7C,$76,$38
+
+palette_data_gemini_dark:.byte   $39,$36,$25,$10,$0E,$A7
+
+palette_data_hard_bright:.byte   $97
+
+palette_data_hard_dark:.byte   $30,$40,$0F,$20,$21,$0F,$0F,$21,$20,$09,$0F,$16
+
+palette_data_top_bright:.byte   $20,$06,$0F,$20,$37
+
+palette_data_top_dark:.byte   $0F,$0F,$30,$3C,$11,$0F,$16,$26,$27,$0F,$01,$2C,$11,$0F,$30,$37
+        .byte   $26,$0F,$30,$15
+
+palette_data_magnet_dark:.byte   $11,$0F,$37,$21,$10,$0F,$37,$26,$15,$0F,$37,$26,$0F,$0F,$20,$21
+        .byte   $11,$0F,$20,$37,$29,$0F,$20,$26,$16,$0F,$20,$10,$21
+
+palette_data_shadow_dark:.byte   $0F,$20,$21,$11,$0F,$20,$37,$11,$0F,$20,$10,$0F,$0F,$20,$37,$0F
+        .byte   $0F,$20,$21,$11,$0F,$27
+
+palette_data_section_end:.byte   $17,$06,$0F,$27,$17,$21,$0F,$20,$10,$21,$04,$02,$04,$FC,$00,$FF
+        .byte   $97,$ED,$01,$28,$47,$67,$01,$C0,$47,$68,$01,$C8,$F0,$03,$F1,$03
         .byte   $F2
-megaman_eye_pos0_tiles:  .byte   $03
-        .byte   $F3
-        .byte   $03
-        .byte   $F4
-        .byte   $03
-        sbc     $03,x
 
-; Position 1 (Snake Man, top-center): eyes look up
-        inc     $03,x
-        .byte   $F7
-        .byte   $03
-        inc     tile_at_feet_lo,x
-        sed
-        .byte   $03
-        sbc     $F803,y
-        .byte   $43
+megaman_eye_pos0_tiles:.byte   $03,$F3,$03,$F4,$03,$F5,$03,$F6,$03,$F7,$03,$F6,$43,$F8,$03,$F9
+        .byte   $03,$F8,$43,$F2,$43,$F1,$43,$F0,$43,$F5,$43,$F4,$43,$F3,$43,$E6
+        .byte   $03,$6F,$03,$E6,$43,$FA,$03,$FB,$03,$FC,$03,$E6,$03,$6F,$03,$E6
+        .byte   $43,$E7,$03,$E8,$03,$E7,$43,$E6,$03,$6F,$03,$E6,$43,$FC,$43,$FB
+        .byte   $43,$FA,$43,$E6,$03,$6F,$03,$E6,$43,$FD,$03,$FE,$03,$FF,$03,$E6
+        .byte   $03,$6F,$03,$E6,$43,$80,$03,$81,$03,$80,$43,$E6
 
-; Position 2 (Needle Man, top-right): eyes look upper-right (pos 0 H-flipped)
-        .byte   $F2
-        .byte   $43
-        sbc     (tile_at_feet_lo),y
-        beq     megaman_eye_pos8_tiles
-        sbc     tile_at_feet_lo,x
-        .byte   $F4
-        .byte   $43
-        .byte   $F3
-        .byte   $43
+megaman_eye_pos8_tiles:.byte   $03,$6F,$03,$E6,$43,$FF,$43,$FE,$43,$FD,$43,$06,$05,$00,$03,$FF
+        .byte   $04,$02,$01,$07,$0A,$FF,$08,$FF,$FF,$FF,$09,$FF,$0B,$18,$18,$18
+        .byte   $58,$58,$58,$98,$98,$98,$17,$67,$B7,$17,$67,$B7,$17,$67,$B7,$00
+        .byte   $00,$26,$26,$00,$2A,$00,$2A,$00,$01,$FF,$00,$03,$00,$00,$00,$FD
+        .byte   $0F,$20,$26,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+        .byte   $0F,$30,$3C,$11,$0F,$16,$26,$27,$0F,$01,$2C,$11,$0F,$30,$37,$26
+        .byte   $0F,$20,$21,$11,$0F,$37,$17,$15,$0F,$20,$15,$05,$0F,$20,$10,$21
+        .byte   $7C,$7E,$38,$39,$36,$25,$62,$6C,$76,$62,$6C,$76,$62,$6C,$76,$20
+        .byte   $20,$20,$21,$21,$21,$22,$22,$22,$00,$00,$07,$45,$E0,$E1,$E2,$E2
+        .byte   $E3,$E4,$4B,$00,$21,$05
 
-; Position 3 (Hard Man, middle-left): eyes look left
-        inc     $03
-        .byte   $6F
-        .byte   $03
-        inc     tile_at_feet_lo
-        .byte   $FA
-        .byte   $03
-        .byte   $FB
-        .byte   $03
-        .byte   $FC
-        .byte   $03
+center_portrait_border_row1_data:.byte   $D5,$24,$24,$24,$24,$D6,$00,$41,$05,$E5,$24,$24,$24,$24,$E6,$00
+        .byte   $61,$05,$E5,$24,$24,$24,$24,$E6,$00,$81,$05,$F5,$24,$24,$24,$24
+        .byte   $F6,$00,$A0,$07,$55,$F0,$F1,$F2,$F2,$F3,$F4,$5B,$FF,$C8,$C9,$CA
+        .byte   $CB,$D8,$D9,$DA,$DB,$E8,$E9,$EA,$EB,$F8,$F9,$FA,$FB,$09,$00,$0E
+        .byte   $00,$00,$00,$29,$00,$2E,$21,$8E,$CC,$CD,$CE,$CF,$DC,$DD,$DE,$DF
+        .byte   $EC,$ED,$EE,$EF,$FC,$FD,$FE,$FF,$23,$DB,$01,$88,$22,$20,$20,$20
+        .byte   $21,$21,$21,$22,$22,$22,$84,$8E,$98,$84,$8E,$98,$84,$8E,$98,$78
+        .byte   $54,$10,$28,$98,$40,$18,$64,$00,$07,$03,$01,$05,$08,$04,$03,$04
+        .byte   $03,$40,$20,$01,$08,$00,$10,$04,$02,$80,$63,$83
 
-; Position 4 (center): eyes look forward (straight ahead)
-        inc     $03
-        .byte   $6F
-        .byte   $03
-        inc     tile_at_feet_lo
-        .byte   $E7
-        .byte   $03
-        inx
-        .byte   $03
-        .byte   $E7
-        .byte   $43
+stage_lookup_table_data:.byte   $02,$7E,$6B,$82,$03,$76,$6B,$84,$02,$7E,$6B,$85,$02,$86,$6B
 
-; Position 5 (Top Man, middle-right): eyes look right (pos 3 H-flipped lower)
-        inc     $03
-        .byte   $6F
-        .byte   $03
-        inc     tile_at_feet_lo
-        .byte   $FC
-        .byte   $43
-        .byte   $FB
-        .byte   $43
-        .byte   $FA
-        .byte   $43
+cursor_y_position_table:.byte   $86,$01,$8E,$6B,$87,$01,$96,$73,$88,$02,$86,$73,$89,$01,$8E,$73
+        .byte   $8A,$01,$96,$0F,$30,$15,$11,$0F,$0F,$27,$17,$0F,$10,$27,$17,$0F
+        .byte   $37,$3C,$0F,$0F,$37,$27,$06,$0F,$07,$08,$09
 
-; Position 6 (Gemini Man, bottom-left): eyes look lower-left
-        inc     $03
-        .byte   $6F
-        .byte   $03
-        inc     tile_at_feet_lo
-        sbc     $FE03,x
-        .byte   $03
-        .byte   $FF
-        .byte   $03
+cursor_bolt_y_offset_table:.byte   $0F,$39,$29,$19,$0F,$21,$08,$30,$0F,$0F,$2C,$11,$0F,$0F,$30,$37
+        .byte   $0F,$0F,$10,$15,$0F,$0F,$00,$00
 
-; Position 7 (Magnet Man, bottom-center): eyes look down
-        inc     $03
-        .byte   $6F
-        .byte   $03
-        inc     tile_at_feet_lo
-        .byte   $80
-        .byte   $03
-        sta     ($03,x)
-        .byte   $80
-        .byte   $43
+cursor_bolt_x_offset_table:.byte   $20,$40
 
-; Position 8 (Shadow Man, bottom-right): eyes look lower-right (pos 6 H-flipped)
-        .byte   $E6
-megaman_eye_pos8_tiles:  .byte   $03
-        .byte   $6F
-        .byte   $03
-        inc     tile_at_feet_lo
-        .byte   $FF                     ; (end: $189CDF = $FD, $43)
-        .byte   $43
-        inc     $FD43,x
-        .byte   $43
 
-; --- stage_select_lookup ($9CE1) ---
-; Grid index (col + row*3) → stage $22 value. $FF = not selectable.
-; Robot Masters (tier $60=0): indices 0-8
-; Doc Robots (tier $60=9):   indices 9-17
-;   Index: 0    1    2    3    4    5    6    7    8
-;   RM:    $06  $05  $00  $03  $FF  $04  $02  $01  $07
-;   Boss:  Sprk Snke Ndl  Hard ctr  Top  Gmni Mgnt Shdw
-;   Doc:   $0A  $FF  $08  $FF  $FF  $FF  $09  $FF  $0B
-        asl     $05                     ; RM: Spark/Snake/Needle/Hard/ctr/Top
-        brk
-        .byte   $03
-        .byte   $FF
-        .byte   $04
-        .byte   $02                     ; RM: Gemini/Magnet/Shadow
-        ora     ($07,x)
-        asl     a                       ; Doc: Spark/$FF/Needle/$FF/$FF
-        .byte   $FF
-        php
-        .byte   $FF
-        .byte   $FF
-        .byte   $FF                     ; Doc: $FF/Gemini/$FF/Shadow
-        ora     #$FF
-        .byte   $0B
+cursor_direction_offset_table:.byte   $00,$00,$20,$00,$81,$00,$00,$10,$20,$10,$00
 
-; --- cursor_pos_y ($9CF3) ---
-; Y pixel position for cursor base, per grid index (9 entries).
-; Row 0=$18(24), Row 1=$58(88), Row 2=$98(152) — matches portrait frame Y positions.
-        clc
-        clc
-        clc
-        cli
-        cli
-        cli
-        tya
-        tya
-        tya
+intro_palette_table:.byte   $00,$00,$00,$00
 
-; --- cursor_pos_x ($9CFC) ---
-; X pixel position for cursor base, per grid index (9 entries).
-; Col 0=$17(23), Col 1=$67(103), Col 2=$B7(183) — 7px into each frame.
-        .byte   $17
-        .byte   $67
-        .byte   $B7
-        .byte   $17
-        .byte   $67
-        .byte   $B7
-        .byte   $17
-        .byte   $67
-        .byte   $B7
+intro_chr_bank_table:.byte   $00,$00,$00,$00,$00,$00,$00,$40,$00,$00,$00,$00,$00,$00,$01,$00
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
-; --- cursor_bolt_offset_y ($9D05) ---
-; Y offsets for the 4 corner bolts (indexed 3→0):
-;   [0]=$00 top, [1]=$00 top, [2]=$26(38) bottom, [3]=$26(38) bottom
-        brk
-        brk
-        rol     $26
+portrait_addr_lo_table:.byte   $00,$00,$00,$00
 
-; --- cursor_bolt_offset_x ($9D09) ---
-; X offsets for the 4 corner bolts (indexed 3→0):
-;   [0]=$00 left, [1]=$2A(42) right, [2]=$00 left, [3]=$2A(42) right
-; Bolt corners: TL(0,0) TR(42,0) BL(0,38) BR(42,38)
-        brk
-        rol     a
-        brk
-        rol     a
+portrait_addr_hi_table:.byte   $00,$00,$00,$02,$00,$00,$00,$00,$04,$00,$40,$00,$00,$00,$00,$20
+        .byte   $04,$80,$00,$00,$00,$00,$00,$04,$00,$42,$01,$00,$00,$40,$00,$02
+        .byte   $00,$00,$00,$00,$00,$80,$00,$02,$05,$00,$00,$00,$00,$40,$00,$00
 
-; --- cursor_direction_offsets ($9D0D) ---
-; Indexed by button bits: $01=Right, $02=Left, $04=Down, $08=Up
-        brk
-        ora     (ppu_ctrl_shadow,x)
-        brk
-        .byte   $03
-        brk
-        brk
-        brk
-        sbc     $200F,x
-        rol     $0F
-        .byte   $0F
-        .byte   $0F
-        .byte   $0F
-        .byte   $0F
-        .byte   $0F
-        .byte   $0F
-        .byte   $0F
-        .byte   $0F
-        .byte   $0F
-        .byte   $0F
-        .byte   $0F
-        .byte   $0F
-        .byte   $0F
-        bmi     center_portrait_border_row0_data
-        ora     ($0F),y
-        asl     $26,x
-        .byte   $27
-        .byte   $0F
-        ora     ($2C,x)
-        ora     ($0F),y
-        bmi     center_portrait_border_row1_data
-        rol     $0F
-        jsr     L1121
-        .byte   $0F
-        .byte   $37
-        .byte   $17
-        ora     $0F,x
-        jsr     L0515
-        .byte   $0F
-        jsr     L2110
-        .byte   $7C
-        ror     $3938,x                 ; CHR bank/tile data
-        rol     $25,x
+cursor_x_position_table:.byte   $10,$80,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte   $10,$00
 
-; --- portrait_addr_lo ($9D4C) ---
-; PPU nametable address low bytes for portrait frame positions (9 entries).
-; Repeats per column: $62(col2)/$6C(col12)/$76(col22).
-; Combined with $9D55 high bytes, pixel positions:
-;   (16,24) (96,24) (176,24) — row 0
-;   (16,88) (96,88) (176,88) — row 1
-;   (16,152)(96,152)(176,152)— row 2
-        .byte   $62                     ; row 0: Spark/Snake/Needle
-        jmp     (L6276)
+portrait_frame_tile_table:.byte   $00,$00,$00,$00,$00,$40,$10,$01,$48
 
-        jmp     (L6276)
+face_tile_row0_table:.byte   $40,$04,$00,$00,$40,$10,$01,$00
 
-        jmp     (L2076)
+face_tile_row1_table:.byte   $00,$00,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$00
+        .byte   $00,$10,$00
 
-        jsr     L2120
-        and     ($21,x)
-        .byte   $22                     ; row 2 ($22xx = tile row 19)
-        .byte   $22
-        .byte   $22
+face_tile_row2_table:.byte   $00,$30,$00
 
-; --- portrait_frame_tiles ($9D5E) ---
-; Portrait frame tile layout. Groups of: [Y-offset, X-offset, count-1, tile IDs...]
-; $FF = end marker. Y/X offsets are relative to portrait base nametable address.
-; Frame is 8 tiles wide × 6 tiles tall (64×48 px).
-;
-; Group format in nametable offset terms:
-;   Row 0 (+$00): top border    — 8 tiles: $45 $E0 $E1 $E2 $E2 $E3 $E4 $4B
-;   Row 1 (+$21): frame body    — 6 tiles: $D5 $24 $24 $24 $24 $D6
-;   Row 2 (+$41): frame body    — 6 tiles: $E5 $24 $24 $24 $24 $E6
-;   Row 3 (+$61): frame body    — 6 tiles: $E5 $24 $24 $24 $24 $E6
-;   Row 4 (+$81): frame body    — 6 tiles: $F5 $24 $24 $24 $24 $F6
-;   Row 5 (+$A0): bottom border — 8 tiles: $55 $F0 $F1 $F2 $F2 $F3 $F4 $5B
-;   $24 = empty interior tile (face tiles written separately by write_portrait_faces)
-        brk                             ; row 0: top border
-        brk
-        .byte   $07
-        eor     $E0
-        sbc     ($E2,x)
-center_portrait_border_row0_data:  .byte   $E2
-        .byte   $E3
-        cpx     $4B
-        brk                             ; row 1: L border + interior + R border
-        and     ($05,x)
-center_portrait_border_row1_data:  cmp     $24,x
-        bit     $24
-        bit     $D6
-        brk                             ; row 2
-        eor     ($05,x)
-        sbc     $24
-        bit     $24
-        bit     $E6
-        brk                             ; row 3
-        adc     ($05,x)
-        sbc     $24
-        bit     $24
-        bit     $E6
-        brk                             ; row 4
-        sta     ($05,x)
-        sbc     $24,x
-        bit     $24
-        bit     $F6
-        brk                             ; row 5: bottom border
-        ldy     #$07
-        eor     mmc3_shadow,x
-        sbc     ($F2),y
-        .byte   $F2
-        .byte   $F3
-        .byte   $F4
-        .byte   $5B
-        .byte   $FF                     ; end marker
+face_tile_row3_table:.byte   $20,$00,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$40,$00
+        .byte   $01,$00,$00,$00,$01,$00,$80,$00,$00,$00,$02,$04,$00,$00,$00,$00
+        .byte   $08,$00,$01,$00,$00,$01,$04,$00,$0A,$00,$00,$01,$20,$00,$20,$00
+        .byte   $00,$00,$00,$00,$01,$00,$00,$10,$00
 
-; --- face_tiles_row0 ($9D99) ---
-; Portrait face tile IDs — 4×4 grid written by write_portrait_faces.
-; Same tile IDs for ALL portraits; CHR bank selects which boss face appears.
-        iny                             ; face row 0
-        cmp     #$CA
-        .byte   $CB
-        cld                             ; face row 1
-        cmp     $DBDA,y
-        inx                             ; face row 2
-        sbc     #$EA
-        .byte   $EB
-        sed                             ; face row 3
-        sbc     $FBFA,y
+face_addr_hi_table:.byte   $00,$00,$00,$00,$04,$10,$00
 
-; --- face_attr_offsets ($9DA9) ---
-; Attribute table offsets for portrait palette (OR'd with $23C0 base).
-        ora     #$00
-        asl     a:L0000
-        brk
-        and     #$00
-        rol     $8E21
-        cpy     $CECD                   ; center face row 0
-        .byte   $CF
-        .byte   $DC                     ; center face row 1
-        cmp     $DFDE,x
-        cpx     $EEED                   ; center face row 2
-        .byte   $EF
-        .byte   $FC                     ; center face row 3
-        sbc     $FFFE,x
+face_addr_lo_table:.byte   $10,$00
 
-; --- center_attr_data ($9DC4) ---
-; Attribute table write for center portrait palette.
-        .byte   $23                     ; $23DB: attr addr, 2 bytes: $88,$22
-        .byte   $DB
-        ora     ($88,x)
-        .byte   $22
+face_attr_offset_table:.byte   $00,$00,$00,$00,$00,$00,$00,$00,$10,$40,$81,$00,$10,$40,$00,$00
+        .byte   $00,$10,$00,$00,$10,$00,$00,$00,$00,$00,$04,$00,$01,$00,$00,$00
+        .byte   $08,$10,$00,$00,$00,$04,$10,$00
 
-; --- face_addr_hi ($9DC9) ---
-; PPU addr high bytes for face tile writes (9 entries). Same as $9D55.
-        jsr     L2020                   ; rows 0/1/2
-        and     ($21,x)
-        and     (stage_id,x)
-        .byte   $22
-        .byte   $22
+center_portrait_tile_row3:.byte   $00,$00,$00,$00,$0C,$00,$20,$00,$00,$00,$02,$10,$00
 
-; --- face_addr_lo ($9DD2) ---
-; PPU addr low bytes for face positions (9 entries).
-; Col 0=$84(tile4), Col 1=$8E(tile14), Col 2=$98(tile24).
-; Face pixel positions (inside frame, 2 tiles in from border):
-;   (32,32) (112,32) (192,32) — row 0
-;   (32,96) (112,96) (192,96) — row 1
-;   (32,160)(112,160)(192,160)— row 2
-        sty     $8E                     ; row 0: Spark/Snake/Needle
-        tya
-        sty     $8E                     ; row 1: Hard/center/Top
-        tya
-        sty     $8E                     ; row 2: Gemini/Magnet/Shadow
-        tya
+center_portrait_addr_ppu:.byte   $00,$22,$00,$00,$00,$00,$00,$00,$00,$00,$00,$08,$00,$01,$00,$00
+        .byte   $00,$00,$00,$00,$00
 
-; --- portrait_beat_oam_offsets ($9DDB) ---
-        sei
-        .byte   $54
-        bpl     cursor_y_position_table
-        tya
-        rti
+center_attr_ppu_addr:.byte   $10,$00
 
-        clc
-        .byte   $64
-        brk
-        .byte   $07
-        .byte   $03
-        ora     ($05,x)
-        php
-        .byte   $04
-        .byte   $03
-        .byte   $04
-        .byte   $03
-        rti
+center_attr_table_data:.byte   $20,$01
 
-        jsr     L0801
-        brk
-        bpl     stage_lookup_table_data
-        .byte   $02
-        .byte   $80
-        .byte   $63
-        .byte   $83
-stage_lookup_table_data:  .byte   $02
-        ror     $826B,x
-        .byte   $03
-        ror     $6B,x
-        sty     $02
-        ror     $856B,x
-        .byte   $02
-        stx     $6B
-cursor_y_position_table:  stx     $01
-        stx     $876B
-        ora     ($96,x)
-        .byte   $73
-        dey
-        .byte   $02
-        stx     $73
-        .byte   $89
-        ora     ($8E,x)
-        .byte   $73
-        txa
-        ora     ($96,x)
-        .byte   $0F
-        bmi     cursor_bolt_y_offset_table
-        ora     ($0F),y
-        .byte   $0F
-        .byte   $27
-        .byte   $17
-        .byte   $0F
-        bpl     cursor_direction_offset_table
-        .byte   $17
-        .byte   $0F
-        .byte   $37
-        .byte   $3C
-        .byte   $0F
-        .byte   $0F
-cursor_x_position_table:  .byte   $37
-        .byte   $27
-        asl     $0F
-        .byte   $07
-        php
-        .byte   $09
-cursor_bolt_y_offset_table:  .byte   $0F
-        and     $1929,y
-        .byte   $0F
-        and     ($08,x)
-        bmi     cursor_bolt_x_offset_table
-        .byte   $0F
-        bit     $0F11
-        .byte   $0F
-        bmi     portrait_addr_hi_table
-        .byte   $0F
-        .byte   $0F
-        bpl     intro_chr_bank_table
-        .byte   $0F
-        .byte   $0F
-        brk
-        brk
-cursor_bolt_x_offset_table:  .byte   $20
-        rti
+portrait_oam_offset_table:.byte   $00,$00,$50,$00
 
-cursor_direction_offset_table:  brk
-        brk
-        jsr     L8100
-        brk
-        brk
-        bpl     portrait_addr_lo_table
-        bpl     intro_palette_table
-intro_palette_table:  brk
-        brk
-        brk
-        brk
-intro_chr_bank_table:  brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        rti
+portrait_sprite_count_table:.byte   $01,$00,$80,$00,$00,$04,$08,$00,$08,$10,$00
 
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        ora     (L0000,x)
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-portrait_addr_lo_table:  brk
-        brk
-        brk
-        brk
-portrait_addr_hi_table:  brk
-        brk
-        brk
-        .byte   $02
-        brk
-        brk
-        brk
-        brk
-        .byte   $04
-        brk
-        rti
+boss_bitmask_table:.byte   $00,$08,$00,$00,$00,$00,$04,$02,$00,$00,$00,$80,$00,$00,$00,$00
+        .byte   $00,$1C,$00,$00,$05,$00,$00,$00,$00,$C4,$00,$00,$00,$00,$00,$02
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$10,$20,$00,$00
+        .byte   $04,$05,$00,$00,$00,$40,$00,$00,$00,$00,$00,$00,$40,$00,$01,$00
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$20,$00,$00
 
-        brk
-        brk
-        brk
-        brk
-        jsr     L8004
-        brk
-        brk
-        brk
-        brk
-        brk
-        .byte   $04
-        brk
-        .byte   $42
-        ora     (L0000,x)
-        brk
-        rti
-
-        brk
-        .byte   $02
-        brk
-        brk
-        brk
-        brk
-        brk
-        .byte   $80
-        brk
-        .byte   $02
-        ora     L0000
-        brk
-        brk
-        brk
-        rti
-
-        brk
-        brk
-        bpl     cursor_x_position_table
-        .byte   $04
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        bpl     portrait_frame_tile_table
-portrait_frame_tile_table:  brk
-        brk
-        brk
-        brk
-        brk
-        rti
-
-        bpl     face_tile_row0_table
-        pha
-face_tile_row0_table:  rti
-
-        .byte   $04
-        brk
-        brk
-        rti
-
-        bpl     face_tile_row1_table
-        brk
-face_tile_row1_table:  brk
-        brk
-        .byte   $04
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        ora     (L0000,x)
-        brk
-        bpl     face_tile_row2_table
-face_tile_row2_table:  brk
-        bmi     face_tile_row3_table
-face_tile_row3_table:  jsr     L0400
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        ora     ($40,x)
-        brk
-        ora     (L0000,x)
-        brk
-        brk
-        ora     (L0000,x)
-        .byte   $80
-        brk
-        brk
-        brk
-        .byte   $02
-        .byte   $04
-        brk
-        brk
-        brk
-        brk
-        php
-        brk
-        ora     (L0000,x)
-        brk
-        ora     ($04,x)
-        brk
-        asl     a
-        brk
-        brk
-        ora     ($20,x)
-        brk
-        jsr     L0000
-        brk
-        brk
-        brk
-        ora     (L0000,x)
-        brk
-        bpl     face_addr_hi_table
-face_addr_hi_table:  brk
-        brk
-        brk
-        brk
-        .byte   $04
-        bpl     face_addr_lo_table
-face_addr_lo_table:  bpl     face_attr_offset_table
-face_attr_offset_table:  brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        bpl     center_attr_ppu_addr
-        sta     (L0000,x)
-        bpl     portrait_oam_offset_table
-        brk
-        brk
-        brk
-        bpl     center_portrait_tile_row0
-center_portrait_tile_row0:  brk
-        bpl     center_portrait_tile_row1
-center_portrait_tile_row1:  brk
-        brk
-        brk
-        brk
-        .byte   $04
-        brk
-        ora     (L0000,x)
-        brk
-        brk
-        php
-        bpl     center_portrait_tile_row2
-center_portrait_tile_row2:  brk
-        brk
-        .byte   $04
-        bpl     center_portrait_tile_row3
-center_portrait_tile_row3:  brk
-        brk
-        brk
-        brk
-        .byte   $0C
-        brk
-        jsr     L0000
-        brk
-        .byte   $02
-        bpl     center_portrait_addr_ppu
-center_portrait_addr_ppu:  brk
-        .byte   $22
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        php
-        brk
-        ora     (L0000,x)
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-center_attr_ppu_addr:  bpl     center_attr_table_data
-center_attr_table_data:  .byte   $20
-        .byte   $01
-portrait_oam_offset_table:  brk
-        brk
-        bvc     portrait_sprite_count_table
-portrait_sprite_count_table:  ora     (L0000,x)
-        .byte   $80
-        brk
-        brk
-        .byte   $04
-        php
-        brk
-        php
-        bpl     boss_bitmask_table
-boss_bitmask_table:  brk
-        php
-        brk
-        brk
-        brk
-        brk
-        .byte   $04
-        .byte   $02
-        brk
-        brk
-        brk
-        .byte   $80
-        brk
-        brk
-        brk
-        brk
-        brk
-        .byte   $1C
-        brk
-        brk
-        ora     L0000
-        brk
-        brk
-        brk
-        cpy     L0000
-        brk
-        brk
-        brk
-        brk
-        .byte   $02
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        bpl     wily_center_sprite_table
-        brk
-        brk
-        .byte   $04
-        ora     L0000
-        brk
-        brk
-        rti
-
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        rti
-
-        brk
-        ora     (L0000,x)
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        jsr     L0000
-wily_center_sprite_table:  brk
-        brk
-        brk
-        .byte   $02
-        brk
-        .byte   $04
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        rti
-
-        brk
-        brk
-        brk
-        rti
-
-        brk
-        brk
-        brk
-        brk
-        jsr     L0000
-        brk
-        eor     #$F1
+wily_center_sprite_table:.byte   $00,$00,$00,$02,$00,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte   $00,$00,$40,$00,$00,$00,$40,$00,$00,$00,$00,$20,$00,$00,$00,$49
+        .byte   $F1

@@ -1795,9 +1795,5 @@ weapon_icon_sprite_pointer_high:  .byte   $A6,$A6,$A6,$A6,$A6,$A6,$A6,$A6
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
 ; --- End of bank padding ---
-        .byte   $00,$00,$00,$00,$00
-        brk
-        brk
-        brk
-        brk
-        brk
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00
+        .byte   $00,$00
