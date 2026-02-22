@@ -69,9 +69,9 @@ select_PRG_banks           := $FF6B     ; select_PRG_banks
 ; =============================================================================
 ; ENTRY POINT JUMP TABLE
 ; =============================================================================
-        jmp     code_8006               ; $8000: close boss door
+        jmp     close_boss_door               ; $8000: close boss door
                                     ;   (called before boss fight)
-        jmp     code_81F3               ; $8003: open boss door
+        jmp     open_boss_door               ; $8003: open boss door
                                     ;   (called after boss defeat)
 
 ; =============================================================================
@@ -83,7 +83,7 @@ select_PRG_banks           := $FF6B     ; select_PRG_banks
 ; to both nametable 0 and nametable 1 via the PPU buffer, with
 ; attribute table bits updated in the $0640 mirror.
 ; ---------------------------------------------------------------------------
-code_8006:  jsr     ensure_stage_bank   ; ensure stage PRG bank is selected
+close_boss_door:  jsr     ensure_stage_bank   ; ensure stage PRG bank is selected
         lda     #$00                    ; A = 0
         sta     $95                     ; reset frame counter
         ; --- Set up PPU buffer entry 1 (nametable 0 tile) ---
@@ -114,7 +114,7 @@ code_8006:  jsr     ensure_stage_bank   ; ensure stage PRG bank is selected
         lda     #$04                    ; 4 columns to animate
         sta     $02                     ; store column counter
 ; --- Write one column of door tiles ---
-code_804B:  ldx     boss_door_close_metatile_indices,y ; metatile sub-index for this column
+close_door_write_column:  ldx     boss_door_close_metatile_indices,y ; metatile sub-index for this column
         lda     $BB00,x                 ; top-left CHR tile
         sta     $0783                   ; → PPU buffer entry 1 data (NT0)
         lda     $BC00,x                 ; top-right CHR tile
@@ -137,17 +137,17 @@ code_804B:  ldx     boss_door_close_metatile_indices,y ; metatile sub-index for 
         sta     $078E                   ; write terminator to PPU buf
         sta     nametable_dirty         ; signal NMI to flush PPU buffer
 ; --- Wait 4 frames between columns (animation delay) ---
-code_8084:  lda     #$00                ; A = 0
+close_door_wait_frames:  lda     #$00                ; A = 0
         sta     nmi_skip                ; allow NMI processing
         jsr     task_yield              ; task_yield — wait for next frame
         inc     nmi_skip                ; re-lock NMI
         inc     $95                     ; increment frame counter
         lda     $95                     ; read frame counter
         and     #$03                    ; wait until counter is multiple of 4
-        bne     code_8084               ; loop until multiple of 4
+        bne     close_door_wait_frames               ; loop until multiple of 4
         iny                             ; advance Y to next table entry
         dec     $02                     ; decrement column counter
-        beq     code_80CC               ; all 4 columns done → exit
+        beq     close_door_done               ; all 4 columns done → exit
         ; --- Move PPU address up by 2 tile rows ($40 bytes) ---
         lda     $0781                   ; read PPU addr low byte
         sec                             ; set carry for subtract
@@ -164,7 +164,7 @@ code_8084:  lda     #$00                ; A = 0
         eor     #$02                    ; flip between upper/lower attr half
         sta     $04                     ; store toggled sub-index
         cmp     #$03                    ; check if crossed boundary
-        bne     code_804B               ; if not wrapped, continue
+        bne     close_door_write_column               ; if not wrapped, continue
         ; --- Crossed attribute boundary: move attr offset back ---
         lda     $03                     ; read attr offset
         sec                             ; set carry for subtract
@@ -172,10 +172,10 @@ code_8084:  lda     #$00                ; A = 0
         sta     $03                     ; store new attr offset
         ora     #$C0                    ; rebuild PPU attribute address
         sta     $078B                   ; update PPU attr address
-        jmp     code_804B               ; continue next column
+        jmp     close_door_write_column               ; continue next column
 
 ; --- Door close complete: restore stage bank and return ---
-code_80CC:  lda     stage_id            ; get current stage ID
+close_door_done:  lda     stage_id            ; get current stage ID
         sta     prg_bank                ; set as PRG bank number
         jmp     select_PRG_banks        ; select_PRG_banks and return
 
@@ -239,7 +239,7 @@ boss_door_close_attr_palette_bits:  .byte   $40,$04,$40,$04,$2F,$03,$40,$04
 ; address space), revealing the passage behind the shutter.
 ; Uses its own set of data tables (boss_door_open_ppu_addr_high-boss_door_open_attr_palette_bits).
 ; ---------------------------------------------------------------------------
-code_81F3:  jsr     ensure_stage_bank   ; ensure stage PRG bank is selected
+open_boss_door:  jsr     ensure_stage_bank   ; ensure stage PRG bank is selected
         lda     boss_door_open_ppu_addr_high,y ; PPU address high byte from table
         sta     $0780                   ; PPU buf entry 1 high (NT0)
         sta     $0784                   ; PPU buf entry 2 high (NT1)
@@ -268,7 +268,7 @@ code_81F3:  jsr     ensure_stage_bank   ; ensure stage PRG bank is selected
         lda     #$04                    ; 4 columns to animate
         sta     $02                     ; store column counter
 ; --- Write one column of open-door tiles ---
-code_8236:  ldx     boss_door_open_metatile_indices,y ; metatile sub-index for this column
+open_door_write_column:  ldx     boss_door_open_metatile_indices,y ; metatile sub-index for this column
         lda     $BC00,x                 ; top-right CHR tile
         sta     $0783                   ; → PPU buffer tile data (NT0)
         lda     $BE00,x                 ; bottom-right CHR tile
@@ -287,17 +287,17 @@ code_8236:  ldx     boss_door_open_metatile_indices,y ; metatile sub-index for t
         sta     $078C                   ; write terminator to PPU buf
         sta     nametable_dirty         ; signal NMI to flush PPU buffer
 ; --- Wait 4 frames between columns (animation delay) ---
-code_8263:  lda     #$00                ; A = 0
+open_door_wait_frames:  lda     #$00                ; A = 0
         sta     nmi_skip                ; allow NMI processing
         jsr     task_yield              ; task_yield — wait for next frame
         inc     nmi_skip                ; re-lock NMI
         inc     $95                     ; increment frame counter
         lda     $95                     ; read frame counter
         and     #$03                    ; wait until counter is multiple of 4
-        bne     code_8263               ; loop until multiple of 4
+        bne     open_door_wait_frames               ; loop until multiple of 4
         iny                             ; advance Y to next table entry
         dec     $02                     ; decrement column counter
-        beq     code_82A9               ; all 4 columns done → exit
+        beq     open_door_done               ; all 4 columns done → exit
         ; --- Move PPU address down by 2 tile rows ($40 bytes) ---
         lda     $0781                   ; read PPU addr low byte
         clc                             ; clear carry for add
@@ -313,7 +313,7 @@ code_8263:  lda     #$00                ; A = 0
         lda     $04                     ; read attr sub-index
         eor     #$02                    ; flip between upper/lower attr half
         sta     $04                     ; store toggled sub-index
-        bne     code_8236               ; if nonzero, continue
+        bne     open_door_write_column               ; if nonzero, continue
         ; --- Crossed attribute boundary: advance attr offset ---
         lda     $03                     ; read attr offset
         clc                             ; clear carry for add
@@ -321,10 +321,10 @@ code_8263:  lda     #$00                ; A = 0
         sta     $03                     ; store new attr offset
         ora     #$C0                    ; rebuild PPU attribute address
         sta     $0789                   ; update PPU attr address
-        jmp     code_8236               ; continue next column
+        jmp     open_door_write_column               ; continue next column
 
 ; --- Door open complete: restore stage bank and return ---
-code_82A9:  lda     stage_id            ; get current stage ID
+open_door_done:  lda     stage_id            ; get current stage ID
         sta     prg_bank                ; set as PRG bank number
         jmp     select_PRG_banks        ; select_PRG_banks and return
 
