@@ -480,7 +480,7 @@ credits_text_pointer_high_bytes:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
 ;   $AC00:  Enemy placement data — X pixel positions
 ;   $AD00:  Enemy placement data — Y pixel positions
 ;   $AE00:  Enemy placement data — global enemy IDs
-;   $AF00:  Metatile column definitions (8 bytes per column)
+;   $AF00:  Metatile column definitions (64-byte blocks: 8 columns × 8 rows)
 ;   $B700:  Metatile CHR definitions (4 bytes per metatile: 2x2 tile IDs)
 ;   $BB00:  Metatile CHR attribute / flip plane data
 ;   $BF00:  Collision attribute table (upper nybble = collision type)
@@ -793,7 +793,7 @@ credits_text_pointer_high_bytes:  .byte   $A2,$A2,$A2,$A2,$A2,$A3,$A3,$A3
 ; ===========================================================================
 ; Metatile column definitions ($AF00+)
 ; ===========================================================================
-; Each 8-byte group defines one column of metatiles (8 rows top-to-bottom).
+; Each column is a 64-byte block: 8 columns × 8 rows (row-major), stride = column_ID * 64.
 ; Metatile indices reference the CHR/attribute definitions at $B700/$BB00.
 ; The level is built from columns of 8-metatile-tall "strips".
 ; ---------------------------------------------------------------------------

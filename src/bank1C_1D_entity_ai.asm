@@ -5011,6 +5011,7 @@ penpen_maker_rts:  rts
 ; main_penpen_maker — Penpen Maker (Gemini Man stage pipe spawner)
 ; Periodically spawns Penpen enemies. Changes palette colors on spawn.
 ; Uses a pseudo-random timer between spawns.
+; Dispatch routines $2B, $39, $48, $56 all share this AI code (variants).
 ; ===========================================================================
 main_penpen_maker:
         lda     ent_status,x            ; state 0: init
@@ -5206,28 +5207,35 @@ penpen_maker_spawn_parts:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_y
         bcs     penpen_maker_parts_rts  ; no free slot -> done
         lda     $10                     ; load parent OAM ID
         jsr     init_child_entity       ; init_child_entity
+; Penpen Maker variants share this spawn code. The parent's routine ID
+; ($11) determines what kind of child parts to create:
+;   $56, $48 → type A (routine $54 = inert, hitbox $80)
+;   $39      → type B (routine $55 = inert, hitbox $80)
+;   other    → default (routine $00, hitbox $00 = harmless debris)
+; Routines $54/$55 both dispatch to main_ret_B (RTS) — these parts have
+; no AI update; they just drift with their initial position offsets.
         lda     $11                     ; parent routine ID
-        cmp     #$56                    ; routine $56?
+        cmp     #$56                    ; Penpen Maker variant $56?
         beq     penpen_maker_part_type_a ; → type A
-        cmp     #$48                    ; routine $48?
+        cmp     #$48                    ; Penpen Maker variant $48?
         beq     penpen_maker_part_type_a ; → type A
-        cmp     #$39                    ; routine $39?
+        cmp     #$39                    ; Penpen Maker variant $39?
         beq     penpen_maker_part_type_b ; → type B
         cmp     #$48                    ; (dead branch — already matched)
         beq     penpen_maker_part_type_b ; (unreachable)
         lda     #$00                    ; default: no hitbox/routine
         sta     ent_hitbox,y            ; hitbox = 0 (harmless debris)
-        sta     ent_routine,y           ; routine = 0
+        sta     ent_routine,y           ; routine = 0 (no AI)
         beq     penpen_maker_part_pos   ; always branches
 penpen_maker_part_type_a:  lda     #$80 ; type A: contact damage hitbox
-        sta     ent_hitbox,y            ; set child hitbox
-        lda     #$54                    ; AI routine $54
-        sta     ent_routine,y           ; set child routine
-        bne     penpen_maker_part_pos   ; always branches -> position
+        sta     ent_hitbox,y
+        lda     #$54                    ; routine $54 → main_ret_B (inert)
+        sta     ent_routine,y
+        bne     penpen_maker_part_pos   ; always branches
 penpen_maker_part_type_b:  lda     #$80 ; type B: contact damage hitbox
-        sta     ent_hitbox,y            ; set child hitbox
-        lda     #$55                    ; AI routine $55
-        sta     ent_routine,y           ; set child routine
+        sta     ent_hitbox,y
+        lda     #$55                    ; routine $55 → main_ret_B (inert)
+        sta     ent_routine,y
 penpen_maker_part_pos:  lda     #$00    ; $01 = sign extend byte
         sta     $01                     ; initialize sign byte to 0
         lda     penpen_maker_part_x_off,x ; X offset for this part
