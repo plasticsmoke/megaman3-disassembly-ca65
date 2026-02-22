@@ -17,7 +17,6 @@ main_yellow_devil:
 .include "include/hardware.inc"
 
 ; --- External references (fixed bank + $8000 entry points, bank $1C) ---
-L0000           := $0000
 L8003           := $8003                ; entity AI dispatch
 L8006           := $8006                ; entity AI dispatch (alt)
 L8009           := $8009                ; check player hit
@@ -125,10 +124,10 @@ yellow_devil_dispatch:  lda     ent_status,x ; current status
         and     #$0F                    ; routine index (low nibble)
         tay                             ; use as table index
         lda     yellow_devil_routine_table,y ; routine addr low byte
-        sta     L0000                   ; store in indirect ptr low
+        sta     temp_00                 ; store in indirect ptr low
         lda     yellow_devil_addr_table,y ; routine addr high byte
         sta     $01                     ; store in indirect ptr high
-        jmp     (L0000)                 ; jump to AI routine
+        jmp     (temp_00)               ; jump to AI routine
 
 ; Yellow Devil init — freeze player for boss intro
 
@@ -159,7 +158,7 @@ yellow_devil_wait_timer:  lda     ent_timer,x ; check timer
 yellow_devil_return:  rts
 
 yellow_devil_spawn_piece:  jsr     find_enemy_freeslot_y ; get free entity slot
-        stx     L0000                   ; save parent slot index
+        stx     temp_00                 ; save parent slot index
         lda     ent_var1,x              ; piece index
         sta     ent_timer,y             ; pass to child as timer
         tax                             ; use piece index as X
@@ -205,7 +204,7 @@ yellow_devil_spawn_common:  lda     #$80 ; active entity
         adc     #$18                    ; offset +24 for left table
         tax                             ; index into left timers
 yellow_devil_load_timer:  lda     yellow_devil_timer_table,x ; delay before next piece
-        ldx     L0000                   ; restore parent slot
+        ldx     temp_00                 ; restore parent slot
         sta     ent_timer,x             ; set spawn delay
         inc     ent_var1,x              ; advance piece counter
         lda     ent_timer,x             ; check spawn delay
@@ -361,7 +360,7 @@ yellow_devil_piece_timer_dec:  rts
 yellow_devil_piece_flatten:  lda     ent_flags,x ; get flags
         ora     #$04                    ; set bit 2 (invisible)
         sta     ent_flags,x             ; hide sprite
-        stx     L0000                   ; save parent slot
+        stx     temp_00                 ; save parent slot
         ldy     ent_var1,x              ; body column index
         lda     yellow_devil_chr_seq_table,y ; CHR tile for column
         sta     $0780                   ; NT cmd 1 tile hi
@@ -426,7 +425,7 @@ yellow_devil_body_spawn_loop:  jsr     find_enemy_freeslot_y ; find free entity 
 yellow_devil_body_pos_next:  inc     $03 ; next spawn order
         cmp     #$48                    ; reached top ($48)?
         bne     yellow_devil_body_spawn_loop ; not done → spawn more
-yellow_devil_body_spawn_done:  ldx     L0000 ; restore parent slot
+yellow_devil_body_spawn_done:  ldx     temp_00 ; restore parent slot
         lda     #$14                    ; 20 frame delay
         sta     ent_timer,x             ; set inter-column timer
         inc     ent_var1,x              ; next column
@@ -783,10 +782,10 @@ wily_machine_a_dispatch:  lda     #$AB  ; push return addr hi ($AB)
         and     #$0F                    ; isolate low nibble
         tay                             ; use as table index
         lda     wily_machine_b_addr_a,y ; load jump target lo
-        sta     L0000
+        sta     temp_00
         lda     wily_machine_b_addr_b,y ; load jump target hi
         sta     $01
-        jmp     (L0000)                 ; dispatch to phase handler
+        jmp     (temp_00)               ; dispatch to phase handler
 
         lda     #$09                    ; PSTATE_BOSS_WAIT
         cmp     player_state            ; already in boss wait?
@@ -826,10 +825,10 @@ wily_machine_a_return:  rts
 
         ldy     ent_timer,x             ; get movement subroutine idx
         lda     wily_machine_b_routine_ptr,y ; load sub-handler addr lo
-        sta     L0000
+        sta     temp_00
         lda     wily_machine_b_addr_c,y ; load sub-handler addr hi
         sta     $01
-        jmp     (L0000)                 ; dispatch to move routine
+        jmp     (temp_00)               ; dispatch to move routine
 
         lda     $5E                     ; current machine Y pos
         cmp     #$5A                    ; reached top position?
@@ -1014,10 +1013,10 @@ wily_machine_a_move_timer_dec:  dec     ent_var1,x ; decrement movement timer
         lda     $6A                     ; X offset lo
         sec
         sbc     #$40                    ; compare to $140
-        sta     L0000
+        sta     temp_00
         lda     $6B                     ; X offset hi
         sbc     #$01                    ; subtract hi byte
-        ora     L0000                   ; check if exactly $140
+        ora     temp_00                 ; check if exactly $140
         beq     wily_machine_a_input_check ; at right boundary — pause
         lda     #$00                    ; not at boundary
         sta     ent_timer,x             ; reset to direction 0
@@ -1025,10 +1024,10 @@ wily_machine_a_move_timer_dec:  dec     ent_var1,x ; decrement movement timer
 wily_machine_a_check_dir:  lda     $6A  ; X offset lo
         sec
         sbc     #$C0                    ; compare to $C0
-        sta     L0000
+        sta     temp_00
         lda     $6B                     ; X offset hi
         sbc     #$00                    ; subtract hi byte
-        ora     L0000                   ; check if exactly $C0
+        ora     temp_00                 ; check if exactly $C0
         beq     wily_machine_a_input_check ; at left boundary — pause
         lda     #$04                    ; force direction 4 (right)
         sta     ent_timer,x             ; override timer index
@@ -1127,7 +1126,7 @@ wily_machine_a_bullet_init:  lda     #$58 ; entity ID $58 = falling bullet
         jsr     entity_x_dist_to_player ; get distance to player
         sta     $01                     ; dividend hi = distance
         lda     #$00                    ; clear dividend lo
-        sta     L0000                   ; set dividend lo = 0
+        sta     temp_00                 ; set dividend lo = 0
         sta     $02                     ; clear divisor lo
         lda     #$24                    ; frames to reach = 36
         sta     $03                     ; divisor hi = 36
@@ -1153,11 +1152,11 @@ wily_machine_a_flip_loop:  lda     $0597,y ; get sprite flags
         lda     $0577,y                 ; saved initial X pos
         sec
         sbc     $6A                     ; subtract X offset lo
-        sta     L0000
+        sta     temp_00
         lda     #$01                    ; X base = $100
         sbc     $6B                     ; subtract X offset hi
         bne     wily_machine_a_dey_loop ; hi != 0 — offscreen
-        lda     L0000                   ; onscreen X position
+        lda     temp_00                 ; onscreen X position
         sta     $0377,y                 ; update sprite X pos
         lda     $0597,y                 ; get sprite flags back
         and     #$FB                    ; clear offscreen bit
@@ -1338,11 +1337,11 @@ wily_machine_b_move_vert:  lda     ent_facing,x ; check V-move direction
 wily_machine_b_move_down:  jsr     move_sprite_down
 wily_machine_b_calc_vel:  ldy     ent_timer,x ; velocity table index
         lda     #$00                    ; clear sign extension
-        sta     L0000                   ; init high byte = 0
+        sta     temp_00                 ; init high byte = 0
         sta     $01                     ; init X sign extend = 0
         lda     wily_machine_b_xvel_sub_table,y ; Y velocity (signed)
         bpl     wily_machine_b_vel_apply ; positive, no sign extend
-        dec     L0000                   ; negative, sign extend $FF
+        dec     temp_00                 ; negative, sign extend $FF
 wily_machine_b_vel_apply:  lda     ent_y_sub,x ; add Y sub-pixel velocity
         clc
         adc     wily_machine_b_yvel_table,y ; add Y sub-pixel component
@@ -1351,7 +1350,7 @@ wily_machine_b_vel_apply:  lda     ent_y_sub,x ; add Y sub-pixel velocity
         adc     wily_machine_b_xvel_sub_table,y ; add Y pixel component
         sta     ent_y_px,x              ; update Y pixel
         lda     ent_y_scr,x             ; add sign extension to screen
-        adc     L0000                   ; carry into screen byte
+        adc     temp_00                 ; carry into screen byte
         beq     wily_machine_b_x_vel_apply ; still on screen 0, OK
         lda     #$00                    ; off-screen, despawn
         sta     ent_status,x            ; deactivate entity
@@ -1595,7 +1594,7 @@ gamma_b_spawn_init:  jsr     init_child_entity ; spawn mine/debris child
 
 gamma_b_spawn_homing_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     gamma_b_spawn_end       ; no free slot, return
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; parent facing direction
         sta     ent_facing,y            ; child inherits facing
         and     #$02                    ; bit 1 = facing left
@@ -1606,7 +1605,7 @@ gamma_b_spawn_homing_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         pha                             ; save low byte
         lda     ent_x_scr,x             ; parent X screen
         adc     gamma_b_sprite_id_table,y ; add screen carry/offset
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_x_scr,y             ; set child X screen
         pla                             ; restore X pixel low
         sta     ent_x_px,y              ; set child X pixel
@@ -1658,7 +1657,7 @@ gamma_b_spawn_bullet:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y            ; bullet inherits facing
         jsr     entity_x_dist_to_player ; get X dist to player
-        stx     L0000                   ; save parent slot
+        stx     temp_00                 ; save parent slot
         ldx     #$03                    ; start at highest speed
 gamma_b_vel_select_loop:  cmp     gamma_b_vel_threshold_table,x ; dist < threshold?
         bcc     gamma_b_vel_apply       ; yes, use this speed
@@ -1668,7 +1667,7 @@ gamma_b_vel_apply:  lda     gamma_b_xvel_sub_table,x ; X vel sub for distance
         sta     ent_xvel_sub,y          ; set bullet X vel sub
         lda     gamma_b_xvel_table,x    ; X vel pixel for distance
         sta     ent_xvel,y              ; set bullet X velocity
-        ldx     L0000                   ; restore parent slot
+        ldx     temp_00                 ; restore parent slot
 gamma_b_bullet_return:  rts
 
 gamma_b_vel_threshold_table:  .byte   $4C,$3D,$2E,$1F
@@ -1955,7 +1954,7 @@ teleporter_fall_rts:  jsr     apply_y_speed ; apply vertical velocity
         lda     #$00                    ; timer < 2 → despawn block
         sta     ent_status,x
 wily_machine_c_var1_init:  lda     #$03 ; loop counter = 3 (4 blocks)
-        sta     L0000                   ; store in temp $00
+        sta     temp_00                 ; store in temp $00
 wily_machine_c_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     teleporter_fall_end     ; none free → abort
         lda     #$78                    ; child ID $78 = falling block
@@ -1974,7 +1973,7 @@ wily_machine_c_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         stx     $01                     ; save parent slot
         lda     ent_x_px,x              ; parent X position
         sta     $02                     ; save in temp $02
-        ldx     L0000                   ; X = loop counter
+        ldx     temp_00                 ; X = loop counter
         lda     wily_machine_c_y_pos_table,x ; Y offset for this block
         sta     ent_y_px,y              ; set block Y position
         lda     $02                     ; parent X position
@@ -1986,7 +1985,7 @@ wily_machine_c_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     wily_machine_c_flags_table,x ; block movement flags
         sta     ent_xvel,y
         ldx     $01                     ; restore parent slot
-        dec     L0000                   ; next block index
+        dec     temp_00                 ; next block index
         bpl     wily_machine_c_spawn_loop ; loop until all 4 spawned
         rts
 
@@ -2305,7 +2304,7 @@ kamegoro_maker_pellet_loop:  jsr     find_enemy_freeslot_y ; find free enemy slo
         sta     ent_y_px,y              ; set pellet Y position
         lda     #$02                    ; face left
         sta     ent_facing,y            ; pellets fire leftward
-        stx     L0000                   ; save parent slot
+        stx     temp_00                 ; save parent slot
         ldx     $01                     ; use counter as param index
         lda     kamegoro_maker_param_a,x ; X velocity sub-pixel
         sta     ent_xvel_sub,y          ; set pellet X vel sub
@@ -2315,7 +2314,7 @@ kamegoro_maker_pellet_loop:  jsr     find_enemy_freeslot_y ; find free enemy slo
         sta     ent_yvel_sub,y          ; set pellet Y vel sub
         lda     kamegoro_maker_param_d,x ; Y velocity whole pixel
         sta     ent_yvel,y              ; set pellet Y velocity
-        ldx     L0000                   ; restore parent slot
+        ldx     temp_00                 ; restore parent slot
         dec     $01                     ; decrement pellet counter
         bpl     kamegoro_maker_pellet_loop ; loop until all 3 spawned
 kamegoro_maker_pellet_end:  rts
@@ -2419,7 +2418,7 @@ kamegoro_current_status_inc:  inc     ent_status,x ; max spawns, advance phase
 kamegoro_current_return:  rts
 
 kamegoro_current_death_init:  lda     #$00 ; start child scan
-        sta     L0000                   ; clear live child count
+        sta     temp_00                 ; clear live child count
         lda     #$80                    ; Kamegoro maker spawn ID $80
         sta     $01                     ; store for comparison
         ldy     #$1F                    ; scan slots $10-$1F
@@ -2428,7 +2427,7 @@ kamegoro_current_death_loop:  lda     ent_status,y ; check if slot active
 kamegoro_current_death_next:  dey
         cpy     #$0F                    ; check slot $10
         bne     kamegoro_current_death_loop ; loop all enemy slots
-        lda     L0000                   ; get live child count
+        lda     temp_00                 ; get live child count
         bne     kamegoro_current_death_anim ; children still alive
         lda     #$00                    ; all children defeated
         sta     ent_var1,x              ; clear death flag
@@ -2450,7 +2449,7 @@ kamegoro_current_death_anim:  lda     #$31 ; closed-shell animation
 kamegoro_current_death_filter:  lda     $01 ; get spawn ID to match
         cmp     ent_spawn_id,y          ; is this a Kamegoro child?
         bne     kamegoro_current_death_next ; no match, skip slot
-        inc     L0000                   ; count this live child
+        inc     temp_00                 ; count this live child
         jmp     kamegoro_current_death_next
 
 kamegoro_current_death_counter:  lda     $E4 ; RNG seed
@@ -2469,7 +2468,7 @@ kamegoro_current_spawn_table:  .byte   $01,$02,$01,$02
 kamegoro_current_timer_table:  .byte   $01,$02,$03,$05,$08,$0A
 kamegoro_current_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     kamegoro_current_spawn_return ; no slot, return
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_x_px,x              ; copy parent X pixel
         sta     ent_x_px,y              ; to child X pixel
         lda     ent_x_scr,x             ; copy parent X screen
@@ -2491,16 +2490,16 @@ kamegoro_current_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy 
         sta     $02                     ; save wave index to temp
         tay                             ; use as table index
         lda     kamegoro_current_spawn_timer_a,y ; look up facing for wave
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_facing,y            ; set child facing
         ldy     $02                     ; reload wave index
         lda     kamegoro_current_spawn_facing,y ; look up X vel sub for wave
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_xvel_sub,y          ; set child X vel sub
         sta     ent_yvel_sub,y          ; same value for Y vel sub
         ldy     $02                     ; reload wave index
         lda     kamegoro_current_spawn_timer_b,y ; look up velocity for wave
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_xvel,y              ; set child X velocity
         sta     ent_yvel,y              ; same value for Y velocity
         lda     #$5E                    ; entity OAM type $5E
@@ -2719,7 +2718,7 @@ kamegoro_current_anim_id_set:  lda     #$64 ; horizontal crawl-up anim
 
 kamegoro_current_effect_spawn:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     kamegoro_current_effect_return ; no slot, return
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_x_px,x              ; copy parent X pixel
         sta     ent_x_px,y              ; to child X pixel
         lda     ent_x_scr,x             ; copy parent X screen
@@ -2741,7 +2740,7 @@ kamegoro_current_effect_return:  rts
         .byte   $00,$00,$00,$00
 kamegoro_current_effect_spawn_2:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     kamegoro_current_effect_ret_2 ; no slot, return
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y            ; to child facing
         lda     ent_x_px,x              ; copy parent X pixel
@@ -2917,7 +2916,7 @@ holograph_y_pos_alt_table:  .byte   $28,$38,$48,$58,$68,$78,$88,$98
         .byte   $A8,$B8,$C8,$D8,$B8,$A8,$98,$88
 holograph_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     holograph_spawn_return  ; no free slot?
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_x_scr,x             ; copy parent screen
         sta     ent_x_scr,y
         lda     #$00                    ; clear HP (invincible)
@@ -2938,7 +2937,7 @@ holograph_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     ent_x_px,x              ; parent X position
         clc
         adc     holograph_spawn_param_2,y ; add directional offset
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_x_px,y              ; set child X position
         lda     ent_y_px,x              ; copy parent Y to child
         sta     ent_y_px,y
@@ -3178,18 +3177,18 @@ holograph_boss_var3_dec:  dec     ent_var3,x ; count down post-attack
 holograph_boss_timer_table:  .byte   $1E,$3C,$1E,$3C
 holograph_tentacle_spawn:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     holograph_tentacle_return ; no free slot?
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_x_scr,x             ; copy parent screen
         sta     ent_x_scr,y
         ldy     $01                     ; get tentacle index
         lda     holograph_tentacle_facing,y ; look up facing direction
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_facing,y            ; set tentacle facing
         lda     #$80                    ; X = center screen
         sta     ent_x_px,y
         ldy     $01                     ; get tentacle index
         lda     holograph_tentacle_chr_table,y ; look up Y position
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_y_px,y              ; set tentacle Y position
         lda     #$01                    ; 1px/frame move speed
         sta     ent_xvel,y
@@ -3254,7 +3253,7 @@ holograph_tentacle_facing_alt:  .byte   $01,$01,$02,$02,$01,$01,$02,$02
 holograph_tentacle_pos_offset:  .byte   $00,$02,$04,$06,$08,$0A,$0C,$0E
 holograph_tentacle_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     holograph_tentacle_spawn_end ; no free slot?
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; inherit parent facing
         sta     ent_facing,y
         and     #$01                    ; bit 0 = right direction
@@ -3262,7 +3261,7 @@ holograph_tentacle_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     ent_x_px,x              ; parent X position
         clc
         adc     holograph_tentacle_init_table,y ; add directional offset
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_x_px,y              ; set child X position
         lda     ent_x_scr,x             ; copy parent screen
         sta     ent_x_scr,y

@@ -25,7 +25,6 @@ main_hard_man_j:
 .include "include/constants.inc"
 .include "include/hardware.inc"
 
-L0000           := $0000
 L8003           := $8003
 move_right_collide           := $F580
 move_left_collide           := $F5C4
@@ -85,10 +84,10 @@ hard_man_state_dispatch:  lda     ent_status,x        ; --- state dispatch ---
         and     #$0F                    ; isolate phase number (low nibble)
         tay                             ; use as table index
         lda     hard_man_state_ptrs_low_table,y ; load state handler address low byte
-        sta     L0000                   ; store jump target low byte
+        sta     temp_00                 ; store jump target low byte
         lda     hard_man_state_ptrs_high_table,y ; load state handler address high byte
         sta     $01                     ; store jump target high byte
-        jmp     (L0000)                 ; indirect jump to current phase
+        jmp     (temp_00)               ; indirect jump to current phase
 
 ; Hard Man state pointer table (low/high bytes)
 hard_man_state_ptrs_low_table:  .byte   $36,$52,$B2,$66,$CF ; low bytes for phases 0-4
@@ -333,7 +332,7 @@ hard_man_jump_xvel_whole_table:  .byte   $03,$03,$02,$02,$01,$01,$00 ; X velocit
 ; --- spawn Hard Man fist projectile ---
 hard_man_spawn_fist:  jsr     find_enemy_freeslot_y ; find free enemy slot → Y
         bcs     hard_man_spawn_fist_done               ; no slot → bail
-        sty     L0000                   ; save free slot index
+        sty     temp_00                 ; save free slot index
         lda     ent_facing,x            ; copy facing direction
         sta     ent_facing,y            ; projectile inherits facing
         and     #$02                    ; isolate left/right bit
@@ -344,7 +343,7 @@ hard_man_spawn_fist:  jsr     find_enemy_freeslot_y ; find free enemy slot → Y
         pha
         lda     ent_x_scr,x             ; load Hard Man screen X
         adc     hard_man_fist_screen_offset_table,y ; add screen offset for facing
-        ldy     L0000                   ; restore free slot index
+        ldy     temp_00                 ; restore free slot index
         sta     ent_x_scr,y             ; set projectile screen X
         pla                             ; pull pixel X from stack
         sta     ent_x_px,y              ; set projectile pixel X
@@ -591,7 +590,7 @@ spark_man_large_spark_check:  lda     ent_anim_state,x    ; large spark: wait fo
         jmp     spark_man_spawn_homing_ball               ; spawn homing spark ball
 
 ; --- spawn 8-directional spark projectiles (small spark attack) ---
-spark_man_spawn_8way_sparks:  stx     L0000               ; save Spark Man slot
+spark_man_spawn_8way_sparks:  stx     temp_00 ; save Spark Man slot
         lda     #$07                    ; spawn 8 projectiles (indices 7→0)
         sta     $01                     ; store projectile counter
 spark_man_spawn_spark_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot → Y
@@ -607,7 +606,7 @@ spark_man_spawn_spark_loop:  jsr     find_enemy_freeslot_y ; find free enemy slo
         sta     ent_yvel,y              ; set projectile Y vel whole
         lda     spark_man_8way_facing_table,x ; set facing direction from table
         sta     ent_facing,y            ; set projectile facing
-        ldx     L0000                   ; restore Spark Man slot
+        ldx     temp_00                 ; restore Spark Man slot
         lda     #$3A                    ; spark projectile anim ID
         jsr     init_child_entity       ; init child entity with spark anim
         lda     #$8B                    ; small spark hitbox ID
@@ -624,7 +623,7 @@ spark_man_spawn_spark_loop:  jsr     find_enemy_freeslot_y ; find free enemy slo
         sta     ent_y_px,y              ; set projectile Y position
         dec     $01                     ; next projectile
         bpl     spark_man_spawn_spark_loop               ; more to spawn → loop
-spark_man_spawn_sparks_done:  ldx     L0000
+spark_man_spawn_sparks_done:  ldx     temp_00
         rts                             ; done spawning projectiles
 
 ; --- spawn homing spark ball (large spark attack) ---
@@ -836,7 +835,7 @@ snake_man_spawn_search_snake:  lda     #$02                ; set firing anim sta
         jsr     face_player_preserve_facing               ; face player (preserve facing)
         lda     #$14
         sta     ent_var1,x              ; fire cooldown = 20 frames
-        stx     L0000                   ; save Snake Man slot
+        stx     temp_00                 ; save Snake Man slot
         jsr     find_enemy_freeslot_y   ; find free enemy slot → Y
         bcs     snake_man_spawn_done               ; no slot → bail
         lda     #$52                    ; Search Snake anim ID
@@ -871,10 +870,10 @@ snake_man_spawn_search_snake:  lda     #$02                ; set firing anim sta
         lda     ent_x_scr,y             ; get child screen X
         adc     snake_man_search_snake_xoffset_table,x ; add screen carry offset
         sta     ent_x_scr,y             ; store adjusted screen X
-        ldx     L0000                   ; restore Snake Man slot
+        ldx     temp_00                 ; restore Snake Man slot
         pla                             ; recover saved facing
         sta     ent_facing,x            ; restore Snake Man's original facing
-snake_man_spawn_done:  ldx     L0000               ; restore Snake Man slot
+snake_man_spawn_done:  ldx     temp_00  ; restore Snake Man slot
         rts                             ; return
 
 ; --- Snake Man data tables ---
@@ -1130,7 +1129,7 @@ gemini_man_solo_shoot_end:  lda     ent_anim_frame,x    ; check anim frame
 gemini_man_solo_rts:  rts
 
 ; --- spawn Gemini Man clone ---
-gemini_man_spawn_clone:  stx     L0000               ; save caller X
+gemini_man_spawn_clone:  stx     temp_00 ; save caller X
         jsr     find_enemy_freeslot_y   ; find free enemy slot → Y
         bcs     gemini_man_spawn_clone_done               ; no slot → bail
         tya                             ; A = clone slot
@@ -1161,11 +1160,11 @@ gemini_man_spawn_clone:  stx     L0000               ; save caller X
         sta     ent_routine,y           ; clone AI routine ($D7)
         lda     ent_facing,x            ; copy facing direction
         sta     ent_facing,y
-gemini_man_spawn_clone_done:  ldx     L0000               ; restore caller X
+gemini_man_spawn_clone_done:  ldx     temp_00 ; restore caller X
         rts
 
 ; --- spawn Gemini Laser projectile ---
-gemini_man_spawn_laser:  stx     L0000               ; save caller X
+gemini_man_spawn_laser:  stx     temp_00 ; save caller X
         jsr     find_enemy_freeslot_y   ; find free enemy slot → Y
         bcs     gemini_man_spawn_laser_done               ; no slot → bail
         lda     #$40
@@ -1199,11 +1198,11 @@ gemini_man_copy_pos_to_child:  lda     #$8B
         lda     ent_x_scr,y             ; add screen carry
         adc     gemini_man_laser_xoffset_table,x
         sta     ent_x_scr,y             ; store adjusted screen
-gemini_man_spawn_laser_done:  ldx     L0000               ; restore caller X
+gemini_man_spawn_laser_done:  ldx     temp_00 ; restore caller X
         rts
 
 ; --- spawn scatter shot (3 bouncing projectiles, slots $10-$12) ---
-gemini_man_spawn_scatter_shot:  stx     L0000               ; save caller X
+gemini_man_spawn_scatter_shot:  stx     temp_00 ; save caller X
         ldy     #$10                    ; start at entity slot $10
 gemini_man_scatter_slot_loop:  lda     ent_status,y
         bmi     gemini_man_scatter_done               ; slot in use → skip remaining
@@ -1219,7 +1218,7 @@ gemini_man_scatter_slot_loop:  lda     ent_status,y
         sta     ent_timer,y             ; lifetime timer = 180 frames
         lda     #$96
         sta     ent_var1,y              ; bounce parameter = 150
-        ldx     L0000                   ; restore owner X
+        ldx     temp_00                 ; restore owner X
         lda     #$4A                    ; scatter shot anim ID
         jsr     init_child_entity       ; init child with scatter anim
         jsr     gemini_man_copy_pos_to_child               ; copy position + offset X
@@ -1229,7 +1228,7 @@ gemini_man_scatter_slot_loop:  lda     ent_status,y
         iny                             ; next slot
         cpy     #$13                    ; spawned 3? (slots $10-$12)
         bcc     gemini_man_scatter_slot_loop               ; loop until 3 spawned
-gemini_man_scatter_done:  ldx     L0000               ; restore caller X
+gemini_man_scatter_done:  ldx     temp_00 ; restore caller X
         rts
 
 ; --- Gemini Man data tables ---

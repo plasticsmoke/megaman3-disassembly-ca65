@@ -34,7 +34,6 @@
 .include "include/constants.inc"
 .include "include/hardware.inc"
 
-L0000           := $0000
 title_screen_wait_start           := $90B4
 stage_select_cursor_init           := $9155
 stage_select_proto_man_oam           := $9212
@@ -1065,7 +1064,7 @@ vertical_input_check:  lda     joy1_press ; new button presses
 cursor_sprite_update:  lda     $12      ; combine column + row
         clc                             ; add row offset
         adc     $13                     ; = grid index (0-8)
-        sta     L0000                   ; save grid index to $00
+        sta     temp_00                 ; save grid index to $00
         asl     a                       ; ×2
         asl     a                       ; ×4
         sta     $01                     ; save ×4 to $01
@@ -1098,9 +1097,9 @@ cursor_selector_sprite_load_loop:  lda     $9C75,x ; cursor selector OAM data (1
 ; Tile $E4 uses color 2 ($15 magenta fill), tile $E5 uses color 3 ($11 blue fill).
 ; Both tiles have color 1 ($30 white) as upper-left highlight.
 ; Solid filled shape (not outline) — same pattern as center portrait bolt sprites.
-        ldy     L0000                   ; grid index
+        ldy     temp_00                 ; grid index
         lda     $9CF3,y                 ; cursor Y base (per grid position)
-        sta     L0000
+        sta     temp_00
         lda     $9CFC,y                 ; cursor X base (per grid position)
         sta     $01
         lda     $95                     ; frame counter
@@ -1113,7 +1112,7 @@ cursor_selector_sprite_load_loop:  lda     $9C75,x ; cursor selector OAM data (1
         sta     $02
         ldx     #$03                    ; 4 bolts (3→0)
         ldy     #$C8                    ; OAM offset $C8 (sprite 50-53)
-cursor_bolt_sprite_load_loop:  lda     L0000 ; Y base
+cursor_bolt_sprite_load_loop:  lda     temp_00 ; Y base
         clc                             ; prepare for add
         adc     $9D05,x                 ; + Y offset (0 or 38 for top/bottom)
         sta     $0200,y                 ; → OAM Y
@@ -1309,12 +1308,12 @@ ppu_write_queue_read_addr:  lda     ($02),y ; PPU high address
         iny                             ; next byte
         lda     ($02),y                 ; tile count
         sta     $0780,y
-        sta     L0000                   ; save count for loop
+        sta     temp_00                 ; save count for loop
         iny                             ; advance to tile data
 ppu_write_queue_tile_loop:  lda     ($02),y ; tile data byte
         sta     $0780,y
         iny                             ; next tile byte
-        dec     L0000
+        dec     temp_00
         bpl     ppu_write_queue_tile_loop
         bmi     ppu_write_queue_read_addr ; next PPU entry (always branches)
 ppu_write_queue_done:  sta     nametable_dirty ; $19 = $FF → flag PPU write pending
@@ -1844,7 +1843,7 @@ return_button_pressed:  jmp     stage_select_proto_man_oam ; → clear OAM and r
 
         stx     $0F                     ; save frame delay to $0F
 portrait_frame_addr_load_loop:  lda     $9D4C,y ; PPU addr low byte for portrait y
-        sta     L0000                   ; store PPU addr low
+        sta     temp_00                 ; store PPU addr low
         lda     $9D55,y                 ; PPU addr high byte ($20/$21/$22)
         ora     $10                     ; OR nametable select bit
         sta     $01                     ; store PPU addr high
@@ -1853,7 +1852,7 @@ portrait_frame_tile_row_process_loop:  lda     $9D5E,x ; row Y-offset (bit 7 = e
         bmi     portrait_frame_row_complete ; bit 7 set = end of row data
         lda     $9D5F,x                 ; row X-offset within nametable
         clc                             ; clear carry for add
-        adc     L0000                   ; + base low byte
+        adc     temp_00                 ; + base low byte
         sta     $0781,x                 ; → PPU addr low
         lda     $9D5E,x                 ; row offset (carry into high byte)
         adc     $01                     ; + base high byte
@@ -2282,13 +2281,13 @@ doc_oam_palette_loop:  lda     $9D36,y  ; Doc Robot palettes
         sty     palette_dirty           ; flag palette upload
         ldx     #$98                    ; start from OAM offset $98
 ; --- Copy OAM data from bank03 stage_select_oam_y_table table ---
-oam_copy_start:  stx     L0000          ; save start offset
+oam_copy_start:  stx     temp_00        ; save start offset
         lda     prg_bank                ; save current PRG bank
         pha                             ; push to stack
         lda     #$03                    ; switch to bank03
         sta     prg_bank
         jsr     select_PRG_banks
-        ldx     L0000                   ; restore OAM start offset
+        ldx     temp_00                 ; restore OAM start offset
 oam_copy_loop:  lda     stage_select_oam_y_table,x ; OAM Y position
         sta     $0200,x                 ; store Y to OAM buffer
         lda     stage_select_oam_tile_table,x ; OAM tile ID
@@ -2315,14 +2314,14 @@ beaten_boss_hide_loop:  lda     $9DED,x ; boss bitmask for position X
 ; --- Move beaten boss sprites offscreen (Y=$F8) ---
 hide_portrait_sprites:  ldy     $9DDB,x ; OAM start offset for this portrait
         lda     $9DE4,x                 ; sprite count for this portrait
-        sta     L0000                   ; store sprite count
+        sta     temp_00                 ; store sprite count
         lda     #$F8                    ; Y=$F8 = offscreen
 hide_sprite_loop:  sta     $0200,y      ; set Y offscreen
         iny                             ; advance to next OAM entry
         iny
         iny
         iny                             ; next OAM entry
-        dec     L0000                   ; decrement sprite count
+        dec     temp_00                 ; decrement sprite count
         bpl     hide_sprite_loop        ; loop until all hidden
 beaten_boss_next:  dex                  ; next grid position
         bpl     beaten_boss_hide_loop   ; loop all 9 positions
@@ -2348,7 +2347,7 @@ wily_center_load:  jsr     load_wily_center_face ; load Wily center face OAM spr
 ; sprite palettes from $9E1A.
 ; ---------------------------------------------------------------------------
 wily_sprite_copy_start:
-        sty     L0000                   ; save Y
+        sty     temp_00                 ; save Y
         ldy     #$20                    ; copy 9 sprites (offset $20→$00)
 wily_sprite_copy_loop:  lda     $9DF6,y ; Wily center sprite Y
         sta     $02DC,y                 ; store Y to center OAM area
@@ -2371,7 +2370,7 @@ wily_palette_load_loop:  lda     $9E1A,y ; Wily sprite palette data
         dey
         bpl     wily_palette_load_loop
         sty     palette_dirty           ; flag palette upload
-        ldy     L0000                   ; restore Y
+        ldy     temp_00                 ; restore Y
         rts                             ; return
 
 ; ===========================================================================
