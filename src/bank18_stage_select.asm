@@ -1394,7 +1394,7 @@ code_940F:  rts
 
         ldy     #$0B                    ; refill weapon energy
 weapon_energy_refill_loop:  lda     player_hp,y ; $A2-$AD = weapon ammo
-        bpl     weapon_energy_refill_continue ; if negative (depleted), set to full
+        bpl     weapon_energy_refill_continue ; positive → weapon OK, skip refill
         lda     #$9C                    ; $9C = full energy (28 units)
         sta     player_hp,y             ; store full energy for weapon Y
 weapon_energy_refill_continue:  dey     ; next weapon slot

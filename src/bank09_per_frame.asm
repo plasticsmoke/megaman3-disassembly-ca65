@@ -248,9 +248,9 @@ gemini_platform_spawn:  lda     $55     ; load spawn counter
         and     #$07                    ; index 0-7
         tax                             ; use as table index
         lda     gemini_spawn_x,x        ; load spawn X coordinate
-        sta     ent_y_px,y              ; entity X position
+        sta     ent_y_px,y              ; entity Y position
         lda     gemini_spawn_y,x        ; load spawn Y coordinate
-        sta     ent_x_px,y              ; entity Y position
+        sta     ent_x_px,y              ; entity X position
         lda     $55                     ; check spawn counter
         and     #$03                    ; every 4th spawn
         bne     gemini_spawn_next       ; not 4th, skip sound
@@ -311,9 +311,9 @@ item_drop_update:  lda     proto_man_flag ; load item drop state
         lda     camera_screen           ; load current screen
         sta     ent_x_scr,x             ; entity screen = current screen
         lda     item_spawn_x,y          ; load item X coordinate
-        sta     ent_y_px,x              ; entity X position
+        sta     ent_y_px,x              ; entity Y position
         lda     item_spawn_y,y          ; load item Y coordinate
-        sta     ent_x_px,x              ; entity Y position
+        sta     ent_x_px,x              ; entity X position
         lda     #$27                    ; sound: item spawn
         jmp     submit_sound_ID         ; play sound and return
 
@@ -511,11 +511,11 @@ stage_clear_spawn_loop:  jsr     find_enemy_freeslot_x ; find free enemy slot
         sta     ent_hitbox,x            ; entity behavior type
         ldy     $66                     ; reload data index
         lda     clear_spawn_x,y
-        sta     ent_x_px,x              ; entity Y position
+        sta     ent_x_px,x              ; entity X position
         lda     clear_spawn_screen,y
-        sta     ent_x_scr,x             ; entity screen
+        sta     ent_x_scr,x             ; entity X screen
         lda     clear_spawn_attr,y
-        sta     ent_y_px,x              ; entity X / attribute
+        sta     ent_y_px,x              ; entity Y position
         inc     $66                     ; next data entry
         dec     $00                     ; decrement entity counter
         bpl     stage_clear_spawn_loop  ; loop until all spawned

@@ -1071,7 +1071,7 @@ check_spawn_right_loop:  ldy     $9E    ; fetch last right-spawned
         bne     spawn_right_found       ; if > , spawn
         lda     $02                     ; if == , check camera X right edge
         cmp     spawn_data_enemy_x_pos,y ; < last right-spawned enemy X
-        bcc     track_left_no_spawn     ; if >=, spawn
+        bcc     track_left_no_spawn     ; if <, skip spawn
 spawn_right_found:  jsr     spawn_enemy ; spawn,
         inc     $9E                     ; set new last right-spawned enemy ID,
         bne     check_spawn_right_loop  ; and continue looking for more
@@ -1085,7 +1085,7 @@ track_left_loop:  lda     $01           ; if camera screen left edge
         bne     track_left_next         ; if > , set new last left
         lda     $00                     ; if == , check camera X left edge
         cmp     spawn_data_enemy_x_pos,y ; < last left-spawned enemy X
-        bcc     track_left_done         ; if >=, set new last left
+        bcc     track_left_done         ; if <, done tracking
 track_left_next:  iny                   ; track new "last left enemy"
         bne     track_left_loop         ; continue tracking more
 track_left_done:  sty     $9F           ; set new last left enemy ID
