@@ -26,7 +26,7 @@
 ;   $AC00:  Enemy placement -- X pixel positions
 ;   $AD00:  Enemy placement -- Y pixel positions
 ;   $AE00:  Enemy placement -- global enemy IDs
-;   $AF10:  Metatile column definitions (8 bytes per column, 8 rows)
+;   $AF10:  Metatile column definitions (64-byte blocks: 8 columns × 8 rows)
 ;   $B700:  Metatile CHR definitions (4 bytes per metatile: 2x2 tile IDs)
 ;   $BB00:  Metatile CHR definitions (attribute/flip plane)
 ;   $BF00:  Collision attribute table (upper nybble = collision type)
@@ -622,9 +622,11 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
 ; Metatile column definitions ($AF00+)
 ; ===========================================================================
 ; Each screen is composed of columns of metatiles. The first 16 bytes
-; ($AF00-$AF0F) are padding/index data. Starting at $AF10, each set of
-; 8 bytes defines one column (8 rows of metatile IDs, top to bottom).
-; The metatile IDs reference the CHR definitions at $B700+ and the
+; ($AF00-$AF0F) are padding/index data. Starting at $AF10, each 64-byte
+; block defines an 8-column × 8-row grid of metatile IDs (row-major).
+; The render code selects the sub-column via nametable position ($24/4)
+; and steps through rows at stride 8 (see metatile_chr_ptr in fixed_bank).
+; Metatile IDs reference the CHR definitions at $B700+ and the
 ; collision attributes at $BF00.
 ;
 ; Screen layout variants follow for different room configurations.

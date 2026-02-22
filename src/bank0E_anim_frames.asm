@@ -40,7 +40,7 @@
 ;   $AC00-$AC31:  Enemy placement — X pixel positions ($FF-terminated)
 ;   $AD00-$AD24:  Enemy placement — Y pixel positions ($FF-terminated)
 ;   $AE00-$AE22:  Enemy placement — global enemy type IDs ($FF-terminated)
-;   $AF05-$B6FF:  Metatile column definitions (8 metatile IDs per column)
+;   $AF05-$B6FF:  Metatile column definitions (64-byte blocks: 8 columns × 8 rows)
 ;   $B700-$B7B4:  Metatile CHR tile definitions (4 bytes/metatile: TL,TR,BL,BR)
 ;   $B7B5-$B839:  Metatile attribute table (palette per metatile)
 ;   $B83A-$B8C4:  Metatile collision/type table
@@ -327,7 +327,7 @@ string_pointer_table_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
 ;   $AC00+:       Enemy placement — X positions ($FF-terminated)
 ;   $AD00+:       Enemy placement — Y positions ($FF-terminated)
 ;   $AE00+:       Enemy placement — global enemy type IDs ($FF-terminated)
-;   $AF05+:       Metatile column definitions (8 metatile IDs per column)
+;   $AF05+:       Metatile column definitions (64-byte blocks: 8 columns × 8 rows)
 ;   $B700+:       Metatile CHR tile definitions (4 bytes/metatile: TL,TR,BL,BR)
 ;   $B700+$195:   Metatile attribute table (palette assignment per metatile)
 ;   $B700+$1A6:   Metatile collision/type table
@@ -748,7 +748,7 @@ string_pointer_table_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
 ; ===========================================================================
 ; Metatile column definitions ($AF00-$B6FF)
 ; ===========================================================================
-; Each column is 8 bytes: one metatile index per row (8 rows per screen).
+; Each column is a 64-byte block: 8 columns × 8 rows (row-major), stride = column_ID * 64.
 ; The metatile IDs reference the metatile CHR definition table at $B700.
 ; Column IDs are referenced by the screen layout table at $AA00.
 ; ===========================================================================

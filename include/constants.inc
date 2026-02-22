@@ -170,6 +170,7 @@ SFX_DOOR            = $1D   ; Stage door / shutter
 SFX_SHOT            = $1E   ; Projectile fired
 SFX_LAND_ALT        = $1F   ; Landing (alternate)
 SFX_STOMP           = $20   ; Heavy footstep
+                            ; $21 unused (no SFX references in code)
 SFX_CLAMP           = $22   ; Clamp snap (Wanaan)
 SFX_DEBRIS          = $23   ; Debris / object break
 SFX_ATTACK          = $24   ; Enemy attack trigger
@@ -177,14 +178,17 @@ SFX_TURRET_FIRE     = $25   ; Turret projectile fire (Wily Machine)
 SFX_APPROACH        = $26   ; Entity approach trigger
 SFX_PLATFORM        = $27   ; Platform detach / item spawn
 SFX_WIND            = $28   ; Wind effect (intro)
+                            ; $29 unused (no SFX references in code)
 SFX_MAGNET_FIRE     = $2A   ; Magnet Missile fire
 SFX_GEMINI_FIRE     = $2B   ; Gemini Laser fire
 SFX_TOP_SPIN        = $2C   ; Top Spin fire
 SFX_SPARK_FIRE      = $2D   ; Spark Shock fire
 SFX_SHADOW_FIRE     = $2E   ; Shadow Blade fire
+                            ; $2F unused (no SFX references in code)
 SFX_HARD_STOMP      = $30   ; Hard Man stomp attack
 SFX_WEAPON_GET      = $31   ; Weapon acquired jingle
 SFX_EXPLOSION       = $32   ; Explosion burst
+                            ; $33 unused (no SFX references in code)
 SFX_TELEPORT        = $34   ; Teleport beam
 
 ; =============================================================================

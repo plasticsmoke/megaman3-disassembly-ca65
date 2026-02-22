@@ -26,7 +26,7 @@
 ;        $8D00: Enemy placement — Y pixel positions ($FF-terminated)
 ;        $8E00: Enemy placement — global enemy IDs ($FF-terminated)
 ;        $8F00: Nametable screen map (metatile column indices per screen)
-;        $9700: Metatile column definitions (8 rows per column)
+;        $9700: Metatile column definitions (64-byte blocks: 8 columns × 8 rows)
 ;        $98A4: Zero padding
 ;        $9B00: Metatile CHR tiles — top-left quadrant
 ;        $9C00: Metatile CHR tiles — top-right quadrant
@@ -1043,7 +1043,7 @@ stage_collision_bitmask_table:  .byte   $FC,$F3,$CF,$3F,$A7,$FF,$FF,$FF
 ; ===========================================================================
 ; Metatile column definitions ($9700, equiv $B700)
 ; ===========================================================================
-; Each column is 8 bytes defining 8 rows of metatile IDs (top to bottom).
+; Each column is a 64-byte block: 8 columns × 8 rows (row-major), stride = column_ID * 64.
 ; These are the building blocks for screen layouts, indexed by the
 ; nametable screen map above. Metatile IDs reference the CHR tile
 ; tables at $9B00-$9EFF and the collision/palette table at $9F00.

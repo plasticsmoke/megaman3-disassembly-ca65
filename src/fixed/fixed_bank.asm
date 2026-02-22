@@ -200,7 +200,7 @@
 ;   ent_var1,x = general purpose / wildcard 1
 ;   ent_var2,x = general purpose / wildcard 2
 ;   ent_var3,x = general purpose / wildcard 3
-;   ent_flags,x = entity flags (bit 7=active/collidable, bit 6=H-flip, bit 4=?)
+;   ent_flags,x = entity flags (bit 7=active/collidable, bit 6=H-flip, bit 4=child)
 ;   ent_anim_state,x = animation state (0=reset, set by reset_sprite_anim)
 ;   ent_anim_id,x = current animation / OAM ID
 ;   ent_anim_frame,x = animation frame counter (bit 7 preserved on anim reset)
@@ -246,6 +246,14 @@
 ;   #$04 = Down
 ;   #$02 = Left
 ;   #$01 = Right
+;
+; Controller 2 Debug Features (shipped in retail cart):
+;   $17 = P2 held buttons — read directly by debug checks in gameplay loop.
+;   P2 Right ($01): super jump ($08.00 vs $04.E5) + pit death immunity
+;   P2 Up    ($08): slow-motion (animations tick every 8th frame)
+;   P2 A     ($80): full freeze (all animation stops)
+;   P2 Left  ($02): latches Right flag permanently (d-pad can't do L+R)
+;   This debug code was left in by Capcom and is present in all retail copies.
 ;
 ; Fixed-Point Format: 8.8 (high byte = pixels, low byte = sub-pixel / 256)
 ;   Example: $01.4C = 1 + 76/256 = 1.297 pixels/frame
@@ -2233,11 +2241,16 @@ frame_loop_track_screen_progress:  lda     ent_x_px ; player X pixel position
         jsr     L8012                   ; etc.
         jsr     palette_fade_tick       ; update palette fade animation
         jsr     process_frame_yield_with_player ; build OAM + yield 1 frame
-        lda     $98                     ; if controller 2 bit 1 set:
-        and     #$02                    ; set $17 bit 0 (debug flag?)
-        beq     frame_loop_debug_flag_check
-        lda     #$01
-        ora     $17
+; --- DEBUG (shipped in retail) — controller 2 left-press latches right-held ---
+; Pressing Left on controller 2 ($98 bit 1) permanently ORs the Right flag
+; ($17 bit 0) into the P2 held state. This is necessary because the NES d-pad
+; physically cannot report Left+Right simultaneously. Once latched, the debug
+; effects (super jump, pit death immunity) persist for the rest of the stage.
+        lda     $98                     ; P2 newly-pressed buttons
+        and     #$02                    ; bit 1 = Left pressed?
+        beq     frame_loop_debug_flag_check ; no → skip
+        lda     #$01                    ; latch Right-held flag
+        ora     $17                     ; into P2 held state
         sta     $17
 frame_loop_debug_flag_check:  jsr     shift_register_tick ; LFSR animation tick
         lda     $59                     ; $59 != 0: boss defeated
@@ -2696,19 +2709,23 @@ player_ground_jump_or_slide:  lda     joy1_press
         beq     player_ground_normal_jump
         jmp     slide_initiate          ; initiate slide
 
-player_ground_normal_jump:  lda     $17 ; check controller 2
-        and     #$01                    ; holding Right for
-        bne     player_ground_super_jump ; super jump
-        lda     #$E5                    ; Y velocity sub-pixel = $E5
-        sta     ent_yvel_sub,x          ; set player Y velocity sub-pixel
-        lda     #$04                    ; Y velocity pixel = $04 (combined $04.E5)
-        sta     ent_yvel,x              ; set player Y velocity pixel (upward)
+; --- DEBUG (shipped in retail) — controller 2 Right = super jump ---
+; Holding Right on P2 (or latching it via Left) increases jump velocity
+; from $04.E5 to $08.00 (~73% higher). Combined with pit death immunity,
+; this lets the player skip large portions of stages.
+player_ground_normal_jump:  lda     $17 ; P2 held buttons
+        and     #$01                    ; bit 0 = Right held?
+        bne     player_ground_super_jump ; yes → debug super jump
+        lda     #$E5                    ; normal jump: Y vel = $04.E5
+        sta     ent_yvel_sub,x
+        lda     #$04
+        sta     ent_yvel,x
         jmp     player_airborne
 
-player_ground_super_jump:  lda     #$00 ; Y velocity sub-pixel = $00
-        sta     ent_yvel_sub            ; set player Y velocity sub-pixel
-        lda     #$08                    ; Y velocity pixel = $08 (combined $08.00)
-        sta     ent_yvel                ; set player Y velocity pixel (stronger jump)
+player_ground_super_jump:  lda     #$00 ; debug jump: Y vel = $08.00
+        sta     ent_yvel_sub
+        lda     #$08                    ; (~73% stronger than normal)
+        sta     ent_yvel
         jmp     player_airborne
 
 ; --- animation state dispatch: determine walk/idle animation ---
@@ -7526,9 +7543,10 @@ sprite_deactivate_offscreen:  lda     ent_flags,x ; load entity flags
         sta     ent_flags,x             ; update flags
         cpx     #$00                    ; not player? skip to sprite draw
         bne     sprite_landed_setup     ; not player → skip death check
-        lda     $17                     ; controller 2 Right held?
-        and     #$01                    ; (debug: prevents off-screen death)
-        bne     sprite_landed_check     ; debug: skip offscreen death
+; --- DEBUG (shipped in retail) — P2 Right = pit death immunity ---
+        lda     $17                     ; P2 held buttons
+        and     #$01                    ; bit 0 = Right held?
+        bne     sprite_landed_check     ; yes → skip death trigger
         lda     ent_y_scr               ; player Y screen negative? draw
         bmi     sprite_landed_setup     ; Y screen < 0 → above screen, draw
         lda     #$0E                    ; set player state = $0E (death)
@@ -7607,15 +7625,20 @@ sprite_oam_id_check:  lda     ent_anim_id,x ; OAM ID = 0? no sprite
 ;   byte 0 = total frames in sequence
 ;   byte 1 = ticks per frame (duration)
 ;   byte 2+ = sprite definition IDs per frame (0 = deactivate entity)
-        lda     $17                     ; $17 bit 3 = slow-motion mode
-        and     #$08                    ; isolate slow-motion bit
-        beq     sprite_anim_freeze_check ; not set? check freeze flag
-        lda     $95                     ; in slow-motion: only tick every 8th frame
+;
+; --- DEBUG (shipped in retail) — P2 Up = slow-mo, P2 A = freeze ---
+; Holding Up on controller 2 reduces animation speed to 1/8th.
+; Holding A on controller 2 freezes all animation entirely.
+; If both are held, A (freeze) takes priority over Up (slow-mo).
+        lda     $17                     ; P2 held buttons
+        and     #$08                    ; bit 3 = Up held? (slow-mo)
+        beq     sprite_anim_freeze_check ; no → check global freeze
+        lda     $95                     ; slow-mo: tick every 8th frame
         and     #$07                    ; frame counter mod 8
-        bne     sprite_drawn_flag_check ; skip animation tick
-        lda     $17                     ; $17 bit 7 = full freeze
-        and     #$80                    ; isolate full-freeze bit
-        bne     sprite_drawn_flag_check ; frozen → skip animation tick
+        bne     sprite_drawn_flag_check ; not 8th frame → skip tick
+        lda     $17                     ; also check P2 held buttons
+        and     #$80                    ; bit 7 = A held? (full freeze)
+        bne     sprite_drawn_flag_check ; yes → skip tick entirely
 sprite_anim_freeze_check:  lda     $58  ; $58 = global animation freeze
         bne     sprite_drawn_flag_check ; nonzero = skip ticking
         lda     ent_anim_frame,x        ; ent_anim_frame = frame tick counter
