@@ -407,7 +407,7 @@ code_A315:  ldy     #$21                ; walk speed parameter
         jsr     move_left_collide       ; move left with collision
 code_A31A:  ldy     #$1E                ; gravity strength parameter
         jsr     move_vertical_gravity   ; apply gravity, check landing
-        bcc     code_A332               ; carry set = landed on floor
+        bcc     code_A332               ; not landed → skip jump setup
         lda     #$9E                    ; set upward Y velocity (sub)
         sta     ent_yvel_sub,x
         lda     #$04                    ; Y velocity = 4 (next jump)

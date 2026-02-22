@@ -149,7 +149,7 @@ code_A0B1:  rts
 
 ; --- phase 2: ascending / descending toward player ---
         lda     ent_var1,x              ; invulnerable countdown?
-        beq     code_A0C5               ; not zero → still invulnerable
+        beq     code_A0C5               ; zero → invulnerability ended
         dec     ent_var1,x              ; count down invulnerable timer
         lda     #$00                    ; zero
         sta     ent_anim_frame,x        ; hold jump anim frame 1

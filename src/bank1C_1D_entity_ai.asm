@@ -2230,10 +2230,10 @@ unknown_0C_done:  rts
         and     #$0F
         bne     unknown_0C_facing_check ; state 1+ -> walk horizontally
         inc     ent_status,x            ; state 0: advance to state 1
-        lda     #$44                    ; X speed sub = $44
-        sta     ent_yvel_sub,x          ; walk speed = $03.44 (~3.27 px/frame)
+        lda     #$44                    ; Y speed sub = $44
+        sta     ent_yvel_sub,x          ; Y speed = $03.44 (~3.27 px/frame)
         lda     #$03
-        sta     ent_yvel,x              ; X speed whole = $03
+        sta     ent_yvel,x              ; Y speed whole = $03
         jsr     face_player             ; face toward player
         jsr     set_sprite_hflip        ; update sprite flip to match direction
 unknown_0C_horizontal_return:  rts
@@ -7660,7 +7660,7 @@ tama_b_gravity_applied:  lda     ent_facing,x ; check facing direction
 
 tama_b_move_left:  ldy     #$09         ; collision offset = 9
         jsr     move_left_collide       ; move_left_collide
-tama_b_wall_bounce_check:  bcc     tama_b_projectile_done ; carry set = hit wall
+tama_b_wall_bounce_check:  bcc     tama_b_projectile_done ; no wall hit → continue
         lda     ent_facing,x            ; reverse horizontal direction
         eor     #$03                    ; toggle facing bits 0 and 1
         sta     ent_facing,x            ; store reversed facing
