@@ -296,8 +296,8 @@
 
 L0000           := $0000
 L000C           := $000C
-L0093           := $0093
-L009C           := $009C
+task_ptr           := $0093
+irq_handler_ptr           := $009C
 L8000           := $8000
 L8003           := $8003
 L8006           := $8006
@@ -309,7 +309,7 @@ L9000           := $9000
 L9003           := $9003
 L9006           := $9006
 L9009           := $9009
-L9C00           := $9C00
+check_new_enemies           := $9C00
 LA000           := $A000
 LA003           := $A003
 LA006           := $A006
@@ -436,7 +436,7 @@ nmi_restore_rendering:  lda     ppu_mask_shadow ; PPUMASK = $FE (re-enable rende
         bcc     nmi_irq_vector_setup
         ldx     #$01                    ; else override: use index 1 (gameplay)
 nmi_irq_vector_setup:  lda     irq_vector_lo,x ; IRQ vector low byte from table
-        sta     L009C                   ; store handler address low byte
+        sta     irq_handler_ptr         ; store handler address low byte
         lda     irq_vector_hi,x         ; IRQ vector high byte from table
         sta     $9D                     ; → $9C/$9D = handler address for JMP ($009C)
 
@@ -530,7 +530,7 @@ IRQ:  php                               ; push processor status (IRQ entry)
         pha
         sta     auto_walk_spawn_done    ; acknowledge MMC3 IRQ (disable)
         sta     weapon_hurt_timer_done  ; re-enable MMC3 IRQ
-        jmp     (L009C)                 ; dispatch to current handler
+        jmp     (irq_handler_ptr)       ; dispatch to current handler
 
 ; ===========================================================================
 ; irq_gameplay_status_bar — split after HUD for gameplay area ($C152)
@@ -593,7 +593,7 @@ irq_gameplay_hscroll:
         sbc     #$9F
         sta     NMI                     ; set MMC3 IRQ counter for next split
         lda     irq_vector_lo_gameplay_status ; chain to irq_gameplay_status_bar
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_gameplay_status
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -633,7 +633,7 @@ irq_gameplay_ntswap:
         bne     irq_gameplay_ntswap_chain
         ldx     #$00                    ; X = 0 → irq_exit_disable handler
 irq_gameplay_ntswap_chain:  lda     irq_vector_lo_gameplay_status,x ; chain to handler for mode X
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_gameplay_status,x
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -665,7 +665,7 @@ irq_gameplay_vscroll:
         sbc     #$B0
         sta     NMI                     ; set MMC3 IRQ counter for next split
         lda     irq_vector_lo_gameplay_status ; chain to irq_gameplay_status_bar
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_gameplay_status
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -701,7 +701,7 @@ irq_stagesel_first:
         sbc     irq_scanline
         sta     NMI                     ; set MMC3 IRQ counter for next split
         lda     irq_vector_lo_stagesel_second ; chain to irq_stagesel_second ($C26F)
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_stagesel_second
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -754,7 +754,7 @@ irq_transition_first_split:
         eor     #$FF                    ; inverted_X = -$79
         clc
         adc     #$01
-        sta     L009C                   ; $9C = inverted X scroll (temp)
+        sta     irq_handler_ptr         ; $9C = inverted X scroll (temp)
         lda     nt_select               ; negate high byte with carry
         eor     #$FF
         adc     #$00                    ; carry propagates the negation
@@ -764,14 +764,14 @@ irq_transition_first_split:
         and     #$FC                    ; clear nametable bits from base
         ora     $9D                     ; merge inverted nametable select
         sta     PPUCTRL                 ; → middle strip uses opposite nametable
-        lda     L009C                   ; set X scroll = negated value
+        lda     irq_handler_ptr         ; set X scroll = negated value
         sta     PPUSCROLL               ; (cancels horizontal movement)
         lda     #$58                    ; set Y scroll = $58 (88)
         sta     PPUSCROLL               ; (top of middle band)
         lda     #$40                    ; set next IRQ at 64 scanlines later
         sta     NMI                     ; (scanline 88+64 = 152)
         lda     irq_vector_lo_transition_second ; chain to second split handler
-        sta     L009C                   ; $9C/$9D → $C2D2
+        sta     irq_handler_ptr         ; $9C/$9D → $C2D2
         lda     irq_vector_hi_transition_second ; (irq_transition_second_split)
         sta     $9D
         jmp     irq_exit                ; exit without disabling IRQ
@@ -837,7 +837,7 @@ irq_wave_set_strip:
         lda     #$0E                    ; next IRQ in 14 scanlines
         sta     NMI                     ; set MMC3 IRQ counter (14 scanlines)
         lda     irq_vector_lo_wave_advance ; chain to irq_wave_advance ($C32B)
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_wave_advance
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -864,7 +864,7 @@ irq_wave_advance:
         lda     #$20                    ; next IRQ in 32 scanlines
         sta     NMI                     ; set MMC3 IRQ counter (32 scanlines)
         lda     irq_vector_lo_wave_set_strip ; chain back to irq_wave_set_strip ($C302)
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_wave_set_strip
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -878,7 +878,7 @@ irq_wave_all_strips_done:  lda     #$00 ; reset strip counter
         sbc     #$A0
         sta     NMI                     ; set MMC3 IRQ counter for secondary split
         lda     irq_vector_lo_gameplay_status ; chain to irq_gameplay_status_bar
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_gameplay_status
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -908,7 +908,7 @@ irq_title_first:
         lda     #$4C                    ; next IRQ in 76 scanlines
         sta     NMI                     ; set MMC3 IRQ counter (76 scanlines)
         lda     irq_vector_lo_title_cutscene ; chain to irq_title_second ($C3A3)
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_title_cutscene
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -933,7 +933,7 @@ irq_title_second:
         sbc     #$A0
         sta     NMI                     ; set MMC3 IRQ counter for secondary split
         lda     irq_vector_lo_gameplay_status ; chain to irq_gameplay_status_bar
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_gameplay_status
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -973,7 +973,7 @@ irq_cutscene_scroll:
         sbc     irq_scanline
         sta     NMI                     ; set MMC3 IRQ counter
         lda     irq_vector_lo_chr_handlers ; chain to irq_cutscene_secondary ($C408)
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_chr_handlers
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -1011,7 +1011,7 @@ irq_cutscene_reset_scroll:  lda     PPUSTATUS ; reset PPU latch
         beq     irq_cutscene_last_split ; no → last split
         stx     NMI                     ; counter = X (from $51 - $B0 above)
         lda     irq_vector_lo_gameplay_status ; chain to irq_gameplay_status_bar
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_gameplay_status
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -1034,7 +1034,7 @@ irq_chr_split_first:
         lda     #$30                    ; next IRQ in 48 scanlines
         sta     NMI                     ; set MMC3 IRQ counter (48 scanlines)
         lda     irq_vector_lo_chr_swap  ; chain to irq_chr_split_swap ($C469)
-        sta     L009C                   ; store handler low byte
+        sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_chr_swap
         sta     $9D                     ; store handler high byte → $9C/$9D
         jmp     irq_exit
@@ -2222,7 +2222,7 @@ frame_loop_track_screen_progress:  lda     ent_x_px ; player X pixel position
         lda     stage_id
         sta     prg_bank
         jsr     select_PRG_banks
-        jsr     L9C00                   ; spawn enemies for current screen
+        jsr     check_new_enemies       ; spawn enemies for current screen
         lda     #$09                    ; select bank $09
         sta     mmc3_select             ; (per-frame subsystems)
         jsr     select_PRG_banks        ; switch to per-frame subsystem bank
@@ -8916,6 +8916,7 @@ check_player_collision:
         bpl     entity_hitbox_done      ; if not active (bit 7 clear)
         and     #$04                    ; or disabled (bit 2 set)
         bne     entity_hitbox_done      ; disabled? skip collision
+check_player_collision_hitbox:
         lda     ent_hitbox,x
         and     #$1F                    ; y = hitbox ID
         tay
@@ -9513,7 +9514,7 @@ sound_buffer_clear_loop:  sta     $DC,x ; X=7..0 → $E3..$DC
         lda     #$C8                    ; $93/$94 = $C8D0 (main game entry)
         sta     $94                     ; (in bank $1C, always-mapped range)
         lda     #$D0                    ; low byte of $C8D0
-        sta     L0093
+        sta     task_ptr
         lda     #$00                    ; A = slot 0
         jsr     task_register           ; register task with address
         lda     #$88                    ; PPUCTRL: NMI enable + sprite $1000
@@ -9569,10 +9570,10 @@ task_scheduler_nmi_check:  lda     nmi_occurred ; if NMI fired during scan,
         cpy     #$08                    ; state $08? → fresh task (JMP)
         bne     task_scheduler_restore_sp
         lda     $82,x                   ; load address from slot
-        sta     L0093
+        sta     task_ptr
         lda     $83,x
         sta     $94
-        jmp     (L0093)                 ; launch task at stored address
+        jmp     (task_ptr)              ; launch task at stored address
 
 task_scheduler_restore_sp:  lda     $82,x ; restore saved stack pointer
         tax
@@ -9602,7 +9603,7 @@ task_scheduler_restore_regs:  pla       ; restore Y and X from stack
 ; --- task_register — A = slot index, $93/$94 = entry address ---
 
 task_register:  jsr     slot_offset     ; X = A × 4
-        lda     L0093                   ; store address in slot bytes 2-3
+        lda     task_ptr                ; store address in slot bytes 2-3
         sta     $82,x
         lda     $94
         sta     $83,x
@@ -9651,13 +9652,13 @@ task_yield_x:  jsr     task_yield       ; yield one frame
 ; Scheduler then restores SP and does RTS to resume here.
 
 task_yield:  lda     #$01               ; $93 = sleep frames (1)
-        sta     L0093
+        sta     task_ptr
         txa                             ; save X and Y on stack
         pha                             ; (scheduler's .restore_regs will
         tya                             ; PLA these back on resume)
         pha
         jsr     slot_offset_self        ; X = $91 × 4
-        lda     L0093                   ; store sleep countdown in byte 1
+        lda     task_ptr                ; store sleep countdown in byte 1
         sta     $81,x
         lda     #$01                    ; state = $01 (sleeping)
         sta     $80,x

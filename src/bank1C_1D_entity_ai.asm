@@ -50,10 +50,10 @@ process_sprites_j:
 .include "include/hardware.inc"
 
 L0000           := $0000
-LE11A           := $E11A
-LE8D6           := $E8D6
-LEE13           := $EE13
-LEE57           := $EE57
+spawn_weapon_orb           := $E11A
+check_tile_horiz           := $E8D6
+snap_y_to_floor           := $EE13
+queue_metatile_clear           := $EE57
 move_right_collide           := $F580
 move_left_collide           := $F5C4
 move_down_collide           := $F606
@@ -78,7 +78,7 @@ entity_x_dist_to_player           := $F8C2
 calc_direction_to_player           := $F8D9
 LF954           := $F954
 check_player_collision           := $FAE2
-LFAF6           := $FAF6
+check_player_collision_hitbox           := $FAF6
 check_sprite_weapon_collision           := $FB7B
 find_enemy_freeslot_y           := $FC53
 calc_homing_velocity           := $FC63
@@ -551,7 +551,7 @@ boss_death_wily4_unstun:  lda     #$80  ; ent_status[$0F] = active
         sta     $05CF                   ; ent_anim_id[$0F] = $F9
         lda     #$64                    ; set defeated entity routine
         sta     $032F                   ; ent_routine[$0F] = $64
-        jsr     LE11A
+        jsr     spawn_weapon_orb
 boss_death_illegal_bytes:  .byte   $18,$60 ; hidden clc + rts ($18 $60)
 
 ; weapon damage table pointers, low then high
@@ -673,7 +673,7 @@ unknown_1B_move_left:  jsr     move_sprite_left ; move left (unchecked)
 unknown_1B_check_is_enemy:  cpx     #$10 ; only weapon/player slots break blocks
         bcs     unknown_1B_done         ; enemy slots ($10+) → return
         ldy     #$06                    ; check tile at foot height ahead
-        jsr     LE8D6
+        jsr     check_tile_horiz
         lda     tile_at_feet_max        ; tile type = breakable block ($70)?
         cmp     #TILE_DISAPPEAR
         bne     unknown_1B_done         ; no → return
@@ -684,7 +684,7 @@ unknown_1B_check_is_enemy:  cpx     #$10 ; only weapon/player slots break blocks
         bcc     unknown_1B_done
         cmp     #$F0                    ; >= $F0 → off right edge
         bcs     unknown_1B_done         ; must be visible to break
-        jsr     LEE57                   ; erase 2x2 metatile from nametable
+        jsr     queue_metatile_clear    ; erase 2x2 metatile from nametable
         bcs     unknown_1B_done         ; carry set = buffer full, abort
         jsr     find_enemy_freeslot_y   ; find free slot for debris entity
         bcc     unknown_1B_spawn_debris_init ; found → spawn debris
@@ -815,7 +815,7 @@ unknown_1B_state_1_gravity:  ldy     #$00 ; hitbox index 0
         lda     #$00                    ; clear timer
         sta     ent_timer,x
         ldy     #$03                    ; check tile at mid-height ahead
-        jsr     LE8D6
+        jsr     check_tile_horiz
         lda     $10                     ; solid wall? (bit 4)
         and     #$10                    ; check solid bit
         beq     unknown_1B_check_weapon_type ; no wall → check weapon type
@@ -1967,7 +1967,7 @@ main_cloud_platform:
         lda     ent_status,x            ; get entity state
         and     #$0F                    ; isolate state bits
         bne     cloud_platform_movement ; state 1+: already active, skip to movement
-        jsr     LFAF6                   ; state 0: check if player standing on platform
+        jsr     check_player_collision_hitbox ; state 0: check if player standing on platform
         bcc     cloud_platform_activate ; player on top -> activate
         rts                             ; not standing on it -> wait
 
@@ -1998,7 +1998,7 @@ cloud_platform_movement:  jsr     move_sprite_up ; rise upward (apply Y speed)
         and     #$20                    ; bit 5 = tile collision flag
         beq     cloud_platform_horizontal ; not set -> skip tile check
         ldy     #$06                    ; Y offset for tile check (center of platform)
-        jsr     LE8D6                   ; check tile at current horizontal position
+        jsr     check_tile_horiz        ; check tile at current horizontal position
         lda     $10                     ; tile result flags
         and     #$10                    ; bit 4 = solid tile
         bne     cloud_platform_lifetime ; solid -> skip horizontal movement
@@ -6313,11 +6313,11 @@ top_man_platform_move_down_check:  lda     ent_y_px,x ; get current Y pixel
 top_man_platform_render_update:  stx     $0F ; save entity slot
         ldx     #$00
         ldy     #$00
-        jsr     LE8D6
+        jsr     check_tile_horiz
         lda     $10
         and     #$10
         beq     top_man_platform_render_check
-        jsr     LEE13
+        jsr     snap_y_to_floor
 top_man_platform_render_check:  ldx     $0F
 top_man_platform_down_movement:  jsr     move_sprite_down ; move_sprite_down
         lda     ent_y_scr,x
