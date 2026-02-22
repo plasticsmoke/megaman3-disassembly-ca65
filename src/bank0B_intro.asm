@@ -887,7 +887,7 @@ apply_sinusoidal_xvel:  lda     ent_x_sub
         inc     ent_var1                ; next phase
         lda     #$10
         sta     ent_timer               ; reset phase timer ($10 frames)
-sine_movement_done:  .byte   $60                 ; RTS ($60 opcode)
+sine_movement_done:  rts
 ; ===========================================================================
 ; Data Tables
 ; ===========================================================================

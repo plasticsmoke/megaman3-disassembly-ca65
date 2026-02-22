@@ -907,7 +907,8 @@ copy_tile_data_loop:  lda     ($02),y             ; copy tile data bytes
         bpl     copy_tile_data_loop               ; loop for (length+1) bytes
         bmi     copy_ppu_commands_loop               ; next command
 ; --- terminator reached ---
-ppu_write_terminator:  .byte   $85,$19,$60         ; STA $19 / RTS (set nametable dirty flag)
+ppu_write_terminator:  sta     nametable_dirty ; signal NMI to process PPU queue
+        rts
 ; ===========================================================================
 ; DATA TABLES ($8626)
 ; ===========================================================================
