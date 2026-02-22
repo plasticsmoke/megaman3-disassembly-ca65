@@ -26,7 +26,6 @@ main_doc_flash_j:
 .include "include/constants.inc"
 .include "include/hardware.inc"
 
-L0000           := $0000
 move_right_collide           := $F580
 move_left_collide           := $F5C4
 move_down_collide           := $F606
@@ -172,7 +171,7 @@ flash_phase2_done:  rts                         ; state → $00 (on_ground)
 ; --- spawn Doc Flash projectile ---
 flash_spawn_projectile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     flash_spawn_projectile_done               ; no slot available
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y            ; to child entity
         and     #$01                    ; extract right bit as index
@@ -180,7 +179,7 @@ flash_spawn_projectile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     ent_x_px,x              ; parent X position
         clc                             ; prepare offset addition
         adc     doc_flash_projectile_x_offset_table,y ; add facing-based X offset
-        ldy     L0000                   ; restore child slot index
+        ldy     temp_00                 ; restore child slot index
         sta     ent_x_px,y              ; set child X position
         lda     ent_x_scr,x             ; parent screen page
         sta     ent_x_scr,y             ; copy screen to child
@@ -319,10 +318,10 @@ wood_state_dispatch:  lda     ent_status,x        ; dispatch to state handler
         and     #$0F                    ; isolate state index (low nibble)
         tay                             ; use as table index
         lda     doc_wood_state_handler_low_table,y ; load handler address low byte
-        sta     L0000                   ; store in jump pointer
+        sta     temp_00                 ; store in jump pointer
         lda     doc_wood_state_handler_high_table,y ; load handler address high byte
         sta     $01
-        jmp     (L0000)                 ; jump to state handler
+        jmp     (temp_00)               ; jump to state handler
 
 doc_wood_state_handler_low_table:  .byte   $6F,$92,$B5,$CA,$FD,$46 ; state handler pointers (low)
 doc_wood_state_handler_high_table:  .byte   $A2,$A2,$A2,$A2,$A2,$A3 ; state handler pointers (high)
@@ -359,7 +358,7 @@ wood_tick_anim:  jsr     wood_force_anim_tick           ; force anim to tick one
         dec     ent_var1,x              ; --- state 2: countdown + crash ---
         bne     wood_tick_anim               ; still counting down
         lda     #$00                    ; crash block spawn index = 0
-        sta     L0000
+        sta     temp_00
         jsr     wood_spawn_crash_blocks               ; spawn 4 falling crash blocks
         inc     ent_status,x            ; advance to state 3
         lda     #$24                    ; shield attack delay = 36 frames
@@ -373,7 +372,7 @@ wood_tick_anim:  jsr     wood_force_anim_tick           ; force anim to tick one
         sta     ent_var2,x
         inc     ent_status,x            ; advance to state 4 (fall)
         lda     #$80                    ; leaf shield spawn ID = $80
-        sta     L0000
+        sta     temp_00
         ldy     #$1F                    ; search slots $1F down to $10
 wood_search_shield_loop:  lda     ent_status,y        ; is slot active?
         bmi     wood_check_shield_match               ; yes, check if it's the shield
@@ -382,7 +381,7 @@ wood_search_shield_next:  dey                         ; not active, try next slo
         bne     wood_search_shield_loop               ; no, keep searching
         rts
 
-wood_check_shield_match:  lda     L0000               ; check spawn ID
+wood_check_shield_match:  lda     temp_00 ; check spawn ID
         cmp     ent_spawn_id,y          ; match spawn ID $80 = shield
         bne     wood_search_shield_next               ; not the shield, try next
         lda     #$3C                    ; set shield to attack routine
@@ -525,12 +524,12 @@ wood_spawn_crash_blocks:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     #$A6                    ; crash block AI routine = $A6
         sta     ent_routine,y
         stx     $01                     ; save parent entity index
-        ldx     L0000                   ; load spawn counter
+        ldx     temp_00                 ; load spawn counter
         lda     doc_wood_crash_block_x_positions_table,x ; get X position from table
         sta     ent_x_px,y
         ldx     $01                     ; restore parent entity index
-        inc     L0000                   ; next crash block index
-        lda     L0000
+        inc     temp_00                 ; next crash block index
+        lda     temp_00
         cmp     #$04                    ; spawned all 4 blocks?
         bcc     wood_spawn_crash_blocks               ; no, spawn next block
         rts
@@ -749,7 +748,7 @@ crash_scan_bomb_loop:  cmp     ent_spawn_id,y      ; bomb already exists?
         bne     crash_scan_bomb_loop               ; no — keep scanning
         jsr     find_enemy_freeslot_y   ; find free enemy slot
         bcs     crash_spawn_bomb_done               ; no free slot — abort
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y            ; to child entity
         and     #$01                    ; isolate right/left bit
@@ -757,7 +756,7 @@ crash_scan_bomb_loop:  cmp     ent_spawn_id,y      ; bomb already exists?
         lda     ent_x_px,x              ; parent X position
         clc                             ; add facing-based offset
         adc     doc_flash_projectile_x_offset_table,y ; offset by facing direction
-        ldy     L0000                   ; restore child slot index
+        ldy     temp_00                 ; restore child slot index
         sta     ent_x_px,y              ; set child X position
         lda     ent_x_scr,x             ; copy parent X screen
         sta     ent_x_scr,y             ; to child entity
@@ -1031,7 +1030,7 @@ doc_metal_jump_throw_interval_table:  .byte   $0A,$08,$0D,$0A ; throw interval t
 ; --- spawn Metal Blade projectile ---
 metal_spawn_blade:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     metal_spawn_blade_done               ; no free slot — abort
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y            ; to child entity
         and     #$01                    ; extract direction bit
@@ -1039,7 +1038,7 @@ metal_spawn_blade:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     ent_x_px,x              ; parent X position
         clc                             ; add facing-based offset
         adc     doc_flash_projectile_x_offset_table,y ; left=-23, right=+23
-        ldy     L0000                   ; restore child slot index
+        ldy     temp_00                 ; restore child slot index
         sta     ent_x_px,y              ; set child X position
         lda     ent_x_scr,x             ; copy parent X screen
         sta     ent_x_scr,y             ; to child entity

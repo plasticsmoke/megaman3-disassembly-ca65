@@ -27,7 +27,6 @@ main_needle_man_j:
 .include "include/constants.inc"
 .include "include/hardware.inc"
 
-L0000           := $0000
 move_right_collide           := $F580
 move_left_collide           := $F5C4
 move_down_collide           := $F606
@@ -74,10 +73,10 @@ main_needle_man:  lda     ent_status,x  ; load status
         and     #$0F                    ; isolate state index (0-4)
         tay                             ; load Needle Man's
         lda     needle_man_state_ptr_lo,y ; AI pointer based on state
-        sta     L0000                   ; jump to it
+        sta     temp_00                 ; jump to it
         lda     needle_man_state_ptr_hi,y
         sta     $01
-        jmp     (L0000)
+        jmp     (temp_00)
 
 ; Needle Man state pointer table (lo/hi bytes)
 ; state $00: init  state $01: wait for B  state $02: throw needles
@@ -295,7 +294,7 @@ needle_man_jump_states:  .byte   $FF,$00,$FF,$FF,$00,$FF,$00,$FF
 ; --- spawn_needle: create a needle projectile from Needle Man ----------------
 spawn_needle:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     spawn_needle_done               ; bail if none available
-        sty     L0000                   ; save slot index
+        sty     temp_00                 ; save slot index
         lda     ent_facing,x            ; copy facing to projectile
         sta     ent_facing,y
         and     #$02                    ; isolate left/right bit
@@ -309,7 +308,7 @@ spawn_needle:  jsr     find_enemy_freeslot_y ; find free enemy slot
         pha                             ; save result
         lda     ent_x_scr,x             ; get boss screen position
         adc     needle_man_spawn_x_screen_offset,y ; add screen carry offset
-        ldy     L0000                   ; restore slot index
+        ldy     temp_00                 ; restore slot index
         sta     ent_x_scr,y             ; set projectile X screen
         pla                             ; restore X pixel
         sta     ent_x_px,y              ; set projectile X pixel
@@ -321,7 +320,7 @@ spawn_needle_pose2_offset:  lda     ent_x_px,x          ; position needle (pose 
         pha                             ; save result
         lda     ent_x_scr,x             ; get boss screen position
         adc     needle_man_spawn_x_screen_offset2,y ; add screen carry offset
-        ldy     L0000                   ; restore slot index
+        ldy     temp_00                 ; restore slot index
         sta     ent_x_scr,y             ; set projectile X screen
         pla                             ; restore X pixel
         sta     ent_x_px,y              ; set projectile X pixel
@@ -356,10 +355,10 @@ main_magnet_man:  lda     ent_status,x        ; --- state dispatch ---
         and     #$0F                    ; isolate state index (0-4)
         tay                             ; use as table index
         lda     magnet_man_state_ptr_lo_table,y ; load state handler addr lo
-        sta     L0000                   ; store in jump vector lo
+        sta     temp_00                 ; store in jump vector lo
         lda     magnet_man_state_ptr_hi_table,y ; load state handler addr hi
         sta     $01                     ; store in jump vector hi
-        jmp     (L0000)                 ; jump to state handler
+        jmp     (temp_00)               ; jump to state handler
 
 ; Magnet Man state pointer table (lo/hi bytes)
 ; state $00: init (3 bounces)  state $01: random branch
@@ -572,7 +571,7 @@ magnet_man_bounce_xvel_table:  .byte   $01,$02,$02
 ; --- spawn Magnet Missile projectile -----------------------------------------
 spawn_magnet_missile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     spawn_magnet_missile_done               ; bail if none
-        sty     L0000                   ; save enemy slot index
+        sty     temp_00                 ; save enemy slot index
         lda     ent_facing,x            ; copy facing to missile
         sta     ent_facing,y            ; set missile facing
         and     #$01                    ; isolate facing bit
@@ -580,7 +579,7 @@ spawn_magnet_missile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     ent_x_px,x              ; position missile with X offset
         clc                             ; add spawn X offset
         adc     magnet_missile_spawn_x_offset_table,y ; facing-dependent offset
-        ldy     L0000                   ; restore enemy slot index
+        ldy     temp_00                 ; restore enemy slot index
         sta     ent_x_px,y              ; set missile X position
         lda     ent_x_scr,x             ; copy X screen
         sta     ent_x_scr,y             ; set missile X screen
@@ -645,10 +644,10 @@ main_top_man:  lda     ent_status,x        ; --- state dispatch ---
         and     #$0F                    ; isolate state index (0-3)
         tay                             ; use as table index
         lda     top_man_state_ptr_lo_table,y ; load state handler addr lo
-        sta     L0000                   ; store in jump vector lo
+        sta     temp_00                 ; store in jump vector lo
         lda     top_man_state_ptr_hi_table,y ; load state handler addr hi
         sta     $01                     ; store in jump vector hi
-        jmp     (L0000)                 ; jump to state handler
+        jmp     (temp_00)               ; jump to state handler
 
 ; Top Man state pointer table (lo/hi bytes)
 ; state $00: init  state $01: spin attack
@@ -766,13 +765,13 @@ top_man_walk_done:  rts
 ; --- spawn Top Spin projectiles (called in loop, spawns 3) ------------------
 spawn_top_spin_projectile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     spawn_top_spin_done               ; bail if none
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy facing
         sta     ent_facing,y            ; set child facing
         and     #$01                    ; isolate direction bit
         tay                             ; use as index
         lda     ent_x_px,x              ; same X as Top Man
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_x_px,y              ; set child X position
         lda     ent_x_scr,x             ; copy X screen
         sta     ent_x_scr,y             ; set child X screen
@@ -796,11 +795,11 @@ spawn_top_spin_projectile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sta     ent_spawn_id,y          ; set spawn ID
         ldy     $01                     ; projectile index (0-2)
         lda     top_spin_launch_delay_table,y ; staggered delay per projectile
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_timer,y             ; set launch delay
         ldy     $01                     ; restore projectile index
         lda     top_spin_orbit_duration_table,y ; orbit duration per projectile
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_var1,y              ; set orbit duration
         inc     $01                     ; next projectile
         lda     $01                     ; check projectile count
@@ -877,10 +876,10 @@ main_shadow_man:  lda     ent_status,x        ; --- state dispatch ---
         and     #$0F                    ; isolate state index
         tay                             ; use as table index
         lda     shadow_man_state_ptr_lo_table,y ; load state handler lo byte
-        sta     L0000                   ; store in jump pointer
+        sta     temp_00                 ; store in jump pointer
         lda     shadow_man_state_ptr_hi_table,y ; load state handler hi byte
         sta     $01                     ; store hi byte
-        jmp     (L0000)                 ; jump to state handler
+        jmp     (temp_00)               ; jump to state handler
 
 ; Shadow Man state pointer table (lo/hi bytes)
 ; state $00: init  state $01: jump + throw blades
@@ -1097,13 +1096,13 @@ shadow_man_jump_var2_table:  .byte   $00,$01,$00,$01
 ; --- spawn Shadow Blades (called in loop, spawns 2) -------------------------
 spawn_shadow_blade:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     spawn_shadow_blade_done               ; bail if none
-        sty     L0000                   ; save child slot index
+        sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy facing to blade
         sta     ent_facing,y            ; set blade facing
         and     #$01                    ; isolate direction bit
         tay                             ; use as index
         lda     ent_x_px,x              ; same X position
-        ldy     L0000                   ; restore child slot
+        ldy     temp_00                 ; restore child slot
         sta     ent_x_px,y              ; set blade X pixel
         lda     ent_x_scr,x             ; copy X screen
         sta     ent_x_scr,y             ; set blade X screen

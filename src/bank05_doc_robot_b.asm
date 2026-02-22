@@ -28,7 +28,6 @@ main_doc_bubble_j:
 .include "include/constants.inc"
 .include "include/hardware.inc"
 
-L0000           := $0000
 L8003           := $8003
 move_right_collide           := $F580
 move_right_collide_no_face           := $F588
@@ -86,10 +85,10 @@ heat_dispatch:  lda     ent_status,x        ; dispatch on status low nibble
         and     #$0F                    ; mask low nibble (phase)
         tay                             ; use as table index
         lda     doc_heat_phase_ptr_lo_table,y ; phase handler pointer (low)
-        sta     L0000                   ; store ptr low byte
+        sta     temp_00                 ; store ptr low byte
         lda     doc_heat_phase_ptr_hi_table,y ; phase handler pointer (high)
         sta     $01                     ; store ptr high byte
-        jmp     (L0000)                 ; jump to phase handler
+        jmp     (temp_00)               ; jump to phase handler
 
 doc_heat_phase_ptr_lo_table:  .byte   $39,$AF ; phase handler pointers (low bytes)
 doc_heat_phase_ptr_hi_table:  .byte   $A0,$A0 ; phase handler pointers (high bytes)
@@ -108,7 +107,7 @@ doc_heat_phase_ptr_hi_table:  .byte   $A0,$A0 ; phase handler pointers (high byt
         lda     $E5                     ; PRNG: randomize jump delay
         adc     $E4                     ; add to PRNG accumulator
         sta     $E4                     ; update PRNG seed
-        sta     L0000                   ; dividend for divide
+        sta     temp_00                 ; dividend for divide
         lda     #$03                    ; divisor = 3
         sta     $01                     ; store divisor
         jsr     divide_8bit             ; divide_8bit: $E4 mod 3
@@ -221,7 +220,7 @@ heat_spawn_projectile_loop:  jsr     find_enemy_freeslot_y ; find free enemy slo
         sta     $03                     ; store as divisor
         lda     #$00                    ; clear high bytes
         sta     $02                     ; dividend high = 0
-        sta     L0000                   ; dividend low = 0
+        sta     temp_00                 ; dividend low = 0
         lda     $0C                     ; get spread offset for this projectile
         sec                             ; prepare for subtract
         sbc     #$20                    ; narrow spread per projectile
@@ -410,7 +409,7 @@ bubble_check_y_distance:  jsr     entity_y_dist_to_player ; get Y distance to pl
 bubble_random_count:  lda     $E6                 ; PRNG: randomize bubble count
         adc     $E7                     ; add to PRNG accumulator
         sta     $E6                     ; update PRNG seed
-        sta     L0000                   ; dividend for divide
+        sta     temp_00                 ; dividend for divide
         lda     #$03                    ; divisor = 3
         sta     $01                     ; store divisor
         jsr     divide_8bit             ; divide_8bit: mod 3
@@ -423,7 +422,7 @@ bubble_decision_rts:  rts
 ; --- spawn bubble projectile ---
 bubble_spawn_projectile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     bubble_decision_rts               ; no slot — abort
-        stx     L0000                   ; save parent index
+        stx     temp_00                 ; save parent index
         lda     ent_status,x            ; get parent status
         and     #$0F                    ; mask phase
         tax                             ; X = phase (0 or 1)
@@ -439,7 +438,7 @@ bubble_spawn_projectile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     doc_bubble_projectile_routine_table,x ; routine index (per phase)
         sta     ent_routine,y           ; set child AI routine
         lda     doc_bubble_projectile_anim_table,x ; anim ID (per phase)
-        ldx     L0000                   ; restore parent index
+        ldx     temp_00                 ; restore parent index
         jsr     init_child_entity       ; init child entity
         lda     #$80
         sta     ent_hitbox,y            ; set projectile hitbox
@@ -462,7 +461,7 @@ bubble_spawn_projectile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     ent_x_scr,y             ; get child X screen
         adc     doc_bubble_x_offset_left_table,x
         sta     ent_x_scr,y             ; store offset X screen
-bubble_spawn_done:  ldx     L0000               ; restore parent index
+bubble_spawn_done:  ldx     temp_00     ; restore parent index
         rts
 
 ; --- Bubble Man data tables (indexed by phase: 0=idle, 1=jumping) ---
@@ -525,10 +524,10 @@ quick_dispatch:  lda     ent_status,x        ; dispatch on status low nibble
         and     #$0F                    ; mask low nibble = phase
         tay                             ; use as table index
         lda     doc_quick_phase_ptr_lo_table,y ; phase handler pointer (low)
-        sta     L0000
+        sta     temp_00
         lda     doc_quick_phase_ptr_hi_table,y ; phase handler pointer (high)
         sta     $01
-        jmp     (L0000)                 ; jump to phase handler
+        jmp     (temp_00)               ; jump to phase handler
 
 ; --- phase 0: init jump parameters ---
         lda     $E4                     ; PRNG: randomize jump params
@@ -565,7 +564,7 @@ quick_randomize_velocity:  lda     $E4                 ; randomize jump velocity
         lda     doc_quick_random_xspeed_div_table,y ; X speed divisor (random)
         sta     $03                     ; store divisor
         lda     #$00                    ; clear dividend high bytes
-        sta     L0000                   ; dividend high = 0
+        sta     temp_00                 ; dividend high = 0
         sta     $02                     ; dividend mid = 0
         jsr     entity_x_dist_to_player ; get X distance to player
         sta     $01                     ; dividend low = X distance
@@ -794,17 +793,17 @@ air_set_cycle_count:  lda     #$03                ; set 3 attack cycles
 air_random_tornado_pattern:  lda     $E4                 ; PRNG: randomize tornado pattern
         adc     $E6                     ; mix PRNG bytes
         sta     $E4                     ; update PRNG state
-        sta     L0000                   ; dividend = PRNG value
+        sta     temp_00                 ; dividend = PRNG value
         lda     #$05                    ; divisor = 5
         sta     $01                     ; store divisor
         jsr     divide_8bit             ; divide_8bit: mod 5
         lda     $03                     ; result * 6 = table index
         asl     a                       ; result * 2
-        sta     L0000
+        sta     temp_00
         asl     a                       ; result * 4
         clc                             ; result * 4 + result * 2 = * 6
-        adc     L0000
-        sta     L0000                   ; L0000 = base index into tornado data
+        adc     temp_00
+        sta     temp_00                 ; temp_00 = base index into tornado data
         lda     #$96
         sta     ent_var2,x              ; wait 150 frames for tornadoes
         inc     ent_anim_state,x        ; set blowing anim
@@ -817,7 +816,7 @@ air_spawn_tornado_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         ldx     $03                     ; tornado index (0..5)
         lda     doc_air_tornado_spawn_delay_table,x ; spawn delay for this tornado
         sta     ent_var1,y
-        ldx     L0000                   ; data table index (pattern * 6 + tornado#)
+        ldx     temp_00                 ; data table index (pattern * 6 + tornado#)
         lda     doc_air_tornado_yvel_sub_data,x ; Y velocity sub-pixel
         sta     ent_yvel_sub,y
         lda     doc_air_tornado_yvel_data,x ; Y velocity whole
@@ -843,7 +842,7 @@ air_spawn_tornado_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sta     ent_hitbox,y            ; set tornado hitbox
         lda     #$B7
         sta     ent_routine,y           ; routine $B7 = tornado rising phase
-        inc     L0000                   ; next data table entry
+        inc     temp_00                 ; next data table entry
         dec     $01                     ; next tornado
         bpl     air_spawn_tornado_loop
 air_spawn_tornado_done:  ldx     $02                 ; restore parent index

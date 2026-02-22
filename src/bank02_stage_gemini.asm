@@ -881,7 +881,8 @@ energy_bar_segment_store:  sta     $00                 ; store updated remaining
         sta     $0781                   ; store adjusted PPU addr low
 energy_bar_terminate:  lda     #$FF                ; terminate buffer
         sta     $078A                   ; store end-of-buffer marker
-        .byte   $85,$19,$60             ; STA nametable_dirty / RTS (hand-assembled)
+        sta     nametable_dirty         ; signal NMI to process PPU queue
+        rts
 ; =============================================================================
 ; PAUSE MENU DATA TABLES
 ; =============================================================================
