@@ -82,6 +82,7 @@
 ; Read by check_player_hit in bank1C_1D via LDA $A000,y.
 ; ===========================================================================
 ; --- regular enemies ($00-$57) ---
+contact_damage_table:
         .byte   $00,$00,$02,$02,$04,$04,$04,$04 ; $00: inactive, -, Dada, Potton, -, New Shotman, Hammer Joe, Peterchy
         .byte   $04,$02,$02,$04,$02,$03,$04,$02 ; $08: Bubukan, -, Bomb Flier, -, -, Yambow, Met, -
         .byte   $00,$00,$06,$02,$00,$02,$02,$02 ; $10: -, -, Cannon, -, Cloud Plat, Jamacy A, Jamacy B, -

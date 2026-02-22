@@ -2,23 +2,12 @@ main_yellow_devil:
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $12 — FORTRESS BOSSES + SPECIAL ENTITIES
 ; =============================================================================
-; AI routines for Wily fortress bosses (Yellow Devil, Clone Mega Man, Wily
-; Machine, Gamma) and special entities (breakable blocks, Wily capsule).
-;
-; Annotation: ~78% — 309 labels named, 52 inline comments
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $12 — FORTRESS BOSSES + SPECIAL ENTITIES
-; =============================================================================
-; Mapped to $A000-$BFFF. Contains AI routines for Wily fortress bosses
-; and special entities. Dispatched from bank1C_1D for routine indices $E0-$FF.
+; Mapped to $A000-$BFFF. AI routines for Wily fortress bosses (Yellow Devil,
+; Clone Mega Man, Wily Machine, Gamma) and special entities (breakable blocks,
+; Wily capsule). Dispatched from bank1C_1D for routine indices $E0-$FF.
 ; Known bosses: main_yellow_devil, main_wily_machine_A, main_wily_machine_B,
 ; main_gamma_B, main_gamma_F.
 ; Also serves as stage data for stage $12 (special/ending) via stage_to_bank.
-;
-; Annotation: partial — all 11 boss/entity entry points named, 309 auto labels remain
 ; =============================================================================
 
         .setcpu "6502"

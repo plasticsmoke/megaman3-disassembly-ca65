@@ -1,28 +1,17 @@
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $16 — SOUND DRIVER CODE
 ; =============================================================================
-; NES APU sound driver: channel management, envelope processing,
-; frequency tables, and music/SFX playback engine.
-;
-; Annotation: ~87% — 148 labels named, 37 inline comments
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANK $16 — SOUND DRIVER CODE
-; =============================================================================
-; Mapped to $8000-$9FFF. Contains the NES APU sound/music engine.
+; Mapped to $8000-$9FFF. NES APU sound/music engine: channel management,
+; envelope processing, frequency tables, and music/SFX playback.
 ; Always loaded as a pair with bank $17 ($A000-$BFFF = music/SFX data).
 ; Called every NMI frame via play_sounds ($1FFF90):
 ;   $8000 → $06, $8001 → $16 (code), $8000 → $07, $8001 → $17 (data)
 ;
-; Includes:
-;   code_168006 — 8x8→16-bit multiply routine ($C1/$C2 = result)
+; Key routines:
+;   multiply_8x8 — 8x8→16-bit multiply ($C1/$C2 = result)
 ;   jump_local_ptr — inline pointer table dispatch (pulls JSR return addr)
 ;   read_ptr — cross-bank byte read ($16/$17 for $8000-$BFFF, temp-swaps
 ;              $18 for $C000+ addresses)
-;
-; Annotation: partial — 3 key functions documented, driver internals bare
 ; =============================================================================
 
         .setcpu "6502"

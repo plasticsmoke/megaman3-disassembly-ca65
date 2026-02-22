@@ -2,18 +2,11 @@ process_sprites_j:
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANKS $1C-$1D — SPRITE PROCESSING & ENTITY AI
 ; =============================================================================
-; Entity AI dispatch, sprite processing loop, hit detection callbacks,
-; and AI routines for all standard enemies and mini-bosses.
-; Bank $1C at $8000, Bank $1D at $A000.
+; Swappable bank pair mapped to $8000-$BFFF. Entity AI dispatch, sprite
+; processing loop, hit detection callbacks, and AI routines for all standard
+; enemies and mini-bosses. Bank $1C at $8000, Bank $1D at $A000.
 ;
-; Annotation: ~77% — 674 labels named, 1984 inline comments
-; =============================================================================
-
-
-; =============================================================================
-; MEGA MAN 3 (U) — BANKS $1C-$1D — SPRITE PROCESSING & ENTITY AI
-; =============================================================================
-; Swappable bank pair mapped to $8000-$BFFF. Contains:
+; Key routines:
 ;   - process_sprites: main entity processing loop (iterates all 32 slots)
 ;   - check_player_hit: contact damage from entity to player
 ;   - check_weapon_hit: weapon-entity collision and damage
@@ -42,14 +35,12 @@ process_sprites_j:
 ;   Frozen entities skip AI, get constant weapon-collision re-checks.
 ;   Animation counter ent_anim_frame,x held at 0 to freeze sprite frame.
 ;
-; See bank1E_1F.asm header for full entity memory map.
+; See fixed/fixed_bank.asm header for full entity memory map.
 ;
 ; MM4 cross-reference:
 ;   process_sprites ($1C800C) → code_3A8014 (24 slots, $18 stride in MM4)
 ;   check_player_hit ($1C8097) → code_3A81CC
 ;   check_weapon_hit ($1C8102) → code_3FF95D
-;
-; Annotation: partial — all 75+ entity entry points named, 662 auto labels remain
 ; =============================================================================
 
         .setcpu "6502"

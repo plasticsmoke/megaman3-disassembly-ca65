@@ -7,12 +7,13 @@
 ;
 ; Major sections:
 ;   $A000-$AFFF  Compressed nametable/palette data (stage select screen layout)
-;   $9000-$9008  Jump table: robot_master_intro, password_screen, wily_gate_entry
+;   $9000-$9008  Jump table: robot_master_intro, password_screen_entry, wily_gate_entry
 ;   $9009-$90B3  Title screen → stage select transition (CHR bank load, palette init)
 ;   $90B4-$90CF  Title screen Start button wait loop
 ;   $90D0-$92FF  Stage select screen (CHR/palette init, cursor, d-pad, bolt sprites)
 ;   $9300-$938A  Stage select confirmation → bank03 boss intro handoff
-;   $938B-$93E8  write_ppu_data_from_bank03 helper
+;   $938B-$939D  (dead code: unused bank-call helper)
+;   $939E-$93E8  write_ppu_data_from_bank03 helper
 ;   $93E9-$940F  Password cursor OAM setup
 ;   $9410-$9580  Robot Master intro (boss drop, Mega Man teleport, palette fade)
 ;   $9581-$968B  Doc Robot transition / all-bosses-beaten stage select return

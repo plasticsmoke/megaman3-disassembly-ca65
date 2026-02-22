@@ -97,6 +97,7 @@ task_yield           := $FF21
 ;   Other    = tile ID to write to nametable
 ; ===========================================================================
 
+nametable_stream_by_index:
         lda     string_pointer_table_low,x ; load string pointer low byte
         sta     $B6                     ; store string ptr low byte
         lda     string_pointer_table_high,x ; load string pointer high byte
