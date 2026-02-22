@@ -116,8 +116,8 @@ The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files hav
 | $1A/$1B | bank1A_1B_oam_sequences.asm | ~81% — 30 labels, 303 comments |
 | Fixed | fixed_bank.asm | ~71% — 928 labels, 6901 comments |
 | $1C/$1D | bank1C_1D_entity_ai.asm | ~71% — 946 labels, 5360 comments |
-| $01 | bank01_stage_magnet.asm | ~69% — 4 labels, 184 comments |
-| $0D | bank0D_oam_sprites.asm | ~68% — 6 labels, 236 comments |
+| $01 | bank01_stage_magnet.asm | ~73% — 4 labels, 221 comments |
+| $0D | bank0D_oam_sprites.asm | ~73% — 6 labels, 282 comments |
 | $00 | bank00_enemy_data.asm | Data — 8 labels, 364 comments |
 | $08 | bank08_stage_doc_needle.asm | Data — section markers, enemy names, column indices |
 | $0A | bank0A_damage_tables.asm | Data — 10 labels, 539 comments |

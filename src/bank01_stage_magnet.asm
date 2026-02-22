@@ -586,11 +586,11 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
 ; The ID indexes into bank $00's enemy property tables for AI, sprite,
 ; HP, and weapon vulnerability data. $0F = no enemy (empty slot).
 ; Example IDs: $3E, $5C, $36, $25, $16, $51, $3D, $31, $53, $52, $50
-        .byte   $0F,$0F,$0F,$0F,$0F,$0F,$3E,$5C
-        .byte   $5C,$36,$36,$25,$16,$36,$36,$25
-        .byte   $16,$36,$51,$51,$51,$51,$25,$16
-        .byte   $25,$16,$3D,$31,$53,$53,$52,$50
-        .byte   $02,$5C,$48,$FF,$00,$02,$00,$00
+        .byte   $0F,$0F,$0F,$0F,$0F,$0F,$3E,$5C ; Mag Fly, Mag Fly, Mag Fly, Mag Fly, Mag Fly, Mag Fly, Beehive, Tama seg
+        .byte   $5C,$36,$36,$25,$16,$36,$36,$25 ; Tama seg, Mechakkero, Mechakkero, Walking Bomb, Bikky(B), Mechakkero, Mechakkero, Walking Bomb
+        .byte   $16,$36,$51,$51,$51,$51,$25,$16 ; Bikky(B), Mechakkero, RM intro, RM intro, RM intro, RM intro, Walking Bomb, Bikky(B)
+        .byte   $25,$16,$3D,$31,$53,$53,$52,$50 ; Walking Bomb, Bikky(B), Proto Man(G), Chibee, RM intro, RM intro, RM intro, RM intro
+        .byte   $02,$5C,$48,$FF,$00,$02,$00,$00 ; Dada, Tama seg, Doc Robot
         .byte   $00,$02,$00,$00,$40,$00,$00,$00
         .byte   $00,$00,$40,$10,$00,$02,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$10,$10
@@ -629,7 +629,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
 ;
 ; Screen layout variants follow for different room configurations.
 ; ---------------------------------------------------------------------------
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; Column $00
         .byte   $00,$00,$00,$00,$00,$00,$00,$01
         .byte   $02,$03,$04,$01,$02,$03,$04,$05
         .byte   $06,$05,$06,$05,$06,$05,$06,$07
@@ -637,7 +637,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $0A,$09,$0A,$09,$0A,$09,$0A,$0B
         .byte   $0B,$0B,$0B,$0B,$0B,$0C,$0D,$0E
         .byte   $0E,$0E,$0E,$0E,$0E,$0E,$0E,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; Column $01
         .byte   $00,$00,$00,$00,$00,$00,$00,$01
         .byte   $02,$03,$04,$01,$02,$03,$04,$05
         .byte   $06,$05,$06,$05,$06,$05,$06,$07
@@ -645,7 +645,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $0A,$0F,$10,$11,$12,$09,$0A,$0B
         .byte   $0B,$13,$14,$15,$16,$0B,$0B,$0E
         .byte   $0E,$17,$14,$0E,$18,$0E,$0E,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; Column $02
         .byte   $00,$00,$00,$00,$00,$00,$00,$01
         .byte   $02,$03,$04,$01,$02,$03,$04,$05
         .byte   $06,$05,$06,$05,$06,$05,$06,$07
@@ -653,7 +653,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $19,$09,$0A,$1A,$1B,$1C,$0A,$0B
         .byte   $1D,$1E,$1F,$20,$21,$22,$23,$0E
         .byte   $14,$1E,$17,$0E,$0E,$0E,$14,$00
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; Column $03
         .byte   $00,$00,$00,$00,$00,$00,$00,$01
         .byte   $02,$03,$04,$01,$02,$03,$04,$05
         .byte   $06,$05,$06,$05,$06,$05,$06,$07
@@ -661,7 +661,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $0A,$25,$26,$09,$27,$09,$28,$1E
         .byte   $1F,$29,$2A,$1E,$2B,$1E,$2C,$1E
         .byte   $17,$0E,$14,$1E,$27,$1E,$17,$00
-        .byte   $00,$00,$00,$00,$00,$00,$17,$00
+        .byte   $00,$00,$00,$00,$00,$00,$17,$00 ; Column $04
         .byte   $00,$00,$00,$00,$00,$00,$17,$01
         .byte   $02,$03,$04,$01,$02,$03,$17,$05
         .byte   $06,$05,$06,$05,$06,$05,$17,$07
@@ -669,7 +669,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $0A,$17,$0E,$0E,$0E,$31,$17,$32
         .byte   $33,$13,$0E,$0E,$0E,$31,$17,$14
         .byte   $34,$35,$36,$36,$36,$37,$38,$14
-        .byte   $34,$39,$0E,$0E,$0E,$3A,$17,$3B
+        .byte   $34,$39,$0E,$0E,$0E,$3A,$17,$3B ; Column $05
         .byte   $3C,$3D,$3E,$3E,$3E,$3F,$17,$40
         .byte   $41,$41,$41,$41,$41,$42,$17,$14
         .byte   $43,$43,$43,$43,$43,$43,$17,$14
@@ -677,7 +677,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $43,$43,$43,$43,$43,$43,$17,$44
         .byte   $2D,$0B,$0B,$0B,$0B,$0B,$45,$46
         .byte   $47,$48,$48,$48,$48,$48,$48,$14
-        .byte   $43,$3E,$3E,$3E,$3E,$3E,$49,$14
+        .byte   $43,$3E,$3E,$3E,$3E,$3E,$49,$14 ; Column $06
         .byte   $43,$41,$41,$41,$41,$41,$41,$14
         .byte   $43,$43,$4A,$4B,$4C,$43,$43,$14
         .byte   $43,$43,$4D,$4E,$4F,$43,$43,$14
@@ -685,7 +685,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $43,$43,$4D,$55,$4F,$56,$57,$32
         .byte   $58,$58,$59,$5A,$5B,$5C,$48,$14
         .byte   $43,$43,$4D,$52,$4F,$17,$0E,$3E
-        .byte   $3E,$3E,$3E,$3E,$3E,$3E,$5D,$41
+        .byte   $3E,$3E,$3E,$3E,$3E,$3E,$5D,$41 ; Column $07
         .byte   $41,$41,$41,$41,$41,$41,$17,$43
         .byte   $43,$43,$4A,$4B,$4C,$43,$17,$43
         .byte   $43,$43,$4D,$4E,$4F,$43,$17,$50
@@ -693,7 +693,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $5E,$43,$4D,$55,$4F,$43,$17,$48
         .byte   $5F,$58,$59,$5A,$5B,$60,$17,$44
         .byte   $61,$43,$62,$63,$64,$65,$66,$67
-        .byte   $68,$69,$69,$69,$69,$6A,$17,$6B
+        .byte   $68,$69,$69,$69,$69,$6A,$17,$6B ; Column $08
         .byte   $41,$41,$41,$41,$41,$42,$17,$14
         .byte   $6C,$30,$43,$43,$43,$43,$17,$14
         .byte   $6D,$6E,$23,$43,$43,$43,$17,$14
@@ -701,7 +701,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $6D,$70,$70,$6E,$23,$43,$72,$14
         .byte   $6F,$70,$70,$70,$6E,$0B,$29,$14
         .byte   $6D,$0E,$0E,$0E,$0E,$0E,$0E,$14
-        .byte   $73,$3E,$3E,$3E,$3E,$3E,$3E,$14
+        .byte   $73,$3E,$3E,$3E,$3E,$3E,$3E,$14 ; Column $09
         .byte   $74,$41,$41,$41,$41,$41,$41,$14
         .byte   $43,$43,$43,$43,$43,$43,$43,$14
         .byte   $43,$43,$43,$43,$43,$43,$43,$14
@@ -709,7 +709,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $43,$43,$43,$43,$76,$77,$78,$44
         .byte   $2D,$0B,$0B,$79,$7A,$7A,$78,$14
         .byte   $17,$0E,$0E,$40,$7B,$15,$15,$3E
-        .byte   $3E,$3E,$3E,$3E,$3E,$3E,$3E,$41
+        .byte   $3E,$3E,$3E,$3E,$3E,$3E,$3E,$41 ; Column $0A
         .byte   $41,$41,$41,$41,$41,$41,$7B,$43
         .byte   $7C,$7D,$43,$43,$43,$43,$17,$7E
         .byte   $7F,$80,$81,$43,$43,$43,$17,$82
@@ -717,7 +717,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $85,$85,$84,$86,$87,$88,$17,$85
         .byte   $85,$85,$84,$58,$87,$89,$17,$15
         .byte   $15,$15,$15,$15,$6B,$89,$35,$8A
-        .byte   $8B,$3E,$3E,$3E,$8C,$89,$17,$6B
+        .byte   $8B,$3E,$3E,$3E,$8C,$89,$17,$6B ; Column $0B
         .byte   $41,$41,$41,$41,$41,$43,$17,$14
         .byte   $43,$8D,$8E,$8E,$8F,$43,$17,$14
         .byte   $43,$90,$68,$68,$91,$43,$17,$14
@@ -725,7 +725,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $43,$41,$41,$41,$41,$43,$47,$14
         .byte   $94,$95,$58,$58,$58,$58,$96,$14
         .byte   $97,$43,$43,$43,$43,$43,$17,$98
-        .byte   $99,$58,$58,$58,$58,$58,$9A,$14
+        .byte   $99,$58,$58,$58,$58,$58,$9A,$14 ; Column $0C
         .byte   $43,$43,$43,$43,$43,$43,$43,$14
         .byte   $43,$43,$43,$43,$43,$43,$19,$14
         .byte   $43,$43,$43,$43,$43,$43,$27,$14
@@ -733,7 +733,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $43,$43,$43,$43,$43,$43,$9B,$6E
         .byte   $0B,$0B,$0B,$0B,$0B,$0B,$9C,$0E
         .byte   $0E,$0E,$0E,$0E,$0E,$0E,$0E,$58
-        .byte   $58,$58,$58,$58,$58,$58,$58,$43
+        .byte   $58,$58,$58,$58,$58,$58,$58,$43 ; Column $0D
         .byte   $43,$43,$43,$43,$43,$43,$43,$43
         .byte   $43,$43,$43,$9D,$43,$43,$43,$43
         .byte   $43,$43,$43,$9E,$9F,$43,$43,$43
@@ -741,7 +741,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $43,$43,$43,$A1,$A2,$43,$43,$0B
         .byte   $0B,$0B,$2E,$A3,$A4,$0D,$23,$0E
         .byte   $0E,$0E,$0E,$0E,$0E,$0E,$18,$58
-        .byte   $58,$58,$58,$58,$58,$58,$58,$43
+        .byte   $58,$58,$58,$58,$58,$58,$58,$43 ; Column $0E
         .byte   $43,$43,$43,$43,$43,$43,$43,$43
         .byte   $43,$9D,$43,$43,$43,$43,$43,$43
         .byte   $43,$9E,$9F,$43,$43,$43,$43,$43
@@ -749,7 +749,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $43,$A8,$A9,$AA,$AB,$AC,$43,$AD
         .byte   $AE,$AF,$B0,$B0,$B1,$B2,$AD,$1E
         .byte   $1E,$AF,$B0,$B0,$B3,$B4,$1E,$58
-        .byte   $58,$58,$58,$58,$61,$89,$17,$43
+        .byte   $58,$58,$58,$58,$61,$89,$17,$43 ; Column $0F
         .byte   $43,$43,$43,$43,$43,$43,$17,$43
         .byte   $43,$43,$43,$43,$43,$B5,$B6,$43
         .byte   $43,$43,$43,$43,$43,$B7,$7B,$43
@@ -757,7 +757,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $43,$43,$43,$B8,$B9,$43,$17,$BA
         .byte   $BA,$AD,$AE,$7B,$15,$15,$15,$1E
         .byte   $1E,$1E,$1E,$17,$0E,$0E,$0E,$14
-        .byte   $BB,$BC,$BD,$69,$BE,$89,$17,$14
+        .byte   $BB,$BC,$BD,$69,$BE,$89,$17,$14 ; Column $10
         .byte   $74,$BF,$B7,$41,$9D,$89,$17,$14
         .byte   $43,$BB,$C0,$43,$27,$89,$17,$67
         .byte   $69,$C1,$C2,$C3,$9D,$89,$17,$6B
@@ -765,7 +765,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $43,$43,$43,$43,$C5,$89,$17,$15
         .byte   $15,$15,$15,$15,$6B,$89,$17,$3E
         .byte   $3E,$3E,$3E,$3E,$8C,$89,$35,$14
-        .byte   $C6,$69,$69,$69,$69,$C7,$C8,$14
+        .byte   $C6,$69,$69,$69,$69,$C7,$C8,$14 ; Column $11
         .byte   $C9,$41,$41,$41,$41,$41,$17,$14
         .byte   $CA,$43,$43,$43,$43,$43,$17,$14
         .byte   $CA,$CB,$CC,$CD,$43,$43,$17,$14
@@ -773,7 +773,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $CF,$D0,$D0,$D0,$D1,$D2,$17,$14
         .byte   $94,$D3,$D4,$D4,$D5,$88,$17,$D6
         .byte   $97,$43,$43,$43,$9D,$89,$35,$67
-        .byte   $69,$D7,$D8,$D9,$69,$69,$69,$DA
+        .byte   $69,$D7,$D8,$D9,$69,$69,$69,$DA ; Column $12
         .byte   $41,$DB,$DC,$DD,$41,$41,$DE,$14
         .byte   $43,$4D,$55,$4F,$43,$43,$DF,$14
         .byte   $43,$4D,$4E,$4F,$43,$2D,$0B,$14
@@ -781,7 +781,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $97,$4D,$E2,$4F,$43,$17,$0E,$14
         .byte   $97,$4D,$55,$4F,$43,$17,$0E,$14
         .byte   $97,$62,$63,$64,$43,$17,$0E,$69
-        .byte   $69,$D7,$D8,$D9,$69,$69,$69,$E3
+        .byte   $69,$D7,$D8,$D9,$69,$69,$69,$E3 ; Column $13
         .byte   $41,$DB,$DC,$DD,$41,$41,$DE,$E4
         .byte   $43,$4D,$55,$4F,$43,$43,$DF,$0B
         .byte   $23,$4D,$E2,$4F,$1F,$0B,$0B,$0E
@@ -789,7 +789,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $14,$17,$0E,$14,$17,$0E,$0E,$0E
         .byte   $14,$17,$0E,$14,$17,$0E,$0E,$0E
         .byte   $14,$E5,$0E,$14,$17,$0E,$0E,$69
-        .byte   $69,$69,$D7,$D8,$D9,$69,$E6,$E3
+        .byte   $69,$69,$D7,$D8,$D9,$69,$E6,$E3 ; Column $14
         .byte   $41,$41,$DB,$DC,$DD,$41,$E7,$E4
         .byte   $43,$43,$4D,$55,$4F,$43,$E8,$E9
         .byte   $43,$43,$4D,$4E,$4F,$43,$E8,$EA
@@ -797,6 +797,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $43,$43,$4D,$55,$4F,$43,$EC,$ED
         .byte   $57,$57,$57,$57,$57,$57,$EE,$EF
         .byte   $0E,$0E,$0E,$0E,$0E,$0E,$0E,$1E
+        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E ; Column $15
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -804,6 +805,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
+        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E ; Column $16
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -811,6 +813,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
+        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E ; Column $17
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -818,6 +821,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
+        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E ; Column $18
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -825,6 +829,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
+        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E ; Column $19
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -832,6 +837,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
+        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E ; Column $1A
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -839,6 +845,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
+        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E ; Column $1B
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -846,6 +853,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
+        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E ; Column $1C
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -853,6 +861,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
+        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E ; Column $1D
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -860,6 +869,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
+        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E ; Column $1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
@@ -867,17 +877,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
-        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
-        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
-        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
-        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
-        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
-        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
-        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
-        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
-        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
-        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
-        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
+        .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E ; Column $1F
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
         .byte   $1E,$1E,$1E,$1E,$1E,$1E,$1E,$1E
