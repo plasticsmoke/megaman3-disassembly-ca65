@@ -128,30 +128,36 @@ TILE_DISAPPEAR   = $70   ; disappearing block (Gemini stages)
 ; =============================================================================
 ; Stage music is loaded from the LCD0C table indexed by stage_id.
 ; Other music IDs are loaded directly.
+;
+; Composers (source: VGMPF, Mega Man Wiki):
+;   Harumi Fujita ("Mrs. Tarumi") — Needle Man, Gemini Man, Staff Roll (partial)
+;   Yasuaki Fujita ("Bun Bun") — all remaining tracks + Staff Roll completion
+;   (Despite sharing a surname, the two composers are unrelated.)
 ; =============================================================================
-MUSIC_SILENCE       = $00   ; silence
-MUSIC_NEEDLE        = $01   ; Needle Man stage
-MUSIC_MAGNET        = $02   ; Magnet Man stage
-MUSIC_GEMINI        = $03   ; Gemini Man stage
-MUSIC_HARD          = $04   ; Hard Man stage
-MUSIC_TOP           = $05   ; Top Man stage
-MUSIC_SNAKE         = $06   ; Snake Man stage
-MUSIC_SPARK         = $07   ; Spark Man stage
-MUSIC_SHADOW        = $08   ; Shadow Man stage
-MUSIC_WILY_1        = $09   ; Wily Fortress stages 1-2
-MUSIC_WILY_2        = $0A   ; Wily Fortress stages 3-4
-MUSIC_WILY_3        = $0B   ; Wily Fortress stages 5-6
-MUSIC_WILY_MAP      = $0C   ; Wily fortress gate / map
-MUSIC_BOSS          = $0D   ; Boss battle
-MUSIC_PASSWORD      = $0E   ; Password screen
-MUSIC_CONTINUE      = $0F   ; Continue screen (after game over)
-MUSIC_STAGE_SELECT  = $10   ; Stage select menu
-MUSIC_GAME_OVER     = $12   ; Game over
-MUSIC_STAGE_START   = $33   ; Stage intro fanfare
-MUSIC_BOSS_INTRO    = $35   ; Boss intro sequence
-MUSIC_DOC_ROBOT     = $36   ; Doc Robot / Proto Man theme
-MUSIC_WILY_VICTORY  = $37   ; Wily defeat victory
-MUSIC_VICTORY       = $38   ; Normal boss victory
+MUSIC_TITLE         = $00   ; title screen / intro theme  [Y. Fujita]
+MUSIC_NEEDLE        = $01   ; Needle Man stage  [H. Fujita]
+MUSIC_MAGNET        = $02   ; Magnet Man stage  [Y. Fujita]
+MUSIC_GEMINI        = $03   ; Gemini Man stage  [H. Fujita]
+MUSIC_HARD          = $04   ; Hard Man stage  [Y. Fujita]
+MUSIC_TOP           = $05   ; Top Man stage  [Y. Fujita]
+MUSIC_SNAKE         = $06   ; Snake Man stage  [Y. Fujita]
+MUSIC_SPARK         = $07   ; Spark Man stage  [Y. Fujita]
+MUSIC_SHADOW        = $08   ; Shadow Man stage  [Y. Fujita]
+MUSIC_WILY_1        = $09   ; Wily Fortress stages 1-2  [Y. Fujita]
+MUSIC_WILY_2        = $0A   ; Wily Fortress stages 3-4  [Y. Fujita]
+MUSIC_WILY_3        = $0B   ; Wily Fortress stages 5-6  [Y. Fujita]
+MUSIC_WILY_MAP      = $0C   ; Wily fortress gate / map  [Y. Fujita]
+MUSIC_BOSS          = $0D   ; Boss battle  [Y. Fujita]
+MUSIC_PASSWORD      = $0E   ; Password screen  [Y. Fujita]
+MUSIC_CONTINUE      = $0F   ; Continue screen (after game over)  [Y. Fujita]
+MUSIC_STAGE_SELECT  = $10   ; Stage select menu  [Y. Fujita]
+MUSIC_PROTO_WHISTLE = $11   ; Staff Roll / Proto Man whistle  [H. & Y. Fujita]
+MUSIC_GAME_OVER     = $12   ; Ending / game over  [Y. Fujita]
+MUSIC_STAGE_START   = $33   ; Stage intro fanfare  [Y. Fujita]
+MUSIC_BOSS_INTRO    = $35   ; Boss intro sequence  [Y. Fujita]
+MUSIC_DOC_ROBOT     = $36   ; Doc Robot / Proto Man theme  [Y. Fujita]
+MUSIC_WILY_VICTORY  = $37   ; Wily defeat victory  [Y. Fujita]
+MUSIC_VICTORY       = $38   ; Stage clear  [Y. Fujita]
 
 ; =============================================================================
 ; Sound Effect IDs (via submit_sound_ID — plays immediately)
@@ -188,7 +194,7 @@ SFX_SHADOW_FIRE     = $2E   ; Shadow Blade fire
 SFX_HARD_STOMP      = $30   ; Hard Man stomp attack
 SFX_WEAPON_GET      = $31   ; Weapon acquired jingle
 SFX_EXPLOSION       = $32   ; Explosion burst
-                            ; $33 unused (no SFX references in code)
+                            ; $33 = MUSIC_STAGE_START (defined above)
 SFX_TELEPORT        = $34   ; Teleport beam
 
 ; =============================================================================
