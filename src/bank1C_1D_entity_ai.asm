@@ -3601,25 +3601,25 @@ main_pickelman_bull:
         jsr     pickelman_bull_random_drive ; get random drive count ($10/$20/$30)
         sta     ent_timer,x             ; store as drive step counter
         lda     #$1E                    ; stop timer = $1E (30 frames)
-        sta     ent_var1,x
+        sta     ent_var1,x              ; store stop timer
         inc     ent_status,x            ; advance to state 1
         ; --- rider weapon collision check (Y-$17 offset for rider hitbox) ---
 pickelman_bull_rider_hit_check:  lda     ent_y_px,x ; save real Y position
         pha                             ; push real Y to stack
-        lda     ent_y_px,x
-        sec
+        lda     ent_y_px,x              ; reload Y position
+        sec                             ; prepare for subtraction
         sbc     #$17                    ; offset Y up by 23 px for rider
         sta     ent_y_px,x              ; temp set Y to rider position
         lda     #$C3                    ; rider hitbox (vulnerable)
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; set rider hitbox
         jsr     process_sprites_top_spin_check ; check_weapon_hit
         pla                             ; pull saved Y from stack
         sta     ent_y_px,x              ; restore real Y
         lda     ent_hp,x                ; rider killed?
         beq     pickelman_bull_rts      ; yes -> rts
         lda     #$AC                    ; bull hitbox (body)
-        sta     ent_hitbox,x
-        lda     ent_status,x
+        sta     ent_hitbox,x            ; set bull body hitbox
+        lda     ent_status,x            ; check current state
         and     #$02                    ; state 2 = stopped?
         bne     pickelman_bull_stopped_state ; yes -> oscillation logic
         dec     ent_timer,x             ; decrement drive counter
@@ -3641,14 +3641,14 @@ pickelman_bull_driving_gravity:  ldy     #$2A
         jmp     pickelman_bull_wall_done ; skip left wall check
 
 pickelman_bull_check_left_wall:  lda     tile_at_feet_hi ; tile at feet (high check point)
-        and     #$10
-        beq     pickelman_bull_reverse_direction
-        ldy     #$11
+        and     #$10                    ; solid tile?
+        beq     pickelman_bull_reverse_direction ; no solid -> reverse
+        ldy     #$11                    ; Y = speed parameter
         jsr     move_left_collide       ; move_left_collide
 pickelman_bull_wall_done:  bcc     pickelman_bull_rts_2 ; C=0: no wall hit, done
-pickelman_bull_reverse_direction:  lda     ent_facing,x
+pickelman_bull_reverse_direction:  lda     ent_facing,x ; load current facing
         eor     #$03                    ; toggle facing (1<->2)
-        sta     ent_facing,x
+        sta     ent_facing,x            ; store reversed facing
 pickelman_bull_rts_2:  rts
 
         ; --- state 2: stopped, rider oscillates left/right ---
@@ -3671,12 +3671,12 @@ pickelman_bull_oscillate_rider:  lda     ent_var2,x ; oscillation delay
         asl     a                       ; index into 2-byte table entries
         tay                             ; Y = table index
         lda     ent_x_px,x              ; current X position
-        clc
+        clc                             ; clear carry for addition
         adc     pickelman_bull_oscillation_x,y ; +1 or -1 pixel
-        sta     ent_x_px,x
+        sta     ent_x_px,x              ; store updated X pixel
         lda     ent_x_scr,x             ; current X screen
         adc     pickelman_bull_oscillation_scr,y ; add screen carry from offset
-        sta     ent_x_scr,x
+        sta     ent_x_scr,x             ; store updated X screen
         lda     #$02                    ; oscillation delay = 2 frames
         sta     ent_var2,x              ; 2-frame delay between oscillations
         inc     ent_var3,x              ; next oscillation direction
@@ -3712,13 +3712,13 @@ main_bikky:
         ldy     #$10                    ; Y = hitbox offset $10
         jsr     move_vertical_gravity   ; move_vertical_gravity
         bcs     bikky_check_anim_state  ; landed -> check anim state
-        lda     #$00
+        lda     #$00                    ; A = 0
         sta     ent_anim_frame,x        ; reset anim frame while airborne
         .byte   $BD                     ; encoded: lda ent_facing,x
 bikky_facing_decode:  ldy     #$04      ; (encoded lda ent_facing,x)
-        and     #$01
+        and     #$01                    ; isolate facing direction
         beq     bikky_move_left         ; facing left
-        ldy     #$0E
+        ldy     #$0E                    ; Y = speed parameter
         jmp     move_right_collide      ; move_right_collide
 
 bikky_move_left:  ldy     #$0F
@@ -3728,26 +3728,26 @@ bikky_jump_encode:  cpy     prg_bank    ; encoded: jmp move_left_collide
 bikky_check_anim_state:  lda     ent_anim_state,x
         cmp     #$08                    ; stomp anim finished?
         bne     bikky_set_airborne_hitbox ; no -> safe hitbox
-        lda     ent_anim_frame,x
+        lda     ent_anim_frame,x        ; check current anim frame
         beq     bikky_launch_upward     ; frame 0 -> launch upward
         lda     #$00                    ; frame > 0 -> reset anim, play sound
-        sta     ent_anim_state,x
-        sta     ent_anim_frame,x
-        lda     #SFX_STOMP
+        sta     ent_anim_state,x        ; clear anim state
+        sta     ent_anim_frame,x        ; clear anim frame
+        lda     #SFX_STOMP              ; stomp sound effect
         jsr     submit_sound_ID         ; submit_sound_ID (stomp)
         rts
 
 bikky_launch_upward:  lda     #$A8      ; launch upward: Y speed = $05.A8
-        sta     ent_yvel_sub,x
-        lda     #$05
-        sta     ent_yvel,x
+        sta     ent_yvel_sub,x          ; set Y velocity sub-pixel
+        lda     #$05                    ; Y velocity whole = 5
+        sta     ent_yvel,x              ; set Y velocity whole
         jsr     face_player             ; face_player
-        lda     #$C5
+        lda     #$C5                    ; dangerous hitbox
         sta     ent_hitbox,x            ; dangerous hitbox (landing)
         rts
 
 bikky_set_airborne_hitbox:  lda     #$A5 ; safe hitbox (airborne)
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; set safe hitbox
         rts
 ; ---------------------------------------------------------------------------
 ; main_magnet_force -- Magnet Force (horizontal pull/push, type $25)
@@ -3764,20 +3764,20 @@ main_magnet_force:
         ror     temp_00                 ; carry = direction -> $00 bit 7
         cmp     #$68                    ; within 104 px horizontally?
         bcs     magnet_force_done       ; no -> rts
-        lda     ent_flags,x
+        lda     ent_flags,x             ; load entity flags
         and     #$40                    ; entity facing (bit 6)
         bne     magnet_force_player_check ; facing left -> branch
         lda     temp_00                 ; facing right: player to right?
         bmi     magnet_force_done       ; no -> no force
         lda     #$01                    ; pull direction = right
-        bne     magnet_force_direction_set
+        bne     magnet_force_direction_set ; always taken
 magnet_force_player_check:  lda     temp_00 ; facing left: player to left?
         bpl     magnet_force_done       ; no -> no force
         lda     #$02                    ; pull direction = left
 magnet_force_direction_set:  sta     $36 ; set magnet pull direction
-        lda     #$00
+        lda     #$00                    ; sub-speed = 0
         sta     $37                     ; pull sub-speed = 0
-        lda     #$01
+        lda     #$01                    ; whole-speed = 1
         sta     $38                     ; pull whole-speed = 1
 magnet_force_done:  rts
 ; ---------------------------------------------------------------------------
@@ -3793,10 +3793,10 @@ magnet_force_done:  rts
 ; ---------------------------------------------------------------------------
 main_new_shotman:
 
-        lda     ent_status,x
-        and     #$0F
+        lda     ent_status,x            ; load status
+        and     #$0F                    ; isolate sub-state
         bne     shotman_check_state     ; skip init
-        lda     #$1E
+        lda     #$1E                    ; timer = $1E (30 frames)
         sta     ent_timer,x             ; fire timer = 30 frames
         inc     ent_status,x            ; -> state 1
 shotman_check_state:  lda     ent_status,x
@@ -4077,10 +4077,10 @@ proto_man_opcode_data:  .byte   $E0,$04 ; cross-bank: LDA ent_hp,x (opcode $BD i
 
 ; --- Proto Man alive: state machine ---
 proto_man_alive:  lda     ent_status,x  ; extract sub-state
-        and     #$0F
+        and     #$0F                    ; isolate sub-state
         bne     proto_man_state_dispatch ; nonzero → already initialized
         sta     ent_anim_frame,x        ; state 0: reset anim frame
-        lda     ent_y_px,x
+        lda     ent_y_px,x              ; check Y position
         cmp     #$90                    ; above Y=$90?
         bcs     proto_man_init_landing  ; no → apply gravity+collision
         jmp     apply_y_speed           ; yes → apply Y speed (falling)
@@ -4089,25 +4089,25 @@ proto_man_init_landing:  ldy     #$00
         jsr     move_vertical_gravity   ; move_vertical_gravity
         bcc     proto_man_walk_phase    ; no floor hit → walking logic
         lda     ent_routine,x           ; routine $52 or $53
-        sec
+        sec                             ; prepare for subtraction
         sbc     #$52                    ; index 0 or 1 into tables
-        tay
+        tay                             ; Y = variant index
         lda     proto_man_timer_table,y ; timer variant from table
-        sta     ent_timer,x
+        sta     ent_timer,x             ; store variant timer
         inc     ent_status,x            ; advance to state 1
 proto_man_state_dispatch:  lda     ent_anim_id,x
         cmp     #$99                    ; teleport beam sprite?
-        bne     proto_man_check_attack
-        lda     ent_anim_state,x
+        bne     proto_man_check_attack  ; no → check attack state
+        lda     ent_anim_state,x        ; check anim state
         cmp     #$04                    ; anim complete?
-        bne     proto_man_walk_phase
+        bne     proto_man_walk_phase    ; no → walk while animating
         lda     ent_timer,x             ; load variant index
         tya                             ; variant index
         lda     proto_man_walk_anim_table,y ; walking anim from table
         jsr     reset_sprite_anim       ; reset_sprite_anim
 proto_man_check_attack:  lda     ent_status,x
         and     #$02                    ; state >= 2?
-        beq     proto_man_distance_check
+        beq     proto_man_distance_check ; no → check distance
         jmp     proto_man_attack_phase  ; → attacking phase
 
 proto_man_distance_check:  jsr     entity_x_dist_to_player ; entity_x_dist_to_player
@@ -4120,32 +4120,32 @@ proto_man_distance_check:  jsr     entity_x_dist_to_player ; entity_x_dist_to_pl
 proto_man_walk_phase:  ldy     #$00
         jsr     move_vertical_gravity   ; move_vertical_gravity
         rol     $0F                     ; save carry (landed) into $0F bit 0
-        lda     ent_facing,x
-        and     #$01
-        beq     proto_man_walk_right
-        ldy     #$00
+        lda     ent_facing,x            ; check facing direction
+        and     #$01                    ; isolate direction bit
+        beq     proto_man_walk_right    ; 0 = walk right (facing left)
+        ldy     #$00                    ; Y = speed parameter
         jsr     move_right_collide      ; move_right_collide
-        jmp     proto_man_walk_collision
+        jmp     proto_man_walk_collision ; skip left movement
 
 proto_man_walk_right:  ldy     #$01
         jsr     move_left_collide       ; move_left_collide
 proto_man_walk_collision:  lda     $0F
         and     #$01                    ; check if landed on floor
         beq     proto_man_walk_done     ; airborne → skip wall checks
-        lda     ent_facing,x
-        and     #$01
-        beq     proto_man_walk_left_edge
-        lda     ent_x_px,x
+        lda     ent_facing,x            ; check facing for edge test
+        and     #$01                    ; isolate direction bit
+        beq     proto_man_walk_left_edge ; 0 = check left edge
+        lda     ent_x_px,x              ; check X position
         cmp     #$D6                    ; near right edge?
-        bcc     proto_man_walk_jump_check
+        bcc     proto_man_walk_jump_check ; no → check jump
         jmp     proto_man_reverse_facing ; → reverse direction
 
 proto_man_walk_left_edge:  lda     ent_x_px,x
         cmp     #$2A                    ; near left edge?
-        bcs     proto_man_walk_jump_check
+        bcs     proto_man_walk_jump_check ; no → check jump
 proto_man_reverse_facing:  lda     ent_facing,x ; reverse facing direction
-        eor     #$03
-        sta     ent_facing,x
+        eor     #$03                    ; toggle direction bits
+        sta     ent_facing,x            ; store reversed facing
         rts
 
 proto_man_walk_jump_check:  lda     $10
@@ -4156,9 +4156,9 @@ proto_man_walk_jump_check:  lda     $10
         lda     proto_man_jump_anim_table,y ; jump anim from table
         jsr     reset_sprite_anim       ; reset_sprite_anim
         lda     #$A8                    ; set Y velocity for jump
-        sta     ent_yvel_sub,x
-        lda     #$05
-        sta     ent_yvel,x
+        sta     ent_yvel_sub,x          ; Y velocity sub = $A8
+        lda     #$05                    ; Y velocity whole = 5
+        sta     ent_yvel,x              ; set jump speed $05.A8
         rts
 
 proto_man_walk_anim:  lda     ent_timer,x ; variant index
@@ -4166,54 +4166,54 @@ proto_man_walk_anim:  lda     ent_timer,x ; variant index
         lda     proto_man_walk2_anim_table,y ; walk anim from table
         cmp     ent_anim_id,x           ; already set?
         beq     proto_man_walk_done     ; yes → skip
-        lda     ent_timer,x
-        tay
-        lda     proto_man_walk2_anim_table,y
+        lda     ent_timer,x             ; reload variant index
+        tay                             ; Y = variant index
+        lda     proto_man_walk2_anim_table,y ; walk anim from table
         jsr     reset_sprite_anim       ; reset_sprite_anim
 proto_man_walk_done:  rts
 
 ; --- attacking phase (state 2) ---
 proto_man_attack_phase:  lda     ent_var2,x ; attack cooldown
         bne     proto_man_attack_cooldown ; still cooling down → decrement
-        lda     ent_facing,x
-        and     #$01
-        beq     proto_man_attack_left
-        ldy     #$00
+        lda     ent_facing,x            ; check facing direction
+        and     #$01                    ; isolate direction bit
+        beq     proto_man_attack_left   ; 0 = attack left
+        ldy     #$00                    ; Y = speed parameter
         jsr     move_right_collide      ; move_right_collide
-        jmp     proto_man_attack_edges
+        jmp     proto_man_attack_edges  ; skip left movement
 
 proto_man_attack_left:  ldy     #$01
         jsr     move_left_collide       ; move_left_collide
 proto_man_attack_edges:  lda     ent_facing,x ; edge/wall checks same as walking
-        and     #$01
-        beq     proto_man_attack_x_check
-        lda     ent_x_px,x
-        cmp     #$D6
-        bcc     proto_man_attack_landed
-        jmp     proto_man_attack_reverse
+        and     #$01                    ; isolate direction bit
+        beq     proto_man_attack_x_check ; 0 = check left edge
+        lda     ent_x_px,x              ; check X position
+        cmp     #$D6                    ; near right edge?
+        bcc     proto_man_attack_landed ; no → continue attack
+        jmp     proto_man_attack_reverse ; → reverse at right edge
 
 proto_man_attack_x_check:  .byte   $BD  ; cross-bank LDA ent_x_px,x
         rts                             ; (rts = $60, part of the address)
 
 proto_man_x_check_byte:  .byte   $03    ; ($0360 = ent_x_px)
         cmp     #$2A                    ; near left edge?
-        bcs     proto_man_attack_landed
+        bcs     proto_man_attack_landed ; no → continue attack
 proto_man_attack_reverse:  lda     ent_facing,x ; reverse direction at edges
-        eor     #$03
-        sta     ent_facing,x
+        eor     #$03                    ; toggle direction bits
+        sta     ent_facing,x            ; store reversed facing
 proto_man_attack_landed:  ldy     #$00
         jsr     move_vertical_gravity   ; move_vertical_gravity
         bcc     proto_man_attack_airborne ; airborne → check anim
         lda     #$04                    ; landed: set attack cooldown
-        sta     ent_var2,x
-        lda     ent_timer,x
+        sta     ent_var2,x              ; cooldown = 4 frames
+        lda     ent_timer,x             ; load variant index
         tay                             ; variant index
         lda     proto_man_walk2_anim_table,y ; walk anim from table
         jsr     reset_sprite_anim       ; reset_sprite_anim
         lda     #$A8                    ; set jump velocity
-        sta     ent_yvel_sub,x
-        lda     #$05
-        sta     ent_yvel,x
+        sta     ent_yvel_sub,x          ; Y velocity sub = $A8
+        lda     #$05                    ; Y velocity whole = 5
+        sta     ent_yvel,x              ; set jump speed $05.A8
         jsr     entity_x_dist_to_player ; entity_x_dist_to_player
         cmp     #$60                    ; player far away (> 96 px)?
         bcc     proto_man_done          ; no → stay in attack
@@ -4227,26 +4227,26 @@ proto_man_attack_cooldown:  dec     ent_var2,x ; decrement attack cooldown
 proto_man_attack_airborne:  lda     ent_yvel,x ; airborne: check Y direction
         bpl     proto_man_attack_falling ; rising → jump anim
         lda     ent_timer,x             ; falling → use different anim
-        tay
+        tay                             ; Y = variant index
         lda     proto_man_jump_anim_table,y ; jump anim from table
         jmp     reset_sprite_anim       ; reset_sprite_anim
 
 proto_man_attack_falling:  lda     ent_timer,x ; falling: shooting anim
         tya                             ; variant index
         lda     proto_man_shoot_anim_table,y ; shoot anim from table
-        cmp     ent_anim_id,x
+        cmp     ent_anim_id,x           ; already set?
         beq     proto_man_fire_projectile ; already set → skip
-        lda     ent_timer,x             ; variant index
-        tya
-        lda     proto_man_shoot_anim_table,y
+        lda     ent_timer,x             ; reload variant index
+        tya                             ; Y = variant index
+        lda     proto_man_shoot_anim_table,y ; shoot anim from table
         jsr     reset_sprite_anim       ; reset_sprite_anim
 proto_man_fire_projectile:  lda     ent_anim_state,x
         cmp     #$01                    ; at frame 1?
         bne     proto_man_done          ; no → return
         jsr     proto_man_cutscene_spawn_projectile ; spawn projectile
         lda     #$00                    ; reset anim after firing
-        sta     ent_anim_frame,x
-        sta     ent_anim_state,x
+        sta     ent_anim_frame,x        ; clear anim frame
+        sta     ent_anim_state,x        ; clear anim state
         rts
 
 ; Proto Man variant data tables (indexed by routine - $52):
@@ -4258,38 +4258,38 @@ proto_man_walk2_anim_table:  .byte   $83,$8C ; walk anim IDs
 proto_man_shoot_anim_table:  .byte   $85,$8E ; shoot anim IDs
 ; --- Proto Man defeated: fly upward off screen ---
 proto_man_defeated_start:  lda     #$99 ; teleport beam sprite
-        cmp     ent_anim_id,x
+        cmp     ent_anim_id,x           ; already in teleport anim?
         beq     proto_man_defeated_rise ; already set → skip to accelerate
-        lda     #$00
+        lda     #$00                    ; A = 0
         sta     ent_hitbox,x            ; remove hitbox
-        tay
+        tay                             ; Y = 0
         jsr     move_vertical_gravity   ; move_vertical_gravity
         bcc     proto_man_cutscene_not_started ; airborne → return
         lda     #$99                    ; set teleport beam sprite
         jsr     reset_sprite_anim       ; reset_sprite_anim
-        inc     ent_anim_state,x
+        inc     ent_anim_state,x        ; advance anim state
         lda     #$00                    ; clear Y velocity
-        sta     ent_yvel_sub,x
-        sta     ent_yvel,x
+        sta     ent_yvel_sub,x          ; clear Y velocity sub
+        sta     ent_yvel,x              ; clear Y velocity whole
 proto_man_defeated_rise:  lda     ent_anim_state,x ; wait for anim to complete
-        bne     proto_man_cutscene_not_started
+        bne     proto_man_cutscene_not_started ; anim not done → wait
         sta     ent_anim_frame,x        ; hold on frame 0
         lda     ent_yvel_sub,x          ; accelerate upward
-        clc
-        adc     gravity
-        sta     ent_yvel_sub,x
-        lda     ent_yvel,x
-        adc     #$00
-        sta     ent_yvel,x
+        clc                             ; clear carry for addition
+        adc     gravity                 ; add gravity constant
+        sta     ent_yvel_sub,x          ; store updated sub-velocity
+        lda     ent_yvel,x              ; load Y velocity whole
+        adc     #$00                    ; add carry from sub-velocity
+        sta     ent_yvel,x              ; store updated whole velocity
         cmp     #$0C                    ; cap speed at $0C
-        bne     proto_man_defeated_cap_speed
-        lda     #$00
-        sta     ent_yvel_sub,x
+        bne     proto_man_defeated_cap_speed ; not at cap → skip
+        lda     #$00                    ; clear sub-velocity at cap
+        sta     ent_yvel_sub,x          ; zero out sub-velocity
 proto_man_defeated_cap_speed:  jsr     move_sprite_up ; move_sprite_up
-        lda     ent_y_scr,x
-        beq     proto_man_cutscene_not_started
-        lda     #$00
-        sta     ent_status,x
+        lda     ent_y_scr,x             ; check Y screen
+        beq     proto_man_cutscene_not_started ; still on screen → continue
+        lda     #$00                    ; deactivate entity
+        sta     ent_status,x            ; clear status
         lda     ent_routine,x           ; check routine type
         cmp     #$53                    ; $53 = Hard Man stage Proto Man
         bne     proto_man_defeated_set_flag ; $52 = normal → skip, set $68
@@ -4319,26 +4319,26 @@ main_proto_man_gemini_cutscene:
         and     #$0F
         bne     proto_man_cutscene_main_state
         jsr     apply_y_speed           ; apply_y_speed
-        lda     #$9C
-        cmp     ent_y_px,x
-        bcs     proto_man_cutscene_clear_anim_frame
-        sta     ent_y_px,x
-        lda     ent_anim_state,x
-        cmp     #$04
-        bne     proto_man_cutscene_return
-        lda     #$88
+        lda     #$9C                    ; Y floor threshold
+        cmp     ent_y_px,x              ; reached landing position?
+        bcs     proto_man_cutscene_clear_anim_frame ; above floor → skip
+        sta     ent_y_px,x              ; clamp Y to floor
+        lda     ent_anim_state,x        ; check animation state
+        cmp     #$04                    ; state 4 = landed?
+        bne     proto_man_cutscene_return ; not yet → return
+        lda     #$88                    ; OAM ID $88 (landed pose)
         jsr     reset_sprite_anim       ; reset_sprite_anim
         inc     ent_status,x
         lda     #$FF
         sta     ent_timer,x
-proto_man_cutscene_main_state:  lda     ent_timer,x
-        beq     proto_man_cutscene_defeat_rise
-        dec     ent_timer,x
-        bne     proto_man_cutscene_clear_anim_frame
-        lda     #$99
+proto_man_cutscene_main_state:  lda     ent_timer,x ; countdown timer
+        beq     proto_man_cutscene_defeat_rise ; expired → rise sequence
+        dec     ent_timer,x             ; decrement timer
+        bne     proto_man_cutscene_clear_anim_frame ; not done → clear frame
+        lda     #$99                    ; OAM ID $99 (defeated pose)
         sta     ent_anim_id,x
-        inc     ent_anim_state,x
-        lda     #$00
+        inc     ent_anim_state,x        ; advance animation state
+        lda     #$00                    ; clear Y velocity
         sta     ent_yvel_sub,x
         sta     ent_yvel,x
 proto_man_cutscene_defeat_rise:  jsr     proto_man_defeated_rise
@@ -4400,14 +4400,14 @@ proto_man_cutscene_spawn_projectile:  jsr     find_enemy_freeslot_y ; find_enemy
         tay
         lda     ent_x_px,x              ; child X = parent X + offset
         clc
-        adc     proto_man_proj_x_offset,y
-        pha
-        lda     ent_x_scr,x
-        adc     proto_man_proj_x_scr,y
-        ldy     temp_00
-        sta     ent_x_scr,y
-        pla
-        sta     ent_x_px,y
+        adc     proto_man_proj_x_offset,y ; add pixel-level X offset
+        pha                             ; save child X pixel
+        lda     ent_x_scr,x             ; parent X screen
+        adc     proto_man_proj_x_scr,y   ; add screen-level offset
+        ldy     temp_00                 ; restore child slot
+        sta     ent_x_scr,y             ; set child X screen
+        pla                             ; restore child X pixel
+        sta     ent_x_px,y              ; set child X pixel
         lda     ent_y_px,x              ; child Y = parent Y
         sta     ent_y_px,y
         lda     #$00
@@ -4442,7 +4442,7 @@ proto_man_proj_x_scr:  .byte   $00,$F3,$FF
 main_hari_harry:
         lda     ent_status,x            ; check entity state
         and     #$0F                    ; extract sub-state
-        bne     hari_harry_state_dispatch
+        bne     hari_harry_state_dispatch ; nonzero -> already initialized
         jsr     set_sprite_hflip        ; face toward player
         lda     #$3C                    ; hide timer = 60 frames
         sta     ent_var3,x              ; store as hide timer
@@ -4450,18 +4450,18 @@ main_hari_harry:
 hari_harry_state_dispatch:  lda     ent_status,x ; check sub-state
         and     #$0F                    ; extract sub-state
         cmp     #$02                    ; state 2 = firing
-        beq     hari_harry_firing
+        beq     hari_harry_firing       ; -> firing sequence
         cmp     #$03                    ; state 3 = walking
-        beq     hari_harry_walking
+        beq     hari_harry_walking      ; -> walking/deployed
         dec     ent_var3,x              ; decrement hide timer
-        bne     hari_harry_freeze_anim
+        bne     hari_harry_freeze_anim  ; not zero -> stay hidden
         lda     #$00                    ; timer expired: clear it
-        sta     ent_var3,x
+        sta     ent_var3,x              ; reset hide timer
         inc     ent_status,x            ; advance to state 2
 hari_harry_freeze_anim:  lda     #$00   ; freeze animation while hidden
         sta     ent_anim_frame,x        ; (reset anim timer and frame)
         sta     ent_anim_state,x        ; reset anim state
-        rts
+        rts                             ; return (state 1: hidden)
 
 ; --- state 2: firing sequence (turret open) ---
 
@@ -4469,73 +4469,73 @@ hari_harry_firing:  lda     ent_timer,x ; if firing-done flag set,
         bne     hari_harry_post_fire_pause ; skip to post-fire pause
         lda     ent_anim_state,x        ; check anim state
         cmp     #$01                    ; state 1 = first fire frame
-        bne     hari_harry_fire_spread_2
-        lda     ent_anim_frame,x
-        cmp     #$01
-        bne     hari_harry_fire_spread_2
+        bne     hari_harry_fire_spread_2 ; not first fire frame -> check second
+        lda     ent_anim_frame,x        ; check anim frame counter
+        cmp     #$01                    ; frame 1 = fire trigger
+        bne     hari_harry_fire_spread_2 ; not frame 1 -> skip first volley
         lda     #$04                    ; bullet index = 4 (5 bullets)
-        sta     $01
+        sta     $01                     ; store bullet counter in temp
         stx     temp_00                 ; save parent slot
         jsr     hari_harry_spawn_bullets ; spawn 5-bullet spread
 hari_harry_fire_spread_2:  lda     ent_anim_state,x ; check anim state
         cmp     #$03                    ; state 3 = second fire frame
-        bne     hari_harry_fire_complete
-        lda     ent_anim_frame,x
+        bne     hari_harry_fire_complete ; not second fire frame -> check done
+        lda     ent_anim_frame,x        ; check anim frame counter
         cmp     #$01                    ; tick 1?
-        bne     hari_harry_fire_complete
+        bne     hari_harry_fire_complete ; not frame 1 -> skip second volley
         lda     #$04                    ; bullet index = 4 (5 bullets)
-        sta     $01
-        stx     temp_00
+        sta     $01                     ; store bullet counter in temp
+        stx     temp_00                 ; save parent slot
         jsr     hari_harry_spawn_bullets ; spawn 5-bullet spread
 hari_harry_fire_complete:  lda     ent_anim_state,x ; check anim state
         cmp     #$04                    ; firing animation complete
-        bne     hari_harry_fire_rts
-        lda     ent_anim_frame,x
-        cmp     #$02
-        bne     hari_harry_fire_rts
+        bne     hari_harry_fire_rts     ; not anim state 4 -> not done
+        lda     ent_anim_frame,x        ; check anim frame counter
+        cmp     #$02                    ; frame 2 = animation complete
+        bne     hari_harry_fire_rts     ; not frame 2 -> still animating
         inc     ent_timer,x             ; mark firing done
         lda     #$10                    ; post-fire pause = 16 frames
-        sta     ent_var1,x
-hari_harry_fire_rts:  rts
+        sta     ent_var1,x              ; store post-fire timer
+hari_harry_fire_rts:  rts               ; return from firing state
 
 ; --- post-fire pause, then transition to walking ---
 
 hari_harry_post_fire_pause:  lda     #$00 ; freeze animation during pause
-        sta     ent_anim_frame,x
-        sta     ent_anim_state,x
+        sta     ent_anim_frame,x        ; reset anim frame
+        sta     ent_anim_state,x        ; reset anim state
         dec     ent_var1,x              ; decrement post-fire timer
-        bne     hari_harry_pause_rts
+        bne     hari_harry_pause_rts    ; timer not zero -> keep waiting
         inc     ent_status,x            ; advance to state 3
         lda     #$77                    ; set walking sprite
         jsr     reset_sprite_anim       ; reset_sprite_anim
         jsr     face_player             ; face player for walk direction
         lda     #$5A                    ; walk timer = 90 frames
-        sta     ent_var2,x
-hari_harry_pause_rts:  rts
+        sta     ent_var2,x              ; store walk timer
+hari_harry_pause_rts:  rts              ; return from post-fire pause
 
 ; --- state 3: walking/deployed ---
 
 hari_harry_walking:  lda     ent_anim_id,x ; check if using helmet sprite (OAM $76)
         cmp     #$76                    ; if so, do retract-and-fire sequence
-        beq     hari_harry_retract_fire
+        beq     hari_harry_retract_fire  ; yes -> retract-and-fire sequence
         ldy     #$0E                    ; apply $99, speed index $0E
         jsr     move_vertical_gravity   ; move_vertical_gravity
         bcc     hari_harry_walk_timer   ; no floor hit -> check walk timer
         lda     #$AA                    ; on floor: set damage flags (hurts player, takes damage)
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; set vulnerable hitbox
         lda     ent_facing,x            ; check facing direction
-        and     #$01
+        and     #$01                    ; bit 0 = direction
         beq     hari_harry_walk_left    ; branch if facing left
         ldy     #$1C                    ; move right with collision
         jsr     move_right_collide      ; move_right_collide
-        jmp     hari_harry_wall_check
+        jmp     hari_harry_wall_check   ; skip to wall collision check
 
 hari_harry_walk_left:  ldy     #$1D     ; move left with collision
         jsr     move_left_collide       ; move_left_collide
 hari_harry_wall_check:  bcc     hari_harry_walk_timer ; no wall hit: continue
         lda     ent_facing,x            ; wall hit: reverse direction
         eor     #$03                    ; toggle left/right bits
-        sta     ent_facing,x
+        sta     ent_facing,x            ; store reversed facing
 hari_harry_walk_timer:  lda     ent_var3,x ; check retract phase flag
         bne     hari_harry_retract      ; if set, count down retract timer
         dec     ent_var2,x              ; decrement walk timer
@@ -4547,7 +4547,7 @@ hari_harry_walk_timer:  lda     ent_var3,x ; check retract phase flag
         lda     #$FF                    ; retract timer = 255 frames
         sta     ent_var2,x              ; store retract timer
         inc     ent_var3,x              ; set retract phase flag
-hari_harry_walk_rts:  rts
+hari_harry_walk_rts:  rts               ; return from walking state
 
 ; --- retract phase: wait in helmet, then reset to state 2 ---
 
@@ -4564,24 +4564,24 @@ hari_harry_retract:  dec     ent_var2,x ; count down retract timer
         jsr     reset_sprite_anim       ; reset_sprite_anim
         lda     #$82                    ; reset to state 2 (active + firing)
         sta     ent_status,x            ; set active+firing state
-        rts
+        rts                             ; return from retract
 
 ; --- helmet retract-and-fire: single shot while closing ---
 
 hari_harry_retract_fire:  lda     ent_anim_state,x ; check anim state
         cmp     #$01                    ; (helmet opening frame)
         bne     hari_harry_retract_rts  ; not frame 1 -> wait
-        lda     ent_anim_frame,x
-        cmp     #$02
-        bne     hari_harry_retract_rts
+        lda     ent_anim_frame,x        ; check anim frame counter
+        cmp     #$02                    ; frame 2 = fire trigger
+        bne     hari_harry_retract_rts  ; not frame 2 -> wait
         lda     #$04                    ; fire 5 bullets
         sta     $01                     ; bullet index = 4 (5 bullets)
-        stx     temp_00
-        jsr     hari_harry_spawn_bullets
+        stx     temp_00                 ; save parent slot
+        jsr     hari_harry_spawn_bullets ; spawn 5-bullet spread
         lda     #$10                    ; set post-fire pause = 16 frames
         sta     ent_var1,x              ; store post-fire timer
         dec     ent_status,x            ; back to state 2
-hari_harry_retract_rts:  rts
+hari_harry_retract_rts:  rts            ; return from retract-fire
 
 ; --- spawn_hari_harry_bullets: loop spawns up to 5 projectiles ---
 ; $01 = bullet index (counts down from 4 to 0), $00 = parent slot
@@ -4590,36 +4590,36 @@ hari_harry_spawn_bullets:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     hari_harry_spawn_done   ; no slot: abort
         ldx     $01                     ; X = bullet index for table lookup
         lda     hari_harry_bullet_xvel_sub,x ; set X speed sub from table
-        sta     ent_xvel_sub,y
+        sta     ent_xvel_sub,y          ; store to child
         lda     hari_harry_bullet_xvel,x ; set X speed whole from table
-        sta     ent_xvel,y
+        sta     ent_xvel,y              ; store to child
         lda     hari_harry_bullet_yvel_sub,x ; set Y speed sub from table
-        sta     ent_yvel_sub,y
+        sta     ent_yvel_sub,y          ; store to child
         lda     hari_harry_bullet_yvel,x ; set Y speed whole from table
-        sta     ent_yvel,y
+        sta     ent_yvel,y              ; store to child
         lda     hari_harry_bullet_facing,x ; set direction flags from table
-        sta     ent_facing,y
+        sta     ent_facing,y            ; store to child
         lda     hari_harry_bullet_oam_id,x ; init child with OAM ID from table
         jsr     init_child_entity       ; init_child_entity
         lda     hari_harry_bullet_flags,x ; set sprite flags from table
-        sta     ent_flags,y
+        sta     ent_flags,y             ; store to child
         ldx     temp_00                 ; restore parent slot to X
         lda     #$CB                    ; bullet damage flags (projectile)
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; set child hitbox
         lda     #$36                    ; AI routine = $36 (bullet movement)
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set child routine
         lda     ent_x_px,x              ; copy parent X to bullet
-        sta     ent_x_px,y
+        sta     ent_x_px,y              ; set child X pixel
         lda     ent_x_scr,x             ; copy parent X screen
-        sta     ent_x_scr,y
+        sta     ent_x_scr,y             ; set child X screen
         lda     ent_y_px,x              ; copy parent Y to bullet
-        sta     ent_y_px,y
+        sta     ent_y_px,y              ; set child Y pixel
         lda     #$01                    ; set bullet HP = 1
-        sta     ent_hp,y
+        sta     ent_hp,y                ; store to child
         dec     $01                     ; loop: next bullet index
         bpl     hari_harry_spawn_bullets ; continue until all 5 spawned
 hari_harry_spawn_done:  ldx     temp_00 ; restore parent slot to X
-        rts
+        rts                             ; return from bullet spawn
 
 ; bullet speed/dir/OAM/sprite tables (5 entries each, indexed 0-4):
 ; $A475: X speed sub    $A47A: X speed whole   $A47F: Y speed sub
@@ -4649,7 +4649,7 @@ main_nitron:
         and     #$01                    ; bit 0 = right
         beq     nitron_approach_left    ; 0 = left
         jsr     move_sprite_right       ; move right toward player
-        jmp     nitron_check_distance
+        jmp     nitron_check_distance   ; check if close enough
 
 nitron_approach_left:  jsr     move_sprite_left ; move left toward player
 nitron_check_distance:  jsr     entity_x_dist_to_player ; get X distance to player
@@ -4661,7 +4661,7 @@ nitron_approach_rts:  rts
 ; --- state 1+: dispatch flying vs climbing ---
 
 nitron_state_dispatch:  lda     ent_status,x ; check if state >= 2
-        and     #$02
+        and     #$02                    ; bit 1 = climb-away phase
         beq     nitron_sine_init        ; state 1: sine wave flight
         jmp     nitron_climb_away       ; state 2: climb away
 
@@ -4672,7 +4672,7 @@ nitron_sine_init:  lda     ent_timer,x  ; if frame delay active,
         ldy     ent_var1,x              ; load sine step index
         lda     nitron_phase_table,y    ; lookup phase entry
         asl     a                       ; *2 for 16-bit table offset
-        tay
+        tay                             ; Y = 16-bit table index
         lda     nitron_yvel_lo,y        ; set Y speed from sine table (sub)
         sta     ent_yvel_sub,x
         lda     nitron_yvel_table,y     ; set Y speed from sine table (whole)
@@ -4685,17 +4685,17 @@ nitron_sine_init:  lda     ent_timer,x  ; if frame delay active,
         bpl     nitron_negate_xvel      ; positive -> skip negate
         lda     ent_xvel_sub,x          ; negate 16-bit X speed
         eor     #$FF                    ; invert low byte
-        clc
+        clc                             ; two's complement negate
         adc     #$01
         sta     ent_xvel_sub,x
         lda     ent_xvel,x              ; invert high byte
-        eor     #$FF
-        adc     #$00
+        eor     #$FF                    ; complement
+        adc     #$00                    ; add carry from low byte
         sta     ent_xvel,x              ; store negated X speed
 nitron_negate_xvel:  inc     ent_var1,x ; next sine step
-        lda     ent_var1,x
+        lda     ent_var1,x              ; check step count
         cmp     #$06                    ; 6 steps = flight done
-        bne     nitron_set_delay
+        bne     nitron_set_delay        ; not done -> set frame delay
         inc     ent_status,x            ; advance to climb-away state
         lda     #$1A                    ; bomb cooldown = 26 frames
         sta     ent_var3,x
@@ -4712,21 +4712,21 @@ nitron_apply_movement:  dec     ent_timer,x ; decrement frame delay
         adc     ent_yvel,x
         sta     ent_y_px,x              ; store updated Y pixel
         lda     ent_facing,x            ; check facing direction
-        and     #$02
+        and     #$02                    ; bit 1 = left/right
         bne     nitron_move_left        ; bit 1 set = facing left
         jsr     move_sprite_right       ; move_sprite_right
-        bcs     nitron_after_move
-        bcc     nitron_after_move
+        bcs     nitron_after_move       ; (unconditional: always branch
+        bcc     nitron_after_move       ;  to after_move)
 nitron_move_left:  jsr     move_sprite_left ; move left
 nitron_after_move:  lda     ent_var3,x  ; if bomb cooldown active,
         bne     nitron_cooldown_rts     ; skip to decrement
         jsr     nitron_spawn_bomb       ; drop a bomb (spawn child)
         inc     ent_var2,x              ; increment bomb count
-        lda     ent_var2,x
+        lda     ent_var2,x              ; check bomb count
         cmp     #$02                    ; after 2nd bomb: shorter cooldown
-        bne     nitron_bomb_cooldown
+        bne     nitron_bomb_cooldown    ; not 2nd -> normal cooldown
         lda     #$10                    ; cooldown = 16 frames (after 2nd)
-        bne     nitron_cooldown_set
+        bne     nitron_cooldown_set     ; (always taken)
 nitron_bomb_cooldown:  lda     #$1A     ; cooldown = 26 frames (normal)
 nitron_cooldown_set:  sta     ent_var3,x ; store bomb cooldown timer
         rts
@@ -4737,9 +4737,9 @@ nitron_cooldown_rts:  dec     ent_var3,x ; decrement bomb cooldown
 ; --- state 2: climb away (flee upward) ---
 
 nitron_climb_away:  lda     #$00        ; Y speed = $00.03 (3.0 px/frame up)
-        sta     ent_yvel_sub,x
-        lda     #$03
-        sta     ent_yvel,x
+        sta     ent_yvel_sub,x          ; clear sub-pixel
+        lda     #$03                    ; Y speed whole = 3
+        sta     ent_yvel,x              ; store climb speed
         jmp     move_sprite_up          ; fly upward off screen
 
 ; Nitron sine wave tables:
@@ -4765,22 +4765,22 @@ nitron_spawn_bomb:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     nitron_spawn_rts        ; no slot: abort
         sty     temp_00                 ; save child slot
         lda     ent_facing,x            ; facing -> offset (0 or 2)
-        and     #$02
-        tay
+        and     #$02                    ; isolate left/right bit
+        tay                             ; Y = table offset
         lda     ent_x_px,x              ; parent X pixel
         clc
         adc     gyoraibo_child_x_off,y  ; add X offset for facing dir
-        pha
+        pha                             ; save child X pixel
         lda     ent_x_scr,x             ; parent X screen
         adc     gyoraibo_child_x_scr,y  ; add screen carry
-        ldy     temp_00
-        sta     ent_x_scr,y
-        pla
-        sta     ent_x_px,y
+        ldy     temp_00                 ; restore child slot
+        sta     ent_x_scr,y             ; set child X screen
+        pla                             ; retrieve child X pixel
+        sta     ent_x_px,y              ; set child X pixel
         lda     ent_y_px,x              ; parent Y pixel
         clc
         adc     #$10                    ; bomb spawns 16 px below
-        sta     ent_y_px,y
+        sta     ent_y_px,y              ; set child Y pixel
         lda     #$00                    ; HP = 0 (indestructible)
         sta     ent_hp,y
         lda     #$81                    ; init child with OAM $81
@@ -4802,7 +4802,7 @@ nitron_status_check:  lda     ent_status,x ; check state
         bne     nitron_animation_init   ; -> check explosion anim
         ldy     #$12                    ; gravity speed index $12
         jsr     move_vertical_gravity   ; move_vertical_gravity
-        bcc     nitron_climb_return
+        bcc     nitron_climb_return     ; no floor hit -> keep falling
         lda     #$71                    ; explosion anim $71
         jsr     reset_sprite_anim       ; reset_sprite_anim
         lda     #SFX_ATTACK             ; play attack sound
@@ -4810,8 +4810,8 @@ nitron_status_check:  lda     ent_status,x ; check state
         inc     ent_status,x            ; advance to explosion state
 nitron_climb_return:  rts
 
-nitron_animation_init:  lda     ent_anim_id,x
-        cmp     #$71
+nitron_animation_init:  lda     ent_anim_id,x ; check current OAM
+        cmp     #$71                    ; explosion anim $71?
         bne     nitron_climb_return     ; not explosion anim -> return
         lda     ent_anim_state,x        ; check anim state
         cmp     #$04                    ; state 4 = anim complete
@@ -4981,28 +4981,28 @@ gyoraibo_increment_timer:  inc     ent_timer,x ; set timer (stop spawning)
         jsr     find_enemy_freeslot_y   ; find_enemy_freeslot_y
         bcs     penpen_maker_rts
         sty     temp_00
-        lda     ent_facing,x
-        sta     ent_facing,y
-        and     #$02
-        tay
-        lda     ent_x_px,x
+        lda     ent_facing,x            ; copy parent facing
+        sta     ent_facing,y            ; to child entity
+        and     #$02                    ; extract direction bit
+        tay                             ; Y = table offset (0 or 2)
+        lda     ent_x_px,x              ; parent X pixel
         clc
-        adc     gyoraibo_child_x_off,y
-        pha
-        lda     ent_x_scr,x
-        adc     gyoraibo_child_x_scr,y
-        ldy     temp_00
-        sta     ent_x_scr,y
-        pla
-        sta     ent_x_px,y
-        lda     ent_y_px,x
+        adc     gyoraibo_child_x_off,y  ; add direction-based X offset
+        pha                             ; save child X pixel
+        lda     ent_x_scr,x             ; parent X screen
+        adc     gyoraibo_child_x_scr,y  ; add screen-level X offset
+        ldy     temp_00                 ; restore child slot
+        sta     ent_x_scr,y             ; set child X screen
+        pla                             ; restore child X pixel
+        sta     ent_x_px,y              ; set child X pixel
+        lda     ent_y_px,x              ; parent Y pixel
         sec
-        sbc     #$04
-        sta     ent_y_px,y
-        lda     #$00
-        sta     ent_routine,y
-        sta     ent_hitbox,y
-        sta     ent_hp,y
+        sbc     #$04                    ; child Y = parent - 4 pixels
+        sta     ent_y_px,y              ; set child Y pixel
+        lda     #$00                    ; clear child fields
+        sta     ent_routine,y           ; routine = 0
+        sta     ent_hitbox,y            ; hitbox = 0 (no collision)
+        sta     ent_hp,y                ; HP = 0
         lda     #$68                    ; entity type $68
         jsr     init_child_entity       ; init_child_entity
 penpen_maker_rts:  rts
@@ -5018,110 +5018,110 @@ main_penpen_maker:
         bne     penpen_maker_spawn_loop ; nonzero -> skip init
         ldy     #$02                    ; Y = 2 (3 palette bytes)
 penpen_maker_palette_init:  lda     penpen_maker_palette_data,y
-        sta     $060D,y
-        sta     $062D,y
-        dey
-        bpl     penpen_maker_palette_init
+        sta     $060D,y                 ; write to sprite palette 1
+        sta     $062D,y                 ; write to palette buffer copy
+        dey                             ; next palette byte
+        bpl     penpen_maker_palette_init ; loop until Y < 0
         sty     palette_dirty           ; flag palette update needed
         inc     ent_status,x            ; advance to state 1
         jsr     penpen_maker_random_timer ; get random spawn timer
         sta     ent_timer,x             ; store as entity timer
 penpen_maker_spawn_loop:  lda     ent_y_px,x ; save Y position
-        pha
-        sec
+        pha                             ; push Y pos to stack
+        sec                             ; set carry for subtract
         sbc     #$10                    ; offset 16 px up for collision
-        sta     ent_y_px,x
+        sta     ent_y_px,x              ; set adjusted Y for check
         lda     #$00                    ; clear hitbox during check
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; disable collision temporarily
         lda     ent_anim_id,x           ; save current OAM ID
-        pha
+        pha                             ; push OAM ID to stack
         jsr     process_sprites_top_spin_check ; run collision/damage check
-        pla
+        pla                             ; restore OAM ID from stack
         sta     ent_anim_id,x           ; restore OAM ID
-        pla
+        pla                             ; restore Y pos from stack
         sta     ent_y_px,x              ; restore Y position
         lda     ent_hp,x                ; check HP
         bne     penpen_maker_alive      ; alive -> continue
         sta     ent_var1,x              ; clear var1
         sta     ent_var2,x              ; clear var2
         lda     #$63                    ; set death routine $63
-        sta     ent_routine,x
-        rts
+        sta     ent_routine,x           ; switch to death handler
+        rts                             ; return (entity dead)
 
 penpen_maker_alive:  lda     #$98       ; set normal hitbox $98
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; restore hitbox after check
         dec     ent_timer,x             ; decrement spawn timer
         bne     penpen_maker_timer_rts  ; not zero -> wait
         jsr     penpen_maker_spawn_penpen ; spawn a penpen enemy
         jsr     penpen_maker_random_timer ; get next random timer
         sta     ent_timer,x             ; store as spawn timer
-penpen_maker_timer_rts:  rts
+penpen_maker_timer_rts:  rts             ; return (timer still active)
 
 penpen_maker_random_timer:  lda     $E4 ; pseudo-random shift register
-        adc     $E5
-        sta     $E5
+        adc     $E5                     ; add second random byte
+        sta     $E5                     ; store updated random state
         and     #$03                    ; mask to 0-3
-        tay
-        lda     penpen_maker_timer_table,y
-        rts
+        tay                             ; Y = random table index
+        lda     penpen_maker_timer_table,y ; load timer value from table
+        rts                             ; return with timer in A
 
 penpen_maker_timer_table:  .byte   $3C,$1E,$78,$3C
         lda     ent_var1,x              ; check spawn phase counter
         bne     penpen_maker_dec_var1   ; nonzero -> decrement
         lda     #$0A                    ; spawn delay = 10 frames
-        sta     ent_var1,x
+        sta     ent_var1,x              ; reset spawn delay counter
         jsr     find_enemy_freeslot_y   ; find_enemy_freeslot_y
-        bcs     penpen_maker_spawn_rts
+        bcs     penpen_maker_spawn_rts  ; no free slot -> return
         lda     #SFX_PLATFORM           ; play platform spawn sound
         jsr     submit_sound_ID         ; submit_sound_ID
         lda     #$71                    ; explosion anim $71
         jsr     init_child_entity       ; init_child_entity
         lda     #$19                    ; set child routine $19
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set child AI routine
         lda     #$00                    ; no hitbox
         sta     ent_hitbox,y            ; no hitbox for child
         sta     ent_timer,y             ; clear child timer
         lda     ent_x_scr,x             ; copy parent X screen
-        sta     ent_x_scr,y
+        sta     ent_x_scr,y             ; set child X screen
         stx     temp_00                 ; save parent slot
         lda     ent_y_px,x              ; parent Y pixel
-        sta     $01
+        sta     $01                     ; $01 = parent Y pixel
         lda     ent_x_px,x              ; parent X pixel
-        sta     $02
+        sta     $02                     ; $02 = parent X pixel
         lda     ent_var2,x              ; spawn pattern index
-        pha
-        tax
-        lda     $01
-        clc
+        pha                             ; save pattern index
+        tax                             ; X = pattern index for table
+        lda     $01                     ; load parent Y pixel
+        clc                             ; clear carry for add
         adc     penpen_maker_spawn_y,x  ; Y offset from table
-        sta     ent_y_px,y
-        lda     $02
-        clc
+        sta     ent_y_px,y              ; set child Y pixel
+        lda     $02                     ; load parent X pixel
+        clc                             ; clear carry for add
         adc     penpen_maker_spawn_x,x  ; X offset from table
-        sta     ent_x_px,y
-        pla
-        asl     a
-        asl     a
-        tax
-        ldy     #$00
+        sta     ent_x_px,y              ; set child X pixel
+        pla                             ; restore pattern index
+        asl     a                       ; multiply by 4
+        asl     a                       ; (4 palette bytes per pattern)
+        tax                             ; X = palette table offset
+        ldy     #$00                    ; Y = palette byte counter
 penpen_maker_palette_swap:  lda     penpen_maker_palette_byte,x
-        sta     $060C,y
-        sta     $062C,y
-        inx
-        iny
-        cpy     #$04
-        bne     penpen_maker_palette_swap
+        sta     $060C,y                 ; write to sprite palette 0
+        sta     $062C,y                 ; write to palette buffer copy
+        inx                             ; next table byte
+        iny                             ; next palette byte
+        cpy     #$04                    ; copied all 4 bytes?
+        bne     penpen_maker_palette_swap ; no -> loop
         lda     #$FF                    ; flag palette update
-        sta     palette_dirty
-        ldx     temp_00
+        sta     palette_dirty           ; mark palette dirty
+        ldx     temp_00                 ; restore parent slot
         inc     ent_var2,x              ; next spawn pattern
-        lda     ent_var2,x
+        lda     ent_var2,x              ; check pattern index
         and     #$03                    ; cycle through 4 patterns
-        bne     penpen_maker_spawn_rts
-        lda     #$00
+        bne     penpen_maker_spawn_rts  ; not back to 0 -> return
+        lda     #$00                    ; cycled through all patterns
         sta     ent_status,x            ; reset entity to re-init
-penpen_maker_dec_var1:  dec     ent_var1,x
-penpen_maker_spawn_rts:  rts
+penpen_maker_dec_var1:  dec     ent_var1,x ; decrement spawn delay
+penpen_maker_spawn_rts:  rts            ; return from spawn phase
 
 penpen_maker_palette_byte:  .byte   $0F
 penpen_maker_palette_data:  .byte   $20,$10,$17,$0F,$10,$00,$17,$0F
@@ -5134,36 +5134,36 @@ penpen_maker_spawn_penpen:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_
         bcs     penpen_maker_spawn_done ; no slot -> return
         sty     temp_00                 ; save child slot
         lda     ent_facing,x            ; copy parent facing
-        sta     ent_facing,y
-        and     #$02
-        tay
+        sta     ent_facing,y            ; set child facing
+        and     #$02                    ; extract facing index (0 or 2)
+        tay                             ; Y = facing-based table index
         lda     ent_x_px,x              ; parent X pixel
-        clc
+        clc                             ; clear carry for add
         adc     penpen_maker_penpen_x_adj,y ; add X offset for facing
-        pha
+        pha                             ; save adjusted X pixel
         lda     ent_x_scr,x             ; parent X screen
         adc     penpen_maker_penpen_x_scr,y ; add screen carry
-        ldy     temp_00
-        sta     ent_x_scr,y
-        pla
-        sta     ent_x_px,y
+        ldy     temp_00                 ; restore child slot to Y
+        sta     ent_x_scr,y             ; set child X screen
+        pla                             ; restore adjusted X pixel
+        sta     ent_x_px,y              ; set child X pixel
         lda     ent_y_px,x              ; parent Y pixel
-        clc
+        clc                             ; clear carry for add
         adc     #$1C                    ; penpen spawns 28 px below
-        sta     ent_y_px,y
+        sta     ent_y_px,y              ; set child Y pixel
         lda     #$80                    ; X speed sub = $80
-        sta     ent_xvel_sub,y
+        sta     ent_xvel_sub,y          ; set child X speed sub
         lda     #$02                    ; X speed whole = 2
-        sta     ent_xvel,y
+        sta     ent_xvel,y              ; set child X speed whole
         lda     #$93                    ; entity type $93
         jsr     init_child_entity       ; init_child_entity
-        lda     #$46
+        lda     #$46                    ; penpen AI routine $46
         sta     ent_routine,y           ; set child routine $46
         lda     #$C0                    ; hitbox $C0
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; set child hitbox
         lda     #$01                    ; HP = 1
-        sta     ent_hp,y
-penpen_maker_spawn_done:  rts
+        sta     ent_hp,y                ; set child HP
+penpen_maker_spawn_done:  rts           ; return from penpen spawn
 
 penpen_maker_penpen_x_adj:  .byte   $F8
 penpen_maker_penpen_x_scr:  .byte   $FF,$F8,$FF
@@ -5172,7 +5172,7 @@ penpen_maker_penpen_x_scr:  .byte   $FF,$F8,$FF
         beq     penpen_maker_check_facing ; 0 = left
         lda     #$08                    ; speed index $08
         jsr     move_right_collide      ; move_right_collide
-        jmp     penpen_maker_after_move
+        jmp     penpen_maker_after_move ; skip to wall check
 
 penpen_maker_check_facing:  ldy     #$09 ; speed index $09
         jsr     move_left_collide       ; move_left_collide
@@ -5181,7 +5181,7 @@ penpen_maker_after_move:  bcc     penpen_maker_move_rts ; no wall hit -> continu
         jsr     reset_sprite_anim       ; reset_sprite_anim
         lda     #$00                    ; clear routine (dead)
         sta     ent_routine,x           ; deactivate entity
-penpen_maker_move_rts:  rts
+penpen_maker_move_rts:  rts             ; return from penpen movement
 
         lda     ent_anim_frame,x        ; check anim frame counter
         cmp     #$02                    ; frame 2?
@@ -5190,67 +5190,67 @@ penpen_maker_move_rts:  rts
         cmp     #$08                    ; max 8 parts spawned?
         beq     penpen_maker_move_rts   ; yes -> return
         stx     temp_00                 ; save parent slot
-        ldy     ent_x_px,x
+        ldy     ent_x_px,x             ; $02 = parent X pixel
         sty     $02
-        ldy     ent_x_scr,x
+        ldy     ent_x_scr,x            ; $03 = parent X screen
         sty     $03
-        ldy     ent_y_px,x
+        ldy     ent_y_px,x             ; $04 = parent Y pixel
         sty     $04
-        ldy     ent_anim_id,x
+        ldy     ent_anim_id,x          ; $10 = parent OAM ID
         sty     $10
-        lda     ent_routine,x
+        lda     ent_routine,x          ; $11 = parent routine (part type)
         sta     $11
-        lda     ent_timer,x
+        lda     ent_timer,x            ; X = spawn count (part index)
         tax
 penpen_maker_spawn_parts:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_y
-        bcs     penpen_maker_parts_rts
-        lda     $10
+        bcs     penpen_maker_parts_rts  ; no free slot -> done
+        lda     $10                     ; load parent OAM ID
         jsr     init_child_entity       ; init_child_entity
-        lda     $11
-        cmp     #$56
-        beq     penpen_maker_part_type_a
-        cmp     #$48
-        beq     penpen_maker_part_type_a
-        cmp     #$39
-        beq     penpen_maker_part_type_b
-        cmp     #$48
-        beq     penpen_maker_part_type_b
-        lda     #$00
-        sta     ent_hitbox,y
-        sta     ent_routine,y
-        beq     penpen_maker_part_pos
-penpen_maker_part_type_a:  lda     #$80
-        sta     ent_hitbox,y
-        lda     #$54
-        sta     ent_routine,y
-        bne     penpen_maker_part_pos
-penpen_maker_part_type_b:  lda     #$80
-        sta     ent_hitbox,y
-        lda     #$55
-        sta     ent_routine,y
-penpen_maker_part_pos:  lda     #$00
-        sta     $01
-        lda     penpen_maker_part_x_off,x
-        bpl     penpen_maker_part_offset
-        dec     $01
-penpen_maker_part_offset:  clc
-        adc     $02
-        sta     ent_x_px,y
-        lda     $03
-        adc     $01
-        sta     ent_x_scr,y
-        lda     $04
-        clc
-        adc     penpen_maker_part_y_off,x
-        sta     ent_y_px,y
-        ldx     temp_00
-        inc     ent_timer,x
-        lda     ent_timer,x
-        tax
-        and     #$01
-        bne     penpen_maker_spawn_parts
-penpen_maker_parts_rts:  ldx     temp_00
-        rts
+        lda     $11                     ; parent routine ID
+        cmp     #$56                    ; routine $56?
+        beq     penpen_maker_part_type_a ; → type A
+        cmp     #$48                    ; routine $48?
+        beq     penpen_maker_part_type_a ; → type A
+        cmp     #$39                    ; routine $39?
+        beq     penpen_maker_part_type_b ; → type B
+        cmp     #$48                    ; (dead branch — already matched)
+        beq     penpen_maker_part_type_b ; (unreachable)
+        lda     #$00                    ; default: no hitbox/routine
+        sta     ent_hitbox,y            ; hitbox = 0 (harmless debris)
+        sta     ent_routine,y           ; routine = 0
+        beq     penpen_maker_part_pos   ; always branches
+penpen_maker_part_type_a:  lda     #$80 ; type A: contact damage hitbox
+        sta     ent_hitbox,y            ; set child hitbox
+        lda     #$54                    ; AI routine $54
+        sta     ent_routine,y           ; set child routine
+        bne     penpen_maker_part_pos   ; always branches -> position
+penpen_maker_part_type_b:  lda     #$80 ; type B: contact damage hitbox
+        sta     ent_hitbox,y            ; set child hitbox
+        lda     #$55                    ; AI routine $55
+        sta     ent_routine,y           ; set child routine
+penpen_maker_part_pos:  lda     #$00    ; $01 = sign extend byte
+        sta     $01                     ; initialize sign byte to 0
+        lda     penpen_maker_part_x_off,x ; X offset for this part
+        bpl     penpen_maker_part_offset ; positive → no sign extend
+        dec     $01                     ; $01 = $FF (sign extend negative)
+penpen_maker_part_offset:  clc          ; clear carry for add
+        adc     $02                     ; child X = parent X + offset
+        sta     ent_x_px,y              ; set child X pixel
+        lda     $03                     ; parent X screen
+        adc     $01                     ; add sign extension (carry)
+        sta     ent_x_scr,y             ; set child X screen
+        lda     $04                     ; parent Y pixel
+        clc                             ; clear carry for add
+        adc     penpen_maker_part_y_off,x ; add Y offset for this part
+        sta     ent_y_px,y              ; set child Y pixel
+        ldx     temp_00                 ; restore parent slot
+        inc     ent_timer,x             ; advance spawn counter
+        lda     ent_timer,x             ; reload spawn count
+        tax                             ; X = new part index
+        and     #$01                    ; spawn parts in pairs (odd → loop)
+        bne     penpen_maker_spawn_parts ; odd index → spawn next part
+penpen_maker_parts_rts:  ldx     temp_00 ; restore parent slot
+        rts                             ; return from part spawning
 
 penpen_maker_part_x_off:  .byte   $0C,$F4,$F0,$10,$F4,$0C,$00,$00
 penpen_maker_part_y_off:  .byte   $F4,$0C,$00,$00,$F4,$0C,$F0,$10
@@ -5429,77 +5429,77 @@ bolton_idle_logic:  lda     ent_status,x ; check entity state
         jsr     bolton_check_range      ; check player range + find free slot
         bcs     bolton_return           ; carry set = can't fire, return
         lda     ent_flags,x             ; clear bit 2 (mouth indicator)
-        and     #$FB
-        sta     ent_flags,x
+        and     #$FB                    ; mask off mouth open bit
+        sta     ent_flags,x             ; store updated flags
         inc     ent_status,x            ; advance to state 1
         lda     #$66                    ; Y speed = $00.66/frame
         sta     ent_yvel_sub,x          ; set Y speed sub
-        lda     #$00
-        sta     ent_yvel,x
+        lda     #$00                    ; Y speed whole = 0
+        sta     ent_yvel,x              ; set Y speed whole
         lda     #$2E                    ; spawn child entity type $2E
         jsr     init_child_entity       ; init Nutton child entity
         lda     #$31                    ; child AI routine = $31
         sta     ent_routine,y           ; set child routine
         lda     ent_y_px,x              ; copy parent Y to child
-        sta     ent_y_px,y
+        sta     ent_y_px,y              ; set child Y pixel
         lda     camera_x_lo             ; child X = camera left + 4
         clc                             ; (spawn at left side of screen)
-        adc     #$04
-        sta     ent_x_px,y
+        adc     #$04                    ; offset 4 px from camera edge
+        sta     ent_x_px,y              ; set child X pixel
         lda     camera_screen           ; child X screen = camera screen
-        adc     #$00
-        sta     ent_x_scr,y
+        adc     #$00                    ; add carry from pixel add
+        sta     ent_x_scr,y             ; set child X screen
         lda     #$00                    ; child X speed = $04.00 px/frame
         sta     ent_xvel_sub,y          ; child X speed sub = 0
-        lda     #$04
-        sta     ent_xvel,y
+        lda     #$04                    ; X speed whole = 4
+        sta     ent_xvel,y              ; set child X speed whole
         lda     ent_x_px,x              ; child target X = Bolton X - 8
         sec                             ; (stored in child ent_timer/ent_var2)
-        sbc     #$08
-        sta     ent_timer,y
+        sbc     #$08                    ; target = 8 px left of Bolton
+        sta     ent_timer,y             ; store target X pixel in child
         lda     ent_x_scr,x             ; target X screen
-        sbc     #$00
-        sta     ent_var2,y
+        sbc     #$00                    ; subtract borrow
+        sta     ent_var2,y              ; store target X screen in child
         txa                             ; store parent Bolton slot in child
-        sta     ent_var1,y
+        sta     ent_var1,y              ; child remembers parent slot
         lda     #$00                    ; child damage = $00 (harmless during return)
-        sta     ent_hitbox,y
-bolton_state_check:  lda     ent_flags,x
-        and     #$FB
-        sta     ent_flags,x
-        lda     ent_timer,x
-        bne     bolton_return
-        lda     #$00
-        sta     ent_anim_frame,x
-        lda     frame_counter
-        and     #$04
-        beq     bolton_return
-        lda     ent_flags,x
-        ora     #$04
-        sta     ent_flags,x
-bolton_return:  rts
+        sta     ent_hitbox,y            ; set child hitbox
+bolton_state_check:  lda     ent_flags,x ; clear bit 2 (flash flag)
+        and     #$FB                    ; mask off flash bit
+        sta     ent_flags,x             ; store updated flags
+        lda     ent_timer,x             ; timer active?
+        bne     bolton_return           ; yes -> wait
+        lda     #$00                    ; reset animation frame
+        sta     ent_anim_frame,x        ; clear anim frame counter
+        lda     frame_counter           ; check frame counter bit 2
+        and     #$04                    ; flash every 4 frames
+        beq     bolton_return           ; off phase -> return
+        lda     ent_flags,x             ; set bit 2 (flash flag)
+        ora     #$04                    ; set flash bit
+        sta     ent_flags,x             ; store updated flags
+bolton_return:  rts                     ; return from Bolton logic
 
 nutton_homing_entry:  lda     ent_x_px  ; player X pixel
-        sec
+        sec                             ; set carry for subtract
         sbc     ent_x_px,x              ; subtract entity X pixel
-        pha
+        pha                             ; save X difference low byte
         lda     ent_x_scr               ; player X screen
         sbc     ent_x_scr,x             ; subtract entity X screen
-        pla
+        pla                             ; restore X difference low byte
         beq     nutton_move_y           ; same X -> move vertically
         bcc     nutton_move_left        ; player is left -> move left
         jsr     move_sprite_right       ; move_sprite_right
         lda     ent_flags,x             ; set H-flip flag (facing right)
         ora     #$40                    ; set bit 6
-        sta     ent_flags,x
-        jmp     nutton_move_y
+        sta     ent_flags,x             ; store facing right flag
+        jmp     nutton_move_y           ; proceed to Y tracking
 
 nutton_move_left:  jsr     move_sprite_left ; move_sprite_left
         lda     ent_flags,x             ; clear H-flip (facing left)
         and     #$BF                    ; clear bit 6
-        sta     ent_flags,x
+        sta     ent_flags,x             ; store facing left flag
 nutton_move_y:  lda     ent_y_px        ; player Y pixel
-        sec
+        sec                             ; set carry for subtract
         sbc     ent_y_px,x              ; subtract entity Y pixel
         beq     bolton_return           ; same Y -> done
         bcs     nutton_move_down        ; player below -> move down
@@ -5511,89 +5511,89 @@ bolton_check_range:  jsr     entity_x_dist_to_player ; entity_x_dist_to_player
         cmp     #$44                    ; within 68 px?
         bcs     bolton_range_fail       ; no -> can't fire
         lda     ent_x_px,x              ; entity X pixel
-        sec
+        sec                             ; set carry for subtract
         sbc     camera_x_lo             ; subtract camera X
-        sta     temp_00
+        sta     temp_00                 ; store screen-relative X
         lda     ent_x_scr,x             ; entity X screen
         sbc     camera_screen           ; subtract camera screen
         bcc     bolton_too_many         ; off screen left -> too many
-        lda     temp_00
+        lda     temp_00                 ; load screen-relative X
         cmp     #$80                    ; screen-relative X < $80?
         bcc     bolton_too_many         ; left half -> too many
         lda     #$00                    ; clear nutton counter
-        sta     $01
-        stx     temp_00
+        sta     $01                     ; $01 = active nutton count
+        stx     temp_00                 ; save Bolton slot index
         ldy     #$1F                    ; scan enemy slots $1F-$10
 bolton_count_nuttons:  cpy     temp_00
-        beq     bolton_count_next
+        beq     bolton_count_next       ; skip self
         lda     ent_status,y            ; check if slot active
-        bpl     bolton_count_next
+        bpl     bolton_count_next       ; inactive -> skip
         lda     ent_flags,y             ; check if child entity
-        bpl     bolton_count_next
+        bpl     bolton_count_next       ; not child -> skip
         lda     ent_routine,y           ; check if routine $30
         cmp     #$30                    ; bolton/nutton routine?
-        bne     bolton_count_next
+        bne     bolton_count_next       ; different routine -> skip
         inc     $01                     ; count active nuttons
-bolton_count_next:  dey
-        cpy     #$0F
-        bne     bolton_count_nuttons
-        lda     $01
+bolton_count_next:  dey                 ; next slot down
+        cpy     #$0F                    ; reached slot $10?
+        bne     bolton_count_nuttons    ; no -> keep scanning
+        lda     $01                     ; load nutton count
         cmp     #$03                    ; max 3 nuttons allowed
-        beq     bolton_too_many
-        ldy     temp_00
-bolton_find_slot:  lda     ent_status,y
-        bpl     bolton_range_ok
-        dey
-        cpy     #$0F
-        bne     bolton_find_slot
-bolton_too_many:  lda     #$00
-        sta     ent_status,x
-bolton_range_fail:  sec
-        rts
+        beq     bolton_too_many         ; at limit -> can't spawn
+        ldy     temp_00                 ; restore Y to scan start
+bolton_find_slot:  lda     ent_status,y ; check if slot is free
+        bpl     bolton_range_ok         ; inactive slot -> found one
+        dey                             ; try next slot down
+        cpy     #$0F                    ; reached slot $10?
+        bne     bolton_find_slot        ; no -> keep searching
+bolton_too_many:  lda     #$00          ; no slot or too many nuttons
+        sta     ent_status,x            ; reset Bolton to idle
+bolton_range_fail:  sec                 ; carry set = failure
+        rts                             ; return (can't fire)
 
-bolton_range_ok:  clc
-        rts
+bolton_range_ok:  clc                   ; carry clear = success
+        rts                             ; return (slot found in Y)
 
         lda     ent_status,x            ; check entity state
         and     #$0F                    ; extract sub-state
-        bne     nutton_return_state
+        bne     nutton_return_state     ; nonzero -> already at Bolton
         sta     ent_var3,x              ; clear sound-played flag
         jsr     move_sprite_right       ; move_sprite_right
         lda     ent_timer,x             ; target X pixel
-        sec
+        sec                             ; set carry for subtract
         sbc     ent_x_px,x              ; subtract current X
         lda     ent_var2,x              ; target X screen
         sbc     ent_x_scr,x             ; subtract current X screen
-        bcs     nutton_reached_target   ; past target -> snap to target
+        bcs     nutton_reached_target   ; not past target -> keep moving
         lda     ent_timer,x             ; snap X to target pixel
-        sta     ent_x_px,x
+        sta     ent_x_px,x              ; set X to target position
         lda     ent_var2,x              ; snap X screen to target
-        sta     ent_x_scr,x
+        sta     ent_x_scr,x             ; set X screen to target
         inc     ent_status,x            ; advance to state 1
         ldy     ent_var1,x              ; get parent Bolton slot
         lda     #$08                    ; set Bolton flash timer = 8
-        sta     ent_timer,y
-        sta     ent_timer,x             ; child X screen
+        sta     ent_timer,y             ; parent starts flashing
+        sta     ent_timer,x             ; set own timer to 8
 nutton_reached_target:  lda     #$00    ; clear anim frame
-        sta     ent_anim_frame,x
-        rts
+        sta     ent_anim_frame,x        ; reset animation
+        rts                             ; return (still traveling)
 
 nutton_return_state:  lda     ent_var3,x ; check sound-played flag
-        bne     nutton_sound_and_fly
+        bne     nutton_sound_and_fly    ; already played -> skip sound
         lda     #SFX_TURRET_FIRE        ; play turret fire sound
         jsr     submit_sound_ID         ; submit_sound_ID
-        inc     ent_var3,x
+        inc     ent_var3,x              ; mark sound as played
 nutton_sound_and_fly:  lda     #$01     ; set invincibility frame
-        sta     $95                     ; target X screen
+        sta     $95                     ; player invincible 1 frame
         lda     ent_timer,x             ; check flash timer
         beq     nutton_dock_ready       ; zero -> ready to dock
         lda     ent_anim_frame,x        ; check anim frame
         bne     nutton_return_end       ; nonzero -> skip
         dec     ent_timer,x             ; decrement flash timer
         inc     ent_x_px,x              ; shift X right 1 px
-        rts
+        rts                             ; return (still docking)
 
-nutton_dock_ready:  lda     ent_anim_state,x ; check parent anim state
+nutton_dock_ready:  lda     ent_anim_state,x ; check own anim state
         bne     nutton_return_end       ; nonzero -> wait
         sta     ent_anim_frame,x        ; clear own anim frame
         ldy     ent_var1,x              ; get parent Bolton slot
@@ -5603,12 +5603,12 @@ nutton_dock_ready:  lda     ent_anim_state,x ; check parent anim state
         sta     ent_timer,y             ; clear parent timer
         sta     ent_status,x            ; deactivate this nutton
         lda     #$2F                    ; restore Bolton OAM to $2F
-        sta     ent_anim_id,y
+        sta     ent_anim_id,y           ; set parent OAM sprite
         lda     #$C0                    ; set Bolton hitbox $C0
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; restore parent hitbox
         lda     #$01                    ; set Bolton HP = 1
-        sta     ent_hp,y
-nutton_return_end:  rts
+        sta     ent_hp,y                ; restore parent HP
+nutton_return_end:  rts                 ; return from Nutton logic
 
 ; ===========================================================================
 ; main_have_su_bee — Have "Su" Bee (bee carrier, Snake Man stage)
@@ -5634,15 +5634,15 @@ main_have_su_bee:
         sta     ent_flags,x             ; store updated flags
         lda     ent_facing,x            ; get facing direction
         and     #$02                    ; facing -> offset (0 or 2)
-        tay
+        tay                             ; Y = table offset
         lda     ent_x_px,x              ; current X pixel
         clc
         adc     have_su_bee_x_off,y     ; add X offset for facing
-        pha
+        pha                             ; save adjusted X pixel
         lda     ent_x_scr,x             ; current X screen
         adc     have_su_bee_x_scr,y     ; add screen carry
         sta     ent_x_scr,x             ; update X screen
-        pla
+        pla                             ; retrieve adjusted X pixel
         sta     ent_x_px,x              ; update X pixel
         jsr     face_player             ; face_player
 have_su_bee_init_rts:  rts
@@ -5655,7 +5655,7 @@ have_su_bee_active:  lda     ent_status,x ; check state
         and     #$01                    ; bit 0 = right
         beq     have_su_bee_move_left   ; 0 = left
         jsr     move_sprite_right       ; move_sprite_right
-        jmp     have_su_bee_dist_check
+        jmp     have_su_bee_dist_check  ; check distance to player
 
 have_su_bee_move_left:  jsr     move_sprite_left ; move_sprite_left
 have_su_bee_dist_check:  lda     ent_var1,x ; check range flag
@@ -5670,7 +5670,7 @@ have_su_bee_dist_check:  lda     ent_var1,x ; check range flag
         lda     #$00                    ; Y speed whole = 0
         sta     ent_yvel,x
         lda     ent_facing,x            ; check facing direction
-        and     #$01
+        and     #$01                    ; bit 0 = right
         beq     have_su_bee_flip_left   ; facing left -> flip left
         lda     ent_flags,x             ; clear H-flip (bit 6)
         and     #$BF
@@ -5686,17 +5686,17 @@ have_su_bee_hover:  dec     ent_var2,x  ; decrement hover timer
         bne     have_su_bee_vert_move   ; not zero -> keep hovering
         dec     ent_status,x            ; back to fly-away state
         lda     ent_facing,x            ; reverse facing direction
-        eor     #$03
-        sta     ent_facing,x
+        eor     #$03                    ; toggle direction bits
+        sta     ent_facing,x            ; store reversed facing
         lda     #$3A                    ; release anim $3A
         jsr     reset_sprite_anim       ; reset_sprite_anim
-        jmp     have_su_bee_spawn_bee
+        jmp     have_su_bee_spawn_bee   ; spawn a bee child
 
 have_su_bee_vert_move:  lda     ent_facing,x ; check facing direction
         and     #$01                    ; bit 0 = up
         beq     have_su_bee_move_down   ; 0 = down
         jsr     move_sprite_up          ; move_sprite_up
-        jmp     have_su_bee_hover_timer
+        jmp     have_su_bee_hover_timer ; check hover timer
 
 have_su_bee_move_down:  jsr     move_sprite_down ; move_sprite_down
 have_su_bee_hover_timer:  dec     ent_timer,x ; decrement vert move timer
@@ -5704,33 +5704,33 @@ have_su_bee_hover_timer:  dec     ent_timer,x ; decrement vert move timer
         lda     #$3C                    ; reset timer = 60 frames
         sta     ent_timer,x
         lda     ent_facing,x            ; reverse vert direction
-        eor     #$03
-        sta     ent_facing,x
+        eor     #$03                    ; toggle direction bits
+        sta     ent_facing,x            ; store reversed facing
         rts
 
 have_su_bee_x_off:  .byte   $50
 have_su_bee_x_scr:  .byte   $00,$B0,$FF
 have_su_bee_spawn_bee:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_y
-        bcs     have_su_bee_spawn_rts
+        bcs     have_su_bee_spawn_rts   ; no slot -> abort
         sty     $01                     ; save child slot
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y
-        and     #$02
-        tay
+        and     #$02                    ; isolate left/right bit
+        tay                             ; Y = table offset
         lda     ent_x_px,x              ; parent X pixel
         clc
         adc     gyoraibo_child_x_off,y  ; add X offset for facing
-        pha
+        pha                             ; save child X pixel
         lda     ent_x_scr,x             ; parent X screen
         adc     gyoraibo_child_x_scr,y  ; add screen carry
-        ldy     $01
-        sta     ent_x_scr,y
-        pla
-        sta     ent_x_px,y
+        ldy     $01                     ; restore child slot
+        sta     ent_x_scr,y             ; set child X screen
+        pla                             ; retrieve child X pixel
+        sta     ent_x_px,y              ; set child X pixel
         lda     ent_y_px,x              ; parent Y pixel
         clc
         adc     #$18                    ; bee spawns 24 px below
-        sta     ent_y_px,y
+        sta     ent_y_px,y              ; set child Y pixel
         lda     #$35                    ; entity type $35 (bee)
         jsr     init_child_entity       ; init_child_entity
         lda     #$2F                    ; child routine $2F
@@ -6039,7 +6039,7 @@ main_komasaburo:
         and     #$0F                    ; extract sub-state
         bne     komasaburo_state_check  ; nonzero -> skip init
         jsr     set_sprite_hflip        ; set_sprite_hflip
-        inc     ent_status,x
+        inc     ent_status,x            ; advance to state 1
         lda     #$36                    ; fire delay = 54 frames
         sta     ent_timer,x
         lda     #$10                    ; anim timer = 16
@@ -6088,20 +6088,20 @@ komasaburo_count_kids:  lda     #$00    ; clear child counter
 komasaburo_scan_start:  lda     ent_status,y ; check if slot active
         bmi     komasaburo_check_child  ; active -> check OAM
 komasaburo_scan_next:  dey
-        cpy     #$0F
+        cpy     #$0F                    ; scanned down to slot $10?
         bne     komasaburo_scan_start
         lda     temp_00                 ; get child count
         cmp     #$03
-        beq     komasaburo_scan_done
-        dec     ent_var2,x
+        beq     komasaburo_scan_done    ; all 3 still alive -> done
+        dec     ent_var2,x              ; one died; allow re-fire
 komasaburo_scan_done:  lda     #$38     ; reset fire delay = 56
         sta     ent_timer,x
         rts
 
 komasaburo_check_child:  lda     $01    ; target OAM to match
-        cmp     ent_anim_id,y
-        bne     komasaburo_scan_next
-        inc     temp_00
+        cmp     ent_anim_id,y           ; slot Y has child OAM?
+        bne     komasaburo_scan_next    ; no -> next slot
+        inc     temp_00                 ; found a child; count++
         jmp     komasaburo_scan_next
 
 komasaburo_spawn_proj:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_y
@@ -6142,9 +6142,9 @@ komasaburo_spawn_fail:  rts
 komasaburo_child_fall:  ldy     #$08    ; gravity speed index $08
         jsr     move_vertical_gravity   ; move_vertical_gravity
         bcc     komasaburo_child_timer
-        lda     ent_facing,x
-        and     #$01
-        beq     komasaburo_child_left
+        lda     ent_facing,x            ; check facing direction
+        and     #$01                    ; bit 0 = right
+        beq     komasaburo_child_left   ; 0 = move left
         ldy     #$08                    ; speed index $08
         jsr     move_right_collide      ; move_right_collide
         jmp     komasaburo_child_move
@@ -6274,11 +6274,11 @@ top_man_platform_check_proximity:  jsr     entity_x_dist_to_player ; entity_x_di
         and     #$02                    ; bit 1 = direction
         bne     top_man_platform_facing_right ; bit 1 set -> push right
         lda     #$01                    ; push left direction
-        bne     top_man_platform_move
+        bne     top_man_platform_move   ; (always taken)
 top_man_platform_facing_right:  lda     #$02 ; push right direction
 top_man_platform_move:  sta     $36     ; store conveyor push dir
-        lda     #$00
-        sta     $37
+        lda     #$00                    ; clear conveyor speed sub
+        sta     $37                     ; store conveyor speed sub
         lda     #$01                    ; conveyor push active
         sta     $38
         dec     ent_timer,x             ; decrement conveyor timer
@@ -6286,8 +6286,8 @@ top_man_platform_move:  sta     $36     ; store conveyor push dir
         lda     #$10                    ; reset timer = 16
         sta     ent_timer,x
         lda     ent_facing,x            ; reverse conveyor direction
-        eor     #$03
-        sta     ent_facing,x
+        eor     #$03                    ; toggle direction bits
+        sta     ent_facing,x            ; store reversed facing
 top_man_platform_movement_check:  lda     ent_var1,x ; check direction flag
         bne     top_man_platform_move_down_check ; 0 = moving up
         jsr     move_sprite_up          ; move_sprite_up
@@ -6298,38 +6298,38 @@ top_man_platform_movement_check:  lda     ent_var1,x ; check direction flag
 top_man_platform_up_rts:  rts
 
 top_man_platform_move_down_check:  lda     ent_y_px,x ; get current Y pixel
-        pha
+        pha                             ; save Y pixel
         dec     ent_y_px,x              ; move up 1 px for check
         jsr     check_player_collision  ; check_player_collision
-        pla
+        pla                             ; restore saved Y pixel
         sta     ent_y_px,x              ; restore Y pixel
         bcs     top_man_platform_down_movement ; player on platform -> move
         lda     ent_y_px                ; player Y pixel
         sec
         sbc     ent_y_px,x              ; subtract platform Y
-        bcs     top_man_platform_render_update
-        lda     ent_y_px
-        adc     #$02
-        sta     ent_y_px
-        cmp     #$F0
-        bcc     top_man_platform_render_update
+        bcs     top_man_platform_render_update ; player below -> render
+        lda     ent_y_px                ; player Y pixel
+        adc     #$02                    ; push player down 2 px
+        sta     ent_y_px                ; update player Y
+        cmp     #$F0                    ; below screen bottom?
+        bcc     top_man_platform_render_update ; no -> render
         adc     #$0F                    ; push player below $F0
-        sta     ent_y_px
+        sta     ent_y_px                ; update player Y
         inc     ent_y_scr               ; wrap to next screen
 top_man_platform_render_update:  stx     $0F ; save entity slot
-        ldx     #$00
-        ldy     #$00
-        jsr     check_tile_horiz
-        lda     $10
-        and     #$10
-        beq     top_man_platform_render_check
-        jsr     snap_y_to_floor
-top_man_platform_render_check:  ldx     $0F
+        ldx     #$00                    ; player slot
+        ldy     #$00                    ; direction = down
+        jsr     check_tile_horiz        ; check floor tile below player
+        lda     $10                     ; tile collision result
+        and     #$10                    ; bit 4 = solid floor
+        beq     top_man_platform_render_check ; no floor -> skip snap
+        jsr     snap_y_to_floor         ; snap player to floor surface
+top_man_platform_render_check:  ldx     $0F ; restore entity slot
 top_man_platform_down_movement:  jsr     move_sprite_down ; move_sprite_down
-        lda     ent_y_scr,x
-        beq     top_man_platform_up_rts
-        lda     #$00
-        sta     ent_y_scr,x
+        lda     ent_y_scr,x             ; check Y screen overflow
+        beq     top_man_platform_up_rts ; no overflow -> return
+        lda     #$00                    ; clamp Y screen to 0
+        sta     ent_y_scr,x             ; prevent screen wrap
         rts
 
 ; =============================================================================
@@ -6461,19 +6461,19 @@ elecn_activate:  lda     #SFX_APPROACH
         lda     #$07                    ; 8 sparks (index 7..0)
         sta     $01
 elecn_spawn_loop:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_y
-        bcs     elecn_spawn_done
-        ldx     $01
-        lda     elecn_proj_xvel_sub,x
+        bcs     elecn_spawn_done        ; no free slot → done
+        ldx     $01                     ; X = spark index
+        lda     elecn_proj_xvel_sub,x   ; X speed sub from table
         sta     ent_xvel_sub,y
-        lda     elecn_proj_xvel,x
+        lda     elecn_proj_xvel,x       ; X speed whole from table
         sta     ent_xvel,y
-        lda     elecn_proj_yvel_sub,x
+        lda     elecn_proj_yvel_sub,x   ; Y speed sub from table
         sta     ent_yvel_sub,y
-        lda     elecn_proj_yvel,x
+        lda     elecn_proj_yvel,x       ; Y speed whole from table
         sta     ent_yvel,y
-        lda     elecn_proj_facing,x
+        lda     elecn_proj_facing,x     ; facing direction from table
         sta     ent_facing,y
-        ldx     temp_00
+        ldx     temp_00                 ; restore parent slot
         lda     #$57                    ; init child entity (OAM $57)
         jsr     init_child_entity
         lda     #$80                    ; hitbox $80 (invulnerable)
@@ -6859,57 +6859,57 @@ parasyu_initial_delay_table:  .byte   $22,$2A,$26,$2E
 ; then morphs this entity into the actual Doc Robot AI (via
 ; doc_robot_master_main_indices table).
 main_doc_robot_intro:
-        lda     #$00
-        sta     ent_anim_frame,x
+        lda     #$00                    ; freeze anim frame
+        sta     ent_anim_frame,x        ; clear anim frame timer
         lda     ent_status,x            ; check entity state
         and     #$0F                    ; extract sub-state
-        beq     doc_robot_intro_shutter_init
-        lda     boss_hp_display
-        cmp     #$9C
-        bne     doc_robot_intro_morph_done
-        lda     ent_status,x
-        ora     #$40
-        sta     ent_status,x
-        stx     temp_00
+        beq     doc_robot_intro_shutter_init ; state 0 -> init shutter
+        lda     boss_hp_display         ; HP bar fill value
+        cmp     #$9C                    ; fully filled?
+        bne     doc_robot_intro_morph_done ; not yet → wait
+        lda     ent_status,x            ; set bit 6 (morphing flag)
+        ora     #$40                    ; bit 6 = morph in progress
+        sta     ent_status,x            ; store updated status
+        stx     temp_00                 ; save entity slot
         lda     ent_routine,x           ; get doc robot routine
         and     #$07                    ; mask to 0-7 for table index
-        tay
+        tay                             ; Y = master index
         lda     doc_robot_master_main_indices,y ; get master's AI routine
         sta     ent_routine,x           ; set as new entity routine
         lda     #$CA                    ; doc robot hitbox
         sta     ent_hitbox,x
         lda     #$1C                    ; 28 HP
         sta     ent_hp,x
-        lda     doc_robot_intro_xvel_sub,y
-        sta     ent_xvel_sub,x
-        lda     doc_robot_intro_xvel,y
-        sta     ent_xvel,x
+        lda     doc_robot_intro_xvel_sub,y ; master-specific X speed sub
+        sta     ent_xvel_sub,x          ; set X speed sub
+        lda     doc_robot_intro_xvel,y  ; master-specific X speed whole
+        sta     ent_xvel,x              ; set X speed whole
         jsr     reset_gravity           ; reset_gravity
         lda     doc_robot_intro_chr_lookup,y ; CHR bank set for this master
         sta     $ED                     ; store CHR bank to shadow register
         jsr     update_CHR_banks        ; update_CHR_banks
         lda     #$C0                    ; set status: active + invincible
         sta     ent_status,x
-        tya
-        asl     a
-        asl     a
-        tay
+        tya                             ; master index
+        asl     a                       ; *2
+        asl     a                       ; *4 for palette table offset
+        tay                             ; Y = palette table index
         ldx     #$00                    ; X = palette write index
 doc_robot_intro_palette_loop:  lda     doc_robot_intro_palette_data,y
         sta     $061C,x                 ; write to palette buffer sprite 0
-        sta     $063C,x
-        iny
-        inx
-        cpx     #$04
-        bne     doc_robot_intro_palette_loop
+        sta     $063C,x                 ; write to palette buffer sprite 1
+        iny                             ; next palette byte
+        inx                             ; next buffer position
+        cpx     #$04                    ; copied 4 bytes?
+        bne     doc_robot_intro_palette_loop ; no -> loop
         lda     #$FF                    ; mark palette dirty
         sta     palette_dirty
-        ldx     temp_00
+        ldx     temp_00                 ; restore entity slot
 doc_robot_intro_morph_done:  rts
 
 ; --- state 0: spawn shutter and set up doc robot ---
 doc_robot_intro_shutter_init:  jsr     init_boss_wait ; freeze player, start HP bar fill
-        inc     ent_status,x
+        inc     ent_status,x            ; advance to state 1
         jsr     find_enemy_freeslot_y   ; find_enemy_freeslot_y
         lda     #$61                    ; child routine $61 (shutter)
         sta     ent_routine,y
@@ -6924,12 +6924,12 @@ doc_robot_intro_shutter_init:  jsr     init_boss_wait ; freeze player, start HP 
         lda     #$80                    ; child Y velocity sub = $80
         sta     ent_yvel_sub,y          ; set child Y velocity sub
         sta     ent_hitbox,y            ; shutter hitbox $80
-        lda     #$00
-        sta     ent_yvel,y
+        lda     #$00                    ; Y speed whole = 0
+        sta     ent_yvel,y              ; set child Y speed whole
         stx     temp_00                 ; save entity slot to temp
         lda     ent_routine,x           ; get doc robot routine
         and     #$07                    ; mask to low 3 bits (0-7)
-        tax
+        tax                             ; X = master index
         lda     doc_robot_intro_sprite_anim,x ; get sprite anim from table
         ldx     temp_00                 ; restore entity slot
         jsr     init_child_entity       ; init_child_entity
@@ -6939,7 +6939,7 @@ doc_robot_intro_shutter_init:  jsr     init_boss_wait ; freeze player, start HP 
         lda     doc_robot_intro_chr_bank,y ; load CHR bank for this master
         sta     $ED                     ; store CHR bank to shadow register
         tya                             ; master index * 2 = palette pair offset
-        asl     a
+        asl     a                       ; *2 for paired entries
         tay                             ; Y = palette pair index
         lda     #$0F                    ; palette value $0F (black)
         sta     $061C                   ; set palette buffer $061C
