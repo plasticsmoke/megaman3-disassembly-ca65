@@ -187,11 +187,14 @@ select_PRG_banks           := $FF6B
 ;
 ; The pointer tables at $8000/$8080 index into this data.
 ; Animation IDs $00-$7F are defined here for bank $1A.
+; --- anim seq $00: 11 frames, 8 ticks/frame ---
         .byte   $0A,$08,$0A,$0A,$0A,$0A,$0A,$0A
         .byte   $0A,$0A,$0A,$0A,$0B,$00,$08,$10
+; --- anim seq $03: 1 frame, 8 ticks/frame ---
         .byte   $00,$08,$18,$03,$06,$07,$09,$08
         .byte   $09,$03,$06,$01,$03,$02,$03,$00
         .byte   $08,$0F,$00,$08,$11,$00,$08,$1F
+; --- anim seq $0A: 2 frames, 8 ticks/frame ---
         .byte   $01,$08,$04,$05,$00,$08,$1A,$00
         .byte   $08,$19,$01,$05,$0C,$0C,$01,$05
         .byte   $10,$10,$01,$05,$18,$18,$00,$08
@@ -207,12 +210,14 @@ select_PRG_banks           := $FF6B
         .byte   $24,$03,$02,$35,$36,$37,$38,$01
         .byte   $02,$39,$3A,$06,$02,$3F,$4B,$40
         .byte   $4C,$41,$4D,$4D,$01,$02,$3B,$3C
+; --- anim seq $25: 2 frames, 2 ticks/frame ---
         .byte   $01,$02,$3D,$3E,$03,$02,$42,$43
         .byte   $44,$45,$18,$02,$46,$47,$8A,$8B
         .byte   $8C,$47,$8A,$8B,$8C,$47,$48,$48
         .byte   $48,$48,$48,$48,$48,$48,$48,$48
         .byte   $48,$48,$48,$48,$48,$01,$02,$49
         .byte   $4A,$01,$08,$4E,$50,$00,$08,$51
+; --- anim seq $2B: 4 frames, 6 ticks/frame ---
         .byte   $03,$06,$4E,$4F,$4E,$4F,$0C,$08
         .byte   $32,$33,$34,$52,$53,$33,$33,$33
         .byte   $33,$33,$33,$33,$00,$02,$04,$FC
@@ -224,6 +229,7 @@ select_PRG_banks           := $FF6B
         .byte   $03,$6E,$6F,$01,$10,$70,$AB,$00
         .byte   $08,$71,$01,$08,$72,$73,$01,$02
         .byte   $B4,$B5,$00,$08,$79,$00,$08,$7A
+; --- anim seq $3D: 1 frame, 4 ticks/frame ---
         .byte   $00,$04,$7B,$00,$08,$7C,$01,$02
         .byte   $7D,$7E,$00,$08,$F4,$01,$02,$80
         .byte   $81,$03,$08,$82,$83,$82,$82,$01
@@ -232,6 +238,7 @@ select_PRG_banks           := $FF6B
         .byte   $02,$8D,$8E,$8F,$90,$03,$04,$93
         .byte   $91,$92,$94,$01,$02,$95,$96,$00
         .byte   $08,$9A,$00,$08,$9B,$00,$08,$B7
+; --- anim seq $4D: 4 frames, 8 ticks/frame ---
         .byte   $03,$08,$B8,$B8,$B8,$B9,$01,$08
         .byte   $9C,$9D,$01,$08,$9E,$9F,$04,$04
         .byte   $A0,$A1,$A2,$A3,$A4,$03,$04,$A5
@@ -257,6 +264,7 @@ select_PRG_banks           := $FF6B
         .byte   $EF,$F0,$F1,$F2,$F3,$00,$08,$08
         .byte   $F5,$F6,$F7,$F6,$F7,$F6,$F7,$F5
         .byte   $63,$00,$08,$F8,$01,$02,$25,$26
+; --- anim seq $75: 5 frames, 12 ticks/frame ---
         .byte   $04,$0C,$64,$65,$64,$65,$6C,$01
         .byte   $04,$6D,$76,$00,$08,$77,$00,$08
         .byte   $78,$04,$02,$EF,$F0,$F1,$F2,$F3
@@ -277,6 +285,7 @@ select_PRG_banks           := $FF6B
 ; NOTE: The last animation sequence ($03,$06,$F9,$FA,$FB,$FA) ends in the
 ; middle of the first .byte line below. OAM definition data begins at
 ; offset $854E within the bank ($09,$00... = sprite def $00).
+; --- anim seq $7B: 4 frames, 6 ticks/frame ---
         .byte   $03,$06,$F9,$FA,$FB,$FA,$09,$00
         .byte   $00,$01,$01,$00,$02,$00,$4A,$00
         .byte   $12,$00,$13,$00,$4B,$00,$22,$00
@@ -1427,11 +1436,13 @@ oam_sprite_def_ptr_hi_table:  .byte   $85,$85,$85,$85,$85,$85,$85,$85
 ; --- Animation sequence data ($8300+) ---
 ; Variable-length records for animation IDs $80-$FF (same format as bank $1A).
 ; (when bank $00: enemy_OAM_ID_g — initial animation/sprite ID per enemy type)
+; --- anim seq $00: 17 frames, 3 ticks/frame ---
 anim_variable_records:  .byte   $10,$03,$01,$02,$03,$04,$05,$06
         .byte   $07,$05,$06,$07,$05,$06,$04,$03
         .byte   $02,$01,$00,$00,$08,$1B,$03,$08
         .byte   $08,$09,$0A,$09,$03,$06,$1C,$1D
         .byte   $1E,$1D,$03,$06,$1F,$20,$21,$22
+; --- anim seq $05: 2 frames, 6 ticks/frame ---
         .byte   $01,$06,$23,$24,$00,$08,$25,$09
         .byte   $02,$25,$3A,$3A,$25,$3A,$3A,$25
         .byte   $3A,$3A,$25,$01,$06,$26,$27,$05
@@ -1444,28 +1455,37 @@ anim_variable_records:  .byte   $10,$03,$01,$02,$03,$04,$05,$06
         .byte   $D5,$D6,$D7,$01,$08,$47,$48,$01
         .byte   $08,$45,$46,$00,$08,$C3,$07,$08
         .byte   $49,$4A,$4B,$4C,$4D,$4E,$4F,$50
+; --- anim seq $16: 4 frames, 8 ticks/frame ---
         .byte   $03,$08,$51,$52,$53,$52,$00,$08
         .byte   $0B,$02,$02,$D5,$D7,$D6,$04,$02
         .byte   $55,$56,$55,$57,$57,$00,$08,$54
+; --- anim seq $1B: 1 frame, 8 ticks/frame ---
         .byte   $00,$08,$58,$01,$02,$5A,$5B,$01
         .byte   $02,$5C,$5D,$01,$02,$5E,$5F,$00
         .byte   $08,$60,$00,$08,$61,$00,$08,$62
+; --- anim seq $22: 1 frame, 8 ticks/frame ---
         .byte   $00,$08,$63,$03,$02,$BF,$64,$65
         .byte   $66,$04,$03,$BA,$BB,$BC,$BD,$BE
+; --- anim seq $25: 2 frames, 8 ticks/frame ---
         .byte   $01,$08,$67,$68,$01,$08,$69,$6A
+; --- anim seq $27: 2 frames, 8 ticks/frame ---
         .byte   $01,$08,$6B,$6C,$05,$08,$0C,$0C
         .byte   $0C,$59,$6D,$6E,$00,$08,$6F,$00
         .byte   $08,$74,$00,$08,$70,$00,$08,$71
+; --- anim seq $2E: 1 frame, 8 ticks/frame ---
         .byte   $00,$08,$72,$00,$08,$73,$02,$02
         .byte   $83,$84,$85,$09,$02,$98,$79,$98
         .byte   $79,$98,$79,$98,$7E,$98,$79,$02
 ; (when bank $00: enemy_health_g — HP values)
 oam_tile_base_table:  .byte   $04,$87,$88,$89,$03,$04,$B6,$B7
         .byte   $B8,$B9,$03,$04,$B8,$B7,$B6,$B9
+; --- anim seq $35: 2 frames, 8 ticks/frame ---
         .byte   $01,$08,$14,$13,$0B,$08,$17,$17
         .byte   $17,$17,$17,$17,$17,$17,$17,$17
         .byte   $15,$16,$03,$01,$18,$19,$1A,$A1
+; --- anim seq $3B: 2 frames, 6 ticks/frame ---
         .byte   $01,$06,$A9,$AA,$01,$06,$11,$12
+; --- anim seq $3D: 1 frame, 8 ticks/frame ---
         .byte   $00,$08,$AB,$00,$08,$AC,$00,$08
         .byte   $AD,$00,$08,$AE,$00,$08,$AF,$03
         .byte   $06,$B3,$B4,$B3,$B5,$01,$02,$D8
@@ -1495,6 +1515,7 @@ oam_tile_base_table:  .byte   $04,$87,$88,$89,$03,$04,$B6,$B7
 ; (when bank $00: enemy_speed_ID_g — speed table index)
 oam_attr_base_table:  .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9B,$9C
         .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9D,$9C
+; --- anim seq $5D: 2 frames, 3 ticks/frame ---
         .byte   $01,$03,$9E,$9F,$00,$08,$A0,$01
         .byte   $02,$DD,$DE,$03,$06,$DF,$DE,$DF
         .byte   $DE,$0F,$02,$E0,$E1,$E0,$E1,$E0
@@ -1503,6 +1524,7 @@ oam_attr_base_table:  .byte   $9B,$9C,$9B,$9C,$9B,$9C,$9B,$9C
         .byte   $A7,$01,$06,$3B,$3C,$01,$06,$3D
         .byte   $3E,$01,$06,$3F,$40,$01,$06,$41
         .byte   $42,$01,$08,$43,$93,$00,$08,$44
+; --- anim seq $7F: 2 frames, 8 ticks/frame ---
         .byte   $01,$08,$B1,$B2,$00,$0E,$ED,$02
         .byte   $01,$C2,$EE,$02,$EE,$02,$02,$C2
         .byte   $EF,$02,$EF,$02,$EF,$02,$03,$C2

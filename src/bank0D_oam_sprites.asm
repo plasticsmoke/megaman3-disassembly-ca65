@@ -650,11 +650,11 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
 ; $AE00,y = global enemy type ID for enemy slot y. Indexes into the
 ; enemy AI/shape/HP tables in bank $00 to determine behavior.
 ; Terminated by $FF.
-        .byte   $5A,$5A,$5A,$52,$5A,$5A,$52,$5A
-        .byte   $55,$21,$21,$21,$21,$21,$21,$21
-        .byte   $1F,$21,$21,$1F,$21,$21,$21,$21
-        .byte   $52,$1F,$51,$51,$51,$52,$54,$54
-        .byte   $52,$52,$52,$81,$FF,$10,$48,$01
+        .byte   $5A,$5A,$5A,$52,$5A,$5A,$52,$5A ; Tama seg, Tama seg, Tama seg, RM intro, Tama seg, Tama seg, RM intro, Tama seg
+        .byte   $55,$21,$21,$21,$21,$21,$21,$21 ; RM intro, Proto Man, Proto Man, Proto Man, Proto Man, Proto Man, Proto Man, Proto Man
+        .byte   $1F,$21,$21,$1F,$21,$21,$21,$21 ; Giant Springer, Proto Man, Proto Man, Giant Springer, Proto Man, Proto Man, Proto Man, Proto Man
+        .byte   $52,$1F,$51,$51,$51,$52,$54,$54 ; RM intro, Giant Springer, RM intro, RM intro, RM intro, RM intro, RM intro, RM intro
+        .byte   $52,$52,$52,$81,$FF,$10,$48,$01 ; RM intro, RM intro, RM intro, Wily Machine
         .byte   $00,$40,$21,$00,$94,$00,$20,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$20,$00,$00,$00,$00,$00
