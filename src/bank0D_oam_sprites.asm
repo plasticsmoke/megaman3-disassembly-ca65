@@ -54,45 +54,45 @@
 ; into the palette staging area at $0618, then advances ent_var2 to the
 ; next frame for the following call.
 ; ===========================================================================
-        ldy     ent_var2            ; current portrait index
-        lda     robot_master_portrait_pointer_low,y             ; load pointer low byte from table
-        sta     $00                 ; store in ZP pointer ($00)
-        lda     robot_master_portrait_pointer_high,y             ; load pointer high byte from table
-        sta     $01                 ; (high bytes overlap with sprite data start)
-        ldy     #$00                ; start at beginning of OAM buffer
+        ldy     ent_var2                ; current portrait index
+        lda     robot_master_portrait_pointer_low,y ; load pointer low byte from table
+        sta     $00                     ; store in ZP pointer ($00)
+        lda     robot_master_portrait_pointer_high,y ; load pointer high byte from table
+        sta     $01                     ; (high bytes overlap with sprite data start)
+        ldy     #$00                    ; start at beginning of OAM buffer
 ; --- copy OAM quads until $FF terminator ---
-code_A00F:  lda     ($00),y         ; read Y position (or terminator)
-        cmp     #$FF                ; end of sprite frame?
-        beq     code_A02D           ; yes -- done copying
-        sta     $0200,y             ; write Y position to OAM buffer
+code_A00F:  lda     ($00),y             ; read Y position (or terminator)
+        cmp     #$FF                    ; end of sprite frame?
+        beq     code_A02D               ; yes -- done copying
+        sta     $0200,y                 ; write Y position to OAM buffer
         iny
-        lda     ($00),y             ; read tile index
-        sta     $0200,y             ; write tile index
+        lda     ($00),y                 ; read tile index
+        sta     $0200,y                 ; write tile index
         iny
-        lda     ($00),y             ; read attribute byte (palette, flip)
-        sta     $0200,y             ; write attributes
+        lda     ($00),y                 ; read attribute byte (palette, flip)
+        sta     $0200,y                 ; write attributes
         iny
-        lda     ($00),y             ; read X position
-        sta     $0200,y             ; write X position
+        lda     ($00),y                 ; read X position
+        sta     $0200,y                 ; write X position
         iny
-        bne     code_A00F           ; loop (max 64 sprites)
+        bne     code_A00F               ; loop (max 64 sprites)
 ; --- copy palette for this portrait ---
-code_A02D:  sty     oam_ptr         ; save OAM write position
-        sty     ent_var3            ; also store in entity var3
-        lda     ent_var2            ; current portrait index
-        asl     a                   ; * 8 (each palette is 8 bytes)
+code_A02D:  sty     oam_ptr             ; save OAM write position
+        sty     ent_var3                ; also store in entity var3
+        lda     ent_var2                ; current portrait index
+        asl     a                       ; * 8 (each palette is 8 bytes)
         asl     a
         asl     a
-        tay                         ; Y = palette offset
+        tay                             ; Y = palette offset
         ldx     #$00
-code_A03B:  lda     robot_master_palette_data,y         ; read palette byte
-        sta     $0618,x             ; write to palette staging buffer
+code_A03B:  lda     robot_master_palette_data,y ; read palette byte
+        sta     $0618,x                 ; write to palette staging buffer
         iny
         inx
-        cpx     #$08                ; 8 bytes per palette block
+        cpx     #$08                    ; 8 bytes per palette block
         bne     code_A03B
-        stx     palette_dirty       ; flag palette as needing PPU update
-        inc     ent_var2            ; advance to next portrait for next call
+        stx     palette_dirty           ; flag palette as needing PPU update
+        inc     ent_var2                ; advance to next portrait for next call
         rts
 
 ; ===========================================================================
@@ -104,9 +104,9 @@ code_A03B:  lda     robot_master_palette_data,y         ; read palette byte
 ; list of 4-byte OAM quads (Y, tile, attr, X), terminated by $FF.
 ; ---------------------------------------------------------------------------
 robot_master_portrait_pointer_low:  .byte   $5F,$BC,$01,$56,$A3,$04,$55,$A2 ; pointer low bytes [0-7]
-        .byte   $FB                              ; pointer low byte  [8]
+        .byte   $FB                     ; pointer low byte  [8]
 robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; pointer high bytes [0-7]
-        .byte   $A2                              ; pointer high byte  [8]
+        .byte   $A2                     ; pointer high byte  [8]
 ; ===========================================================================
 ; OAM SPRITE FRAME DATA ($A05F)
 ; ===========================================================================
@@ -308,7 +308,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $1A,$0F,$2B,$23,$2D,$09,$0C,$1C
         .byte   $19,$1E,$12,$0F,$1C,$00,$19,$10
         .byte   $23,$6D,$06,$17,$0F,$11,$0B,$17
-        .byte   $0B,$18,$FF                     ; end of credit text
+        .byte   $0B,$18,$FF             ; end of credit text
 ; =============================================================================
 ; WILY FORTRESS STAGE DATA ($A5AB-$BFFF)
 ; =============================================================================

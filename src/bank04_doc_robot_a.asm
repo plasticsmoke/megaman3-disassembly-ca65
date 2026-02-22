@@ -77,7 +77,7 @@ code_A01E:  rts
 ; The Time Stopper attack triggers the special_death state ($07) on the player.
 ; =============================================================================
 
-code_A030:  lda     ent_status,x            ; --- init (status low nibble == 0) ---
+code_A030:  lda     ent_status,x        ; --- init (status low nibble == 0) ---
         and     #$0F
         bne     code_A04C
         lda     ent_status,x
@@ -88,7 +88,7 @@ code_A030:  lda     ent_status,x            ; --- init (status low nibble == 0) 
         sta     ent_timer,x             ; walk timer = 96 frames
         lda     #$08
         sta     ent_var1,x              ; projectile spawn interval
-code_A04C:  lda     ent_status,x            ; --- phase dispatch ---
+code_A04C:  lda     ent_status,x        ; --- phase dispatch ---
         and     #$02
         bne     code_A0A7               ; phase 2: Time Stopper attack
         ldy     #$1E
@@ -145,7 +145,7 @@ code_A0A7:  lda     ent_anim_id,x
         jsr     set_sprite_hflip
         rts
 
-code_A0C5:  dec     ent_var1,x              ; count down spawn interval
+code_A0C5:  dec     ent_var1,x          ; count down spawn interval
         bne     code_A0F4
         lda     #$08
         sta     ent_var1,x              ; reset interval
@@ -156,20 +156,20 @@ code_A0C5:  dec     ent_var1,x              ; count down spawn interval
         bcs     code_A0DD
         rts
 
-code_A0DD:  lda     #$05                    ; done — revert to walk anim
+code_A0DD:  lda     #$05                ; done — revert to walk anim
         jsr     reset_sprite_anim
         lda     #$60
         sta     ent_timer,x             ; reset walk timer
         dec     ent_status,x            ; back to phase 1
-        lda     player_state                     ; if player already dead ($0E),
-        cmp     #PSTATE_DEATH                    ; don't reset state
+        lda     player_state            ; if player already dead ($0E),
+        cmp     #PSTATE_DEATH           ; don't reset state
         beq     code_A0F4               ; if player already dead ($0E),
         lda     #$00                    ; state → $00 (on_ground)
-        sta     player_state                     ; release player from Doc Robot
+        sta     player_state            ; release player from Doc Robot
 code_A0F4:  rts                         ; state → $00 (on_ground)
 
 ; --- spawn Doc Flash projectile ---
-code_A0F5:  jsr     find_enemy_freeslot_y               ; find free enemy slot
+code_A0F5:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     code_A139               ; no slot available
         sty     L0000
         lda     ent_facing,x
@@ -198,7 +198,7 @@ code_A0F5:  jsr     find_enemy_freeslot_y               ; find free enemy slot
         sta     ent_routine,y
 code_A139:  rts
 
-doc_flash_projectile_x_offset_table:  .byte   $E9,$17                 ; X offset per facing: left=-23, right=+23
+doc_flash_projectile_x_offset_table:  .byte   $E9,$17 ; X offset per facing: left=-23, right=+23
 
 ; =============================================================================
 ; DOC FLASH HOMING PROJECTILE ($A4)
@@ -253,7 +253,7 @@ code_A197:  lda     ent_facing,x
 
 code_A1A1:  jmp     move_sprite_left
 
-doc_flash_homing_random_y_offset_table:  .byte   $24,$0C,$10,$00,$E0,$F4,$10,$F8     ; random Y-offset table (16 entries)
+doc_flash_homing_random_y_offset_table:  .byte   $24,$0C,$10,$00,$E0,$F4,$10,$F8 ; random Y-offset table (16 entries)
         .byte   $18,$F0,$08,$10,$00,$F0,$00,$E8
 
 ; --- copy explosion OAM data to sprite page (special death effect) ---
@@ -276,16 +276,16 @@ code_A1B6:  lda     doc_flash_explosion_oam_data_y,y
 ; Copies explosion OAM data to sprite page, then sets palette-cycling kill.
 ; Triggered by Doc Flash Man's Time Stopper attack (Gemini Man Doc Robot stage).
 ; [confirmed via Mesen]
-        lda     player_state                     ; if player already dead ($0E),
-        cmp     #PSTATE_DEATH                    ; don't overwrite with special_death
+        lda     player_state            ; if player already dead ($0E),
+        cmp     #PSTATE_DEATH           ; don't overwrite with special_death
         beq     code_A1E3
-        lda     #PSTATE_SPECIAL_DEATH                    ; state → $07 (special_death)
-        sta     player_state                     ; palette cycling kill effect
+        lda     #PSTATE_SPECIAL_DEATH   ; state → $07 (special_death)
+        sta     player_state            ; palette cycling kill effect
         lda     #$1E                    ; timer = 30 frames
         sta     ent_timer
-code_A1E3:  rts                         ; state → $07 (special_death)
+code_A1E3:  rts
 
-doc_flash_explosion_oam_data_y:  .byte   $20 ; timer = 30 frames
+doc_flash_explosion_oam_data_y:  .byte   $20
 doc_flash_explosion_oam_data_x:  .byte   $F7
 doc_flash_explosion_oam_data_flags:  .byte   $03
 doc_flash_explosion_oam_data_palette:  .byte   $20,$20,$F7,$03,$88,$30,$F7,$03
@@ -314,7 +314,7 @@ doc_flash_explosion_oam_data_palette:  .byte   $20,$20,$F7,$03,$88,$30,$F7,$03
 ;   5: land — wait for landing anim, then decrement back to state 1
 ; =============================================================================
 
-code_A250:  lda     ent_status,x            ; dispatch to state handler
+code_A250:  lda     ent_status,x        ; dispatch to state handler
         and     #$0F
         tay
         lda     doc_wood_state_handler_low_table,y
@@ -323,8 +323,8 @@ code_A250:  lda     ent_status,x            ; dispatch to state handler
         sta     $01
         jmp     (L0000)
 
-doc_wood_state_handler_low_table:  .byte   $6F,$92,$B5,$CA,$FD,$46     ; state handler pointers (low)
-doc_wood_state_handler_high_table:  .byte   $A2,$A2,$A2,$A2,$A2,$A3     ; state handler pointers (high)
+doc_wood_state_handler_low_table:  .byte   $6F,$92,$B5,$CA,$FD,$46 ; state handler pointers (low)
+doc_wood_state_handler_high_table:  .byte   $A2,$A2,$A2,$A2,$A2,$A3 ; state handler pointers (high)
         lda     #$9E
         sta     ent_yvel_sub,x
         lda     #$04
@@ -451,7 +451,7 @@ code_A377:  lda     #$01
         rts
 
 ; --- spawn leaf shield entity (orbits Doc Wood Man) ---
-code_A382:  jsr     find_enemy_freeslot_y               ; find free enemy slot
+code_A382:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     code_A3FA
         lda     ent_facing,x
         sta     ent_facing,y
@@ -477,7 +477,7 @@ code_A382:  jsr     find_enemy_freeslot_y               ; find free enemy slot
         rts
 
 ; --- spawn leaf projectile (thrown at player) ---
-code_A3C1:  jsr     find_enemy_freeslot_y               ; find free enemy slot
+code_A3C1:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     code_A3FA
         lda     ent_facing,x
         sta     ent_facing,y
@@ -501,7 +501,7 @@ code_A3C1:  jsr     find_enemy_freeslot_y               ; find free enemy slot
 code_A3FA:  rts
 
 ; --- spawn 4 falling crash blocks (called recursively) ---
-code_A3FB:  jsr     find_enemy_freeslot_y               ; find free enemy slot
+code_A3FB:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     code_A3FA
         lda     #$02
         sta     ent_facing,y
@@ -534,7 +534,7 @@ code_A3FB:  jsr     find_enemy_freeslot_y               ; find free enemy slot
         bcc     code_A3FB
         rts
 
-doc_wood_crash_block_x_positions_table:  .byte   $40,$70,$A0,$D0         ; X positions for 4 crash blocks
+doc_wood_crash_block_x_positions_table:  .byte   $40,$70,$A0,$D0 ; X positions for 4 crash blocks
 
 ; =============================================================================
 ; DOC WOOD LEAF — FALLING ($A5)
@@ -565,7 +565,7 @@ code_A465:  lda     ent_status,x
         lda     #$0F
         sta     ent_timer,x             ; bounce direction timer
         inc     ent_status,x
-code_A474:  lda     ent_facing,x            ; move horizontally
+code_A474:  lda     ent_facing,x        ; move horizontally
         and     #$01
         beq     code_A481
         jsr     move_sprite_right
@@ -592,10 +592,10 @@ code_A499:  rts
 ;     spawn Crash Bomb at apex, land and revert to phase 1.
 ; =============================================================================
 
-code_A49A:  lda     ent_status,x            ; --- init ---
+code_A49A:  lda     ent_status,x        ; --- init ---
         and     #$0F
         bne     code_A4B9
-        jsr     reset_gravity                   ; reset gravity
+        jsr     reset_gravity           ; reset gravity
         lda     ent_status,x
         ora     #$40
         sta     ent_status,x
@@ -705,7 +705,7 @@ code_A593:  lda     #$03
 code_A598:  rts
 
 ; --- set random jump velocity ---
-code_A599:  lda     #$88                    ; Y velocity = $07.88 (upward)
+code_A599:  lda     #$88                ; Y velocity = $07.88 (upward)
         sta     ent_yvel_sub,x
         lda     #$07
         sta     ent_yvel,x
@@ -720,21 +720,21 @@ code_A599:  lda     #$88                    ; Y velocity = $07.88 (upward)
         sta     ent_xvel,x
         rts
 
-doc_crash_jump_x_velocity_sub_table:  .byte   $00,$80,$00,$00         ; X velocity sub table
-doc_crash_jump_x_velocity_table:  .byte   $01,$01,$01,$02         ; X velocity table
+doc_crash_jump_x_velocity_sub_table:  .byte   $00,$80,$00,$00 ; X velocity sub table
+doc_crash_jump_x_velocity_table:  .byte   $01,$01,$01,$02 ; X velocity table
 ; --- face player and flip sprite without changing movement direction ---
 code_A5C1:  lda     ent_facing,x
         sta     ent_var2,x              ; save current facing
         lda     ent_facing,x
         pha
-        jsr     face_player                   ; face player
+        jsr     face_player             ; face player
         pla
         cmp     ent_facing,x
         beq     code_A5DC
         lda     ent_flags,x             ; facing changed — flip sprite H
         eor     #$40
         sta     ent_flags,x
-code_A5DC:  lda     ent_var2,x              ; restore original facing
+code_A5DC:  lda     ent_var2,x          ; restore original facing
         sta     ent_facing,x
         rts
 
@@ -783,7 +783,7 @@ code_A632:  rts
 ;   Phase 2: play explosion anim, then despawn via routine $48
 ; =============================================================================
 
-code_A633:  lda     ent_status,x            ; --- init ---
+code_A633:  lda     ent_status,x        ; --- init ---
         and     #$0F
         bne     code_A66E
         lda     #$1E
@@ -859,7 +859,7 @@ code_A6CE:  dec     ent_timer,x
         sta     ent_routine,x
 code_A6E2:  rts
 
-doc_crash_bomb_x_offset_table:  .byte   $18,$E8                 ; X offset: right=+24, left=-24
+doc_crash_bomb_x_offset_table:  .byte   $18,$E8 ; X offset: right=+24, left=-24
 
 ; =============================================================================
 ; DOC METAL MAN AI ($A3)
@@ -873,7 +873,7 @@ doc_crash_bomb_x_offset_table:  .byte   $18,$E8                 ; X offset: righ
 ; Uses random velocity tables for jump height/speed variation.
 ; =============================================================================
 
-code_A6E5:  lda     ent_status,x            ; --- init ---
+code_A6E5:  lda     ent_status,x        ; --- init ---
         and     #$0F
         bne     code_A6FC
         lda     #$B4
@@ -882,7 +882,7 @@ code_A6E5:  lda     ent_status,x            ; --- init ---
         sta     ent_var3,x              ; throw delay after anim
         jsr     code_A81F               ; set random jump velocity
         inc     ent_status,x
-code_A6FC:  lda     ent_status,x            ; --- state dispatch ---
+code_A6FC:  lda     ent_status,x        ; --- state dispatch ---
         and     #$0F
         cmp     #$02
         beq     code_A73C               ; state 2: jumping
@@ -1010,7 +1010,7 @@ code_A809:  jsr     face_player
 code_A81E:  rts
 
 ; --- set random jump velocity from lookup tables ---
-code_A81F:  lda     $E4                     ; RNG: advance LFSR
+code_A81F:  lda     $E4                 ; RNG: advance LFSR
         adc     $E5
         sta     $E5
         and     #$03                    ; pick 1 of 4 velocity sets
@@ -1024,11 +1024,11 @@ code_A81F:  lda     $E4                     ; RNG: advance LFSR
         sta     ent_var2,x              ; throw interval reload
         rts
 
-doc_metal_jump_y_velocity_sub_table:  .byte   $88,$00,$9E,$88         ; Y velocity sub table
-doc_metal_jump_y_velocity_table:  .byte   $06,$08,$04,$06         ; Y velocity table
-doc_metal_jump_throw_interval_table:  .byte   $0A,$08,$0D,$0A         ; throw interval table
+doc_metal_jump_y_velocity_sub_table:  .byte   $88,$00,$9E,$88 ; Y velocity sub table
+doc_metal_jump_y_velocity_table:  .byte   $06,$08,$04,$06 ; Y velocity table
+doc_metal_jump_throw_interval_table:  .byte   $0A,$08,$0D,$0A ; throw interval table
 ; --- spawn Metal Blade projectile ---
-code_A84A:  jsr     find_enemy_freeslot_y               ; find free enemy slot
+code_A84A:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     code_A886
         sty     L0000
         lda     ent_facing,x

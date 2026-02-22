@@ -143,17 +143,17 @@ yellow_devil_dispatch:  lda     ent_status,x
 ; Yellow Devil init — freeze player for boss intro
 
         lda     #$09                    ; state → $09 (boss_wait)
-        cmp     player_state                     ; already in boss_wait?
-        beq     yellow_devil_hp_bar_filled                   ; skip to HP fill
-        sta     player_state                     ; freeze player
+        cmp     player_state            ; already in boss_wait?
+        beq     yellow_devil_hp_bar_filled ; skip to HP fill
+        sta     player_state            ; freeze player
         lda     #$80                    ; init boss HP display
         sta     boss_hp_display
-        sta     boss_active                     ; boss active flag
+        sta     boss_active             ; boss active flag
         lda     #$8E                    ; HP fill target (28 HP)
         sta     $B3
-        lda     #MUSIC_BOSS                    ; SFX $0D = boss intro music
+        lda     #MUSIC_BOSS             ; SFX $0D = boss intro music
         jsr     submit_sound_ID_D9
-yellow_devil_hp_bar_filled:  lda     boss_hp_display                     ; has HP bar filled to $9C?
+yellow_devil_hp_bar_filled:  lda     boss_hp_display ; has HP bar filled to $9C?
         cmp     #$9C
         bne     yellow_devil_return
         inc     ent_status,x
@@ -1430,19 +1430,19 @@ wily_machine_b_param2:  .byte   $00,$F0,$10
 wily_machine_b_param3:  .byte   $C0,$D0,$D0
 
 ; Gamma init phase — same boss_wait pattern as all other bosses
-gamma_b_init:  lda     ent_status,x             ; AI phase
+gamma_b_init:  lda     ent_status,x     ; AI phase
         and     #$0F
-        bne     gamma_b_phase_handler               ; skip init if not phase 0
+        bne     gamma_b_phase_handler   ; skip init if not phase 0
         sta     $95
-        inc     ent_status,x                 ; advance to phase 1
-        lda     #PSTATE_BOSS_WAIT                    ; state → $09 (boss_wait)
-        sta     player_state                     ; freeze player for HP fill
+        inc     ent_status,x            ; advance to phase 1
+        lda     #PSTATE_BOSS_WAIT       ; state → $09 (boss_wait)
+        sta     player_state            ; freeze player for HP fill
         lda     #$80                    ; init boss HP display
         sta     boss_hp_display
-        sta     boss_active                     ; boss active flag
+        sta     boss_active             ; boss active flag
         lda     #$8E                    ; HP fill target (28 HP)
         sta     $B3
-        lda     #MUSIC_BOSS                    ; SFX $0D = boss intro music
+        lda     #MUSIC_BOSS             ; SFX $0D = boss intro music
         jsr     submit_sound_ID_D9
         lda     #$30
         sta     ent_timer,x
@@ -1490,11 +1490,11 @@ gamma_b_setup_hp:  lda     #$80
         sta     boss_hp_display
 
 ; Wait for boss HP bar to fill, then release player
-gamma_b_hp_bar_check:  lda     boss_hp_display                 ; HP bar position
+gamma_b_hp_bar_check:  lda     boss_hp_display ; HP bar position
         cmp     #$9C                    ; filled to max?
-        bne     gamma_b_init_end               ; no → keep filling
+        bne     gamma_b_init_end        ; no → keep filling
         lda     #$00                    ; state → $00 (on_ground)
-        sta     player_state                     ; release player, fight begins
+        sta     player_state            ; release player, fight begins
         sta     ent_timer,x
         lda     #$C0
         sta     ent_status,x
@@ -1521,19 +1521,19 @@ gamma_b_main_update:  lda     ent_timer,x
 gamma_b_timer_dec:  dec     ent_timer,x
 gamma_b_var2_check:  lda     ent_var2,x
         bne     gamma_b_var1_loop
-        jsr     entity_y_dist_to_player ; AI phase
+        jsr     entity_y_dist_to_player
         cmp     #$30
-        bcs     gamma_b_hp_check        ; skip init if not phase 0
+        bcs     gamma_b_hp_check
 gamma_b_var1_loop:  lda     ent_var1,x
-        bne     gamma_b_var1_dec        ; advance to phase 1
-        lda     #$02                    ; state → $09 (boss_wait)
-        sta     $01                     ; freeze player for HP fill
-        jsr     gamma_b_spawn_homing_loop ; init boss HP display
+        bne     gamma_b_var1_dec
+        lda     #$02
+        sta     $01
+        jsr     gamma_b_spawn_homing_loop
         lda     #$1F
-        sta     ent_var1,x              ; boss active flag
-        inc     ent_var2,x              ; HP fill target (28 HP)
+        sta     ent_var1,x
+        inc     ent_var2,x
         lda     ent_var2,x
-        cmp     #$03                    ; SFX $0D = boss intro music
+        cmp     #$03
         bcc     gamma_b_var1_dec
         lda     #$79
         sta     ent_var1,x
@@ -1577,15 +1577,15 @@ gamma_b_spawn_init:  jsr     init_child_entity
         bne     gamma_b_spawn_loop
 
 ; Gamma phase transition — scroll screen vertically
-        lda     #PSTATE_SCREEN_SCROLL                    ; state → $10 (screen_scroll)
-        sta     player_state                     ; player frozen during scroll
+        lda     #PSTATE_SCREEN_SCROLL   ; state → $10 (screen_scroll)
+        sta     player_state            ; player frozen during scroll
         lda     #$C0
         sta     ent_status,x
-        lda     #$00                    ; HP bar position
-        sta     $69                     ; filled to max?
-        sta     $6A                     ; no → keep filling
-        sta     ent_xvel_sub,x          ; state → $00 (on_ground)
-        sta     ent_xvel,x              ; release player, fight begins
+        lda     #$00
+        sta     $69
+        sta     $6A
+        sta     ent_xvel_sub,x
+        sta     ent_xvel,x
         lda     #$B4
         sta     ent_timer,x
         lda     #$F0
@@ -1670,8 +1670,8 @@ gamma_b_spawn_bullet:  jsr     find_enemy_freeslot_y
         jsr     entity_x_dist_to_player
         stx     L0000
         ldx     #$03
-gamma_b_vel_select_loop:  cmp     gamma_b_vel_threshold_table,x ; state → $10 (screen_scroll)
-        bcc     gamma_b_vel_apply       ; player frozen during scroll
+gamma_b_vel_select_loop:  cmp     gamma_b_vel_threshold_table,x
+        bcc     gamma_b_vel_apply
         dex
         bne     gamma_b_vel_select_loop
 gamma_b_vel_apply:  lda     gamma_b_xvel_sub_table,x
@@ -1839,15 +1839,15 @@ gamma_f_player_collision:  pla
         sta     ent_y_px
 
 ; Gamma/fortress hazard — instant kill on contact
-        lda     ent_spawn_id,x                 ; entity sub-type
+        lda     ent_spawn_id,x          ; entity sub-type
         cmp     #$0D                    ; sub-type $0D = Gamma fist (skip instant kill)
         beq     gamma_f_collision_flag
-        lda     invincibility_timer                     ; i-frames active?
-        bne     gamma_f_collision_flag               ; skip
-        jsr     check_player_collision                   ; AABB collision test
-        bcs     gamma_f_collision_flag               ; no collision → skip
-        lda     #PSTATE_DEATH                    ; state → $0E (death)
-        sta     player_state                     ; instant kill, no damage calc
+        lda     invincibility_timer     ; i-frames active?
+        bne     gamma_f_collision_flag  ; skip
+        jsr     check_player_collision  ; AABB collision test
+        bcs     gamma_f_collision_flag  ; no collision → skip
+        lda     #PSTATE_DEATH           ; state → $0E (death)
+        sta     player_state            ; instant kill, no damage calc
 gamma_f_collision_flag:  lda     ent_flags,x
         .byte   $09
 gamma_f_collision_byte:  .byte   $04
@@ -1870,26 +1870,26 @@ gamma_f_collision_end:  rts
 ; then back to $00 (on_ground) in the destination room.
 ; $6C = destination index (from entity sub-type).
 ; ---------------------------------------------------------------------------
-teleporter_collision:  jsr     check_player_collision               ; is player touching teleporter?
-        bcs     teleporter_return               ; no → return
-        jsr     entity_x_dist_to_player                   ; detailed alignment check
+teleporter_collision:  jsr     check_player_collision ; is player touching teleporter?
+        bcs     teleporter_return       ; no → return
+        jsr     entity_x_dist_to_player ; detailed alignment check
         cmp     #$02                    ; close enough to center?
-        bcs     teleporter_return               ; no → return
-        lda     ent_x_px,x                 ; snap player X to teleporter X
+        bcs     teleporter_return       ; no → return
+        lda     ent_x_px,x              ; snap player X to teleporter X
         sta     ent_x_px
-        lda     ent_spawn_id,x                 ; entity sub-type - $0E =
+        lda     ent_spawn_id,x          ; entity sub-type - $0E =
         sbc     #$0E                    ; destination index
         cmp     #$01
-        beq     teleporter_return               ; destination 1 = invalid? skip
-        sta     warp_dest                     ; $6C = warp destination
-        lda     #PSTATE_WARP_INIT                    ; state → $11 (warp_init)
-        sta     player_state                     ; begin teleporter sequence
+        beq     teleporter_return       ; destination 1 = invalid? skip
+        sta     warp_dest               ; $6C = warp destination
+        lda     #PSTATE_WARP_INIT       ; state → $11 (warp_init)
+        sta     player_state            ; begin teleporter sequence
         lda     #$13                    ; player OAM $13 = teleport beam
         sta     ent_anim_id
         lda     #$00
-        sta     ent_anim_frame                   ; reset animation counter
-        sta     ent_anim_state                   ; reset animation frame
-        sta     ent_status,x                 ; despawn teleporter entity
+        sta     ent_anim_frame          ; reset animation counter
+        sta     ent_anim_state          ; reset animation frame
+        sta     ent_status,x            ; despawn teleporter entity
 teleporter_return:  rts
 
 teleporter_pos_check_y:  lda     ent_y_px,x
@@ -1934,15 +1934,15 @@ teleporter_activate_check:  lda     ent_y_px,x
 teleporter_anim_check:  lda     ent_anim_id,x
         cmp     #$6E
         bne     teleporter_anim_end
-        lda     ent_timer,x             ; entity sub-type
-        beq     teleporter_anim_end     ; $0D = ??? skip
+        lda     ent_timer,x
+        beq     teleporter_anim_end
         dec     ent_timer,x
-        lda     #$00                    ; i-frames active?
-        sta     ent_anim_frame,x        ; skip
-teleporter_anim_end:  rts               ; AABB collision test
+        lda     #$00
+        sta     ent_anim_frame,x
+teleporter_anim_end:  rts
 
-teleporter_fall:  ldy     #$08          ; state → $0E (death)
-        jsr     move_vertical_gravity   ; instant kill, no damage calc
+teleporter_fall:  ldy     #$08
+        jsr     move_vertical_gravity
         bcs     teleporter_fall_check
         inc     ent_x_px,x
         rts
@@ -1965,26 +1965,26 @@ teleporter_fall_rts:  jsr     apply_y_speed
         lda     #$00
         sta     ent_status,x
 wily_machine_c_var1_init:  lda     #$03
-        sta     L0000                   ; is player touching teleporter?
-wily_machine_c_spawn_loop:  jsr     find_enemy_freeslot_y ; no → return
-        bcs     teleporter_fall_end     ; detailed alignment check
-        lda     #$78                    ; close enough to center?
-        jsr     init_child_entity       ; no → return
-        lda     #$FA                    ; snap player X to teleporter X
+        sta     L0000
+wily_machine_c_spawn_loop:  jsr     find_enemy_freeslot_y
+        bcs     teleporter_fall_end
+        lda     #$78
+        jsr     init_child_entity
+        lda     #$FA
         sta     ent_routine,y
-        lda     #$00                    ; entity sub-type - $0E =
-        sta     ent_hitbox,y            ; destination index
+        lda     #$00
+        sta     ent_hitbox,y
         lda     ent_x_scr,x
-        sta     ent_x_scr,y             ; destination 1 = invalid? skip
-        sta     ent_xvel_sub,y          ; $6C = warp destination
-        lda     #$44                    ; state → $11 (warp_init)
-        sta     ent_yvel_sub,y          ; begin teleporter sequence
-        lda     #$03                    ; player OAM $13 = teleport beam
+        sta     ent_x_scr,y
+        sta     ent_xvel_sub,y
+        lda     #$44
+        sta     ent_yvel_sub,y
+        lda     #$03
         sta     ent_yvel,y
         stx     $01
-        lda     ent_x_px,x              ; reset animation counter
-        sta     $02                     ; reset animation frame
-        ldx     L0000                   ; despawn teleporter entity
+        lda     ent_x_px,x
+        sta     $02
+        ldx     L0000
         lda     wily_machine_c_y_pos_table,x
         sta     ent_y_px,y
         lda     $02
@@ -2084,9 +2084,9 @@ wily_machine_c_block_y_update:  jsr     apply_y_speed
         lda     #$00
         ldy     ent_var3
         sta     ent_status,y
-        sta     ent_timer                   ; clear player timer
-        lda     #PSTATE_TELEPORT                    ; state → $0D (teleport)
-        sta     player_state                     ; player teleports away (end stage)
+        sta     ent_timer               ; clear player timer
+        lda     #PSTATE_TELEPORT        ; state → $0D (teleport)
+        sta     player_state            ; player teleports away (end stage)
         lda     ent_flags
         and     #$FB
         sta     ent_flags
@@ -2179,9 +2179,9 @@ kamegoro_maker_init:  lda     ent_hitbox,x
         lda     ent_y_px,x
         sta     $03
 kamegoro_maker_spawn_loop:  jsr     find_enemy_freeslot_y
-        bcs     kamegoro_maker_spawn_end ; clear player timer
-        lda     #$71                    ; state → $0D (teleport)
-        jsr     init_child_entity       ; player teleports away (end stage)
+        bcs     kamegoro_maker_spawn_end
+        lda     #$71
+        jsr     init_child_entity
         lda     #$00
         sta     ent_timer,y
         sta     ent_hitbox,y

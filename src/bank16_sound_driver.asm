@@ -90,7 +90,7 @@ jump_local_ptr:  asl     a
 read_ptr:  sty     L00C1                ; store low byte -> $C1
         ldy     #$00                    ; 0 index for indirect read
         cmp     #$C0                    ; if high byte >= $C0
-        bcs     read_ptr_bank18_check                   ; this is a bank $18 read
+        bcs     read_ptr_bank18_check   ; this is a bank $18 read
         sta     $C2
         lda     (L00C1),y               ; else return read of address
         rts                             ; at $C1~$C2, bank $16~$17
@@ -99,13 +99,13 @@ read_ptr_bank18_check:  sec
         sbc     #$20                    ; high byte -= $20
         sta     $C2                     ; (get into $A0~$BF range)
         lda     #$07
-        sta     driver_entry_jump                   ; set $A000~$BFFF bank
+        sta     driver_entry_jump       ; set $A000~$BFFF bank
         lda     #$18                    ; to $18
         sta     driver_entry_bank
         lda     (L00C1),y               ; push read $C1~$C2
         pha                             ; from bank $18
         lda     #$07
-        sta     driver_entry_jump                   ; set $A000~$BFFF bank
+        sta     driver_entry_jump       ; set $A000~$BFFF bank
         lda     #$17                    ; back to $17
         sta     driver_entry_bank
         lda     #$20
@@ -221,11 +221,11 @@ play_sound_id_bounds_check:  cmp     sound_id_max
         bcs     play_sound_id_bounds_check
 play_sound_id_modulo_loop:  asl     a
         tax                             ; X = A * 2
-        ldy     sound_pointer_table,x                 ; index into sound pointers
+        ldy     sound_pointer_table,x   ; index into sound pointers
         tya                             ; grab pointer word in Y & A
-        ora     sound_data_low,x                 ; if it's $0000, return
-        beq     play_sound_id_return                   ; otherwise, Y = read byte
-        lda     sound_data_low,x                 ; at pointer
+        ora     sound_data_low,x        ; if it's $0000, return
+        beq     play_sound_id_return    ; otherwise, Y = read byte
+        lda     sound_data_low,x        ; at pointer
         jsr     read_ptr
         tay
         beq     code_816F               ; if value read was $00

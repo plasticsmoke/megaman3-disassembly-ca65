@@ -58,19 +58,19 @@
 .include "include/zeropage.inc"
 .include "include/constants.inc"
 
-ensure_stage_bank           := $C8A0            ; ensure_stage_bank
-submit_sound_ID           := $F89A            ; submit_sound_ID
-task_yield           := $FF21            ; task_yield (wait for NMI)
-select_PRG_banks           := $FF6B            ; select_PRG_banks
+ensure_stage_bank           := $C8A0    ; ensure_stage_bank
+submit_sound_ID           := $F89A      ; submit_sound_ID
+task_yield           := $FF21           ; task_yield (wait for NMI)
+select_PRG_banks           := $FF6B     ; select_PRG_banks
 
 .segment "BANK10"
 
 ; =============================================================================
 ; ENTRY POINT JUMP TABLE
 ; =============================================================================
-        jmp     code_8006           ; $8000: close boss door
+        jmp     code_8006               ; $8000: close boss door
                                     ;   (called before boss fight)
-        jmp     code_81F3           ; $8003: open boss door
+        jmp     code_81F3               ; $8003: open boss door
                                     ;   (called after boss defeat)
 
 ; =============================================================================
@@ -82,101 +82,101 @@ select_PRG_banks           := $FF6B            ; select_PRG_banks
 ; to both nametable 0 and nametable 1 via the PPU buffer, with
 ; attribute table bits updated in the $0640 mirror.
 ; ---------------------------------------------------------------------------
-code_8006:  jsr     ensure_stage_bank           ; ensure stage PRG bank is selected
+code_8006:  jsr     ensure_stage_bank   ; ensure stage PRG bank is selected
         lda     #$00
-        sta     $95                 ; reset frame counter
+        sta     $95                     ; reset frame counter
         ; --- Set up PPU buffer entry 1 (nametable 0 tile) ---
-        lda     boss_door_close_ppu_addr_high,y             ; PPU address high byte from table
+        lda     boss_door_close_ppu_addr_high,y ; PPU address high byte from table
         sta     $0780
-        sta     $0785               ; same high byte for entry 2 (NT1)
-        lda     boss_door_close_ppu_addr_low,y             ; PPU address low byte from table
+        sta     $0785                   ; same high byte for entry 2 (NT1)
+        lda     boss_door_close_ppu_addr_low,y ; PPU address low byte from table
         sta     $0781
-        ora     #$20                ; offset $20 for nametable 1 copy
+        ora     #$20                    ; offset $20 for nametable 1 copy
         sta     $0786
-        lda     #$01                ; 1 byte per PPU write
+        lda     #$01                    ; 1 byte per PPU write
         sta     $0782
         sta     $0787
         ; --- Set up PPU buffer entry 3 (attribute table) ---
-        lda     #$23                ; $23xx = attribute table region
+        lda     #$23                    ; $23xx = attribute table region
         sta     $078A
-        lda     boss_door_close_attr_offset,y             ; attribute offset within $0640
+        lda     boss_door_close_attr_offset,y ; attribute offset within $0640
         sta     $03
-        ora     #$C0                ; $23C0+ = PPU attribute table addr
+        ora     #$C0                    ; $23C0+ = PPU attribute table addr
         sta     $078B
-        lda     boss_door_close_attr_subindex,y             ; attribute sub-index for mask table
+        lda     boss_door_close_attr_subindex,y ; attribute sub-index for mask table
         sta     $04
         lda     #$00
-        sta     $078C               ; 0 extra bytes for attr write
+        sta     $078C                   ; 0 extra bytes for attr write
         ; --- Play door close sound effect ---
-        lda     #SFX_DOOR                ; sound ID $1D = door/shutter SFX
+        lda     #SFX_DOOR               ; sound ID $1D = door/shutter SFX
         jsr     submit_sound_ID
-        lda     #$04                ; 4 columns to animate
+        lda     #$04                    ; 4 columns to animate
         sta     $02
 ; --- Write one column of door tiles ---
-code_804B:  ldx     boss_door_close_metatile_indices,y         ; metatile sub-index for this column
-        lda     $BB00,x             ; top-left CHR tile
-        sta     $0783               ; → PPU buffer entry 1 data (NT0)
-        lda     $BC00,x             ; top-right CHR tile
-        sta     $0784               ; → PPU buffer entry 2 data (NT0 second)
-        lda     $BD00,x             ; bottom-left CHR tile
-        sta     $0788               ; → PPU buffer entry 3 (NT1 tile 1)
-        lda     $BE00,x             ; bottom-right CHR tile
-        sta     $0789               ; → PPU buffer entry 4 (NT1 tile 2)
+code_804B:  ldx     boss_door_close_metatile_indices,y ; metatile sub-index for this column
+        lda     $BB00,x                 ; top-left CHR tile
+        sta     $0783                   ; → PPU buffer entry 1 data (NT0)
+        lda     $BC00,x                 ; top-right CHR tile
+        sta     $0784                   ; → PPU buffer entry 2 data (NT0 second)
+        lda     $BD00,x                 ; bottom-left CHR tile
+        sta     $0788                   ; → PPU buffer entry 3 (NT1 tile 1)
+        lda     $BE00,x                 ; bottom-right CHR tile
+        sta     $0789                   ; → PPU buffer entry 4 (NT1 tile 2)
         ; --- Update attribute table ---
-        ldx     $04                 ; attribute sub-index
-        lda     stage_collision_bitmask_table,x             ; attribute bitmask (clear bits)
+        ldx     $04                     ; attribute sub-index
+        lda     stage_collision_bitmask_table,x ; attribute bitmask (clear bits)
         sta     $05
-        ldx     $03                 ; attribute offset in $0640 mirror
-        lda     $0640,x             ; read current attribute byte
-        and     $05                 ; mask off old palette bits
-        ora     boss_door_close_attr_palette_bits,y             ; OR in new palette bits from table
-        sta     $078D               ; write to PPU buffer
-        sta     $0640,x             ; update RAM mirror
-        lda     #$FF                ; $FF = PPU buffer terminator
+        ldx     $03                     ; attribute offset in $0640 mirror
+        lda     $0640,x                 ; read current attribute byte
+        and     $05                     ; mask off old palette bits
+        ora     boss_door_close_attr_palette_bits,y ; OR in new palette bits from table
+        sta     $078D                   ; write to PPU buffer
+        sta     $0640,x                 ; update RAM mirror
+        lda     #$FF                    ; $FF = PPU buffer terminator
         sta     $078E
-        sta     nametable_dirty     ; signal NMI to flush PPU buffer
+        sta     nametable_dirty         ; signal NMI to flush PPU buffer
 ; --- Wait 4 frames between columns (animation delay) ---
 code_8084:  lda     #$00
-        sta     nmi_skip            ; allow NMI processing
-        jsr     task_yield               ; task_yield — wait for next frame
-        inc     nmi_skip            ; re-lock NMI
-        inc     $95                 ; increment frame counter
+        sta     nmi_skip                ; allow NMI processing
+        jsr     task_yield              ; task_yield — wait for next frame
+        inc     nmi_skip                ; re-lock NMI
+        inc     $95                     ; increment frame counter
         lda     $95
-        and     #$03                ; wait until counter is multiple of 4
+        and     #$03                    ; wait until counter is multiple of 4
         bne     code_8084
-        iny                         ; advance Y to next table entry
-        dec     $02                 ; decrement column counter
-        beq     code_80CC           ; all 4 columns done → exit
+        iny                             ; advance Y to next table entry
+        dec     $02                     ; decrement column counter
+        beq     code_80CC               ; all 4 columns done → exit
         ; --- Move PPU address up by 2 tile rows ($40 bytes) ---
         lda     $0781
         sec
-        sbc     #$40                ; move up 2 rows in nametable
+        sbc     #$40                    ; move up 2 rows in nametable
         sta     $0781
         ora     #$20
-        sta     $0786               ; NT1 copy offset by $20
+        sta     $0786                   ; NT1 copy offset by $20
         lda     $0780
-        sbc     #$00                ; propagate borrow to high byte
+        sbc     #$00                    ; propagate borrow to high byte
         sta     $0780
         sta     $0785
         ; --- Toggle attribute sub-index (alternates 0/2 or 1/3) ---
         lda     $04
-        eor     #$02                ; flip between upper/lower attr half
+        eor     #$02                    ; flip between upper/lower attr half
         sta     $04
         cmp     #$03
-        bne     code_804B           ; if not wrapped, continue
+        bne     code_804B               ; if not wrapped, continue
         ; --- Crossed attribute boundary: move attr offset back ---
         lda     $03
         sec
-        sbc     #$08                ; previous attribute row
+        sbc     #$08                    ; previous attribute row
         sta     $03
-        ora     #$C0                ; rebuild PPU attribute address
+        ora     #$C0                    ; rebuild PPU attribute address
         sta     $078B
         jmp     code_804B
 
 ; --- Door close complete: restore stage bank and return ---
 code_80CC:  lda     stage_id
         sta     prg_bank
-        jmp     select_PRG_banks               ; select_PRG_banks and return
+        jmp     select_PRG_banks        ; select_PRG_banks and return
 
 ; ===========================================================================
 ; DOOR CLOSE DATA TABLES
@@ -190,8 +190,8 @@ code_80CC:  lda     stage_id
 ; boss_door_close_attr_offset/boss_door_close_attr_subindex: starting attribute table offset / sub-index
 ; boss_door_close_attr_palette_bits: attribute palette bits to OR in per column
 ; ===========================================================================
-boss_door_close_ppu_addr_high:  .byte   $21                 ; PPU address high byte
-boss_door_close_ppu_addr_low:  .byte   $5E                 ; PPU address low byte
+boss_door_close_ppu_addr_high:  .byte   $21 ; PPU address high byte
+boss_door_close_ppu_addr_low:  .byte   $5E ; PPU address low byte
 boss_door_close_metatile_indices:  .byte   $6D,$6D,$6D,$6C,$22,$DE,$6B,$6A
         .byte   $69,$68,$21,$5E,$7A,$7A,$7A,$72
         .byte   $22,$DE,$00,$00,$00,$00,$21,$DE
@@ -210,8 +210,8 @@ boss_door_close_metatile_indices:  .byte   $6D,$6D,$6D,$6C,$22,$DE,$6B,$6A
         .byte   $15,$1D,$15,$2D,$22,$DE,$00,$00
         .byte   $00,$00,$22,$DE,$00,$00,$00,$00
         .byte   $22,$DE,$00,$00,$00,$00
-boss_door_close_attr_offset:  .byte   $17                 ; attribute offset in $0640
-boss_door_close_attr_subindex:  .byte   $03                 ; attribute sub-index for mask table
+boss_door_close_attr_offset:  .byte   $17 ; attribute offset in $0640
+boss_door_close_attr_subindex:  .byte   $03 ; attribute sub-index for mask table
 boss_door_close_attr_palette_bits:  .byte   $40,$04,$40,$04,$2F,$03,$40,$04
         .byte   $40,$04,$17,$03,$80,$08,$80,$08
         .byte   $2F,$03,$00,$00,$00,$00,$1F,$03
@@ -238,94 +238,94 @@ boss_door_close_attr_palette_bits:  .byte   $40,$04,$40,$04,$2F,$03,$40,$04
 ; address space), revealing the passage behind the shutter.
 ; Uses its own set of data tables (boss_door_open_ppu_addr_high-boss_door_open_attr_palette_bits).
 ; ---------------------------------------------------------------------------
-code_81F3:  jsr     ensure_stage_bank           ; ensure stage PRG bank is selected
-        lda     boss_door_open_ppu_addr_high,y             ; PPU address high byte from table
+code_81F3:  jsr     ensure_stage_bank   ; ensure stage PRG bank is selected
+        lda     boss_door_open_ppu_addr_high,y ; PPU address high byte from table
         sta     $0780
         sta     $0784
-        lda     boss_door_open_ppu_addr_low,y             ; PPU address low byte from table
+        lda     boss_door_open_ppu_addr_low,y ; PPU address low byte from table
         sta     $0781
-        ora     #$20                ; offset for second nametable
+        ora     #$20                    ; offset for second nametable
         sta     $0785
         lda     #$00
-        sta     $0782               ; 0 extra bytes per PPU entry
+        sta     $0782                   ; 0 extra bytes per PPU entry
         sta     $0786
-        sta     $95                 ; reset frame counter
+        sta     $95                     ; reset frame counter
         ; --- Attribute table entry setup ---
-        lda     #$23                ; $23xx = attribute table region
+        lda     #$23                    ; $23xx = attribute table region
         sta     $0788
-        lda     boss_door_open_attr_offset,y             ; attribute offset within $0640
+        lda     boss_door_open_attr_offset,y ; attribute offset within $0640
         sta     $03
-        ora     #$C0                ; $23C0+ = PPU attribute table addr
+        ora     #$C0                    ; $23C0+ = PPU attribute table addr
         sta     $0789
-        lda     boss_door_open_attr_subindex,y             ; attribute sub-index for mask table
+        lda     boss_door_open_attr_subindex,y ; attribute sub-index for mask table
         sta     $04
         lda     #$00
-        sta     $078A               ; 0 extra bytes for attr write
+        sta     $078A                   ; 0 extra bytes for attr write
         ; --- Play door open sound effect ---
-        lda     #SFX_DOOR                ; sound ID $1D = door/shutter SFX
+        lda     #SFX_DOOR               ; sound ID $1D = door/shutter SFX
         jsr     submit_sound_ID
-        lda     #$04                ; 4 columns to animate
+        lda     #$04                    ; 4 columns to animate
         sta     $02
 ; --- Write one column of open-door tiles ---
-code_8236:  ldx     boss_door_open_metatile_indices,y         ; metatile sub-index for this column
-        lda     $BC00,x             ; top-right CHR tile
-        sta     $0783               ; → PPU buffer tile data (NT0)
-        lda     $BE00,x             ; bottom-right CHR tile
-        sta     $0787               ; → PPU buffer tile data (NT1)
+code_8236:  ldx     boss_door_open_metatile_indices,y ; metatile sub-index for this column
+        lda     $BC00,x                 ; top-right CHR tile
+        sta     $0783                   ; → PPU buffer tile data (NT0)
+        lda     $BE00,x                 ; bottom-right CHR tile
+        sta     $0787                   ; → PPU buffer tile data (NT1)
         ; --- Update attribute table ---
-        ldx     $04                 ; attribute sub-index
-        lda     stage_collision_bitmask_table,x             ; attribute bitmask (clear bits)
+        ldx     $04                     ; attribute sub-index
+        lda     stage_collision_bitmask_table,x ; attribute bitmask (clear bits)
         sta     $05
-        ldx     $03                 ; attribute offset in $0640 mirror
-        lda     $0640,x             ; read current attribute byte
-        and     $05                 ; mask off old palette bits
-        ora     boss_door_open_attr_palette_bits,y             ; OR in new palette bits from table
-        sta     $078B               ; write to PPU buffer
-        sta     $0640,x             ; update RAM mirror
-        lda     #$FF                ; $FF = PPU buffer terminator
+        ldx     $03                     ; attribute offset in $0640 mirror
+        lda     $0640,x                 ; read current attribute byte
+        and     $05                     ; mask off old palette bits
+        ora     boss_door_open_attr_palette_bits,y ; OR in new palette bits from table
+        sta     $078B                   ; write to PPU buffer
+        sta     $0640,x                 ; update RAM mirror
+        lda     #$FF                    ; $FF = PPU buffer terminator
         sta     $078C
-        sta     nametable_dirty     ; signal NMI to flush PPU buffer
+        sta     nametable_dirty         ; signal NMI to flush PPU buffer
 ; --- Wait 4 frames between columns (animation delay) ---
 code_8263:  lda     #$00
-        sta     nmi_skip            ; allow NMI processing
-        jsr     task_yield               ; task_yield — wait for next frame
-        inc     nmi_skip            ; re-lock NMI
-        inc     $95                 ; increment frame counter
+        sta     nmi_skip                ; allow NMI processing
+        jsr     task_yield              ; task_yield — wait for next frame
+        inc     nmi_skip                ; re-lock NMI
+        inc     $95                     ; increment frame counter
         lda     $95
-        and     #$03                ; wait until counter is multiple of 4
+        and     #$03                    ; wait until counter is multiple of 4
         bne     code_8263
-        iny                         ; advance Y to next table entry
-        dec     $02                 ; decrement column counter
-        beq     code_82A9           ; all 4 columns done → exit
+        iny                             ; advance Y to next table entry
+        dec     $02                     ; decrement column counter
+        beq     code_82A9               ; all 4 columns done → exit
         ; --- Move PPU address down by 2 tile rows ($40 bytes) ---
         lda     $0781
         clc
-        adc     #$40                ; move down 2 rows in nametable
+        adc     #$40                    ; move down 2 rows in nametable
         sta     $0781
         ora     #$20
-        sta     $0785               ; NT1 copy offset by $20
+        sta     $0785                   ; NT1 copy offset by $20
         lda     $0780
-        adc     #$00                ; propagate carry to high byte
+        adc     #$00                    ; propagate carry to high byte
         sta     $0780
         sta     $0784
         ; --- Toggle attribute sub-index ---
         lda     $04
-        eor     #$02                ; flip between upper/lower attr half
+        eor     #$02                    ; flip between upper/lower attr half
         sta     $04
-        bne     code_8236           ; if nonzero, continue
+        bne     code_8236               ; if nonzero, continue
         ; --- Crossed attribute boundary: advance attr offset ---
         lda     $03
         clc
-        adc     #$08                ; next attribute row
+        adc     #$08                    ; next attribute row
         sta     $03
-        ora     #$C0                ; rebuild PPU attribute address
+        ora     #$C0                    ; rebuild PPU attribute address
         sta     $0789
         jmp     code_8236
 
 ; --- Door open complete: restore stage bank and return ---
 code_82A9:  lda     stage_id
         sta     prg_bank
-        jmp     select_PRG_banks               ; select_PRG_banks and return
+        jmp     select_PRG_banks        ; select_PRG_banks and return
 
 ; ===========================================================================
 ; DOOR OPEN DATA TABLES
@@ -336,8 +336,8 @@ code_82A9:  lda     stage_id
 ; boss_door_open_attr_offset/boss_door_open_attr_subindex: attribute table offset / sub-index
 ; boss_door_open_attr_palette_bits: attribute palette bits to OR in per column
 ; ===========================================================================
-boss_door_open_ppu_addr_high:  .byte   $20                 ; PPU address high byte
-boss_door_open_ppu_addr_low:  .byte   $81                 ; PPU address low byte
+boss_door_open_ppu_addr_high:  .byte   $20 ; PPU address high byte
+boss_door_open_ppu_addr_low:  .byte   $81 ; PPU address low byte
 boss_door_open_metatile_indices:  .byte   $16,$16,$16,$16,$22,$01,$2F,$2F
         .byte   $2F,$2F,$20,$81,$27,$27,$27,$27
         .byte   $22,$01,$06,$06,$06,$06,$21,$01
@@ -356,8 +356,8 @@ boss_door_open_metatile_indices:  .byte   $16,$16,$16,$16,$22,$01,$2F,$2F
         .byte   $06,$06,$06,$06,$22,$01,$0E,$0E
         .byte   $0E,$0E,$22,$01,$0B,$0B,$0B,$0B
         .byte   $22,$01,$00,$00,$00,$00
-boss_door_open_attr_offset:  .byte   $08                 ; attribute offset in $0640
-boss_door_open_attr_subindex:  .byte   $00                 ; attribute sub-index for mask table
+boss_door_open_attr_offset:  .byte   $08 ; attribute offset in $0640
+boss_door_open_attr_subindex:  .byte   $00 ; attribute sub-index for mask table
 boss_door_open_attr_palette_bits:  .byte   $03,$30,$03,$30,$20,$00,$00,$00
         .byte   $00,$00,$08,$00,$03,$30,$03,$30
         .byte   $20,$00,$00,$00,$00,$00,$10,$00
