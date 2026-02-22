@@ -1149,18 +1149,18 @@ irq_vector_lo_transition_second:  .byte   $D2
 irq_vector_lo_wave_set_strip:  .byte   $02
 irq_vector_lo_wave_advance:  .byte   $2B,$75
 irq_vector_lo_title_cutscene:  .byte   $A3,$CC                 ; modes $0C-$11
-irq_vector_lo_chr_handlers:  .byte   $08,$4A
+irq_vector_lo_chr_handlers:  .byte   $08,$4A ; modes $0C-$11
 irq_vector_lo_chr_swap:  .byte   $69,$9C
 
 ; high bytes of handler addresses ($C4DA, 18 entries)
 irq_vector_hi:  .byte   $C4             ; modes $00-$01
-irq_vector_hi_gameplay_status:  .byte   $C1,$C1,$C1,$C2,$C2
+irq_vector_hi_gameplay_status:  .byte   $C1,$C1,$C1,$C2,$C2 ; modes $00-$01
 irq_vector_hi_stagesel_second:  .byte   $C2,$C2
 irq_vector_hi_transition_second:  .byte   $C2
 irq_vector_hi_wave_set_strip:  .byte   $C3
 irq_vector_hi_wave_advance:  .byte   $C3,$C3                 ; modes $0A-$11
 irq_vector_hi_title_cutscene:  .byte   $C3,$C3
-irq_vector_hi_chr_handlers:  .byte   $C4,$C4
+irq_vector_hi_chr_handlers:  .byte   $C4,$C4 ; modes $0A-$11
 irq_vector_hi_chr_swap:  .byte   $C4,$C4
 
 ; --- water wave scroll tables (used by irq_wave_set_strip/advance) ---
@@ -1202,19 +1202,19 @@ drain_ppu_buffer:  ldx     #$00
 drain_ppu_buffer_continue:  lda     $0780,x ; read PPU addr high byte
         bmi     drain_ppu_exit                   ; $FF terminator → exit
         sta     $2006                   ; PPUADDR high
-        lda     $0781,x
+        lda     $0781,x                 ; $FF terminator → exit
         sta     $2006                   ; PPUADDR low
         ldy     $0782,x                 ; Y = byte count
 drain_ppu_write_tile_loop:  lda     $0783,x                 ; write tile data
         sta     $2007                   ; to PPUDATA
-        inx
-        dey
+        inx                             ; write tile data
+        dey                             ; to PPUDATA
         bpl     drain_ppu_write_tile_loop                   ; loop count+1 times
         inx                             ; skip past addr_hi
         inx                             ; addr_lo
         inx                             ; count fields
         bne     drain_ppu_buffer_continue ; next buffer entry
-drain_ppu_exit:  rts
+drain_ppu_exit:  rts                    ; count fields
 
 ; ---------------------------------------------------------------------------
 ; disable_nmi — clear NMI enable + sprite bits in PPUCTRL
@@ -1229,7 +1229,7 @@ disable_nmi:
         and     #$11                    ; keep bits 4,0 only
         sta     ppu_ctrl_shadow                     ; update shadow
         sta     $2000                   ; write PPUCTRL
-        rts
+        rts                             ; update shadow
 
 ; ---------------------------------------------------------------------------
 ; enable_nmi — set NMI enable bit in PPUCTRL
@@ -1240,7 +1240,7 @@ enable_nmi:
         ora     #$80                    ; set bit 7 (NMI enable)
         sta     ppu_ctrl_shadow                     ; update shadow
         sta     $2000                   ; write PPUCTRL
-        rts
+        rts                             ; update shadow
 
 ; ---------------------------------------------------------------------------
 ; rendering_off — blank screen and increment frame-lock counter
@@ -1255,7 +1255,7 @@ rendering_off:
         lda     #$00
         sta     ppu_mask_shadow                     ; PPUMASK shadow = $00
         sta     $2001                   ; all rendering off
-        rts
+        rts                             ; PPUMASK shadow = $00
 
 ; ---------------------------------------------------------------------------
 ; rendering_on — restore screen rendering and decrement frame-lock
@@ -1269,7 +1269,7 @@ rendering_on:
         lda     #$18
         sta     ppu_mask_shadow                     ; PPUMASK shadow = $18
         sta     $2001                   ; BG + sprites on
-        rts
+        rts                             ; PPUMASK shadow = $18
 
 ; ===========================================================================
 ; read_controllers — read both joypads with DPCM-glitch mitigation
@@ -1290,53 +1290,53 @@ rendering_on:
 
 read_controllers:  ldx     #$01         ; strobe controllers
         stx     $4016                   ; (write 1 then 0 to latch)
-        dex
-        stx     $4016
+        dex                             ; strobe controllers
+        stx     $4016                   ; (write 1 then 0 to latch)
         ldx     #$08                    ; 8 bits per controller
 read_ctrl_bit_loop:  lda     $4016                   ; player 1: bit 0 → $14
         lsr     a                       ; bit 1 → $00 (DPCM-safe)
-        rol     joy1_press
-        lsr     a
+        rol     joy1_press              ; player 1: bit 0 → $14
+        lsr     a                       ; bit 1 → $00 (DPCM-safe)
         rol     L0000
         lda     $4017                   ; player 2: bit 0 → $15
         lsr     a                       ; bit 1 → $01 (DPCM-safe)
-        rol     joy1_press_alt
-        lsr     a
+        rol     joy1_press_alt          ; player 2: bit 0 → $15
+        lsr     a                       ; bit 1 → $01 (DPCM-safe)
         rol     $01
         dex
         bne     read_ctrl_bit_loop
         lda     L0000                   ; OR both reads together
         ora     joy1_press                     ; to compensate for DPCM
         sta     joy1_press                     ; bit-0 corruption
-        lda     $01
-        ora     joy1_press_alt
+        lda     $01                     ; to compensate for DPCM
+        ora     joy1_press_alt          ; bit-0 corruption
         sta     joy1_press_alt
 
 ; --- edge detection: new presses = (current XOR previous) AND current ---
         ldx     #$01                    ; X=1 (P2), then X=0 (P1)
 read_ctrl_edge_detect_loop:  lda     joy1_press,x                   ; Y = raw buttons this frame
-        tay
+        tay                             ; X=1 (P2), then X=0 (P1)
         eor     joy1_held,x                   ; bits that changed from last frame
         and     joy1_press,x                   ; AND current = newly pressed only
         sta     joy1_press,x                   ; $14/$15 = new presses
         sty     joy1_held,x                   ; $16/$17 = held (raw) for next frame
-        dex
-        bpl     read_ctrl_edge_detect_loop
+        dex                             ; $14/$15 = new presses
+        bpl     read_ctrl_edge_detect_loop ; $16/$17 = held (raw) for next frame
 
 ; --- cancel simultaneous opposite directions ---
         ldx     #$03                    ; check $14,$15,$16,$17
 read_ctrl_cancel_opposite_loop:  lda     joy1_press,x                   ; Up+Down both pressed? ($0C)
-        and     #$0C
-        cmp     #$0C
+        and     #$0C                    ; check $14,$15,$16,$17
+        cmp     #$0C                    ; Up+Down both pressed? ($0C)
         beq     read_ctrl_clear_dpad
         lda     joy1_press,x                   ; Left+Right both pressed? ($03)
         and     #$03
-        cmp     #$03
+        cmp     #$03                    ; Left+Right both pressed? ($03)
         bne     read_ctrl_next_direction
 read_ctrl_clear_dpad:  lda     joy1_press,x                   ; clear all D-pad bits,
         and     #$F0                    ; keep A/B/Select/Start
-        sta     joy1_press,x
-read_ctrl_next_direction:  dex
+        sta     joy1_press,x            ; clear all D-pad bits,
+read_ctrl_next_direction:  dex          ; keep A/B/Select/Start
         bpl     read_ctrl_cancel_opposite_loop
         rts
 
@@ -1356,38 +1356,38 @@ read_ctrl_next_direction:  dex
 
 fill_nametable:  sta     L0000          ; save parameters
         stx     $01                     ; $00=addr_hi, $01=fill, $02=attr
-        sty     $02
+        sty     $02                     ; save parameters
         lda     $2002                   ; reset PPU latch
         lda     ppu_ctrl_shadow                     ; PPUCTRL: clear bit 0
         and     #$FE                    ; (horizontal increment mode)
-        sta     $2000
+        sta     $2000                   ; PPUCTRL: clear bit 0
         lda     L0000                   ; PPUADDR = addr_hi : $00
         sta     $2006
-        ldy     #$00
+        ldy     #$00                    ; PPUADDR = addr_hi : $00
         sty     $2006
         ldx     #$04                    ; nametable? 4 pages (1024 bytes)
         cmp     #$20                    ; CHR? Y pages (from parameter)
-        bcs     fill_nametable_page_setup
-        ldx     $02
+        bcs     fill_nametable_page_setup ; nametable? 4 pages (1024 bytes)
+        ldx     $02                     ; CHR? Y pages (from parameter)
 fill_nametable_page_setup:  ldy     #$00                    ; 256 iterations per page
         lda     $01                     ; A = fill byte
 fill_nametable_write_loop:  sta     $2007                   ; write fill byte
         dey                             ; inner: 256 bytes
-        bne     fill_nametable_write_loop
+        bne     fill_nametable_write_loop ; write fill byte
         dex                             ; outer: X pages
         bne     fill_nametable_write_loop
         ldy     $02                     ; Y = attribute byte
         lda     L0000                   ; if addr < $20, skip attributes
-        cmp     #$20
-        bcc     fill_nametable_restore_x
+        cmp     #$20                    ; Y = attribute byte
+        bcc     fill_nametable_restore_x ; if addr < $20, skip attributes
         adc     #$02                    ; PPUADDR = (addr_hi+3):$C0
         sta     $2006                   ; ($20→$23C0, $24→$27C0)
         lda     #$C0                    ; (carry set from CMP above)
-        sta     $2006
+        sta     $2006                   ; ($20→$23C0, $24→$27C0)
         ldx     #$40                    ; 64 attribute bytes
 fill_nametable_attr_loop:  sty     $2007                   ; write attribute byte
-        dex
-        bne     fill_nametable_attr_loop
+        dex                             ; 64 attribute bytes
+        bne     fill_nametable_attr_loop ; write attribute byte
 fill_nametable_restore_x:  ldx     $01                     ; restore X = fill byte
         rts
 
@@ -1415,14 +1415,14 @@ fill_nametable_restore_x:  ldx     $01                     ; restore X = fill by
 prepare_oam_buffer:  lda     player_state        ; state $07 = special_death:
         cmp     #PSTATE_SPECIAL_DEATH                    ; force $97=$6C (keep 27 sprites,
         bne     prepare_oam_hide_sprite0                   ; clear rest)
-        ldx     #$6C
-        stx     oam_ptr
+        ldx     #$6C                    ; force $97=$6C (keep 27 sprites,
+        stx     oam_ptr                 ; clear rest)
         bne     prepare_oam_start_hide
 prepare_oam_hide_sprite0:  ldx     oam_ptr                     ; if $97==$04 (player slot only):
         cpx     #$04                    ; hide sprite 0 (NES sprite 0 hit
         bne     prepare_oam_check_player_slot                   ; detection — no longer needed)
-        lda     #$F8
-        sta     $0200
+        lda     #$F8                    ; hide sprite 0 (NES sprite 0 hit
+        sta     $0200                   ; detection — no longer needed)
 prepare_oam_check_player_slot:  lda     scroll_lock                     ; if paused ($50): clear from $97
         bne     prepare_oam_start_hide
         lda     $72                     ; if overlay active ($72): start
@@ -1432,8 +1432,8 @@ prepare_oam_start_hide:  lda     #$F8                    ; Y=$F8 = off-screen (h
 prepare_oam_hide_loop:  sta     $0200,x                 ; write $F8 to Y byte of each
         inx                             ; OAM entry (4-byte stride)
         inx                             ; from X to end of buffer
-        inx
-        inx
+        inx                             ; OAM entry (4-byte stride)
+        inx                             ; from X to end of buffer
         bne     prepare_oam_hide_loop
         lda     scroll_lock                     ; if paused: skip overlay dispatch
         bne     prepare_oam_exit
@@ -1443,7 +1443,7 @@ prepare_oam_hide_loop:  sta     $0200,x                 ; write $F8 to Y byte of
         bne     scroll_overlay_sprites
         lda     game_mode                     ; $F8==2: draw camera-tracking sprites
         cmp     #$02
-        beq     draw_scroll_sprites
+        beq     draw_scroll_sprites     ; $F8==2: draw camera-tracking sprites
 prepare_oam_exit:  rts
 
 ; ===========================================================================
@@ -1458,7 +1458,7 @@ prepare_oam_exit:  rts
 
 clear_entity_table:  ldx     #$1F       ; start at slot 31
 clear_entity_loop:  lda     #$00                    ; clear entity type (deactivate slot)
-        sta     ent_status,x
+        sta     ent_status,x            ; start at slot 31
         lda     #$FF                    ; $FF = palette-anim inactive
         sta     ent_spawn_id,x
         dex                             ; loop slots 31 down to 1
@@ -1466,7 +1466,7 @@ clear_entity_loop:  lda     #$00                    ; clear entity type (deactiv
         lda     #$00                    ; clear overlay sprite flags
         sta     $71                     ; $71 = load overlay trigger
         sta     $72                     ; $72 = overlay scroll active
-        rts
+        rts                             ; $71 = load overlay trigger
 
 ; --- load_overlay_sprites ---
 ; Copies 12 OAM entries from overlay_sprite_data ($C6D8) to OAM $0200-$022F.
@@ -1480,18 +1480,18 @@ load_overlay_copy_loop:  lda     overlay_sprite_data,y   ; copy 4 OAM bytes per 
         lda     overlay_sprite_tile_table,y                 ; tile index
         sta     $0201,y                 ; attribute
         lda     overlay_sprite_attr_table,y                 ; X position
-        sta     $0202,y
-        lda     overlay_sprite_pos_table,y
+        sta     $0202,y                 ; attribute
+        lda     overlay_sprite_pos_table,y ; X position
         sta     $0203,y
         dey                             ; next entry (Y -= 4)
         dey
-        dey
+        dey                             ; next entry (Y -= 4)
         dey
         bpl     load_overlay_copy_loop                   ; loop while Y >= 0
         sty     $72                     ; Y=$FC (nonzero) → overlay scroll active
         lda     #$30                    ; $97=$30: entity sprites start at $0230
         sta     oam_ptr                     ; (12 overlay sprites reserved)
-        rts
+        rts                             ; $97=$30: entity sprites start at $0230
 
 ; --- scroll_overlay_sprites ---
 ; Slides overlay sprites leftward (X -= 1 per frame). Sprites 0-5 scroll
@@ -1500,30 +1500,30 @@ load_overlay_copy_loop:  lda     overlay_sprite_data,y   ; copy 4 OAM bytes per 
 
 scroll_overlay_sprites:  ldy     #$14   ; sprites 0-5: X byte offsets $03-$17
 scroll_overlay_fast_loop:  lda     $0203,y                 ; X position -= 1
-        sec
-        sbc     #$01
+        sec                             ; sprites 0-5: X byte offsets $03-$17
+        sbc     #$01                    ; X position -= 1
         sta     $0203,y
         dey                             ; next sprite (Y -= 4)
         dey
-        dey
+        dey                             ; next sprite (Y -= 4)
         dey
         bpl     scroll_overlay_fast_loop                   ; loop sprites 5 → 0
         lda     $95                     ; skip slow set on odd frames
         and     #$01                    ; ($95 = global frame counter)
-        bne     scroll_overlay_set_oam_ptr
+        bne     scroll_overlay_set_oam_ptr ; skip slow set on odd frames
         ldy     #$14                    ; sprites 6-11: X byte offsets $1B-$2F
 scroll_overlay_slow_loop:  lda     $021B,y                 ; X position -= 1 (half speed)
-        sec
-        sbc     #$01
+        sec                             ; sprites 6-11: X byte offsets $1B-$2F
+        sbc     #$01                    ; X position -= 1 (half speed)
         sta     $021B,y
         dey                             ; next sprite (Y -= 4)
         dey
-        dey
+        dey                             ; next sprite (Y -= 4)
         dey
         bpl     scroll_overlay_slow_loop                   ; loop sprites 11 → 6
 scroll_overlay_set_oam_ptr:  lda     #$30                    ; $97=$30: entity sprites at $0230
-        sta     oam_ptr
-        rts
+        sta     oam_ptr                 ; loop sprites 11 → 6
+        rts                             ; $97=$30: entity sprites at $0230
 
 ; --- draw_scroll_sprites ---
 ; Draws 8 camera-tracking sprites when $F8==2 (screen scroll mode).
@@ -1536,41 +1536,41 @@ scroll_overlay_set_oam_ptr:  lda     #$30                    ; $97=$30: entity s
 draw_scroll_sprites:  lda     camera_x_lo       ; compute camera X offset >> 2:
         sta     L0000                   ; $00 = ($F9:$FC) >> 2
         lda     camera_screen                     ; (coarse scroll position / 4)
-        lsr     a
-        ror     L0000
+        lsr     a                       ; $00 = ($F9:$FC) >> 2
+        ror     L0000                   ; (coarse scroll position / 4)
         lsr     a
         ror     L0000
         lda     $95                     ; Y = ($95 AND 1) << 5
         and     #$01                    ; even frames: Y=0, odd: Y=$20
         asl     a                       ; selects between two sprite sets
-        asl     a
-        asl     a
+        asl     a                       ; even frames: Y=0, odd: Y=$20
+        asl     a                       ; selects between two sprite sets
         asl     a
         asl     a
         tay
         ldx     #$1C                    ; 8 sprites (OAM $00-$1C, 4 bytes each)
 draw_scroll_sprites_loop:  lda     scroll_sprite_data,y    ; Y position (from ROM table)
-        sta     $0200,x
+        sta     $0200,x                 ; 8 sprites (OAM $00-$1C, 4 bytes each)
         lda     scroll_sprite_tile_table,y                 ; tile index
         sta     $0201,x
         lda     scroll_sprite_attr_table,y                 ; attribute byte
         sta     $0202,x
         lda     scroll_sprite_pos_table,y                 ; X position = ROM value - scroll offset
         sec                             ; (sprites track camera movement)
-        sbc     L0000
-        sta     $0203,x
+        sbc     L0000                   ; X position = ROM value - scroll offset
+        sta     $0203,x                 ; (sprites track camera movement)
         iny                             ; advance source (Y += 4)
         iny
-        iny
+        iny                             ; advance source (Y += 4)
         iny
         dex                             ; advance dest (X -= 4)
         dex
-        dex
+        dex                             ; advance dest (X -= 4)
         dex
         bpl     draw_scroll_sprites_loop                   ; loop 8 sprites
         lda     #$20                    ; $97=$20: entity sprites at $0220
         sta     oam_ptr                     ; (8 scroll sprites reserved)
-        rts
+        rts                             ; $97=$20: entity sprites at $0220
 
 ; overlay_sprite_data: 12 OAM entries for load_overlay_sprites
 ; Format: Y, tile, attr, X (4 bytes per sprite)
@@ -1579,7 +1579,7 @@ draw_scroll_sprites_loop:  lda     scroll_sprite_data,y    ; Y position (from RO
 
 overlay_sprite_data:  .byte   $58       ; sprites 0-1
 overlay_sprite_tile_table:  .byte   $F1
-overlay_sprite_attr_table:  .byte   $02
+overlay_sprite_attr_table:  .byte   $02 ; sprites 0-1
 overlay_sprite_pos_table:  .byte   $28,$E0,$F1,$02,$28,$B8,$F1,$02
         .byte   $70,$20,$F1,$02,$A0,$68,$F1,$02
         .byte   $D0,$D8,$F1,$02,$D0,$90,$F2,$02
@@ -1598,7 +1598,7 @@ scroll_sprite_pos_table:  .byte   $18,$28,$E4,$03,$20,$68,$E4,$03
         .byte   $70,$10,$E4,$03,$98,$58,$E4,$03
         .byte   $C0,$80,$E4,$03,$D0,$18,$E4,$03
         .byte   $10,$A0,$E4,$03,$48,$28,$E4,$03
-        .byte   $58,$40,$E4,$03,$90,$98,$E4,$03
+        .byte   $58,$40,$E4,$03,$90,$98,$E4,$03 ; set 0, sprites 0-1
         .byte   $A0,$78,$E4,$03,$D8,$30,$E4,$03
         .byte   $E0,$A0,$E4,$03,$E8,$00,$00,$00
         .byte   $00
@@ -1628,13 +1628,13 @@ fade_copy_target_loop:  lda     $0620,y                 ; copy target → active
         bpl     fade_copy_target_loop
         ldy     #$1F
 fade_subtract_loop:  lda     $0600,y                 ; subtract from each color
-        sec
-        sbc     $0F
+        sec                             ; start dark (subtract $30)
+        sbc     $0F                     ; step = -$10 (brighten each pass)
         bpl     fade_subtract_clamp
         lda     #$0F                    ; clamp to $0F (NES black)
-fade_subtract_clamp:  sta     $0600,y
-        dey
-        bpl     fade_subtract_loop
+fade_subtract_clamp:  sta     $0600,y   ; step = +$10 (darken each pass)
+        dey                             ; $0F = current subtract amount
+        bpl     fade_subtract_loop      ; $0D = step delta per pass
         sty     palette_dirty                     ; $18 = palette dirty ($FF)
         lda     $0E                     ; A = $0E (frames to wait per fade step)
 fade_wait_frame_loop:  pha                             ; wait $0E frames between fade steps
@@ -1651,7 +1651,7 @@ fade_wait_frame_loop:  pha                             ; wait $0E frames between
         beq     fade_exit
         lda     $0F
         bpl     fade_copy_palette_loop                   ; or wraps negative
-fade_exit:  rts
+fade_exit:  rts                         ; $18 = palette dirty ($FF)
 
 ; ---------------------------------------------------------------------------
 ; palette_fade_tick — per-frame incremental palette fade
@@ -1680,9 +1680,9 @@ fade_tick_bg_subtract_loop:  lda     $0600,y
         sbc     $1D                     ; subtract current fade amount
         bpl     fade_tick_clamp
         lda     #$0F                    ; clamp to $0F
-fade_tick_clamp:  sta     $0600,y
-        dey
-        bpl     fade_tick_bg_subtract_loop
+fade_tick_clamp:  sta     $0600,y       ; fade active?
+        dey                             ; no → skip
+        bpl     fade_tick_bg_subtract_loop ; frame counter
         sty     palette_dirty                     ; palette dirty
         lda     $1D                     ; advance fade amount
         clc
@@ -1690,10 +1690,10 @@ fade_tick_clamp:  sta     $0600,y
         sta     $1D
         cmp     #$F0
         beq     fade_tick_fully_black                   ; $F0 = fully black
-        cmp     #$50
+        cmp     #$50                    ; BG palette only ($0600-$060F)
         bne     fade_tick_exit
         inc     $71                     ; $50 = fully restored
-        bne     fade_tick_restore_complete
+        bne     fade_tick_restore_complete ; subtract current fade amount
 fade_tick_fully_black:  lda     #$00
         sta     $72                     ; $72=0 signals halted
 fade_tick_restore_complete:  lda     #$00
@@ -1725,7 +1725,7 @@ indirect_dispatch:
         sta     $0D
         stx     L000C
         ldx     $0E                     ; restore X, Y
-        ldy     $0F
+        ldy     $0F                     ; save X, Y
         jmp     (L000C)                 ; jump to target
 
 ; --- shift_register_tick ---
@@ -1734,13 +1734,13 @@ indirect_dispatch:
 ; all 4 bytes ($E4→$E5→$E6→$E7). Called once per frame from game loop.
 ; $E4 initialized to $88 in main_game_entry. Used for animation cycling.
 
-shift_register_tick:  ldx     #$00
+shift_register_tick:  ldx     #$00      ; read target addr low
         ldy     #$04                    ; 4 bytes to rotate
         lda     $E4,x                   ; feedback = ($E4 bit 1) XOR ($E5 bit 1)
         and     #$02                    ; isolate bit 1 of $E4
         sta     L0000
         lda     $E5,x                   ; isolate bit 1 of $E5
-        and     #$02
+        and     #$02                    ; restore X, Y
         eor     L0000                   ; XOR → nonzero if bits differ
         clc                             ; carry = 0 if bits match,
         beq     shift_register_rotate_loop                   ; carry = 1 if bits differ
@@ -1809,7 +1809,7 @@ load_stage_copy_palette_loop:  lda     load_stage_default_palette_table,x       
 ; $2B = current room/section index.
 load_room:  lda     $2B                 ; X = room index * 2
         asl     a                       ; (2 bytes per room in $AA60)
-        tax
+        tax                             ; copy default palette
         lda     $AA60,x                 ; CHR/palette param from room table
         pha                             ; (saved for bank $01 $A000 call below)
         lda     $AA61,x                 ; layout index → offset into $AA82
@@ -1824,31 +1824,31 @@ load_room:  lda     $2B                 ; X = room index * 2
 load_room_copy_column_ids:  lda     $AA82,y                 ; copy 16 metatile column IDs
         sta     $0600,x                 ; to $0600-$060F (current screen)
         sta     $0620,x                 ; and $0620-$062F (mirror)
-        iny
+        iny                             ; (2 bytes per room in $AA60)
         inx
-        cpx     #$10
-        bne     load_room_copy_column_ids
-        ldx     #$00
+        cpx     #$10                    ; CHR/palette param from room table
+        bne     load_room_copy_column_ids ; (saved for bank $01 $A000 call below)
+        ldx     #$00                    ; layout index → offset into $AA82
 load_room_parse_connections:  lda     $AA82,y                 ; parse 4 screen connection bytes
         pha                             ; (up/down/left/right exits):
         and     #$80                    ; bit 7 → $0100,x (scroll direction)
         sta     $0100,x                 ; ($80=scroll, $00=warp)
-        pla
+        pla                             ; (20 bytes per layout entry:
         and     #$7F                    ; bits 0-6 → $0108,x (target screen#)
         sta     $0108,x
         lda     #$00                    ; clear $0104,x and $010C,x
         sta     $0104,x                 ; (unused padding/high bytes)
-        sta     $010C,x
-        iny
+        sta     $010C,x                 ; to $0600-$060F (current screen)
+        iny                             ; and $0620-$062F (mirror)
         inx
         cpx     #$04                    ; 4 connections (U/D/L/R)
         bne     load_room_parse_connections
         lda     $0600                   ; copy first column ID to palette slots
         sta     $0610                   ; (overwritten by $A000 below)
-        sta     $0630
+        sta     $0630                   ; parse 4 screen connection bytes
         lda     #$01                    ; switch to bank $01 (CHR/palette tables)
-        sta     prg_bank
-        jsr     select_PRG_banks
+        sta     prg_bank                ; bit 7 → $0100,x (scroll direction)
+        jsr     select_PRG_banks        ; ($80=scroll, $00=warp)
         pla                             ; A = CHR/palette param from $AA60
         jsr     LA000                   ; → sets $EC/$ED from $A200[param*2]
         jmp     update_CHR_banks        ; → and SP2-SP3 from $A030[param*8]
@@ -1857,7 +1857,7 @@ load_room_parse_connections:  lda     $AA82,y                 ; parse 4 screen c
 ; SP0: $0F(black), $0F(black), $2C(sky blue), $11(blue)
 ; SP1: $0F(black), $0F(black), $30(white), $37(orange)
 
-load_stage_default_palette_table:  .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
+load_stage_default_palette_table:  .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37 ; 4 connections (U/D/L/R)
 
 ; ---------------------------------------------------------------------------
 ; ensure_stage_bank — switch $F5 to current stage's PRG bank if needed
@@ -1865,9 +1865,9 @@ load_stage_default_palette_table:  .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
 ; Looks up stage_to_bank[$22] and switches $F5. No-op if $F5 is already $13
 ; (bank $13 = fixed/shared). Preserves X and Y.
 ; ---------------------------------------------------------------------------
-ensure_stage_bank:  txa
-        pha
-        tya
+ensure_stage_bank:  txa                 ; A = CHR/palette param from $AA60
+        pha                             ; → sets $EC/$ED from $A200[param*2]
+        tya                             ; → and SP2-SP3 from $A030[param*8]
         pha
         lda     prg_bank                     ; already on bank $13?
         cmp     #$13
@@ -1888,8 +1888,8 @@ ensure_stage_bank_skip:  pla
 ; $0C-$0F=Wily fortress, $10+=special/ending
 
 ensure_stage_bank_table:  .byte   $00,$01,$02,$03,$04,$05,$06,$07
-        .byte   $08,$09,$0A,$0B,$0C,$0D,$0D,$0F
-        .byte   $0D,$11,$12,$13,$10,$1E,$0E
+        .byte   $08,$09,$0A,$0B,$0C,$0D,$0D,$0F ; yes → skip
+        .byte   $0D,$11,$12,$13,$10,$1E,$0E ; stage index
 
 ; ===========================================================================
 ; main_game_entry — top-level game loop (registered as task 0 at $C8D0)
@@ -1927,18 +1927,18 @@ main_game_entry:
 ; Clears $0150-$016F (entity scratch buffer), then falls through to stage_init.
 game_entry_stage_reinit:  lda     #$00                ; clear $0150-$016F (32 bytes)
         ldy     #$1F
-game_entry_clear_scratch_buffer:  sta     $0150,y
-        dey
+game_entry_clear_scratch_buffer:  sta     $0150,y ; enable IRQ
+        dey                             ; $9B = 1 (game active flag)
         bpl     game_entry_clear_scratch_buffer
 
 ; --- stage_init: set up a new stage ---
 stage_init:  lda     #$00               ; $EE = 0: allow NMI rendering
-        sta     nmi_skip
+        sta     nmi_skip                ; set to $55 once gameplay starts)
 
 ; --- initialize display and entity state ---
         jsr     fade_palette_in         ; fade screen to black
         lda     #$04                    ; $97 = 4 (OAM scan start offset)
-        sta     oam_ptr
+        sta     oam_ptr                 ; $A9 = $9C = full Rush Coil ammo
         jsr     prepare_oam_buffer      ; clear OAM buffer
         jsr     task_yield              ; wait for NMI
         jsr     clear_entity_table      ; zero all 32 entity slots
@@ -1975,7 +1975,7 @@ stage_init:  lda     #$00               ; $EE = 0: allow NMI rendering
         jsr     submit_sound_ID_D9      ; play music
 
 ; --- set initial scroll/render state ---
-        lda     #$01
+        lda     #$01                    ; camera X coarse = 0
         sta     player_facing                     ; player facing = right (1=R, 2=L)
         sta     $23                     ; scroll column state = 1
         sta     $2E                     ; scroll direction = right
@@ -1986,7 +1986,7 @@ stage_init:  lda     #$00               ; $EE = 0: allow NMI rendering
 
 ; --- fill nametable: render columns until $29 becomes nonzero ---
 game_entry_render_columns_loop:  lda     #$01                ; $10 = 1 (render direction: right)
-        sta     $10
+        sta     $10                     ; weapon menu cursor = 0
         jsr     do_render_column        ; render one BG column
         jsr     task_yield              ; yield to NMI (display frame)
         lda     $29                     ; loop until rendering complete
@@ -2001,11 +2001,11 @@ game_entry_render_columns_loop:  lda     #$01                ; $10 = 1 (render d
         and     #$E0                    ; bits 7-5: scroll/connection flags
         sta     $2A                     ; $2A = room scroll/connection flags
         ldx     #$01                    ; default: X=1 (H-mirror), Y=$2A
-        ldy     #$2A
+        ldy     #$2A                    ; $24 = 31 (column counter for
         and     #$C0                    ; bits 7-6: vertical connection
         beq     game_entry_set_mirroring               ; if no vertical connection: H-mirror
         dex                             ; else: X=0 (V-mirror), Y=$26
-        ldy     #$26
+        ldy     #$26                    ; $10 = 1 (render direction: right)
 game_entry_set_mirroring:  stx     LA000               ; set mirroring mode
         sty     $52                     ; $52 = nametable height ($2A or $26)
         pla                             ; bits 4-0 of room config
@@ -2018,36 +2018,36 @@ game_entry_set_mirroring:  stx     LA000               ; set mirroring mode
 ; --- load stage data (palettes, CHR, nametable attributes) ---
         jsr     load_stage              ; load stage palettes + CHR banks
         lda     #$00                    ; $18 = 0 (rendering disabled during setup)
-        sta     palette_dirty
-        jsr     task_yield
+        sta     palette_dirty           ; bits 7-5: scroll/connection flags
+        jsr     task_yield              ; $2A = room scroll/connection flags
         jsr     fade_palette_out        ; fade from black → stage palette
         lda     #$80                    ; player X = $80 (128, center of screen)
-        sta     ent_x_px
+        sta     ent_x_px                ; bits 7-6: vertical connection
 
 ; --- set HP and scroll mode for stage type ---
 game_entry_set_hp_scroll:  lda     #$9C                ; $A2 = $9C (full HP: 28 bars)
-        sta     player_hp
+        sta     player_hp               ; set mirroring mode
         lda     #$E8                    ; default: $51/$5E = $E8 (normal scroll)
-        sta     $51
-        sta     $5E
+        sta     $51                     ; bits 4-0 of room config
+        sta     $5E                     ; = screen count
         lda     camera_screen                     ; if not starting at screen 0: skip
         bne     game_entry_set_intro_chr
         lda     stage_id                     ; stages $02 (Gemini) and $09 (DR-Gemini)
         cmp     #STAGE_GEMINI                    ; use horizontal scroll mode
         beq     game_entry_gemini_scroll               ; (start scrolling right from screen 0)
         cmp     #STAGE_DOC_GEMINI
-        bne     game_entry_set_intro_chr
+        bne     game_entry_set_intro_chr ; load stage palettes + CHR banks
 game_entry_gemini_scroll:  lda     #$9F                ; $5E = $9F (Gemini scroll end marker)
         sta     $5E
         lda     #$02                    ; $F8 = 2 (screen scroll mode)
-        sta     game_mode
+        sta     game_mode               ; fade from black → stage palette
 
 ; --- set intro CHR banks and begin fade-in ---
 game_entry_set_intro_chr:  lda     #$74                ; $EA/$EB = $74/$75 (intro/ready CHR pages)
         sta     $EA
-        lda     #$75
+        lda     #$75                    ; $A2 = $9C (full HP: 28 bars)
         sta     $EB
-        jsr     update_CHR_banks
+        jsr     update_CHR_banks        ; default: $51/$5E = $E8 (normal scroll)
         lda     #$30                    ; $0611 = $30 (BG palette color for intro)
         sta     $0611
         inc     palette_dirty                     ; enable rendering ($18 = 1)
@@ -2063,15 +2063,15 @@ game_entry_fadein_loop:  pha                         ; save frame countdown
         ldx     #$10                    ; X = $10 (5 sprites × 4 bytes - 4)
 game_entry_show_ready_overlay:  lda     frame_loop_ready_overlay_data,x             ; copy OAM entry: Y, tile, attr, X
         sta     $0200,x
-        lda     rush_coil_dispatch_table,x
+        lda     rush_coil_dispatch_table,x ; $EA/$EB = $74/$75 (intro/ready CHR pages)
         sta     $0201,x
         lda     rush_marine_dispatch_table,x
         sta     $0202,x
         lda     rush_jet_dispatch_table,x
-        sta     $0203,x
+        sta     $0203,x                 ; $0611 = $30 (BG palette color for intro)
         dex
-        dex
-        dex
+        dex                             ; enable rendering ($18 = 1)
+        dex                             ; A = 60 (fade-in frame count)
         dex                             ; next OAM entry
         bpl     game_entry_show_ready_overlay
         lda     #$14                    ; A = 20 (start hiding at sprite 5)
@@ -2081,7 +2081,7 @@ game_entry_hide_overlay:  sta     oam_ptr                 ; $97 = OAM scan start
         tax
         lda     #$F8                    ; Y = $F8 = off-screen
 game_entry_hide_oam_loop:  sta     $0200,x             ; hide sprite: Y = $F8
-        inx
+        inx                             ; copy OAM entry: Y, tile, attr, X
         inx
         inx
         inx                             ; next OAM entry (4 bytes)
@@ -2092,7 +2092,7 @@ game_entry_hide_oam_loop:  sta     $0200,x             ; hide sprite: Y = $F8
         inc     nmi_skip                     ; $EE = 1 (suppress next NMI rendering)
         inc     $95                     ; advance frame counter
         pla                             ; decrement fade-in countdown
-        sec
+        sec                             ; next OAM entry
         sbc     #$01
         bne     game_entry_fadein_loop               ; loop until 60 frames complete
 
@@ -2108,9 +2108,9 @@ game_entry_hide_oam_loop:  sta     $0200,x             ; hide sprite: Y = $F8
 
 ; --- initialize player entity (slot 0) for teleport-in ---
         lda     #$80                    ; ent_status = $80 (player entity active)
-        sta     ent_status
+        sta     ent_status              ; yield to NMI (display frame)
         lda     #$00                    ; ent_y_px = 0 (player Y = top of screen)
-        sta     ent_y_px
+        sta     ent_y_px                ; advance frame counter
         lda     #$D0                    ; ent_flags = $D0 (bit7=drawn, bit6=face right, bit4=set)
         sta     ent_flags
         lda     #$4C                    ; player X speed = $01.4C (walk speed, pre-loaded
@@ -2119,15 +2119,15 @@ game_entry_hide_oam_loop:  sta     $0200,x             ; hide sprite: Y = $F8
         sta     ent_xvel
         lda     #$00                    ; player Y speed = $F9.00 (terminal fall velocity)
         sta     ent_yvel_sub                   ; player drops from top during reappear state
-        lda     #$F9
-        sta     ent_yvel
+        lda     #$F9                    ; advance rendering state
+        sta     ent_yvel                ; $EA/$EB = pages 0/1 (shared sprite CHR)
         ldx     #$00                    ; slot 0 (player): set OAM $13 = teleport beam
-        lda     #$13
+        lda     #$13                    ; R3: tiles $40-$7F at $1400
         jsr     reset_sprite_anim
         lda     #PSTATE_REAPPEAR                    ; $30 = $04 (player state = reappear)
         sta     player_state
         lda     #$80                    ; $B2 = $80 (stage initialization complete)
-        sta     $B2
+        sta     $B2                     ; $0300 = $80 (player entity active)
 
 ; ===========================================================================
 ; gameplay_frame_loop — main per-frame game loop
@@ -2144,7 +2144,7 @@ game_entry_hide_oam_loop:  sta     $0200,x             ; hide sprite: Y = $F8
 ; ---------------------------------------------------------------------------
 gameplay_frame_loop:  lda     joy1_press       ; Start button pressed?
         and     #BTN_START                    ; ($14 = new button presses this frame)
-        beq     gameplay_no_pause
+        beq     gameplay_no_pause       ; $30 = $04 (player state = reappear)
         lda     player_state                     ; skip pause if player state is:
         cmp     #PSTATE_REAPPEAR                    ; $04 = reappear
         beq     gameplay_no_pause       ; $07 = special_death
@@ -2162,11 +2162,11 @@ gameplay_frame_loop:  lda     joy1_press       ; Start button pressed?
         beq     frame_loop_check_active_weapons               ; even = Rush item ($06,$08,$0A) — skip
         lda     #$00                    ; despawn slot 1 (Rush entity)
         sta     $0301                   ; before opening pause menu
-        beq     game_entry_check_pause
+        beq     game_entry_check_pause  ; Start button pressed?
 frame_loop_check_active_weapons:  lda     $0301               ; if ANY weapon slot (1-3) is active,
         ora     $0302                   ; don't allow pause
         ora     $0303                   ; (prevents pausing mid-shot)
-        bmi     gameplay_no_pause
+        bmi     gameplay_no_pause       ; $04 = reappear
 game_entry_check_pause:  ldy     player_state                 ; check per-state pause permission table
         lda     frame_loop_pause_permission,y                 ; bit 7 set = pause not allowed
         bmi     gameplay_no_pause
@@ -2175,7 +2175,7 @@ game_entry_check_pause:  ldy     player_state                 ; check per-state 
         jsr     select_PRG_banks
         jsr     LA003                   ; call pause menu handler
 gameplay_no_pause:  lda     stage_id         ; switch to stage bank
-        sta     prg_bank
+        sta     prg_bank                ; carry clear = weapon < $06 (not Rush)
         jsr     select_PRG_banks
         jsr     prelude_check_slide_speed               ; player state dispatch + physics
 
@@ -2184,30 +2184,30 @@ gameplay_no_pause:  lda     stage_id         ; switch to stage bank
         beq     frame_loop_update_camera               ; 0 = no pending state
         sta     player_state                     ; apply: set player state
         cmp     #$0E                    ; state $0E = spike/pit death?
-        bne     frame_loop_clear_hazard_pending
+        bne     frame_loop_clear_hazard_pending ; don't allow pause
         lda     #SNDCMD_STOP                    ; play death jingle ($F2 = stop music)
         jsr     submit_sound_ID
         lda     #SFX_DEATH                    ; play death sound $17
-        jsr     submit_sound_ID
+        jsr     submit_sound_ID         ; bit 7 set = pause not allowed
 frame_loop_clear_hazard_pending:  lda     #$00                ; clear pending state
-        sta     hazard_pending
+        sta     hazard_pending          ; switch to bank $02/$03 (pause menu code)
 frame_loop_update_camera:  jsr     update_camera       ; scroll/camera update
         lda     camera_x_lo                     ; $25 = camera X (coarse)
-        sta     $25
-        sta     L0000
+        sta     $25                     ; call pause menu handler
+        sta     L0000                   ; switch to stage bank
         lda     game_mode                     ; if scroll mode ($F8==2):
         cmp     #$02                    ; compute camera offset for
         bne     frame_loop_compute_scroll_offset                   ; scroll sprites
         lda     camera_screen
         lsr     a
-        ror     L0000
-        lsr     a
-        ror     L0000
-        lda     L0000
+        ror     L0000                   ; $3D = pending state from hazard
+        lsr     a                       ; 0 = no pending state
+        ror     L0000                   ; apply: set player state
+        lda     L0000                   ; state $0E = spike/pit death?
         sta     $5F                     ; $5F = camera offset / 4
 frame_loop_compute_scroll_offset:  lda     ent_x_scr                   ; track max screen progress
         cmp     $6F                     ; ($6F = farthest screen reached)
-        bcc     frame_loop_track_screen_progress
+        bcc     frame_loop_track_screen_progress ; play death sound $17
         sta     $6F
 frame_loop_track_screen_progress:  lda     ent_x_px                   ; $27 = player Y position
         sta     $27
@@ -2215,9 +2215,9 @@ frame_loop_track_screen_progress:  lda     ent_x_px                   ; $27 = pl
         stx     mmc3_select                     ; (entity processing code)
         inx
         stx     prg_bank
-        jsr     select_PRG_banks
+        jsr     select_PRG_banks        ; if scroll mode ($F8==2):
         jsr     L8000                   ; process all entity AI
-        lda     #$1A
+        lda     #$1A                    ; scroll sprites
         sta     mmc3_select
         lda     stage_id
         sta     prg_bank
@@ -2225,7 +2225,7 @@ frame_loop_track_screen_progress:  lda     ent_x_px                   ; $27 = pl
         jsr     L9C00                   ; spawn enemies for current screen
         lda     #$09                    ; select bank $09
         sta     mmc3_select                     ; (per-frame subsystems)
-        jsr     select_PRG_banks
+        jsr     select_PRG_banks        ; track max screen progress
         jsr     L8003                   ; bank $09 subsystems:
         jsr     L8006                   ; screen scroll, HUD update,
         jsr     L800F                   ; sound processing,
@@ -2243,26 +2243,26 @@ frame_loop_track_screen_progress:  lda     ent_x_px                   ; $27 = pl
         sta     $17
 frame_loop_debug_flag_check:  jsr     shift_register_tick     ; LFSR animation tick
         lda     $59                     ; $59 != 0: boss defeated
-        bne     frame_loop_boss_defeated
+        bne     frame_loop_boss_defeated ; select bank $09
         lda     $3C                     ; $3C != 0: player died
         bne     death_handler
         lda     $74                     ; $74 != 0: stage clear
-        bne     stage_clear_handler
+        bne     stage_clear_handler     ; screen scroll, HUD update,
         jmp     gameplay_frame_loop     ; loop back for next frame
 
 ; --- boss_defeated_handler ($59 != 0) ---
 
 frame_loop_boss_defeated:  lda     #$00                ; clear rendering/overlay/scroll state
-        sta     nmi_skip
-        sta     $71
-        sta     $72
-        sta     game_mode
+        sta     nmi_skip                ; update palette fade animation
+        sta     $71                     ; build OAM + yield 1 frame
+        sta     $72                     ; if controller 2 bit 1 set:
+        sta     game_mode               ; set $17 bit 0 (debug flag?)
         sta     boss_active                     ; clear boss-active flag
         lda     #$18                    ; select banks $18/$10
         sta     mmc3_select                     ; ($10 = boss post-defeat routine)
         lda     #$10
-        sta     prg_bank
-        jsr     select_PRG_banks
+        sta     prg_bank                ; LFSR animation tick
+        jsr     select_PRG_banks        ; $59 != 0: boss defeated
         jsr     L9000                   ; boss post-defeat (bank $10)
         jmp     game_entry_stage_reinit               ; → stage_reinit
 
@@ -2272,19 +2272,19 @@ death_handler:  lda     #$00            ; clear death flag + boss state
         sta     $3C
         sta     boss_active
         lda     lives                     ; decrement $AE (BCD format)
-        sec
+        sec                             ; clear rendering/overlay/scroll state
         sbc     #$01
         bcc     game_over               ; underflow → game over
         sta     lives                     ; BCD correction: if low nibble
         and     #$0F                    ; wraps to $0F, subtract 6
         cmp     #$0F                    ; ($10 - $01 = $0F → $09)
-        bne     frame_loop_bcd_lives_correction
-        lda     lives
+        bne     frame_loop_bcd_lives_correction ; select banks $18/$10
+        lda     lives                   ; ($10 = boss post-defeat routine)
         sec
         sbc     #$06
         sta     lives
 frame_loop_bcd_lives_correction:  lda     #$00                    ; clear rendering/overlay state
-        sta     nmi_skip
+        sta     nmi_skip                ; → stage_reinit
         sta     $71
         sta     $72
         sta     game_mode
@@ -2296,14 +2296,14 @@ frame_loop_bcd_lives_correction:  lda     #$00                    ; clear render
 ; Wily stage death → bank $18 $9006 (Wily-specific respawn)
 
 frame_loop_wily_respawn:  lda     #$18                ; select bank $18
-        sta     mmc3_select
-        jsr     select_PRG_banks
+        sta     mmc3_select             ; wraps to $0F, subtract 6
+        jsr     select_PRG_banks        ; ($10 - $01 = $0F → $09)
         jmp     L9006                   ; Wily respawn (bank $18)
 
 ; --- game_over ($AE underflowed) ---
 
 game_over:  lda     #$00                ; clear all state
-        sta     nmi_skip
+        sta     nmi_skip                ; clear rendering/overlay state
         sta     boss_active
         sta     $71
         sta     $72
@@ -2311,7 +2311,7 @@ game_over:  lda     #$00                ; clear all state
         lda     #$18                    ; select banks $18/$13
         sta     mmc3_select                     ; (game over screen)
         lda     #$13
-        sta     prg_bank
+        sta     prg_bank                ; normal respawn at checkpoint
         jsr     select_PRG_banks
         jsr     L9003                   ; game over sequence (bank $18)
         jmp     game_entry_stage_reinit               ; → stage_reinit (continue/retry)
@@ -2333,7 +2333,7 @@ stage_clear_handler:  pha               ; save $74 (stage clear type)
         sta     mmc3_select                     ; (bank $0E = stage clear/results handler)
         lda     #$0E
         sta     prg_bank
-        jsr     select_PRG_banks
+        jsr     select_PRG_banks        ; game over sequence (bank $18)
         pla                             ; $74 AND $7F: 0 = normal stage clear
         and     #$7F
         bne     frame_loop_special_clear_check               ; nonzero = special clear (Wily/Doc Robot)
@@ -2344,7 +2344,7 @@ stage_clear_handler:  pha               ; save $74 (stage clear type)
 
 frame_loop_special_clear_check:  lda     $75                 ; $75 = stage clear sub-type
         cmp     #$06                    ; $06 = final boss / ending
-        beq     frame_loop_ending_sequence
+        beq     frame_loop_ending_sequence ; boss bar = 0
         jsr     L8003                   ; Wily/Doc Robot clear (bank $0E)
         jmp     game_entry_stage_reinit               ; → stage_reinit
 
@@ -2354,9 +2354,9 @@ frame_loop_ending_sequence:  lda     #$0C                ; switch to banks $0C/$
         sta     mmc3_select                     ; (bank $0E = ending handler)
         lda     #$0E
         sta     prg_bank
-        jsr     select_PRG_banks
+        jsr     select_PRG_banks        ; $74 AND $7F: 0 = normal stage clear
         lda     #$11                    ; $F8 = $11 (ending game mode)
-        sta     game_mode
+        sta     game_mode               ; nonzero = special clear (Wily/Doc Robot)
         jsr     L8000                   ; run ending sequence
         jmp     game_entry_stage_reinit               ; → stage_reinit (title screen)
 
@@ -2385,7 +2385,7 @@ frame_loop_checkpoint_restore:  tya                             ; save checkpoin
         jsr     clear_entity_table      ; zero all entity slots
 
 ; --- zero game state (same as stage_init, minus music/facing) ---
-        lda     #$00
+        lda     #$00                    ; current screen ID
         sta     game_mode                     ; scroll mode = 0
         sta     camera_x_hi                     ; nametable select = 0
         sta     $71                     ; overlay init trigger = 0
@@ -2410,25 +2410,25 @@ frame_loop_checkpoint_restore:  tya                             ; save checkpoin
         sta     camera_screen                     ; $F9 = starting screen
         sta     ent_x_scr                   ; player X screen
         lda     $ABC0,y                 ; set scroll fine position from checkpoint
-        sta     $9E
-        sta     $9F
+        sta     $9E                     ; camera X low = 0
+        sta     $9F                     ; scroll Y offset = 0
         ldx     $AAF0,y                 ; $2B = checkpoint room number
-        stx     $2B
+        stx     $2B                     ; player Y screen = 0
 
 ; --- parse room config bits (same logic as stage_init) ---
         lda     $AA40,x                 ; load room config byte
         pha                             ; save for screen count later
-        sta     L0000
+        sta     L0000                   ; weapon = $00 (Mega Buster)
         and     #$20                    ; bit 5 = horizontal scroll?
         sta     $2A                     ; if set, $2A = $20 (h-scroll flags)
         bne     frame_loop_checkpoint_mirroring
         lda     L0000                   ; else $2A = bits 7-6 (vertical connection)
-        and     #$C0
+        and     #$C0                    ; restore checkpoint index
         sta     $2A
 frame_loop_checkpoint_mirroring:  ldx     #$01                ; default: H-mirror, viewport height $2A
-        ldy     #$2A
+        ldy     #$2A                    ; $29 = render sentinel/screen
         and     #$20                    ; if h-scroll (bit 5 set): keep defaults
-        bne     frame_loop_checkpoint_set_height
+        bne     frame_loop_checkpoint_set_height ; player X screen
         dex                             ; else: V-mirror (X=0), viewport $26
         ldy     #$26
 frame_loop_checkpoint_set_height:  stx     LA000               ; set nametable mirroring (0=V, 1=H)
@@ -2437,36 +2437,36 @@ frame_loop_checkpoint_set_height:  stx     LA000               ; set nametable m
         and     #$1F
         sta     $2C
         lda     #$00                    ; $2D = 0 (scroll progress within room)
-        sta     $2D
+        sta     $2D                     ; save for screen count later
         ldy     stage_id                     ; load stage music ID from $CD0C table
         lda     frame_loop_stage_music_table,y                 ; and start playing it
-        jsr     submit_sound_ID_D9
+        jsr     submit_sound_ID_D9      ; if set, $2A = $20 (h-scroll flags)
         lda     #$01
         sta     player_facing                     ; $31 = face right
         sta     $23                     ; $23 = column render flag
         sta     $2E                     ; $2E = render dirty flag
         dec     $29                     ; $29-- (back up screen sentinel for render)
         lda     #$1F                    ; $24 = $1F (screen attribute pointer)
-        sta     $24
+        sta     $24                     ; if h-scroll (bit 5 set): keep defaults
 
 ; --- render 33 columns of room tiles (one per frame, yielding to NMI) ---
         lda     #$21                    ; 33 columns ($21)
 frame_loop_render_columns_loop:  pha                         ; save column counter
-        lda     #$01
+        lda     #$01                    ; $52 = viewport height ($2A or $26)
         sta     $10                     ; $10 = 1 (render one column)
         jsr     do_render_column        ; render current column
         jsr     task_yield              ; yield (NMI uploads to PPU)
-        pla
+        pla                             ; $2D = 0 (scroll progress within room)
         sec                             ; decrement counter
-        sbc     #$01
+        sbc     #$01                    ; load stage music ID from $CD0C table
         bne     frame_loop_render_columns_loop               ; loop until all 33 done
         jsr     load_stage              ; apply CHR/palette for this room
         lda     #$00                    ; suppress palette upload this frame
-        sta     palette_dirty
+        sta     palette_dirty           ; $31 = face right
         jsr     task_yield              ; yield to let NMI run
         jsr     fade_palette_out        ; fade screen to black
         lda     #$80                    ; spawn player at Y=$80 (mid-screen)
-        sta     ent_x_px
+        sta     ent_x_px                ; $24 = $1F (screen attribute pointer)
         jmp     game_entry_set_hp_scroll               ; → continue stage_init (Gemini scroll, fade-in)
 
 ; --- refill_all_ammo: fill all weapon ammo to $9C (full) ---
@@ -2474,30 +2474,30 @@ frame_loop_render_columns_loop:  pha                         ; save column count
 
         lda     $98
         and     #$03                    ; check if mode == 1 (refill)
-        cmp     #$01
+        cmp     #$01                    ; render current column
         bne     frame_loop_ammo_refill_exit               ; if not, skip
         ldy     #$0B                    ; fill $A2-$AD (12 ammo slots)
 frame_loop_ready_overlay_oam:  lda     #$9C                    ; all to $9C = full (28 units)
 frame_loop_ammo_refill_loop:  .byte   $99
-frame_loop_ready_sprite_table:  ldx     #$00
-        dey
-        bpl     frame_loop_ammo_refill_loop
+frame_loop_ready_sprite_table:  ldx     #$00 ; loop until all 33 done
+        dey                             ; apply CHR/palette for this room
+        bpl     frame_loop_ammo_refill_loop ; suppress palette upload this frame
 frame_loop_ammo_refill_exit:  .byte   $60
-frame_loop_ready_overlay_data:  .byte   $80
-rush_coil_dispatch_table:  .byte   $40
-rush_marine_dispatch_table:  .byte   $00
+frame_loop_ready_overlay_data:  .byte   $80 ; yield to let NMI run
+rush_coil_dispatch_table:  .byte   $40  ; fade screen to black
+rush_marine_dispatch_table:  .byte   $00 ; spawn player at Y=$80 (mid-screen)
 rush_jet_dispatch_table:  .byte   $6C,$80,$41,$00,$74,$80,$42,$00
-        .byte   $7C,$80,$43,$00,$84,$80,$44,$00
+        .byte   $7C,$80,$43,$00,$84,$80,$44,$00 ; → continue stage_init (Gemini scroll, fade-in)
         .byte   $8C
 frame_loop_stage_music_table:                                  ; stage music IDs (indexed by stage_id)
         .byte   MUSIC_NEEDLE,MUSIC_MAGNET,MUSIC_GEMINI,MUSIC_HARD
         .byte   MUSIC_TOP,MUSIC_SNAKE,MUSIC_SPARK,MUSIC_SHADOW
         .byte   MUSIC_NEEDLE,MUSIC_GEMINI,MUSIC_SPARK,MUSIC_SHADOW
-        .byte   MUSIC_WILY_1,MUSIC_WILY_1,MUSIC_WILY_2,MUSIC_WILY_2
+        .byte   MUSIC_WILY_1,MUSIC_WILY_1,MUSIC_WILY_2,MUSIC_WILY_2 ; check if mode == 1 (refill)
         .byte   MUSIC_WILY_3,MUSIC_WILY_3
-frame_loop_pause_permission:  .byte   $00,$00,$FF,$00,$FF,$00,$FF,$FF
-        .byte   $00,$FF,$00,$FF,$FF,$FF,$FF,$FF
-        .byte   $FF,$FF,$FF,$FF,$FF
+frame_loop_pause_permission:  .byte   $00,$00,$FF,$00,$FF,$00,$FF,$FF ; if not, skip
+        .byte   $00,$FF,$00,$FF,$FF,$FF,$FF,$FF ; fill $A2-$AD (12 ammo slots)
+        .byte   $FF,$FF,$FF,$FF,$FF     ; all to $9C = full (28 units)
         .byte   $FF
 
 ; ===========================================================================
@@ -2532,11 +2532,11 @@ prelude_invincibility_timer:  lda     invincibility_timer                 ; $39 
         bne     prelude_charge_shot_check               ; not expired → skip
         lda     ent_anim_frame                   ; clear animation lock (bit 7)
         and     #$7F                    ; when invincibility expires
-        sta     ent_anim_frame
+        sta     ent_anim_frame          ; preserve slide speed
 
 ; --- charge shot: Needle Cannon auto-fire ($1F counter) ---
 prelude_charge_shot_check:  lda     joy1_held                 ; B button held?
-        and     #BTN_B
+        and     #BTN_B                  ; reset walk speed to $01.4C
         bne     prelude_charge_increment               ; yes → increment charge
         lda     #$E0                    ; not held: reset charge to $E0
         sta     $1F                     ; (high value = "not charging")
@@ -2544,19 +2544,19 @@ prelude_charge_shot_check:  lda     joy1_held                 ; B button held?
 prelude_charge_increment:  lda     $1F                 ; increment charge counter by $20
         clc                             ; wraps to 0 after 8 increments
         adc     #$20
-        sta     $1F
+        sta     $1F                     ; X = 0 (player slot), clear collision entity
         bne     prelude_dispatch_state               ; not wrapped → dispatch state
         lda     current_weapon                     ; if weapon == $02 (Needle Cannon):
         cmp     #WPN_NEEDLE                    ; auto-fire when charge wraps
-        bne     prelude_dispatch_state
+        bne     prelude_dispatch_state  ; (platform_push handler)
         lda     joy1_press                     ; set B-button-pressed flag
         ora     #BTN_B                    ; (triggers weapon_fire in state handler)
-        sta     joy1_press
-prelude_dispatch_state:  ldy     player_state
+        sta     joy1_press              ; $39 = invincibility timer
+prelude_dispatch_state:  ldy     player_state ; zero → skip
         lda     player_state_ptr_lo,y                 ; grab player state
         sta     L0000                   ; index into state ptr tables
         lda     player_state_ptr_hi,y                 ; jump to address
-        sta     $01
+        sta     $01                     ; when invincibility expires
         jmp     (L0000)
 
 player_state_ptr_lo:  .byte   $36,$07,$FD,$EB,$BA,$13,$AB,$31 ; $02 player_slide
@@ -2565,36 +2565,36 @@ player_state_ptr_lo:  .byte   $36,$07,$FD,$EB,$BA,$13,$AB,$31 ; $02 player_slide
 player_state_ptr_hi:  .byte   $CE,$D0,$D3,$D4,$D5,$D6,$D6,$D8 ; $02
         .byte   $D8,$D9,$D9,$D9,$D9,$DB,$D7,$CD ; $0A
         .byte   $DD,$DD,$DE,$DF,$DF,$E0,$66,$61 ; $12
-        .byte   $E0,$CF,$CE
-        .byte   $CF
+        .byte   $E0,$CF,$CE             ; → dispatch state
+        .byte   $CF                     ; increment charge counter by $20
 
 ; player state $0F: frozen by external force (slam/grab/cutscene) [confirmed]
 ; Player cannot move. Gravity still applies (falls if airborne).
 ; Boss fight ($5A bit 7) freezes animation counter instead.
-player_stunned:
+player_stunned:                         ; if weapon == $02 (Needle Cannon):
         lda     boss_active                     ; if boss fight active: freeze animation
         bmi     prelude_stunned_freeze_anim
         ldy     #$00                    ; apply $99 + vertical collision
-        jsr     move_vertical_gravity
+        jsr     move_vertical_gravity   ; (triggers weapon_fire in state handler)
         bcc     prelude_stunned_done               ; not landed → done
         lda     #$01                    ; if landed and OAM != $01 (idle):
         cmp     ent_anim_id                   ; reset to idle animation
-        beq     prelude_stunned_done
-        jsr     reset_sprite_anim
+        beq     prelude_stunned_done    ; index into state ptr tables
+        jsr     reset_sprite_anim       ; jump to address
         lda     #$00                    ; clear shooting flag
         sta     walk_flag
 prelude_stunned_done:  rts
 
 prelude_stunned_freeze_anim:  lda     #$00                ; freeze anim counter (boss cutscene)
-        sta     ent_anim_frame
-        rts
+        sta     ent_anim_frame          ; $0A player_top_spin
+        rts                             ; $0E player_death
 
 ; --- platform_push: apply external velocity from moving platform ---
 ; $36 = push direction (bit 0: 1=right, 0=left)
 ; $37/$38 = push speed (sub/whole), applied as player X speed temporarily.
 
 prelude_platform_push_apply:  lda     ent_flags               ; save player sprite flags
-        pha
+        pha                             ; $12
         lda     ent_xvel_sub                   ; save player X speed (sub + whole)
         pha
         lda     ent_xvel
@@ -2608,8 +2608,8 @@ prelude_platform_push_apply:  lda     ent_flags               ; save player spri
         beq     prelude_platform_push_dir               ; otherwise Y = 0 (standing hitbox)
         ldy     #$00
 prelude_platform_push_dir:  lda     $36                 ; push direction: bit 0 = right
-        and     #$01
-        beq     prelude_platform_push_left
+        and     #$01                    ; if landed and OAM != $01 (idle):
+        beq     prelude_platform_push_left ; reset to idle animation
         jsr     move_right_collide      ; push right with collision
         jmp     prelude_platform_push_restore
 
@@ -2626,16 +2626,16 @@ prelude_platform_push_restore:  pla                         ; restore original X
         sta     L0000
         lda     ent_flags                   ; clear bit 6, then OR with saved
         and     #$BF
-        ora     L0000
+        ora     L0000                   ; save player X speed (sub + whole)
         sta     ent_flags
         lda     #$00                    ; clear platform push flag
         sta     $36
-prelude_exit:  rts
+prelude_exit:  rts                      ; apply platform push speed
 
 ; ===========================================================================
 ; player state $00: on ground — walk, jump, slide, shoot, Rush interaction
 ; ===========================================================================
-player_on_ground:
+player_on_ground:                       ; if sliding (state $02), use slide hitbox
 
         jsr     player_airborne         ; run $99/collision first
         bcc     prelude_exit               ; carry clear = still airborne → RTS
@@ -2648,7 +2648,7 @@ player_on_ground:
         cmp     #$11                    ; reset to idle animation
         bne     player_ground_rush_coil_check
         lda     #$01
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; restore original X speed
 player_ground_rush_coil_check:  ldy     $05C1                   ; slot 1 OAM ID >= $D7?
         cpy     #$D7                    ; (Rush Coil/Marine/Jet active)
         bcc     player_ground_normal_walk                   ; no → normal ground
@@ -2668,21 +2668,21 @@ player_ground_rush_coil_check:  ldy     $05C1                   ; slot 1 OAM ID 
         inc     jump_counter                     ; set forced-fall flag (no variable jump)
         lda     #$EE                    ; Y speed = $06.EE (slide jump velocity)
         sta     ent_yvel_sub                   ; strong upward bounce
-        lda     #$06
-        sta     ent_yvel
+        lda     #$06                    ; run gravity/collision first
+        sta     ent_yvel                ; carry clear = still airborne → RTS
         inc     $05A1                   ; mark bounce as triggered (one-shot)
         lda     #$3C                    ; slot 1 timer = 60 frames (Rush lingers)
-        sta     $0501
+        sta     $0501                   ; $5D = last collision entity slot
         lda     $0581                   ; clear slot 1 flag bit 0
-        and     #$FE
-        sta     $0581
+        and     #$FE                    ; not Rush → skip
+        sta     $0581                   ; if player OAM == $11 (damage flash):
         jsr     decrease_ammo_tick                   ; consume Rush Coil ammo
         jmp     player_airborne         ; → airborne state (bouncing up)
 
 player_ground_normal_walk:  lda     ent_anim_id
         cmp     #$10                    ; player sliding?
-        bne     player_ground_jump_or_slide
-        lda     joy1_press
+        bne     player_ground_jump_or_slide ; (Rush Coil/Marine/Jet active)
+        lda     joy1_press              ; no → normal ground
         and     #BTN_A                    ; if so,
         beq     prelude_exit               ; newpressing A
         lda     joy1_held                     ; and not holding down?
@@ -2701,31 +2701,31 @@ player_ground_jump_or_slide:  lda     joy1_press
 player_ground_normal_jump:  lda     $17                     ; check controller 2
         and     #$01                    ; holding Right for
         bne     player_ground_super_jump                   ; super jump
-        lda     #$E5
+        lda     #$E5                    ; mark bounce as triggered (one-shot)
         sta     ent_yvel_sub,x                 ; jump speed
         lda     #$04                    ; $04E5
-        sta     ent_yvel,x
+        sta     ent_yvel,x              ; clear slot 1 flag bit 0
         jmp     player_airborne
 
-player_ground_super_jump:  lda     #$00
+player_ground_super_jump:  lda     #$00 ; consume Rush Coil ammo
         sta     ent_yvel_sub                   ; super jump speed
         lda     #$08                    ; $0800
         sta     ent_yvel
-        jmp     player_airborne
+        jmp     player_airborne         ; player sliding?
 
 ; --- animation state dispatch: determine walk/idle animation ---
 ; OAM IDs: $04/$05 = shoot-walk, $0D/$0E/$0F = special walk anims
 
 player_ground_anim_dispatch:  lda     ent_anim_id               ; check current player OAM
         cmp     #$04                    ; $04/$05 = shoot-walk anims
-        beq     player_ground_shoot_walk
-        cmp     #$05
+        beq     player_ground_shoot_walk ; return (no slide)
+        cmp     #$05                    ; initiate slide
         beq     player_ground_shoot_walk
         cmp     #$0D                    ; $0D/$0E/$0F = turning/special anims
         beq     player_ground_special_anim               ; → check if anim complete
-        cmp     #$0E
-        beq     player_ground_special_anim
-        cmp     #$0F
+        cmp     #$0E                    ; and not holding down
+        beq     player_ground_special_anim ; means jumping
+        cmp     #$0F                    ; holding down → slide instead
         bne     player_ground_walk_handler               ; other → normal walk handler
 player_ground_special_anim:  lda     ent_anim_state               ; if special anim still playing:
         bne     player_ground_walk_handler               ; → normal walk handler
@@ -2733,7 +2733,7 @@ player_ground_special_anim:  lda     ent_anim_state               ; if special a
 
 ; --- shoot-walk: continue walking in facing direction ---
 player_ground_shoot_walk:  lda     joy1_held                 ; D-pad matches facing direction?
-        and     player_facing
+        and     player_facing           ; jump speed
         beq     player_ground_turning_anim               ; no → turning animation
         pha
         jsr     player_ground_slide_weapon               ; slide/crouch check
@@ -2748,26 +2748,26 @@ player_ground_turning_anim:  lda     #$0D                ; OAM $0D = turning ani
         beq     player_ground_move_facing
         jsr     shoot_oam_advance_variant
 player_ground_move_facing:  lda     player_facing                 ; move in facing direction
-        jmp     player_ground_move_horizontal
+        jmp     player_ground_move_horizontal ; $04/$05 = shoot-walk anims
 
 ; --- normal walk handler: D-pad L/R → walk, else idle ---
 
 player_ground_walk_handler:  lda     joy1_held                 ; D-pad L/R held?
-        and     #$03
+        and     #$03                    ; → check if anim complete
         beq     player_ground_idle               ; no → idle
         sta     player_facing                     ; update facing direction
         jsr     player_ground_slide_weapon               ; slide/crouch check
         lda     ent_anim_id                   ; if OAM is $0D/$0E/$0F:
         cmp     #$0D                    ; use shoot-walk animation
-        beq     player_ground_shoot_walk_anim
-        cmp     #$0E
+        beq     player_ground_shoot_walk_anim ; → normal walk handler
+        cmp     #$0E                    ; anim done → slide/crouch check
         beq     player_ground_shoot_walk_anim
         cmp     #$0F
         bne     player_ground_turning_anim               ; else → turning animation
 
 ; --- shoot-walk animation: OAM $04 + check weapon-specific override ---
 player_ground_shoot_walk_anim:  lda     #$04                ; OAM $04 = shoot-walk
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; slide/crouch check
         lda     player_facing                     ; A = facing direction
         ldy     walk_flag                     ; if not shooting: just move
         beq     player_ground_move_horizontal
@@ -2775,7 +2775,7 @@ player_ground_shoot_walk_anim:  lda     #$04                ; OAM $04 = shoot-wa
         ldy     current_weapon                     ; if weapon == $04 (Magnet Missile):
         cmp     #$04                    ; use special OAM $AA
         bne     player_ground_move_horizontal
-        ldy     #$AA
+        ldy     #$AA                    ; if shooting: update shoot-walk anim
         sta     ent_anim_id
 
 ; --- move_horizontal: move player L/R based on direction in A ---
@@ -2783,10 +2783,10 @@ player_ground_shoot_walk_anim:  lda     #$04                ; OAM $04 = shoot-wa
 player_ground_move_horizontal:  and     #$01                ; bit 0: right?
         beq     player_ground_move_left
         ldy     #$00                    ; move right with collision
-        jmp     move_right_collide
+        jmp     move_right_collide      ; D-pad L/R held?
 
 player_ground_move_left:  ldy     #$01                ; move left with collision
-        jmp     move_left_collide
+        jmp     move_left_collide       ; update facing direction
 
 ; --- idle: no D-pad input → check if need to reset animation ---
 
@@ -2794,16 +2794,16 @@ player_ground_idle:  lda     walk_flag                 ; if shooting: skip idle 
         bne     player_ground_slide_weapon
         lda     #$01                    ; if already OAM $01 (idle): skip
         cmp     ent_anim_id
-        beq     player_ground_slide_weapon
+        beq     player_ground_slide_weapon ; else → turning animation
         jsr     reset_sprite_anim       ; set OAM to $01 (idle standing)
 
 ; --- common ground exit: check slide/crouch + B button ---
 player_ground_slide_weapon:  jsr     shoot_timer_tick_dec           ; slide/crouch/ladder input check
         lda     joy1_press                     ; B button pressed → fire weapon
-        and     #BTN_B
+        and     #BTN_B                  ; if not shooting: just move
         beq     player_ground_exit
-        jsr     weapon_fire
-player_ground_exit:  rts
+        jsr     weapon_fire             ; update shoot animation
+player_ground_exit:  rts                ; if weapon == $04 (Magnet Missile):
 
 ; --- DEAD CODE: unreachable block at $1ECF66 ---
 ; No references to this address exist in any bank — unreachable dead code.
@@ -2813,15 +2813,15 @@ player_ground_exit:  rts
         jsr     decrease_ammo_tick                   ; decrease Rush ammo
         lda     #$82                    ; set slot 1 (Rush) main routine = $82
         cmp     $0321                   ; (skip if already $82)
-        beq     dead_code_rush_marine_jump
+        beq     dead_code_rush_marine_jump ; move right with collision
         sta     $0321
         lda     $05E1                   ; reset slot 1 animation
-        and     #$7F
+        and     #$7F                    ; move left with collision
         sta     $05E1
 dead_code_rush_marine_jump:  lda     joy1_press                 ; A button → jump
         and     #BTN_A
         beq     dead_code_rush_marine_walk
-        jmp     player_ground_normal_jump
+        jmp     player_ground_normal_jump ; if shooting: skip idle anim reset
 
 dead_code_rush_marine_walk:  lda     joy1_held                 ; D-pad L/R → walk
         and     #$03
@@ -2829,7 +2829,7 @@ dead_code_rush_marine_walk:  lda     joy1_held                 ; D-pad L/R → w
         sta     player_facing                     ; update facing direction
         jsr     player_ground_move_horizontal               ; move L/R with collision
         lda     #$01                    ; reset to walk animation
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; slide/crouch/ladder input check
         lda     walk_flag                     ; if shooting: update shoot-walk anim
         beq     dead_code_rush_marine_climb
         jsr     shoot_oam_advance_variant
@@ -2842,26 +2842,26 @@ dead_code_rush_marine_climb:  lda     joy1_held                 ; D-pad U/D → 
         lda     #$01
         sta     ent_yvel,x
         pla                             ; bit 3 = up?
-        and     #$08
+        and     #$08                    ; set slot 1 (Rush) main routine = $82
         beq     dead_code_rush_marine_down               ; no → move down
         ldy     #$01                    ; move up with collision
         jsr     move_up_collide
         lda     #$0C                    ; clamp player Y >= $0C (top boundary)
         cmp     ent_y_px
         bcc     dead_code_rush_marine_sync
-        sta     ent_y_px
+        sta     ent_y_px                ; A button → jump
         bcs     dead_code_rush_marine_sync               ; always branches
 dead_code_rush_marine_down:  ldy     #$07                ; move down with collision
         jsr     move_down_collide
 dead_code_rush_marine_sync:  lda     ent_y_px               ; slot 1 Y = player Y + $0E
         clc                             ; (Rush sits 14px below player)
         adc     #$0E
-        sta     $03C1
+        sta     $03C1                   ; no horizontal input
         jsr     reset_gravity           ; clear $99 after manual climb
 dead_code_rush_marine_shoot:  jsr     shoot_timer_tick_dec           ; process slide/crouch input
         lda     joy1_press                     ; B button → fire weapon
         and     #BTN_B
-        beq     dead_code_rush_marine_exit
+        beq     dead_code_rush_marine_exit ; if shooting: update shoot-walk anim
         jsr     weapon_fire
 dead_code_rush_marine_exit:  rts
 
@@ -2872,17 +2872,17 @@ dead_code_rush_marine_exit:  rts
         lda     $0361                   ; player X = Rush X (slot 1)
         sta     ent_x_px
         lda     $0381
-        sta     ent_x_scr
+        sta     ent_x_scr               ; bit 3 = up?
         lda     $03C1                   ; player Y = Rush Y
-        sta     ent_y_px
+        sta     ent_y_px                ; no → move down
         lda     #$00                    ; deactivate slot 1 (Rush entity)
         sta     $0301
         lda     #$05                    ; $EB = CHR page 5 (Rush Marine tiles)
         sta     $EB
         jsr     update_CHR_banks
         lda     #PSTATE_RUSH_MARINE                    ; $30 = $08 (player state = Rush Marine)
-        sta     player_state
-        lda     #$DA
+        sta     player_state            ; always branches
+        lda     #$DA                    ; move down with collision
         jmp     reset_sprite_anim
 
 ; player state $01: jumping/falling, variable jump
@@ -2919,7 +2919,7 @@ player_airborne_wall_check:  ldy     #$06                ; check horizontal tile
         bne     player_airborne_landing_check               ; already spawned → skip
         inc     $BA                     ; mark dust as spawned
         lda     #SFX_LAND_ALT                    ; play landing sound effect
-        jsr     submit_sound_ID
+        jsr     submit_sound_ID         ; variable jump check
 
 ; spawn landing dust cloud in slot 4 (visual effect slot)
         lda     #$80                    ; activate slot 4
@@ -2930,16 +2930,16 @@ player_airborne_wall_check:  ldy     #$06                ; check horizontal tile
         lda     #$68
         jsr     reset_sprite_anim
         lda     ent_x_px                   ; copy player X position to dust
-        sta     $0364
-        lda     ent_x_scr
-        sta     $0384
+        sta     $0364                   ; check horizontal tile collision
+        lda     ent_x_scr               ; (Y=6: check at foot height)
+        sta     $0384                   ; save collision result in $0F
         lda     ent_y_px                   ; dust Y = player Y snapped to tile top - 8
         and     #$F0                    ; (align to 16px grid, then 8px up)
-        sec
-        sbc     #$08
+        sec                             ; carry = landed on ground
+        sbc     #$08                    ; save carry (landing status)
         sta     $03C4
         lda     ent_y_scr                   ; copy player Y screen to dust
-        sta     $03E4
+        sta     $03E4                   ; $0F == $80 → landed on solid ground
         ldx     #$00                    ; restore X = 0 (player slot)
         stx     $0484                   ; dust damage flags = 0 (no collision)
         stx     $0324                   ; dust main routine = 0
@@ -2947,42 +2947,42 @@ player_airborne_wall_check:  ldy     #$06                ; check horizontal tile
 
 ; --- not landed: reset dust state ---
 player_airborne_dust_clear:  lda     #$00                ; clear dust spawn flag and cooldown
-        sta     $BA
-        sta     $B9
+        sta     $BA                     ; already spawned → skip
+        sta     $B9                     ; mark dust as spawned
 player_airborne_landing_check:  plp                         ; restore carry (landing status)
         jsr     ladder_check_entry_ground               ; check if player should enter ladder
         bcc     player_airborne_state_dispatch               ; carry clear = no ladder → continue airborne
 
 ; --- player landed on ground → transition to on_ground ---
         lda     player_state                     ; if already state $00: skip transition
-        beq     player_airborne_landing_anim
+        beq     player_airborne_landing_anim ; copy player sprite flags to dust
         lda     #SFX_LAND                    ; play landing sound
-        jsr     submit_sound_ID
+        jsr     submit_sound_ID         ; slot 4: OAM $68 = landing dust animation
         lda     #$00                    ; $30 = 0 (state = on_ground)
         sta     player_state
         lda     #$0D                    ; OAM $0D = landing animation
         jsr     reset_sprite_anim
         inc     ent_anim_state                   ; advance animation frame
         lda     walk_flag                     ; if shooting: set shoot OAM variant
-        beq     player_airborne_landing_anim
-        jsr     shoot_oam_advance_variant
+        beq     player_airborne_landing_anim ; dust Y = player Y snapped to tile top - 8
+        jsr     shoot_oam_advance_variant ; (align to 16px grid, then 8px up)
 player_airborne_landing_anim:  rts
 
 ; --- still airborne: dispatch by current state ---
 
 player_airborne_state_dispatch:  lda     player_state                 ; if on ladder (state $03): just return
-        cmp     #PSTATE_LADDER
-        beq     player_airborne_exit
+        cmp     #PSTATE_LADDER          ; restore X = 0 (player slot)
+        beq     player_airborne_exit    ; dust damage flags = 0 (no collision)
         cmp     #PSTATE_AIRBORNE                    ; if already airborne: walk+shoot
-        beq     player_airborne_walk_shoot
+        beq     player_airborne_walk_shoot ; always branches (X=0)
 
 ; --- first airborne frame: set jump animation ---
         lda     #$07                    ; OAM $07 = jump/fall animation
         jsr     reset_sprite_anim
         lda     #PSTATE_AIRBORNE                    ; $30 = 1 (state = airborne)
-        sta     player_state
+        sta     player_state            ; restore carry (landing status)
         lda     walk_flag                     ; if shooting: set shoot OAM variant
-        beq     player_airborne_walk_shoot
+        beq     player_airborne_walk_shoot ; carry clear = no ladder → continue airborne
         jsr     shoot_oam_advance_variant
 
 ; --- horizontal_walk_and_shoot: D-pad L/R + B button + shoot timer ---
@@ -2994,7 +2994,7 @@ player_airborne_walk_shoot:  lda     joy1_held                 ; D-pad L/R held?
         jsr     player_ground_move_horizontal               ; move L/R with collision
 player_airborne_shoot_check:  jsr     shoot_timer_tick_dec           ; shoot timer tick
         lda     joy1_press                     ; B button pressed → fire weapon
-        and     #BTN_B
+        and     #BTN_B                  ; if shooting: set shoot OAM variant
         beq     player_airborne_exit
         jsr     weapon_fire
 player_airborne_exit:  clc                         ; carry clear = still airborne (for caller)
@@ -3012,7 +3012,7 @@ weapon_fire:  ldy     current_weapon
 weapon_fire_find_slot_loop:  lda     ent_status,y
         bpl     weapon_fire_decrease_ammo                   ; check free slot for weapons
         dey                             ; by ent_status,x active table
-        bne     weapon_fire_find_slot_loop
+        bne     weapon_fire_find_slot_loop ; if shooting: set shoot OAM variant
         beq     init_weapon_no_free_slots                   ; no free slots, return
 weapon_fire_decrease_ammo:  ldy     current_weapon                     ; decrease ammo
         jsr     decrease_ammo
@@ -3020,11 +3020,11 @@ weapon_fire_decrease_ammo:  ldy     current_weapon                     ; decreas
         sta     L0000                   ; jump to weapon init
         lda     weapon_init_ptr_hi,y    ; routine to spawn
         sta     $01                     ; the shot sprite
-        jmp     (L0000)
+        jmp     (L0000)                 ; no → skip walk
 
 ; common weapon init routine: spawns the shot
 
-init_weapon:  lda     walk_flag
+init_weapon:  lda     walk_flag         ; B button pressed → fire weapon
         bne     init_weapon_anim_check
         jsr     shoot_oam_advance_variant
 init_weapon_anim_check:  lda     ent_anim_id
@@ -3038,18 +3038,18 @@ init_weapon_anim_check:  lda     ent_anim_id
         sta     ent_anim_state                   ; reset Mega Man animation
         sta     ent_anim_frame                   ; to $00 frame & timer
 init_weapon_set_shooting:  lda     #$10
-        sta     walk_flag
+        sta     walk_flag               ; Y = starting loop index
         ldy     current_weapon                     ; use max shot value as
         lda     weapon_max_shots,y      ; max slot to start loop
-        tay
-init_weapon_find_slot_loop:  lda     ent_status,y
+        tay                             ; check free slot for weapons
+init_weapon_find_slot_loop:  lda     ent_status,y ; by $0300,x active table
         bpl     init_weapon_spawn_shot                   ; check free slot for weapons
         dey                             ; by ent_status,x active table
-        bne     init_weapon_find_slot_loop
+        bne     init_weapon_find_slot_loop ; decrease ammo
         clc                             ; no free slots, return carry off
 init_weapon_no_free_slots:  rts
 
-init_weapon_spawn_shot:  ldx     current_weapon
+init_weapon_spawn_shot:  ldx     current_weapon ; routine to spawn
         lda     weapon_fire_sound,x     ; play weapon sound effect
         jsr     submit_sound_ID
         ldx     #$00                    ; X=0 (player slot)
@@ -3059,13 +3059,13 @@ init_weapon_spawn_shot:  ldx     current_weapon
         ror     a                       ; to sprite flags bit 6 (H-flip)
         ror     a                       ; $01→ROR³→$00→AND=$00 (right)
         ror     a                       ; $02→ROR³→$40→AND=$40 (left=flip)
-        and     #$40
+        and     #$40                    ; if Mega Man OAM ID
         ora     #$90                    ; bits: $80=drawn, $10=child spawn
         sta     ent_flags,y
         lda     #$00
         sta     ent_xvel_sub,y                 ; default weapon X speed:
         lda     #$04                    ; 4 pixels per frame
-        sta     ent_xvel,y
+        sta     ent_xvel,y              ; any other ID
         lda     player_facing                     ; set L/R facing of shot
         sta     ent_facing,y                 ; = player facing
         and     #$02
@@ -3074,35 +3074,35 @@ init_weapon_spawn_shot:  ldx     current_weapon
         clc                             ; based on player facing
         adc     weapon_x_offset,x       ; weapon X = player X + offset
         sta     ent_x_px,y
-        lda     ent_x_scr
-        adc     weapon_x_offset_right_lo,x
+        lda     ent_x_scr               ; check free slot for weapons
+        adc     weapon_x_offset_right_lo,x ; by $0300,x active table
         sta     ent_x_scr,y
-        lda     ent_y_px
+        lda     ent_y_px                ; no free slots, return carry off
         sta     ent_y_px,y                 ; weapon Y = player Y
         lda     ent_y_scr
         sta     ent_y_scr,y
-        lda     #$00
+        lda     #$00                    ; play weapon sound effect
         sta     ent_hitbox,y                 ; clear animation, hitbox,
         sta     ent_anim_state,y                 ; wildcard & X subpixel
-        sta     ent_anim_frame,y
+        sta     ent_anim_frame,y        ; activate weapon slot
         sta     ent_x_sub,y
-        sta     ent_timer,y
-        ldx     current_weapon
+        sta     ent_timer,y             ; convert facing ($31: 1=R, 2=L)
+        ldx     current_weapon          ; to sprite flags bit 6 (H-flip)
         lda     weapon_OAM_ID,x         ; set OAM & main
         sta     ent_anim_id,y                 ; ID's for weapon
         lda     weapon_main_ID,x
-        sta     ent_routine,y
+        sta     ent_routine,y           ; bits: $80=drawn, $10=child spawn
         inc     $3B                     ; $3B++ (shot parity counter)
         ldx     #$00                    ; restore X=0 (player slot)
         sec                             ; carry set = weapon spawned OK
-        rts
+        rts                             ; 4 pixels per frame
 
 ; ===========================================================================
 ; init_rush — spawn Rush entity (Coil/Marine/Jet) in slot 1
 ; ===========================================================================
 ; Checks if Rush can be summoned (player OAM < $D7, drawn, slot 1 free).
 ; If not, falls through to init_weapon for normal weapon fire.
-init_rush:
+init_rush:                              ; based on player facing
 
         lda     ent_anim_id                   ; if player OAM ID >= $D7 (Rush already active):
         cmp     #$D7                    ; can't spawn another Rush
@@ -3119,12 +3119,12 @@ init_rush_spawn_entity:  ldy     #$01                ; spawn entity $13 (Rush) i
         lda     #$13
         jsr     init_child_entity
         lda     #$00                    ; Rush Y position = 0 (will land via $99)
-        sta     $03C1
+        sta     $03C1                   ; set OAM & main
         sta     $03E1                   ; Rush Y screen = 0
         lda     #$11                    ; $0481 = $11 (Rush damage/collision flags)
         sta     $0481
         lda     player_facing                     ; copy player facing to Rush ($04A1)
-        sta     $04A1
+        sta     $04A1                   ; restore X=0 (player slot)
         and     #$02                    ; X = 0 if facing right, 2 if facing left
         tax                             ; (bit 1 of $31: 1=R has bit1=0, 2=L has bit1=1)
         lda     ent_x_px                   ; Rush X = player X + directional offset
@@ -3135,13 +3135,13 @@ init_rush_spawn_entity:  ldy     #$01                ; spawn entity $13 (Rush) i
         adc     weapon_x_offset_left_lo,x
         sta     $0381
         lda     #$80                    ; set Rush main routine = $80 (active)
-        sta     ent_routine,y
+        sta     ent_routine,y           ; if player OAM ID >= $D7 (Rush already active):
         lda     #$AB                    ; Rush Y speed = $FF.AB (slight downward drift)
-        sta     $0441
-        lda     #$FF
-        sta     $0461
+        sta     $0441                   ; → try normal weapon instead
+        lda     #$FF                    ; if player not drawn (bit 7 clear):
+        sta     $0461                   ; abort (RTS)
         ldx     #$00                    ; restore X = 0 (player slot)
-init_rush_exit:  rts
+init_rush_exit:  rts                    ; slot free → spawn Rush
 
 ; --- init_needle_cannon: fire needle shot with vertical offset ---
 ; Alternates Y offset based on $3B bit 0 (shot parity).
@@ -3151,27 +3151,27 @@ init_needle_cannon:
         bcc     init_needle_cannon_exit               ; carry clear = spawn failed
         lda     $3B                     ; $3B bit 0 = shot parity (alternates 0/1)
         and     #$01
-        tax
+        tax                             ; Rush Y screen = 0
         lda     ent_y_px,y                 ; offset shot Y by table value at $D33B
         clc                             ; (two entries: even/odd shot offset)
-        adc     weapon_max_shots_table,x
+        adc     weapon_max_shots_table,x ; copy player facing to Rush ($04A1)
         sta     ent_y_px,y
         ldx     #$00                    ; restore X = 0 (player slot)
-init_needle_cannon_exit:  rts
-init_gemini_laser:
+init_needle_cannon_exit:  rts           ; (bit 1 of $31: 1=R has bit1=0, 2=L has bit1=1)
+init_gemini_laser:                      ; Rush X = player X + directional offset
 
         jsr     init_weapon
         bcc     init_gemini_laser_exit
-        iny
+        iny                             ; Rush X screen = player X screen + carry
         jsr     init_weapon_spawn_shot                   ; spawn 2 more shots
         iny                             ; uses all 3 slots
-        jsr     init_weapon_spawn_shot
+        jsr     init_weapon_spawn_shot  ; set Rush main routine = $80 (active)
         lda     #$B4
         sta     $0501                   ; store $B4
         sta     $0502                   ; wildcard 1
         sta     $0503                   ; all 3 slots
         lda     #$00
-        sta     $0441
+        sta     $0441                   ; restore X = 0 (player slot)
         sta     $0442                   ; clear Y speeds
         sta     $0443                   ; all 3 slots
         sta     $0461
@@ -3211,7 +3211,7 @@ init_hard_knuckle:
 init_hard_knuckle_ladder:  lda     #$00                ; zero X/Y speeds for slot 1
         sta     $0401                   ; (Hard Knuckle starts stationary,
         sta     $0421                   ; player steers it with D-pad)
-        sta     $0461
+        sta     $0461                   ; store into all three X slots
         lda     #$80                    ; Y speed sub = $80
         sta     $0441                   ; (initial Y drift: $00.80 = 0.5 px/f)
         inc     $05E1                   ; bump anim frame (force sprite update)
@@ -3225,15 +3225,15 @@ init_hard_knuckle_exit:  .byte   $60
 
 ; Hard Knuckle OAM IDs per player state ($30=0..3)
 ; $AA=ground, $AB=air, $00=skip(slide), $AD=ladder
-init_hard_knuckle_oam_table:  .byte   $AA,$AB,$00,$AD
-init_hard_knuckle_offset_table:  .byte   $01,$07,$00,$0A,$FC,$FF
+init_hard_knuckle_oam_table:  .byte   $AA,$AB,$00,$AD ; if so, can't fire
+init_hard_knuckle_offset_table:  .byte   $01,$07,$00,$0A,$FC,$FF ; player state >= $04 (reappear etc)?
         .byte   $04
-        brk
-init_top_spin:
-        lda     player_state
+        brk                             ; can't fire in those states
+init_top_spin:                          ; OAM ID for this state ($00 = skip)
+        lda     player_state            ; state $02(slide): no Hard Knuckle
         cmp     #PSTATE_AIRBORNE                    ; if player not in air,
         bne     init_top_spin_exit                   ; return
-        lda     #$A3
+        lda     #$A3                    ; and set player animation to it
         cmp     ent_anim_id                   ; if Mega Man already spinning,
         beq     init_top_spin_exit                   ; return
         jsr     reset_sprite_anim       ; else set animation to spin
@@ -3245,12 +3245,12 @@ init_top_spin:
 ; ===========================================================================
 ; Spawns snake projectile. X speed = $01.00 (1 px/f), Y speed = $03.44
 ; (drops at ~3.27 px/f to find floor). AI routine $13 handles wall-crawling.
-init_search_snake:
+init_search_snake:                      ; bump anim frame (force sprite update)
 
         jsr     init_weapon             ; spawn weapon; carry set = success
         bcc     init_top_spin_exit                   ; no free slot → return
         lda     #$44                    ; Y speed sub = $44
-        sta     ent_yvel_sub,y
+        sta     ent_yvel_sub,y          ; set player state $0B = hard_knuckle_ride
         lda     #$03                    ; Y speed whole = $03 (drop fast)
         sta     ent_yvel,y
         lda     #$00                    ; X speed sub = $00
@@ -3267,7 +3267,7 @@ init_top_spin_exit:  rts
 ; D-pad direction stored in ent_facing (bits: up=$08, down=$02, right=$01).
 ; If no D-pad held, ent_facing=0 → blade fires horizontally (facing direction).
 ; X speed $04.00 (4 px/f). Copies player position to blade (spawns at player).
-init_shadow_blade:
+init_shadow_blade:                      ; return
 
         jsr     init_weapon             ; spawn weapon; carry set = success
         bcc     shadow_blade_init_exit               ; no free slot → return
@@ -3280,14 +3280,14 @@ shadow_blade_init_dir:  lda     #$00                ; Y speed sub = $00
         lda     #$04                    ; X speed whole = $04 (4 px/f)
         sta     ent_yvel,y
         lda     #$14                    ; AI routine = $14 (shadow blade)
-        sta     ent_timer,y
+        sta     ent_timer,y             ; no free slot → return
         lda     ent_x_px,x                 ; copy player X position to blade
         sta     ent_x_px,y
         lda     ent_x_scr,x                 ; copy player X screen to blade
         sta     ent_x_scr,y
         lda     ent_y_px,x                 ; copy player Y position to blade
         sta     ent_y_px,y
-shadow_blade_init_exit:  .byte   $60
+shadow_blade_init_exit:  .byte   $60    ; X speed whole = $01 (1 px/f forward)
 
 ; routine pointers for weapon init upon firing
 weapon_init_ptr_lo:  .byte   $03,$12,$FB,$4D,$03,$9F,$B4,$A6 ; Mega Buster
@@ -3301,30 +3301,30 @@ weapon_init_ptr_hi:  .byte   $D1,$D2,$D1,$D2,$D1,$D2,$D2,$D1 ; Mega Buster
 weapon_x_offset:  .byte   $0F
 weapon_x_offset_right_lo:  .byte   $00,$F0,$FF
 weapon_x_offset_right_hi:  .byte   $17
-weapon_x_offset_left_lo:  .byte   $00,$E8,$FF
+weapon_x_offset_left_lo:  .byte   $00,$E8,$FF ; spawn weapon; carry set = success
 weapon_OAM_ID:  .byte   $18,$9F,$A2,$AC,$97,$18,$A5,$18 ; Mega Buster
         .byte   $9C,$18,$9E,$18         ; Spark Shock
 weapon_main_ID:  .byte   $01,$84,$01,$85,$83,$01,$86,$01 ; Mega Buster
         .byte   $87,$01,$88,$01         ; Spark Shock
-weapon_max_shots_table:  .byte   $FE,$02
+weapon_max_shots_table:  .byte   $FE,$02 ; store throw direction for AI
 
 ; maximum # of shots on screen at once
 weapon_max_shots:  .byte   $03,$01,$03,$01,$02,$00,$03,$03 ; Mega Buster
         .byte   $02,$03,$01,$03         ; Spark Shock
 
 ; sound ID played on weapon fire (indexed by current_weapon)
-weapon_fire_sound:
+weapon_fire_sound:                      ; copy player X position to blade
         .byte   SFX_BUSTER,SFX_GEMINI_FIRE,SFX_BUSTER,SFX_BUSTER
-        .byte   SFX_MAGNET_FIRE,SFX_TOP_SPIN,SFX_BUSTER,SFX_BUSTER
+        .byte   SFX_MAGNET_FIRE,SFX_TOP_SPIN,SFX_BUSTER,SFX_BUSTER ; copy player X screen to blade
         .byte   SFX_SPARK_FIRE,SFX_BUSTER
-        .byte   SFX_SHADOW_FIRE
+        .byte   SFX_SHADOW_FIRE         ; copy player Y position to blade
         .byte   SFX_BUSTER
 
 ; --- shoot_timer_tick: decrement shoot timer, end shoot animation when done ---
 ; $32 = shoot animation timer. When it reaches 0, revert OAM to non-shoot variant.
 ; OAM IDs for shooting are base+1 (or +2 for Shadow Blade $0A).
 shoot_timer_tick_dec:  lda     walk_flag                 ; if not shooting: return
-        beq     shoot_timer_tick_return
+        beq     shoot_timer_tick_return ; Spark Shock
         dec     walk_flag                     ; decrement timer
         bne     shoot_timer_tick_return               ; not done → return
         jsr     shoot_oam_revert_variant               ; revert OAM from shoot variant
@@ -3346,16 +3346,16 @@ shoot_oam_advance_variant:  pha                         ; preserve A
         bne     shoot_oam_advance_return
         inc     ent_anim_id
 shoot_oam_advance_return:  pla                         ; restore A
-        rts
+        rts                             ; Magnet Missile
 
 ; --- revert_shoot_oam: reverse OAM from shooting variant ---
 
 shoot_oam_revert_variant:  pha
         dec     ent_anim_id                   ; OAM -= 1
         lda     current_weapon                     ; if Shadow Blade: OAM -= 2
-        cmp     #WPN_SHADOW
-        bne     shoot_oam_revert_return
-        dec     ent_anim_id
+        cmp     #WPN_SHADOW             ; Spark Shock
+        bne     shoot_oam_revert_return ; Shadow Blade
+        dec     ent_anim_id             ; Rush Jet
 shoot_oam_revert_return:  pla
         rts
 
@@ -3388,8 +3388,8 @@ slide_initiate_confirmed:  lda     #PSTATE_SLIDE                    ; state $02 
         jsr     reset_sprite_anim
         lda     ent_y_px                   ; player Y += 2 (crouch posture)
         clc
-        adc     #$02
-        sta     ent_y_px
+        adc     #$02                    ; OAM -= 1
+        sta     ent_y_px                ; if Shadow Blade: OAM -= 2
         lda     #$80                    ; X speed = $02.80 = 2.5 px/frame
         sta     ent_xvel_sub                   ; (sub-pixel)
         lda     #$02                    ; (whole)
@@ -3400,15 +3400,15 @@ slide_initiate_confirmed:  lda     #PSTATE_SLIDE                    ; state $02 
         sta     $0584
         ldx     #$04                    ; slot 4: OAM anim $17 = slide dust
         lda     #$17
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; read D-pad state
         lda     ent_x_px                   ; copy player position to slot 4
         sta     $0364                   ; X pixel
         lda     ent_x_scr                   ; X screen
-        sta     $0384
+        sta     $0384                   ; Y=4 (check right) or Y=5 (check left)
         lda     ent_y_px                   ; Y pixel
-        sta     $03C4
+        sta     $03C4                   ; bit 0 = right
         lda     ent_y_scr                   ; Y screen
-        sta     $03E4
+        sta     $03E4                   ; facing left → Y=5
         ldx     #$00                    ; restore X to player slot
         stx     $0484                   ; slot 4 damage flags = 0 (harmless)
         stx     $0324                   ; slot 4 main routine = 0 (no AI)
@@ -3423,23 +3423,23 @@ player_slide:
         jsr     move_vertical_gravity
         bcc     slide_end_clear_state               ; C=0 → no ground, fell off ledge
         lda     joy1_held                     ; D-pad left/right
-        and     #$03
+        and     #$03                    ; player Y += 2 (crouch posture)
         beq     slide_move_check_facing               ; no direction → keep sliding
         cmp     player_facing                     ; same as current facing?
         beq     slide_move_check_facing               ; yes → keep sliding
         sta     player_facing                     ; changed direction → end slide
-        bne     slide_end_ground_check
+        bne     slide_end_ground_check  ; (sub-pixel)
 slide_move_check_facing:  lda     player_facing                 ; facing direction: bit 0 = right
         and     #$01
-        beq     slide_move_left_setup
+        beq     slide_move_left_setup   ; slot 4 active flag = $80
         ldy     #$02                    ; slide right
-        jsr     move_right_collide
+        jsr     move_right_collide      ; copy player facing to slot 4
         jmp     slide_collision_wall_solid
 
 slide_move_left_setup:  ldy     #$03                ; slide left
         jsr     move_left_collide
 slide_collision_wall_solid:  lda     $10                 ; hit a wall?
-        and     #$10
+        and     #$10                    ; X pixel
         bne     slide_end_ground_check               ; yes → end slide
         lda     $33                     ; timer expired?
         beq     slide_end_ground_check               ; yes → end slide
@@ -3448,7 +3448,7 @@ slide_collision_wall_solid:  lda     $10                 ; hit a wall?
         cmp     #$0C
         bcs     slide_continue_moving               ; yes → uncancellable, keep sliding
         lda     joy1_press                     ; A button pressed? (cancellable phase)
-        and     #BTN_A
+        and     #BTN_A                  ; slot 4 main routine = 0 (no AI)
         bne     slide_end_ground_check               ; yes → cancel into slide jump
 slide_continue_moving:  rts
 
@@ -3456,34 +3456,34 @@ slide_continue_moving:  rts
 ; Checks if grounded: on ground → standing. Airborne + A → slide jump. Else → fall.
 
 slide_end_ground_check:  ldy     #$01                ; check ground at standing height
-        jsr     check_tile_horiz
+        jsr     check_tile_horiz        ; apply gravity (Y=2 = slide hitbox)
         lda     $10                     ; solid ground under feet?
-        and     #$10
+        and     #$10                    ; C=0 → no ground, fell off ledge
         bne     slide_end_on_ground_return               ; on ground → return to standing
         sta     $33                     ; clear timer and state
-        sta     player_state
+        sta     player_state            ; no direction → keep sliding
         lda     joy1_press                     ; A button held?
-        and     #BTN_A
+        and     #BTN_A                  ; yes → keep sliding
         bne     slide_jump_walk_speed_init               ; yes → slide jump
         beq     slide_end_fall_anim               ; no → fall from slide
 slide_end_clear_state:  lda     #$00                ; clear timer
         sta     $33
         lda     #$01                    ; OAM anim $01 = airborne
-        bne     slide_end_anim_set
+        bne     slide_end_anim_set      ; slide right
 slide_end_fall_anim:  lda     #$04                ; OAM anim $04 = jump/fall
 slide_end_anim_set:  jsr     reset_sprite_anim
         lda     #$4C                    ; walk speed X = $01.4C (decelerate
         sta     ent_xvel_sub                   ; from slide 2.5 to walk 1.297)
         lda     #$01
-        sta     ent_xvel
+        sta     ent_xvel                ; hit a wall?
         lda     #$00                    ; state $00 = on_ground (will fall)
-        sta     player_state
-slide_end_on_ground_return:  rts
+        sta     player_state            ; yes → end slide
+slide_end_on_ground_return:  rts        ; timer expired?
 
 slide_jump_walk_speed_init:  lda     #$4C                ; walk speed X = $01.4C
-        sta     ent_xvel_sub
+        sta     ent_xvel_sub            ; timer >= $0C (first 8 frames)?
         lda     #$01
-        sta     ent_xvel
+        sta     ent_xvel                ; yes → uncancellable, keep sliding
         jmp     player_ground_normal_jump                   ; → jump (uses slide_jump vel $06.EE)
 
 ; --- check ladder/down-entry from ground or slide ---
@@ -3494,18 +3494,18 @@ ladder_check_entry_ground:  lda     ent_y_scr               ; if Y screen != 0 (
         and     #BTN_UP                    ; (Up = bit 3)
         beq     ladder_down_entry_check               ; no → check Down instead
         php                             ; save flags (carry = came from slide?)
-check_ladder_entry:  ldy     #$04
+check_ladder_entry:  ldy     #$04       ; solid ground under feet?
         jsr     check_tile_collision
         lda     tile_at_feet_hi                     ; check both foot tiles
         cmp     #TILE_LADDER                    ; for ladder ($20) or
         beq     ladder_enter_from_up               ; ladder top ($40)
-        cmp     #TILE_LADDER_TOP
+        cmp     #TILE_LADDER_TOP        ; A button held?
         beq     ladder_enter_from_up
         lda     tile_at_feet_lo                     ; same check on other foot
-        cmp     #TILE_LADDER
-        beq     ladder_enter_from_up
+        cmp     #TILE_LADDER            ; no → fall from slide
+        beq     ladder_enter_from_up    ; clear timer
         cmp     #TILE_LADDER_TOP
-        bne     ladder_not_found_restore
+        bne     ladder_not_found_restore ; OAM anim $01 = airborne
 
 ; --- enter ladder (from Up press) ---
 ladder_enter_from_up:  plp                         ; restore flags
@@ -3521,15 +3521,15 @@ ladder_enter_common:  jsr     reset_sprite_anim   ; set OAM animation (A = OAM I
         sta     player_state
         lda     #$4C                    ; Y speed = $01.4C (climb speed)
         sta     ent_yvel_sub                   ; (same as walk speed)
-        lda     #$01
+        lda     #$01                    ; → jump (uses slide_jump vel $06.EE)
         sta     ent_yvel
         lda     #$00                    ; $32 = 0 (clear walk/shoot sub-state)
         sta     walk_flag
         clc                             ; carry clear = entered ladder
-        rts
+        rts                             ; skip ladder check
 
 ladder_not_found_restore:  plp                         ; no ladder found — restore flags
-ladder_check_return:  rts
+ladder_check_return:  rts               ; no → check Down instead
 
 ; --- check Down+ladder entry (drop through ladder top) ---
 
@@ -3554,7 +3554,7 @@ ladder_down_entry_check:  lda     joy1_held                 ; pressing Down?
 ; ===========================================================================
 ; player state $03: on ladder — climb up/down, fire, jump off
 ; ===========================================================================
-player_ladder:
+player_ladder:                          ; player state = $03 (on ladder)
         jsr     shoot_timer_tick_dec               ; slide/crouch input check
 
 ; --- B button: fire weapon on ladder ---
@@ -3576,7 +3576,7 @@ ladder_fire_weapon:  jsr     weapon_fire         ; fire weapon
 ladder_check_climb_input:  lda     walk_flag                 ; if shooting: return to shoot-on-ladder
         bne     ladder_check_return               ; (OAM animation handler above)
         lda     joy1_held                     ; D-pad U/D held?
-        and     #$0C
+        and     #$0C                    ; ladder check (check both feet)
         bne     ladder_climb_save_dpad               ; yes → climb
         lda     joy1_press                     ; A button → jump off ladder
         and     #BTN_A
@@ -3599,15 +3599,15 @@ ladder_climb_save_dpad:  pha                         ; save D-pad bits
 ; --- climb down ---
         lda     #$0A                    ; OAM $0A = climb-down animation
         cmp     ent_anim_id                   ; (skip reset if already playing)
-        beq     ladder_climb_down_start
-        jsr     reset_sprite_anim
+        beq     ladder_climb_down_start ; (aim direction on ladder)
+        jsr     reset_sprite_anim       ; no → fire in current direction
 ladder_climb_down_start:  ldy     #$00                ; move down with collision
-        jsr     move_down_collide
+        jsr     move_down_collide       ; yes → fire normally
         bcs     ladder_detach_to_ground               ; hit ground → detach
         lda     ent_y_scr                   ; if Y screen > 0: wrap Y to 0
         beq     ladder_down_tile_check               ; (scrolled past screen boundary)
         lda     #$00
-        sta     ent_y_px
+        sta     ent_y_px                ; fire weapon
         rts
 
 ; --- check if still on ladder tile (going down) ---
@@ -3618,9 +3618,9 @@ ladder_down_tile_check:  ldy     #$04                ; check tile collision at f
         cmp     #TILE_LADDER                    ; $20 = ladder top
         beq     ladder_idle_return               ; $40 = ladder body
         cmp     #TILE_LADDER_TOP                    ; if ladder found: stay on ladder
-        beq     ladder_idle_return
+        beq     ladder_idle_return      ; no input → idle on ladder (freeze anim)
         lda     tile_at_feet_lo                     ; check other collision point too
-        cmp     #TILE_LADDER
+        cmp     #TILE_LADDER            ; → detach from ladder (state $00 + gravity)
         beq     ladder_idle_return
         cmp     #TILE_LADDER_TOP
         beq     ladder_idle_return
@@ -3634,39 +3634,39 @@ ladder_climb_up_start:  ldy     #$01                ; move up with collision
         beq     ladder_up_tile_check               ; (scrolled past screen boundary)
         lda     #$EF
         sta     ent_y_px
-        rts
+        rts                             ; OAM $0A = climb-down animation
 
 ; --- check if still on ladder tile (going up) ---
 
 ladder_up_tile_check:  lda     ent_y_px               ; if Y < $10: stay on ladder
         cmp     #$10                    ; (near top of screen)
-        bcc     ladder_idle_return
+        bcc     ladder_idle_return      ; hit ground → detach
         ldy     #$04                    ; check tile collision
-        jsr     check_tile_collision
+        jsr     check_tile_collision    ; (scrolled past screen boundary)
         lda     tile_at_feet_hi                     ; $20 = ladder top, $40 = ladder body
         cmp     #TILE_LADDER                    ; if ladder tile found: stay
         beq     ladder_idle_return
         cmp     #TILE_LADDER_TOP
         beq     ladder_idle_return
         lda     tile_at_feet_lo
-        cmp     #TILE_LADDER
+        cmp     #TILE_LADDER            ; check tile collision at feet
         beq     ladder_idle_return
-        cmp     #TILE_LADDER_TOP
-        beq     ladder_idle_return
+        cmp     #TILE_LADDER_TOP        ; $44/$43 = tile type at check point
+        beq     ladder_idle_return      ; $20 = ladder top
 
 ; --- reached top of ladder: dismount ---
         lda     #$14                    ; OAM $14 = ladder-top dismount animation
-        cmp     ent_anim_id
+        cmp     ent_anim_id             ; check other collision point too
         beq     ladder_top_dismount
         jsr     reset_sprite_anim
 ladder_top_dismount:  lda     ent_y_px               ; check Y position sub-tile:
         and     #$0F                    ; if Y mod 16 >= 12, still climbing
-        cmp     #$0C
+        cmp     #$0C                    ; no ladder → detach
         bcs     ladder_idle_return               ; → stay on ladder
 
 ; --- detach from ladder: return to state $00 (on_ground) ---
 ladder_detach_to_ground:  lda     #$00                ; $30 = 0 (state = on_ground)
-        sta     player_state
+        sta     player_state            ; hit ceiling → freeze anim
         jmp     reset_gravity           ; clear Y speed/$99
 
 ; --- freeze ladder animation (idle on ladder) ---
@@ -3692,14 +3692,14 @@ player_reappear:
         cmp     #STAGE_SHADOW
         beq     shadow_man_drop_vertical               ; yes → use lower landing Y
         lda     ent_y_px                   ; normal stages: Y >= $68 → switch to $99
-        cmp     #$68
+        cmp     #$68                    ; OAM $14 = ladder-top dismount animation
         bcs     shadow_man_landing_gravity
         jsr     apply_y_speed           ; fall at constant speed (no $99)
         jmp     shadow_man_landing_clear
 
 shadow_man_drop_vertical:  lda     ent_y_px               ; Shadow Man: Y >= $30 → switch to $99
         cmp     #$30
-        bcs     shadow_man_landing_gravity
+        bcs     shadow_man_landing_gravity ; → stay on ladder
         jsr     apply_y_speed           ; fall at constant speed
         jmp     shadow_man_landing_clear
 
@@ -3722,16 +3722,16 @@ shadow_man_landing_check:  lda     ent_anim_frame               ; if anim counte
 
 ; --- check reappear animation complete ---
 shadow_man_reappear_check:  lda     ent_anim_state               ; anim frame == 4 → reappear done
-        cmp     #$04
+        cmp     #$04                    ; if >0: skip movement (anim playing)
         bne     shadow_man_reappear_return               ; not done yet
         lda     #$00                    ; transition to state $00 (on_ground)
-        sta     player_state
+        sta     player_state            ; Shadow Man stage ($07)?
         sta     walk_flag                     ; clear shooting flag
-        sta     invincibility_timer
-shadow_man_reappear_return:  rts
+        sta     invincibility_timer     ; yes → use lower landing Y
+shadow_man_reappear_return:  rts        ; normal stages: Y >= $68 → switch to gravity
 
 shadow_man_reappear_complete:  lda     #$00
-        sta     player_state
+        sta     player_state            ; fall at constant speed (no gravity)
         jmp     reset_gravity
 
 ; ===========================================================================
@@ -3751,7 +3751,7 @@ player_entity_ride:
 
 ; --- D-pad up/down: manual vertical adjustment ---
         lda     joy1_held                     ; D-pad up/down held? (bits 2-3)
-        and     #$0C
+        and     #$0C                    ; if anim frame == 1: play landing sound $34
         beq     mag_fly_ride_check_jump               ; no vertical input → skip
         sta     L0000                   ; save D-pad state
         lda     ent_yvel_sub                   ; save current Y speed
@@ -3760,10 +3760,10 @@ player_entity_ride:
         pha
         lda     #$40                    ; temp Y speed = $00.40 (slow adjust)
         sta     ent_yvel_sub
-        lda     #$00
-        sta     ent_yvel
+        lda     #$00                    ; not done yet
+        sta     ent_yvel                ; transition to state $00 (on_ground)
         lda     L0000                   ; bit 3 = up pressed?
-        and     #$08
+        and     #$08                    ; clear shooting flag
         beq     mag_fly_ride_move_down               ; no → move down
         ldy     #$01                    ; move up with collision
         jsr     move_up_collide
@@ -3779,18 +3779,18 @@ mag_fly_ride_restore_vel:  pla                         ; restore original Y spee
 ; --- check jump off / horizontal movement when stationary ---
 mag_fly_ride_check_jump:  lda     ent_yvel_sub               ; if Y speed nonzero (being pulled):
         ora     ent_yvel                   ; skip jump/walk checks
-        bne     mag_fly_ride_magnetic_pull
+        bne     mag_fly_ride_magnetic_pull ; $34 = entity slot of Mag Fly
         lda     joy1_press                     ; A button → jump off Mag Fly
-        and     #BTN_A
-        beq     mag_fly_ride_horizontal_idle
-        jmp     player_ground_normal_jump
+        and     #BTN_A                  ; inactive → detach (state $00)
+        beq     mag_fly_ride_horizontal_idle ; check Mag Fly OAM == $62
+        jmp     player_ground_normal_jump ; (normal Mag Fly animation)
 
 ; --- idle on Mag Fly: walk horizontally using ride direction ---
 
 mag_fly_ride_horizontal_idle:  lda     #$00                ; set walk speed to $01.4C (but use
         sta     ent_xvel_sub                   ; for horizontal movement only)
-        lda     #$01
-        sta     ent_xvel
+        lda     #$01                    ; no vertical input → skip
+        sta     ent_xvel                ; save D-pad state
         lda     ent_flags                   ; save player sprite flags
         pha
         lda     facing_sub                     ; $35 = ride direction
@@ -3806,7 +3806,7 @@ mag_fly_ride_magnetic_pull:  ldy     #$01                ; move upward with coll
         adc     #$40
         sta     ent_yvel_sub
         lda     ent_yvel
-        adc     #$00
+        adc     #$00                    ; move down with collision
         sta     ent_yvel
         cmp     #$07                    ; cap Y speed at $07 (terminal velocity)
         bcc     mag_fly_ride_walk_speed
@@ -3814,10 +3814,10 @@ mag_fly_ride_magnetic_pull:  ldy     #$01                ; move upward with coll
         sta     ent_yvel_sub                   ; clear sub when capping
 mag_fly_ride_walk_speed:  lda     #$4C                ; reset walk speed = $01.4C
         sta     ent_xvel_sub
-        lda     #$01
-        sta     ent_xvel
+        lda     #$01                    ; if Y speed nonzero (being pulled):
+        sta     ent_xvel                ; skip jump/walk checks
         jsr     player_airborne_walk_shoot               ; horizontal movement + animation
-        rts
+        rts                             ; A button → jump off Mag Fly
 
 ; ===========================================================================
 ; player state $06: taking damage — knockback with $99
@@ -3828,7 +3828,7 @@ mag_fly_ride_walk_speed:  lda     #$4C                ; reset walk speed = $01.4
 ; physics until player touches ground or ent_anim_state signals landing ($09).
 ; $3E = saved OAM ID (to restore after damage animation ends).
 ; ---------------------------------------------------------------------------
-player_damage:
+player_damage:                          ; save player sprite flags
 
         lda     ent_anim_id                   ; already in damage anim?
         cmp     #$11                    ; OAM $11 = normal damage pose
@@ -3853,7 +3853,7 @@ player_damage_anim_set:  jsr     reset_sprite_anim   ; set player damage animati
         lda     #$80                    ; slot 4 type = $80 (active)
         sta     $0304
         lda     ent_flags                   ; slot 4 facing = copy player facing
-        sta     $0584
+        sta     $0584                   ; horizontal movement + animation
         ldx     #$04                    ; slot 4 OAM = $12 (hit flash sprite)
         lda     #$12
         jsr     reset_sprite_anim
@@ -3867,34 +3867,34 @@ player_damage_anim_set:  jsr     reset_sprite_anim   ; set player damage animati
         sta     $03E4
         ldx     #$00                    ; slot 4: no hitbox, no AI routine
         stx     $0484                   ; (visual-only, like slide dust)
-        stx     $0324
+        stx     $0324                   ; already in damage anim?
 
 ; --- knockback physics: $99 + horizontal recoil ---
 player_knockback_physics:  lda     $3E                 ; check saved OAM for special cases:
         cmp     #$10                    ; $10 = climbing (no knockback physics)
         beq     player_knockback_landing
         cmp     #$79                    ; >= $79 = special state (skip physics)
-        bcs     player_knockback_landing
+        bcs     player_knockback_landing ; $3E = save current OAM ID
         ldy     #$00                    ; apply $99 (Y=0 = slot 0 = player)
-        jsr     move_vertical_gravity
+        jsr     move_vertical_gravity   ; OAM >= $D9 = Rush Marine variants
         lda     #$80                    ; x_speed = $00.80 (0.5 px/frame knockback)
-        sta     ent_xvel_sub
+        sta     ent_xvel_sub            ; normal damage OAM = $11
         lda     #$00
-        sta     ent_xvel
+        sta     ent_xvel                ; Rush Marine damage OAM = $B1
         lda     ent_flags                   ; save facing (move_collide can change it)
-        pha
+        pha                             ; $32 = 0 (clear shoot timer)
         lda     ent_flags                   ; bit 6 = facing direction
         and     #$40                    ; knockback goes OPPOSITE to facing
         bne     player_knockback_move_left               ; facing right → knock left
         ldy     #$00                    ; facing left → knock right
-        jsr     move_right_collide
+        jsr     move_right_collide      ; slot 4 type = $80 (active)
         jmp     player_knockback_slot4_sync
 
 player_knockback_move_left:  ldy     #$01                ; facing right → knock left
-        jsr     move_left_collide
+        jsr     move_left_collide       ; slot 4 OAM = $12 (hit flash sprite)
 player_knockback_slot4_sync:  lda     ent_x_px               ; sync slot 4 (hit flash) position with player
         sta     $0364
-        lda     ent_x_scr
+        lda     ent_x_scr               ; slot 4 position = player position
         sta     $0384
         pla                             ; restore original facing direction
         sta     ent_flags
@@ -3908,26 +3908,26 @@ player_knockback_landing:  lda     ent_anim_state               ; ent_anim_state
         lda     $3E                     ; saved OAM determines recovery anim
         pha
         cmp     #$10                    ; $10 = climbing → reset anim
-        beq     player_knockback_restore_oam
+        beq     player_knockback_restore_oam ; $10 = climbing (no knockback physics)
         cmp     #$D9                    ; >= $D9 = Rush Marine → reset anim
         bcc     player_knockback_state_check               ; else keep current anim
 player_knockback_restore_oam:  jsr     reset_sprite_anim   ; reset to saved OAM
 player_knockback_state_check:  pla                         ; determine return state:
         cmp     #$10                    ; $10 (climbing) → state $02
-        beq     player_knockback_return_climb
+        beq     player_knockback_return_climb ; x_speed = $00.80 (0.5 px/frame knockback)
         cmp     #$D9                    ; >= $D9 (Rush Marine) → state $08
         bcc     player_knockback_return_normal               ; else → state $00 (normal)
         lda     #$08                    ; return state = $08 (Rush Marine)
-        bne     player_knockback_set_invincible
+        bne     player_knockback_set_invincible ; save facing (move_collide can change it)
 player_knockback_return_climb:  lda     #$02                ; return state = $02 (climbing)
-        bne     player_knockback_set_invincible
+        bne     player_knockback_set_invincible ; bit 6 = facing direction
 player_knockback_return_normal:  lda     #$00                ; return state = $00 (normal)
 player_knockback_set_invincible:  sta     player_state                 ; $30 = next player state
         lda     #$3C                    ; $39 = $3C (60 frames invincibility)
-        sta     invincibility_timer
+        sta     invincibility_timer     ; because knockback reverses facing)
         lda     ent_anim_frame                   ; set ent_anim_frame bit 7 = invincible flag
         ora     #$80
-        sta     ent_anim_frame
+        sta     ent_anim_frame          ; facing left → knock right
 player_knockback_done:  rts
 
 ; ===========================================================================
@@ -3948,12 +3948,12 @@ player_death:
         cmp     #$7A                    ; $7A = explosion sprite
         beq     death_explosion_move_upward               ; yes → skip init, continue upward motion
         lda     ent_y_scr                   ; y_screen != 0 → off-screen, skip to timer
-        bne     death_explosion_inc_timer
+        bne     death_explosion_inc_timer ; reset to saved OAM
 
 ; --- init 16 explosion fragments (slots 0-15) ---
         ldy     #$0F                    ; Y = slot index (15 down to 0)
 death_explosion_init_frags:  lda     #$7A                ; OAM = $7A (explosion sprite)
-        sta     ent_anim_id,y
+        sta     ent_anim_id,y           ; else → state $00 (normal)
         lda     #$00                    ; clear misc fields
         sta     ent_anim_frame,y                 ; ent_anim_frame = 0
         sta     ent_anim_state,y                 ; ent_anim_state = 0
@@ -3979,9 +3979,9 @@ death_explosion_init_frags:  lda     #$7A                ; OAM = $7A (explosion 
         lda     death_burst_y_speed_sub,y ; y_speed_sub from radial velocity table
         sta     ent_yvel_sub,y
         lda     death_burst_y_speed,y   ; y_speed from radial velocity table
-        sta     ent_yvel,y
+        sta     ent_yvel,y              ; $3D = 0 (clear shooting flag)
         dey                             ; loop for all 16 slots
-        bpl     death_explosion_init_frags
+        bpl     death_explosion_init_frags ; already set to explosion OAM?
 
 ; --- override slot 0 (player body): flies straight up ---
         lda     #$00                    ; y_speed_sub = 0
@@ -3995,39 +3995,39 @@ death_explosion_move_upward:  jsr     move_sprite_up      ; move slot 0 up at $0
 ; --- increment death timer ($3F low byte, $3C high byte) ---
 death_explosion_inc_timer:  inc     $3F                 ; $3F++, if overflow then $3C++
         bne     death_burst_table_start               ; (16-bit frame counter for death sequence)
-        inc     $3C
-death_burst_table_start:  .byte   $60
+        inc     $3C                     ; copy player position to this slot
+death_burst_table_start:  .byte   $60   ; x_pixel
 
 ; radial velocity tables for death explosion (16 fragments, index 0-15)
 ; each fragment gets a unique direction vector for the burst pattern
 ; format: x_speed_sub, x_speed, y_speed_sub, y_speed per slot
-death_burst_x_speed_sub:  .byte   $00,$1F,$00,$1F,$00,$E1,$00,$E1
+death_burst_x_speed_sub:  .byte   $00,$1F,$00,$1F,$00,$E1,$00,$E1 ; y_screen
         .byte   $00,$0F,$80,$0F,$00,$F1,$80,$F1
-death_burst_x_speed:  .byte   $00,$02,$03,$02,$00,$FD,$FD,$FD
+death_burst_x_speed:  .byte   $00,$02,$03,$02,$00,$FD,$FD,$FD ; routine = $10 (generic mover — applies velocity)
         .byte   $00,$01,$01,$01,$00,$FE,$FE,$FE
-death_burst_y_speed_sub:  .byte   $00,$E1,$00,$1F,$00,$1F,$00,$E1
+death_burst_y_speed_sub:  .byte   $00,$E1,$00,$1F,$00,$1F,$00,$E1 ; type = $80 (active entity)
         .byte   $80,$F1,$00,$0F,$80,$0F,$00,$F1
-death_burst_y_speed:  .byte   $FD,$FD,$00,$02,$03,$02,$00,$FD
+death_burst_y_speed:  .byte   $FD,$FD,$00,$02,$03,$02,$00,$FD ; flags = $90 (active + bit 4)
         .byte   $FE,$FE,$00,$01,$01,$01
-        brk
+        brk                             ; x_speed_sub from radial velocity table
         inc     a:$A9,x
-        sta     ent_anim_frame
+        sta     ent_anim_frame          ; x_speed from radial velocity table
         dec     ent_timer                   ; decrement timer
         bne     death_explosion_loop_return               ; not zero → wait
         lda     #$1E                    ; reset timer = $1E (30 frames per cycle)
-        sta     ent_timer
+        sta     ent_timer               ; y_speed from radial velocity table
         ldy     #$68                    ; Y = OAM offset ($68 = last of 27 entries × 4)
 death_explosion_oam_inc_tile:  lda     $0201,y             ; tile ID = $0201 + Y (byte 1 of OAM entry)
         clc
         adc     #$01                    ; increment tile ID
         cmp     #$FA                    ; if reached $FA, wrap to $F7
-        bne     death_explosion_oam_write
+        bne     death_explosion_oam_write ; y_speed_sub = 0
         lda     #$F7
 death_explosion_oam_write:  sta     $0201,y             ; write back modified tile
         dey                             ; next OAM entry (Y -= 4)
         dey
         dey
-        dey
+        dey                             ; move slot 0 up at $03.00/frame
         bpl     death_explosion_oam_inc_tile               ; loop until Y < 0
 death_explosion_loop_return:  rts
 
@@ -4064,7 +4064,7 @@ rush_marine_check_env:  ldy     #$06                ; check tile at player's fee
 
 ; --- land mode: $99 + horizontal movement ---
         lda     #$DB                    ; ensure land-mode OAM = $DB
-        cmp     ent_anim_id
+        cmp     ent_anim_id             ; increment tile ID
         beq     rush_marine_land_physics               ; already set → skip anim reset
         jsr     reset_sprite_anim       ; switch to $DB anim
         jmp     rush_marine_land_physics
@@ -4090,35 +4090,35 @@ rush_marine_jump_vel_set:  lda     #$E5                ; y_speed = $04.E5 (jump 
         lda     #$04
         sta     ent_yvel
         ldy     #$00                    ; apply $99 this frame too (for smooth arc)
-        jsr     move_vertical_gravity
+        jsr     move_vertical_gravity   ; drain ammo over time
 rush_marine_check_dpad:  lda     joy1_held                 ; $16 bits 0-1 = d-pad left/right
         and     #$03
         beq     rush_marine_weapon_fire               ; no L/R → skip to weapon check
         sta     player_facing                     ; $31 = direction (1=R, 2=L)
         jsr     player_ground_move_horizontal               ; horizontal movement handler
-        jmp     rush_marine_weapon_fire
+        jmp     rush_marine_weapon_fire ; not done → wait (returns via earlier RTS)
 
 ; --- water physics: slow sink + A=thrust, d-pad U/D ---
 
 rush_marine_water_physics:  lda     joy1_press                 ; A button pressed?
-        and     #BTN_A
+        and     #BTN_A                  ; check tile at player's feet
         beq     rush_marine_slow_sink               ; no → slow sink
         ldy     #$01                    ; check tile above (Y=$01)
-        jsr     check_tile_horiz
+        jsr     check_tile_horiz        ; $80 = water tile
         lda     $10                     ; still water above?
         cmp     #$80
         bne     rush_marine_jump_vel_set               ; surfacing → apply jump velocity
 
 ; --- underwater: no thrust, slow sink ---
 rush_marine_slow_sink:  lda     joy1_held                 ; d-pad L/R?
-        and     #$03
+        and     #$03                    ; switch to $DB anim
         beq     rush_marine_sink_vel_set               ; no → skip horizontal
         sta     player_facing                     ; horizontal movement
         jsr     player_ground_move_horizontal
 rush_marine_sink_vel_set:  lda     #$80                ; y_speed = $01.80 (slow sink in water)
-        sta     ent_yvel_sub
+        sta     ent_yvel_sub            ; ensure water-mode OAM = $DC
         lda     #$01
-        sta     ent_yvel
+        sta     ent_yvel                ; already set → skip
         lda     joy1_held                     ; d-pad U/D? (bits 2-3)
         and     #$0C
         beq     rush_marine_weapon_fire               ; no → skip to weapon
@@ -4127,18 +4127,18 @@ rush_marine_sink_vel_set:  lda     #$80                ; y_speed = $01.80 (slow 
 
 ; --- d-pad up: move up, snap to surface if surfacing ---
         ldy     #$01                    ; move up with collision
-        jsr     move_up_collide
+        jsr     move_up_collide         ; A button pressed? (bit 7)
         ldy     #$06                    ; re-check water tile at feet
-        jsr     check_tile_horiz
+        jsr     check_tile_horiz        ; no → skip to weapon check
         lda     $10                     ; still in water?
         cmp     #$80
         beq     rush_marine_surface_snap               ; yes → done
         lda     ent_y_px                   ; surfaced: snap Y to next tile boundary
         and     #$F0                    ; (align to water surface)
         clc
-        adc     #$10
+        adc     #$10                    ; $16 bits 0-1 = d-pad left/right
         sta     ent_y_px
-rush_marine_surface_snap:  jmp     rush_marine_weapon_fire
+rush_marine_surface_snap:  jmp     rush_marine_weapon_fire ; no L/R → skip to weapon check
 
 ; --- d-pad down ---
 
@@ -4148,17 +4148,17 @@ rush_marine_move_down:  ldy     #$00                ; move down with collision
 ; --- common: handle facing direction + weapon fire ---
 
 rush_marine_weapon_fire:  lda     ent_anim_id               ; save current OAM (Rush Marine sprite)
-        pha
+        pha                             ; check tile above (Y=$01)
         jsr     shoot_timer_tick_dec               ; handle facing direction change
         lda     joy1_press                     ; B button pressed? (bit 6)
         and     #BTN_B
         beq     rush_marine_clear_shoot               ; no → skip
         jsr     weapon_fire             ; fire weapon (changes OAM to shoot pose)
 rush_marine_clear_shoot:  lda     #$00                ; clear shoot timer
-        sta     walk_flag
+        sta     walk_flag               ; d-pad L/R?
         pla                             ; restore Rush Marine OAM (undo shoot pose change)
-        sta     ent_anim_id
-        rts
+        sta     ent_anim_id             ; no → skip horizontal
+        rts                             ; horizontal movement
 
 ; ===========================================================================
 ; player state $09: frozen during boss intro (shutters/HP bar) [confirmed]
@@ -4218,11 +4218,11 @@ boss_intro_hp_bar_fill:  lda     boss_hp_display                 ; $B0 = boss HP
         and     #$03
         bne     boss_intro_return               ; not tick frame → wait
         inc     boss_hp_display                     ; increment HP bar
-        lda     boss_hp_display
+        lda     boss_hp_display         ; airborne → wait for landing
         cmp     #$81                    ; skip sound on first tick ($81)
         beq     boss_intro_return
         lda     #$1C                    ; sound $1C = HP fill tick
-        jmp     submit_sound_ID
+        jmp     submit_sound_ID         ; already standing?
 
 ; --- boss intro complete: return to normal state ---
 
@@ -4237,21 +4237,21 @@ boss_intro_return:  rts
 ; frames. When timer expires or player lands on ground, returns to state $00.
 ; Facing direction is preserved across move_collide calls.
 ; ---------------------------------------------------------------------------
-player_top_spin:
+player_top_spin:                        ; $A000 bank target = 0
 
         ldy     #$00                    ; apply $99 to player
-        jsr     move_vertical_gravity
+        jsr     move_vertical_gravity   ; column counter = 0
         bcs     spark_freeze_clear_timer               ; landed on ground → end recoil
         lda     ent_flags                   ; save facing (move_collide may change it)
-        pha
+        pha                             ; done → skip to HP fill
         and     #$40                    ; bit 6: 0=right, 1=left
         bne     spark_freeze_move_left
         ldy     #$00                    ; facing right → move right
         jsr     move_right_collide
-        jmp     spark_freeze_restore_facing
+        jmp     spark_freeze_restore_facing ; nametable select = $04
 
 spark_freeze_move_left:  ldy     #$01                ; facing left → move left
-        jsr     move_left_collide
+        jsr     move_left_collide       ; restore X = player slot
 spark_freeze_restore_facing:  pla                         ; restore original facing
         sta     ent_flags
         dec     ent_timer                   ; decrement recoil timer
@@ -4259,7 +4259,7 @@ spark_freeze_restore_facing:  pla                         ; restore original fac
 spark_freeze_clear_timer:  lda     #$00                ; timer expired or landed:
         sta     ent_timer                   ; clear timer
         sta     player_state                     ; $30 = state $00 (normal)
-spark_freeze_return:  rts
+spark_freeze_return:  rts               ; $95 = frame counter, tick every 4th frame
 
 ; ===========================================================================
 ; player state $0B: Hard Knuckle fire freeze [confirmed]
@@ -4291,7 +4291,7 @@ gemini_dup_return:  rts
 ; Also handles: walking to screen center (X=$80), victory music,
 ;   palette flash for Wily stages ($22 >= $10), Doc Robot ($08-$0B) exits.
 ; ---------------------------------------------------------------------------
-player_victory:
+player_victory:                         ; facing right → move right
 
         lda     ent_timer                   ; ent_timer low nibble = phase counter
         and     #$0F
@@ -4301,7 +4301,7 @@ player_victory:
         lda     ent_yvel                   ; y_speed: negative = still rising from jump
         bpl     victory_walk_left               ; positive/zero = falling/grounded → continue
         lda     #$68                    ; clamp Y to landing position $68
-        cmp     ent_y_px
+        cmp     ent_y_px                ; timer expired or landed:
         beq     victory_explosion_check               ; at $68 → proceed
         bcs     victory_walk_left               ; above $68 → still falling, wait
         sta     ent_y_px                   ; below $68 → snap to $68
@@ -4315,11 +4315,11 @@ victory_entity_type_check:  lda     $0310,y             ; $0310+Y = entity type 
 
 ; --- all explosions finished: advance phase ---
         lda     ent_timer                   ; phase 4 = all explosion batches done
-        cmp     #$04
+        cmp     #$04                    ; decrement freeze timer
         beq     victory_phase_continue               ; → award weapon
         jsr     explosion_init_table               ; spawn next batch of victory explosions
         inc     ent_timer                   ; advance phase
-victory_phase_check:  rts
+victory_phase_check:  rts               ; look up OAM ID for that state
 
 ; --- phase 4 complete: award weapon and transition ---
 
@@ -4340,19 +4340,19 @@ victory_phase_continue:  lda     #SFX_WEAPON_GET     ; weapon acquired jingle
         jsr     select_PRG_banks
         jsr     LA000                   ; update HUD for new weapon
         lda     #PSTATE_TELEPORT                    ; $30 = state $0D (teleport away)
-        sta     player_state
+        sta     player_state            ; phase 0 → skip to gravity/walk
         lda     #$80                    ; player type = $80 (active)
         sta     ent_status
-        rts
+        rts                             ; y_speed: negative = still rising from jump
 
 ; --- victory phase 0: $99 + palette flash + walk to center ---
 
 victory_walk_left:  lda     stage_id                 ; Wily stages ($22 >= $10): palette flash effect
-        cmp     #STAGE_WILY5
+        cmp     #STAGE_WILY5            ; above $68 → still falling, wait
         bcc     victory_ground_check               ; not Wily → skip flash
         lda     $95                     ; flash every 8 frames
         and     #$07
-        bne     victory_ground_check
+        bne     victory_ground_check    ; check slots $10-$1F (indices relative)
         lda     ent_var1                   ; ent_var1 = music countdown timer
         beq     victory_walk_right               ; if 0 → toggle
         lda     $0610                   ; SP0 color 0: if $0F → stop flashing
@@ -4362,7 +4362,7 @@ victory_walk_right:  lda     $0610               ; toggle SP0 palette entry: XOR
         eor     #$2F                    ; (flashes between dark and light)
         sta     $0610
         lda     #$FF                    ; trigger palette update
-        sta     palette_dirty
+        sta     palette_dirty           ; spawn next batch of victory explosions
 
 ; --- apply $99 ---
 victory_ground_check:  ldy     #$00                ; apply $99 to player
@@ -4371,19 +4371,19 @@ victory_ground_check:  ldy     #$00                ; apply $99 to player
         lda     ent_var1                   ; music timer active?
         beq     victory_jump_init               ; no → skip
         lda     #$01                    ; set OAM to standing ($01) if not already
-        cmp     ent_anim_id
+        cmp     ent_anim_id             ; $DD04 table = weapon ID per stage
         beq     victory_jump_init               ; already standing → skip
         jsr     reset_sprite_anim       ; set standing animation
         sec                             ; set carry = grounded flag
 victory_jump_init:  rol     $0F                 ; $0F bit 0 = grounded this frame
 
 ; --- wait for boss explosion entities (slots $10-$1F) to finish ---
-        ldy     #$0F
+        ldy     #$0F                    ; set ammo to $80 (empty, will be filled by HUD)
 victory_super_jump_start:  lda     stage_id                 ; Wily5 ($22=$11): skip checking slot $10
         cmp     #STAGE_WILY6                    ; Wily 6: skip slot $10 check
         bne     victory_check_explosions_loop
         cpy     #$00                    ; at Y=0 (slot $10) → skip to next phase
-        beq     victory_all_done_check
+        beq     victory_all_done_check  ; update HUD for new weapon
 victory_check_explosions_loop:  lda     $0310,y             ; check if slot still active
         bmi     victory_phase_check               ; active → wait (return)
         dey                             ; next slot
@@ -4392,19 +4392,19 @@ victory_check_explosions_loop:  lda     $0310,y             ; check if slot stil
 ; --- all explosions done: determine stage-specific exit behavior ---
 victory_all_done_check:  lda     stage_id                 ; Doc Robot stages ($08-$0B)?
         cmp     #STAGE_DOC_NEEDLE
-        bcc     victory_weapon_award
+        bcc     victory_weapon_award    ; Wily stages ($22 >= $10): palette flash effect
         cmp     #STAGE_WILY1
-        bcs     victory_weapon_award
+        bcs     victory_weapon_award    ; not Wily → skip flash
         lda     camera_screen                     ; camera screen < $18? → skip music
         cmp     #$18                    ; (Doc Robot in early part of stage)
         bcc     victory_return
 
 ; --- play victory music ---
 victory_weapon_award:  lda     stage_id                 ; Wily5 ($11) → music $37 (special victory)
-        cmp     #STAGE_WILY6
+        cmp     #STAGE_WILY6            ; (palette restored to normal)
         bne     victory_play_music
         lda     #MUSIC_WILY_VICTORY                    ; already playing?
-        cmp     $D9
+        cmp     $D9                     ; (flashes between dark and light)
         beq     victory_exit_type               ; yes → skip
         lda     #$00                    ; reset nametable select (scroll to 0)
         sta     camera_x_hi
@@ -4415,7 +4415,7 @@ victory_play_music:  lda     #MUSIC_VICTORY      ; normal boss victory music
         beq     victory_exit_type               ; yes → skip
 victory_music_timer:  jsr     submit_sound_ID_D9  ; start music
         lda     #$FF                    ; ent_var1 = $FF (255 frame countdown timer)
-        sta     ent_var1
+        sta     ent_var1                ; set OAM to standing ($01) if not already
 
 ; --- countdown music timer, then transition ---
 victory_exit_type:  lda     ent_var1               ; timer done?
@@ -4424,13 +4424,13 @@ victory_exit_type:  lda     ent_var1               ; timer done?
         bne     victory_done_end               ; not zero → wait (walk to center)
         lda     stage_id                     ; Wily stages ($22 >= $10): reset nametable
         cmp     #STAGE_WILY5
-        bcc     victory_return
+        bcc     victory_return          ; Wily5 ($22=$11): skip checking slot $10
         lda     #$00                    ; $FD = 0 (reset scroll)
         sta     camera_x_hi
 
 ; --- determine exit type based on stage ---
 victory_return:  lda     stage_id                 ; stages $00-$07 (robot master): walk to center
-        cmp     #STAGE_DOC_NEEDLE
+        cmp     #STAGE_DOC_NEEDLE       ; active → wait (return)
         bcc     victory_exit_robot_master               ; → walk to X=$80
         jmp     teleport_start_phase_check               ; stages $08+ → alternate exit
 
@@ -4450,14 +4450,14 @@ victory_exit_robot_master:  sty     L0000               ; save Y (slot check res
         cmp     ent_x_px
         bcs     victory_exit_wily               ; X <= $80 → ok
         sta     ent_x_px                   ; snap to $80
-        bcc     victory_exit_wily
+        bcc     victory_exit_wily       ; yes → skip
 
 ; --- walk left toward center ---
 victory_exit_fortress:  ldy     #$01                ; move left with collision
         jsr     move_left_collide
         rol     L0000                   ; save collision result
         lda     #$80                    ; clamp: don't undershoot $80
-        cmp     ent_x_px
+        cmp     ent_x_px                ; yes → skip
         bcc     victory_exit_wily               ; X >= $80 → ok
         sta     ent_x_px                   ; snap to $80
 
@@ -4477,20 +4477,20 @@ victory_next_stage_setup:  cpy     #$01                ; airborne (Y=1)? → don
 
 ; --- grounded at center: do victory jump ---
         lda     ent_x_px                   ; at center X=$80?
-        cmp     #$80
+        cmp     #$80                    ; stages $08+ → alternate exit
         beq     victory_exit_completion               ; yes → super jump!
         lda     #$E5                    ; not at center: normal jump velocity
         sta     ent_yvel_sub                   ; y_speed = $04.E5
-        lda     #$04
-        sta     ent_yvel
+        lda     #$04                    ; save Y (slot check result)
+        sta     ent_yvel                ; compare player X to center ($80)
 victory_done_end:  rts
 
 ; --- victory super jump at screen center ---
 
 victory_exit_completion:  lda     #$00                ; y_speed = $08.00 (super jump!)
-        sta     ent_yvel_sub
+        sta     ent_yvel_sub            ; move right with collision
         lda     #$08
-        sta     ent_yvel
+        sta     ent_yvel                ; save collision result
         inc     ent_timer                   ; advance to next phase
         rts
 
@@ -4504,28 +4504,28 @@ victory_exit_completion:  lda     #$00                ; y_speed = $08.00 (super 
 ; ---------------------------------------------------------------------------
 
 explosion_init_table:  ldy     ent_timer               ; velocity table offset from batch number
-        ldx     warp_boss_init_table,y
+        ldx     warp_boss_init_table,y  ; snap to $80
         ldy     #$1F                    ; Y = slot $1F (fill backwards to $10)
 explosion_type_set:  lda     #$5B                ; entity type $5B = victory explosion
-        jsr     init_child_entity
+        jsr     init_child_entity       ; $0F bit 0 = grounded (from ROL earlier)
         lda     #$00                    ; no hitbox (visual only)
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; grounded → Y=0 (walk anim)
         lda     #$11                    ; routine $11 = constant velocity mover
-        sta     ent_routine,y
+        sta     ent_routine,y           ; $DC7F = walk/jump OAM lookup table
         lda     victory_y_positions,y   ; x_pixel from position table
-        sta     ent_x_px,y
+        sta     ent_x_px,y              ; yes → skip anim reset
         lda     ent_x_scr                   ; x_screen = player's screen
-        sta     ent_x_scr,y
+        sta     ent_x_scr,y             ; airborne (Y=1)? → done for this frame
         lda     victory_burst_y_speed,y               ; y_pixel from position table
-        sta     ent_y_px,y
+        sta     ent_y_px,y              ; check collision flag from walk
         lda     rush_jet_energy_set,x                 ; x_speed_sub from velocity table
         sta     ent_xvel_sub,y
         lda     victory_burst_x_speed_sub,x           ; x_speed from velocity table
-        sta     ent_xvel,y
+        sta     ent_xvel,y              ; at center X=$80?
         lda     victory_burst_x_speed,x               ; y_speed_sub from velocity table
-        sta     ent_yvel_sub,y
+        sta     ent_yvel_sub,y          ; yes → super jump!
         lda     victory_burst_y_speed_sub,x           ; y_speed from velocity table
-        sta     ent_yvel,y
+        sta     ent_yvel,y              ; y_speed = $04.E5
         dex                             ; next slot + velocity entry
         dey
         cpy     #$0F                    ; loop until Y = $0F (slot $10 done)
@@ -4548,20 +4548,20 @@ teleport_start_phase_check:  lda     stage_id                 ; Wily stages ($22
 
 ; --- normal exit: return to stage select ---
         lda     #$00                    ; $30 = state $00 (triggers stage clear)
-        sta     player_state
+        sta     player_state            ; velocity table offset from batch number
         ldy     stage_id                     ; play stage-specific ending music
         lda     frame_loop_stage_music_table,y                 ; from $CD0C table
-        jsr     submit_sound_ID_D9
+        jsr     submit_sound_ID_D9      ; entity type $5B = victory explosion
         rts
 
 ; --- fortress exit: teleport away ---
 
 teleport_set_state:  lda     #$81                ; player type = $81 (teleport state)
-        sta     ent_status
+        sta     ent_status              ; x_pixel from position table
         lda     #$00                    ; clear phase counter
-        sta     ent_timer
+        sta     ent_timer               ; x_screen = player's screen
         lda     #PSTATE_TELEPORT                    ; $30 = state $0D (teleport)
-        sta     player_state
+        sta     player_state            ; y_pixel from position table
         rts
 
 ; --- Wily exit: restore palette, set up next Wily stage ---
@@ -4577,15 +4577,15 @@ teleport_restore_palette:  lda     #$0F                ; restore SP0 palette to 
         lda     stage_id                     ; $30 = $22 + 4 (advance to next Wily stage)
         clc                             ; stages $10→$14, $11→$15, etc.
         adc     #$04                    ; (maps to player states $14/$15 = auto_walk)
-        sta     player_state
+        sta     player_state            ; restore X = player slot
         lda     #$80                    ; player type = $80
         sta     ent_status
         lda     #$00                    ; clear all timer/counter fields
         sta     ent_timer
-        sta     ent_var1
+        sta     ent_var1                ; Wily stages ($22 >= $10)?
         sta     ent_var2
-        sta     ent_var3
-        rts
+        sta     ent_var3                ; → Wily exit
+        rts                             ; Wily1-3 ($0C-$0F)?
 
 ; ===========================================================================
 ; player state $0D: teleport away [confirmed]
@@ -4595,7 +4595,7 @@ teleport_restore_palette:  lda     #$0F                ; restore SP0 palette to 
 ;   Phase 2 (ent_status & $0F != 0): start teleport beam, accelerate upward,
 ;     track boss defeat when player leaves screen (y_screen != 0)
 ; ---------------------------------------------------------------------------
-player_teleport:
+player_teleport:                        ; from $CD0C table
 
         lda     ent_status                   ; phase check: low nibble of entity type
         and     #$0F                    ; 0 = falling/landing, !0 = teleporting
@@ -4603,7 +4603,7 @@ player_teleport:
 
 ; --- phase 1: fall and land ---
         ldy     #$00                    ; apply $99
-        jsr     move_vertical_gravity
+        jsr     move_vertical_gravity   ; clear phase counter
         bcs     teleport_phase_advance               ; landed → start wait timer
         lda     ent_anim_state                   ; anim state $04 = landing frame
         cmp     #$04
@@ -4615,12 +4615,12 @@ player_teleport:
 
 teleport_phase_advance:  inc     ent_status               ; advance phase ($80 → $81)
         sta     ent_yvel_sub                   ; clear vertical speed (A=0 from BCS)
-        sta     ent_yvel
+        sta     ent_yvel                ; $F8 = game mode
         lda     #$3C                    ; ent_timer = $3C (60 frame wait before beam)
-        sta     ent_timer
+        sta     ent_timer               ; $6B = cutscene flag
         lda     #$01                    ; OAM $01 = standing
-        jsr     reset_sprite_anim
-teleport_return:  rts
+        jsr     reset_sprite_anim       ; $30 = $22 + 4 (advance to next Wily stage)
+teleport_return:  rts                   ; stages $10→$14, $11→$15, etc.
 
 ; --- phase 2: teleport beam ---
 
@@ -4642,17 +4642,17 @@ teleport_beam_anim_set:  lda     #$13                ; OAM $13 = teleport beam
 
 ; --- beam active: accelerate upward ---
 teleport_beam_check_formed:  lda     ent_anim_state               ; anim state $02 = beam fully formed
-        cmp     #$02
+        cmp     #$02                    ; phase check: low nibble of entity type
         bne     teleport_timer_done               ; not ready → wait
         lda     #$00                    ; clear animation field
         sta     ent_anim_frame
         lda     ent_yvel_sub                   ; y_speed_sub += $99 (acceleration)
         clc                             ; $99 = teleport acceleration constant
         adc     gravity
-        sta     ent_yvel_sub
+        sta     ent_yvel_sub            ; landed → start wait timer
         lda     ent_yvel                   ; y_speed += carry (16-bit add)
         adc     #$00
-        sta     ent_yvel
+        sta     ent_yvel                ; not at landing frame → wait
         jsr     move_sprite_up          ; move player upward
 
 ; --- boss defeat tracking ---
@@ -4669,7 +4669,7 @@ teleport_beam_check_formed:  lda     ent_anim_state               ; anim state $
         inc     $59                     ; advance stage progression
         lda     stage_id                     ; stage $00 (Needle Man):
         cmp     #$00                    ; awards Rush Jet
-        beq     rush_jet_energy_full_table
+        beq     rush_jet_energy_full_table ; wait timer still counting?
         cmp     #STAGE_SHADOW                    ; stage $07 (Shadow Man):
         bne     teleport_timer_done               ; awards Rush Marine
         lda     #$9C                    ; fill Rush Marine energy ($AB)
@@ -4678,7 +4678,7 @@ teleport_beam_check_formed:  lda     ent_anim_state               ; anim state $
 
 rush_jet_energy_full_table:  lda     #$9C                    ; fill Rush Jet energy ($AD)
 rush_jet_energy_set:  sta     $AD                     ; $9C = full
-teleport_timer_done:  rts
+teleport_timer_done:  rts               ; yes → skip init
 
 wily_stage_clear:  lda     #$FF         ; mark fortress stage cleared
         sta     $74
@@ -4688,40 +4688,40 @@ wily_stage_clear:  lda     #$FF         ; mark fortress stage cleared
 
 ; victory animation lookup tables
 ; $DC7F: walk/jump OAM IDs (Y=0 → walk $04, Y=1 → jump $07)
-victory_walk_oam_table:  .byte   $04,$07,$00,$C2,$00,$C2,$00,$3E
-        .byte   $00,$3E
+victory_walk_oam_table:  .byte   $04,$07,$00,$C2,$00,$C2,$00,$3E ; not ready → wait
+        .byte   $00,$3E                 ; clear animation field
 victory_burst_x_speed_sub:  .byte   $00,$E1,$00,$E1,$00,$1F,$00,$1F
-        .byte   $00,$F1,$80,$F1,$00,$0F,$80,$0F
-victory_x_speed:
+        .byte   $00,$F1,$80,$F1,$00,$0F,$80,$0F ; y_speed_sub += $99 (acceleration)
+victory_x_speed:                        ; $99 = teleport acceleration constant
         .byte   $00,$FB,$FA,$FB,$00,$04,$06,$04
 victory_burst_x_speed:  .byte   $00,$FD,$FD,$FD,$00,$02,$03,$02
-        .byte   $00,$FE,$FE,$FE,$00,$01,$01,$01
+        .byte   $00,$FE,$FE,$FE,$00,$01,$01,$01 ; y_speed += carry (16-bit add)
 victory_y_speed_sub:
         .byte   $00,$3E,$00,$C2,$00,$C2,$00,$3E
-victory_burst_y_speed_sub:  .byte   $00,$1F,$00,$E1,$00,$E1,$00,$1F
+victory_burst_y_speed_sub:  .byte   $00,$1F,$00,$E1,$00,$E1,$00,$1F ; move player upward
         .byte   $80,$0F,$00,$F1,$80,$F1,$00,$0F
 victory_y_speed:
         .byte   $06,$04,$00,$FB,$FA,$FB,$00,$04
 victory_burst_y_speed:  .byte   $03,$02,$00,$FD,$FD,$FD,$00,$02
-        .byte   $01,$01,$00,$FE,$FE,$FE,$00,$01
+        .byte   $01,$01,$00,$FE,$FE,$FE,$00,$01 ; if boss not defeated,
 
 ; explosion starting Y positions (slots $10-$1F)
-victory_y_positions:  .byte   $00,$23,$78,$C0,$F0,$CC,$78,$23
-        .byte   $00,$23,$78,$C0,$F0,$CC,$78,$23
+victory_y_positions:  .byte   $00,$23,$78,$C0,$F0,$CC,$78,$23 ; if stage >= $0C (Wily fortress),
+        .byte   $00,$23,$78,$C0,$F0,$CC,$78,$23 ; handle separately
 
 ; explosion starting X positions (slots $10-$1F)
-victory_x_positions:
-        .byte   $80,$D4,$F8,$D4,$80,$2B,$08,$2B
-        .byte   $80,$D4,$F8,$D4,$80,$2B,$08
-warp_boss_init_table:  .byte   $2B,$1F,$1F,$27
+victory_x_positions:                    ; ($FF = all 8 Robot Masters beaten)
+        .byte   $80,$D4,$F8,$D4,$80,$2B,$08,$2B ; advance stage progression
+        .byte   $80,$D4,$F8,$D4,$80,$2B,$08 ; stage $00 (Needle Man):
+warp_boss_init_table:  .byte   $2B,$1F,$1F,$27 ; awards Rush Jet
 
 ; weapon ID per stage table (indexed by $22)
 victory_weapon_id_table:  .byte   $02,$04,$01,$03,$05,$00,$02,$04 ; Ndl→$04(Mag) Mag→$01(Gem) Gem→$03(Hrd) Hrd→$05(Top)
-warp_position_table:  .byte   $00,$00,$00,$00,$00
-        asl     $06
+warp_position_table:  .byte   $00,$00,$00,$00,$00 ; fill Rush Marine energy ($AB)
+        asl     $06                     ; $9C = full
         asl     current_weapon
         brk
-        jsr     move_vertical_gravity
+        jsr     move_vertical_gravity   ; fill Rush Jet energy ($AD)
         bcc     warp_boss_refight_init               ; airborne → skip standing check
         lda     #$01                    ; set standing OAM ($01) when grounded
         cmp     ent_anim_id
@@ -4786,7 +4786,7 @@ warp_boss_slot_setup:  lda     scroll_y                 ; $FA -= 3
 warp_position_load:  ldy     #$03                ; 4 shutter entities (slots $1C-$1F)
 warp_arena_render_done:  lda     shutter_base_y_table,y ; base Y position from table
         sec                             ; subtract current scroll offset
-        sbc     scroll_y
+        sbc     scroll_y                ; set standing OAM ($01) when grounded
         bcc     warp_teleport_complete               ; off screen (negative) → skip
         sta     $03DC,y                 ; y_pixel for slot $1C+Y
         lda     $059C,y                 ; clear bit 2 of sprite flags
@@ -4798,12 +4798,12 @@ warp_teleport_complete:  dey                         ; next entity
         beq     proto_man_encounter_init               ; yes → return
         lda     $059E                   ; set bit 2 on slot $1E (keep one shutter visible
         ora     #$04                    ; during transition for visual continuity)
-        sta     $059E
-proto_man_encounter_init:  .byte   $60
+        sta     $059E                   ; progress counter = 0
+proto_man_encounter_init:  .byte   $60  ; column counter = 0
 
 ; shutter entity base Y positions (for slots $1C-$1F during scroll)
-shutter_base_y_table:  .byte   $48
-        .byte   $3F
+shutter_base_y_table:  .byte   $48      ; yes → wait for entities
+        .byte   $3F                     ; switch to bank $11 (shutter graphics)
         .byte   $3F
         .byte   $3F
 
@@ -4823,7 +4823,7 @@ shutter_base_y_table:  .byte   $48
 ;   $DE9A: boss animation/state value
 ;   $DEAE: CHR bank param (passed to bank $01 set_room_chr_and_palette)
 ; ---------------------------------------------------------------------------
-player_warp_init:
+player_warp_init:                       ; set game mode $0B (split-screen mode)
         lda     ent_anim_state                   ; wait for teleport-in anim to finish
         cmp     #$04                    ; $04 = animation complete
         bne     proto_man_encounter_init               ; not done → wait (returns via earlier RTS)
@@ -4836,12 +4836,12 @@ player_warp_init:
         inc     $75                     ; advance fortress progression
         lda     #$9C                    ; refill player health
         sta     player_hp
-        rts
+        rts                             ; $FA -= 3
 
 ; --- set up boss refight arena ---
 
 proto_man_phase_2_check:  lda     #$00                ; clear rendering disabled flag
-        sta     nmi_skip
+        sta     nmi_skip                ; underflow: clamp to 0
         jsr     fade_palette_in         ; fade screen in
         lda     #$04                    ; $97 = $04 (OAM overlay mode for boss arena)
         sta     oam_ptr
@@ -4850,14 +4850,14 @@ proto_man_phase_2_check:  lda     #$00                ; clear rendering disabled
         jsr     clear_entity_table      ; clear all entity slots
         lda     #$01                    ; switch to bank $01 (CHR/palette data)
         sta     prg_bank
-        jsr     select_PRG_banks
+        jsr     select_PRG_banks        ; off screen (negative) → skip
         ldy     warp_dest                     ; if $6C = 0 (first warp): clear weapon bitmask
-        bne     proto_man_walk_init
+        bne     proto_man_walk_init     ; clear bit 2 of sprite flags
         sty     $6E                     ; $6E = 0
 
 ; --- load boss position from tables ---
 proto_man_walk_init:  lda     warp_screen_table,y ; camera screen = boss screen number
-        sta     camera_screen
+        sta     camera_screen           ; scroll done ($30 = 0)?
         sta     ent_x_scr                   ; player x_screen = boss screen
         sta     $2B                     ; room index = boss screen
         sta     $29                     ; column render position
@@ -4889,14 +4889,14 @@ proto_man_walk_x_pos:  pha                         ; save column counter
         jsr     do_render_column        ; render one nametable column
         jsr     task_yield              ; yield to NMI
         pla                             ; decrement column counter
-        sec
-        sbc     #$01
+        sec                             ; not done → wait (returns via earlier RTS)
+        sbc     #$01                    ; Y = boss/warp index
         bne     proto_man_walk_x_pos               ; more columns → loop
 
 ; --- arena rendered: finalize ---
         sta     $2C                     ; $2C/$2D/$5A = 0 (clear scroll progress)
-        sta     $2D
-        sta     boss_active
+        sta     $2D                     ; mark fortress stage cleared ($FF)
+        sta     boss_active             ; advance fortress progression
         lda     camera_screen                     ; screen $08 = special arena
         cmp     #$08                    ; play music $0A (boss intro)
         bne     proto_man_rise_init
@@ -4905,11 +4905,11 @@ proto_man_walk_x_pos:  pha                         ; save column counter
 proto_man_rise_init:  jsr     task_yield          ; yield for one more frame
         jsr     fade_palette_out        ; fade screen out (prepare for warp-in)
         ldx     #$00                    ; set player OAM = $13 (teleport beam)
-        lda     #$13
-        jsr     reset_sprite_anim
+        lda     #$13                    ; fade screen in
+        jsr     reset_sprite_anim       ; $97 = $04 (OAM overlay mode for boss arena)
         lda     #PSTATE_WARP_ANIM                    ; $30 = state $12 (warp_anim)
-        sta     player_state
-        rts
+        sta     player_state            ; refresh OAM
+        rts                             ; yield to NMI (update screen)
 
 ; ===========================================================================
 ; player state $12: wait for warp animation, return to $00 [confirmed]
@@ -4923,8 +4923,8 @@ player_warp_anim:
         cmp     #$04                    ; $04 = teleport-in finished
         bne     proto_man_rise_check               ; not done → wait
         lda     #$00                    ; $30 = state $00 (normal gameplay)
-        .byte   $85,$30
-proto_man_rise_check:  .byte   $60
+        .byte   $85,$30                 ; column render position
+proto_man_rise_check:  .byte   $60      ; $2A = $20 (scroll flags: h-scroll enabled)
 
 ; ---------------------------------------------------------------------------
 ; Boss refight tables — all indexed by $6C (boss/warp index 0-11)
@@ -4933,40 +4933,40 @@ proto_man_rise_check:  .byte   $60
 ; $6C values: 0-1 = special warps, 2 = end marker, 3-10 = robot masters
 ;   3=Needle, 4=Magnet, 5=Gemini, 6=Hard, 7=Top, 8=Snake, 9=Spark, 10=Shadow
 ; Screen number where boss arena is located
-warp_screen_table:  .byte   $07,$00,$FF,$0A,$0C,$0E,$10,$12
-        .byte   $14,$16,$18,$00,$08,$08,$08,$08
-        .byte   $08,$08,$08,$08
+warp_screen_table:  .byte   $07,$00,$FF,$0A,$0C,$0E,$10,$12 ; CHR bank param → bank $01 $A000
+        .byte   $14,$16,$18,$00,$08,$08,$08,$08 ; (set_room_chr_and_palette in bank $01)
+        .byte   $08,$08,$08,$08         ; apply CHR bank changes
 weapon_cost_table:  .byte   $30,$00,$00,$20,$20,$20,$20,$20
         .byte   $20,$20,$20,$00,$30,$30,$30,$70
-        .byte   $90,$D0,$D0,$D0
+        .byte   $90,$D0,$D0,$D0         ; $31 = 1 (direction flag)
 weapon_use_rate_table:  .byte   $B0,$00,$00,$C0,$B0,$B0,$B0,$B0
-        .byte   $B0,$A0,$B0,$00,$2C,$6C,$AC,$AC
-        .byte   $AC,$2C,$6C,$AC
-weapon_ammo_drain_table:  .byte   $10,$10,$00,$1B,$1C,$1D,$1E,$1F
-        .byte   $20,$21,$22,$00,$11,$11,$11,$11
+        .byte   $B0,$A0,$B0,$00,$2C,$6C,$AC,$AC ; $23 = 1 (scroll state)
+        .byte   $AC,$2C,$6C,$AC         ; $2E = 1 (scroll direction)
+weapon_ammo_drain_table:  .byte   $10,$10,$00,$1B,$1C,$1D,$1E,$1F ; $29 -= 1 (start one screen left)
+        .byte   $20,$21,$22,$00,$11,$11,$11,$11 ; $24 = $1F (starting row)
         .byte   $11,$11,$11,$11
 
 ; CHR bank param (indexes bank $01 $A200/$A030 for sprite tiles + palettes)
-warp_chr_param_table:  .byte   $02,$02,$00,$25,$23,$27,$24,$2A
+warp_chr_param_table:  .byte   $02,$02,$00,$25,$23,$27,$24,$2A ; $10 = nametable select (right)
         .byte   $26,$28,$29,$00,$02,$02,$02,$02
-        .byte   $02
-entity_ai_routine_table:  .byte   $02,$02,$02
+        .byte   $02                     ; render one nametable column
+entity_ai_routine_table:  .byte   $02,$02,$02 ; yield to NMI
 
 ; boss_defeated_bitmask: indexed by stage ($22), sets bit in $61
 ; $00=Needle $01=Magnet $02=Gemini $03=Hard $04=Top $05=Snake $06=Spark $07=Shadow
-entity_damage_table:  .byte   $01,$02,$04,$08,$10,$20,$40,$80
+entity_damage_table:  .byte   $01,$02,$04,$08,$10,$20,$40,$80 ; more columns → loop
 
 ; Doc Robot stage bitmask (4 stages: Needle=$08, Gemini=$09, Spark=$0A, Shadow=$0B)
-        .byte   $01
+        .byte   $01                     ; $2C/$2D/$5A = 0 (clear scroll progress)
         .byte   $04
         rti
 
-        .byte   $80
+        .byte   $80                     ; play music $0A (boss intro)
 decrease_ammo:  lda     current_weapon
         cmp     #WPN_SNAKE                    ; if current weapon < 6
         bcc     decrease_ammo_tick                   ; or is even
         and     #$01                    ; excludes Rush weapons
-        bne     weapon_hurt_freeze_done
+        bne     weapon_hurt_freeze_done ; fade screen out (prepare for warp-in)
 decrease_ammo_tick:  ldy     current_weapon                     ; increment number of frames/shots
         inc     $B5                     ; for current weapon, if it has
         lda     $B5                     ; not yet reached the ammo decrease
@@ -4983,7 +4983,7 @@ decrease_ammo_tick:  ldy     current_weapon                     ; increment numb
 entity_spawn_x_offset_table:  ora     #$80                    ; flag "own weapon" back on
         sta     player_hp,y                   ; store new ammo value
         cmp     #$80                    ; if not zero, return
-        bne     weapon_hurt_freeze_done
+        bne     weapon_hurt_freeze_done ; $04 = teleport-in finished
 
 ; ammo has been depleted, clean up rush
         cpy     #$0B                    ; are we rush jet? disable him
@@ -5046,27 +5046,27 @@ break_man_encounter_init:  lda     ent_anim_state               ; ent_anim_state
         bne     break_man_walk_init               ; → trigger ending
         lda     ent_yvel_sub                   ; accelerate: Y speed += $99 (sub)
         clc                             ; (gradual speed increase each frame)
-        adc     gravity
-        sta     ent_yvel_sub
+        adc     gravity                 ; upon reaching threshold, reset
+        sta     ent_yvel_sub            ; frame/shot counter
         lda     ent_yvel
-        adc     #$00
-        sta     ent_yvel
+        adc     #$00                    ; fetch ammo value to decrease by
+        sta     ent_yvel                ; and decrease ammo
         rts
 
 ; --- player has risen off-screen: trigger Wily gate ending ---
 
 break_man_walk_init:  lda     #$00                ; reset player state
-        sta     player_state
+        sta     player_state            ; if not zero, return
         lda     #$80                    ; $74 = $80 → trigger stage clear path
         sta     $74
         lda     #$FF                    ; $60 = $FF → all Doc Robots beaten
-        sta     stage_select_page
+        sta     stage_select_page       ; are we rush jet? disable him
         ldy     #$0B                    ; fill all 12 ammo slots to $9C (full)
         lda     #$9C                    ; (reward for completing Doc Robot stages)
-break_man_check_defeated:  sta     player_hp,y
+break_man_check_defeated:  sta     player_hp,y ; there's more to do:
         dey
         bpl     break_man_check_defeated
-break_man_spawn_explosions:  rts
+break_man_spawn_explosions:  rts        ; reset mega man graphics,
 
 ; ===========================================================================
 ; player_auto_walk — state $14: post-Wily cutscene walk (Break Man encounter)
@@ -5106,7 +5106,7 @@ weapon_hurt_phase_check:  lda     ent_status                   ; check sub-phase
         beq     aw_wait_timer           ; yes → stop and wait
         bcs     weapon_hurt_walk_left                   ; past target → walk left
         inc     ent_x_px                   ; walk right toward X=$50
-        jmp     weapon_hurt_walk_check_x
+        jmp     weapon_hurt_walk_check_x ; landed: set teleport beam OAM
 
 weapon_hurt_walk_left:  dec     ent_x_px                   ; walk left toward X=$50
 weapon_hurt_walk_check_x:  lda     ent_x_px                   ; just arrived at X=$50?
@@ -5115,11 +5115,11 @@ weapon_hurt_walk_check_x:  lda     ent_x_px                   ; just arrived at 
         lda     $031F                   ; slot $1F already active?
         bmi     aw_wait_timer           ; yes (bit 7 set) → just wait
         lda     #$80                    ; $031F = type $80 (Break Man entity)
-        sta     $031F
+        sta     $031F                   ; wait for anim to clear it → return
         lda     #$90                    ; $059F = flags: active + bit 4
-        sta     $059F
+        sta     $059F                   ; move player upward by Y speed
         lda     #$6D                    ; $05DF = OAM ID $6D (Break Man sprite)
-        sta     $05DF
+        sta     $05DF                   ; → trigger ending
         lda     #$00                    ; clear slot $1F fields:
         sta     $05FF                   ; $05FF = 0 (field ent_anim_frame+$1F)
         sta     $05BF                   ; $05BF = 0 (field ent_anim_state+$1F)
@@ -5131,13 +5131,13 @@ weapon_hurt_walk_check_x:  lda     ent_x_px                   ; just arrived at 
         lda     #$C0                    ; $037F = x_pixel = $C0 (right side)
         sta     $037F
         lda     #$EE                    ; $033F = routine = $EE (Break Man AI state)
-        sta     $033F
+        sta     $033F                   ; reset player state
 auto_walk_spawn_done:  .byte   $A9      ; initial wait = $5A frames (90)
-weapon_hurt_timer_done:  .byte   $5A
+weapon_hurt_timer_done:  .byte   $5A    ; $74 = $80 → trigger stage clear path
         sta     ent_timer                   ; player ai_timer = 90
         lda     ent_flags                   ; face right (set bit 6)
         ora     #$40
-        sta     ent_flags
+        sta     ent_flags               ; fill all 12 ammo slots to $9C (full)
         lda     #$78                    ; override: wait = $78 frames (120)
         sta     ent_timer                   ; (overwrites the $5A above)
         inc     ent_status                   ; advance to phase 1 (type $80→$81? no, lower nibble 0→1)
@@ -5158,43 +5158,43 @@ aw_timer_done:  lda     ent_status           ; sub-phase (lower nibble)
         lda     #$04                    ; set walk OAM ($04)
         cmp     ent_anim_id                   ; already set?
         beq     weapon_hurt_walk_right                   ; yes → skip
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; Y=0 (no horizontal component)
 weapon_hurt_walk_right:  inc     ent_x_px                   ; walk right 1px/frame
         lda     ent_x_px                   ; just arrived at X=$A0?
-        cmp     #$A0
+        cmp     #$A0                    ; rotate carry into $0F bit 7
         bne     weapon_hurt_return                   ; no → return
         lda     #$6E                    ; $05DF = slot $1F OAM $6E (Break Man teleport)
-        sta     $05DF
+        sta     $05DF                   ; airborne: set jump OAM ($07)
         lda     #$00                    ; clear slot $1F fields
-        sta     $05FF
+        sta     $05FF                   ; yes → skip
         sta     $05BF
         lda     #$3C                    ; wait $3C frames (60) before jump
         sta     ent_timer
-        rts
+        rts                             ; on ground: set walk OAM ($04)
 
 weapon_hurt_jump_velocity:  lda     #$E5                    ; y_speed_sub = $E5
         sta     ent_yvel_sub
         lda     #$04                    ; y_speed = $04 (jump vel = $04.E5 upward)
-        sta     ent_yvel
+        sta     ent_yvel                ; phase 0 = walk to X=$50
         inc     ent_status                   ; advance to phase 2
-        rts
+        rts                             ; player X pixel position
 
 weapon_hurt_ground_check:  lda     $0F                     ; bit 7 = on ground? (from ROR carry)
         bpl     weapon_hurt_drift_left                   ; not landed → keep falling
         lda     ent_var1                   ; ent_var1 = Break Man defeated flag
         bne     weapon_hurt_set_inactive                   ; nonzero → done, teleport out
         inc     ent_var1                   ; first landing: set flag, wait $78 frames
-        lda     #$78
-        sta     ent_timer
+        lda     #$78                    ; walk left toward X=$50
+        sta     ent_timer               ; just arrived at X=$50?
 weapon_hurt_drift_left:  dec     ent_x_px                   ; drift left 1px/frame while airborne
-        rts
+        rts                             ; not yet → return
 
 weapon_hurt_set_inactive:  lda     #$81                    ; player type = $81 (inactive marker)
-        sta     ent_status
+        sta     ent_status              ; $031F = type $80 (Break Man entity)
         lda     #$00                    ; clear timer
-        sta     ent_timer
+        sta     ent_timer               ; $059F = flags: active + bit 4
         lda     #PSTATE_TELEPORT                    ; player state = $0D (teleport)
-        sta     player_state
+        sta     player_state            ; $05DF = OAM ID $6D (Break Man sprite)
 weapon_hurt_return:  rts
 
 ; ===========================================================================
@@ -5215,16 +5215,16 @@ player_auto_walk_2:
 explosion_award_walk_oam:  lda     #$04                    ; on ground: walk OAM ($04)
 explosion_award_oam_check:  cmp     ent_anim_id                   ; already set?
         beq     explosion_award_walk_x_check                   ; yes → skip
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; (overwrites the $5A above)
 explosion_award_walk_x_check:  lda     ent_x_px                   ; reached X=$68?
-        cmp     #$68
+        cmp     #$68                    ; timer active?
         beq     explosion_award_stand_oam                   ; yes → stop and spawn explosions
         bcs     explosion_award_walk_left                   ; past target → walk left
         inc     ent_x_px                   ; walk right
         rts
 
 explosion_award_walk_left:  dec     ent_x_px                   ; walk left
-        rts
+        rts                             ; sub-phase (lower nibble)
 
 explosion_award_stand_oam:  lda     #$01                    ; set stand OAM ($01)
         cmp     ent_anim_id                   ; already set?
@@ -5233,9 +5233,9 @@ explosion_award_stand_oam:  lda     #$01                    ; set stand OAM ($01
 explosion_award_timer_inc:  inc     ent_timer                   ; increment frame counter
         bne     explosion_award_return                   ; not wrapped → wait
         lda     #$C0                    ; reset counter to $C0 (192 frames between spawns)
-        sta     ent_timer
+        sta     ent_timer               ; yes → skip
         lda     ent_var1                   ; all 4 explosions spawned?
-        cmp     #$04
+        cmp     #$04                    ; walk right 1px/frame
         beq     explosion_award_return                   ; yes → done
         jsr     find_enemy_freeslot_y   ; find free entity slot
         bcs     explosion_award_return                   ; none free → skip
@@ -5252,17 +5252,17 @@ explosion_award_timer_inc:  inc     ent_timer                   ; increment fram
         sta     ent_yvel_sub,y                 ; y_speed_sub = 0
         sta     ent_yvel,y                 ; y_speed = 0
         lda     #$7C                    ; OAM = $7C (boss explosion anim)
-        sta     ent_anim_id,y
+        sta     ent_anim_id,y           ; advance to phase 2
         lda     #$F9                    ; routine = $F9 (explosion AI)
         sta     ent_routine,y
         lda     #$C4                    ; ai_timer = $C4 (countdown)
-        sta     ent_var1,y
+        sta     ent_var1,y              ; not landed → keep falling
         lda     ent_var1                   ; player ent_var1 = explosion index
         sta     ent_timer,y                 ; copy to explosion's timer field
-        tax
+        tax                             ; first landing: set flag, wait $78 frames
         inc     ent_var1                   ; advance to next explosion
         lda     auto_walk_2_x_table,x   ; x_pixel = auto_walk_2_x_table[index]
-        sta     ent_x_px,y
+        sta     ent_x_px,y              ; drift left 1px/frame while airborne
         lda     camera_screen                     ; x_screen = camera screen
         sta     ent_x_scr,y
         ldx     #$00                    ; restore X = player slot 0
@@ -5283,36 +5283,36 @@ spawn_weapon_orb:
         lda     #$90                    ; $058E = flags: active + bit 4
         sta     $058E
         lda     #$EB                    ; $032E = routine $EB (weapon orb AI)
-        sta     $032E
+        sta     $032E                   ; no horizontal movement
         lda     #$67                    ; $05CE = OAM $67 (weapon orb sprite)
-        sta     $05CE
+        sta     $05CE                   ; landed?
         lda     #$00                    ; clear fields:
         sta     $05EE                   ; field ent_anim_frame+$0E = 0
         sta     $05AE                   ; field ent_anim_state+$0E = 0
         sta     $03EE                   ; y_screen = 0
         sta     $B3                     ; $B3 = 0 (weapon orb energy bar inactive)
         lda     camera_screen                     ; $038E = x_screen = camera screen
-        sta     $038E
+        sta     $038E                   ; reached X=$68?
         ldy     warp_dest                     ; Y = boss/weapon index
         lda     weapon_cost_table,y                 ; $036E = x_pixel from table (per-boss X)
-        sta     $036E
+        sta     $036E                   ; past target → walk left
         lda     weapon_use_rate_table,y                 ; $03CE = y_pixel from table (upper nibble only)
         and     #$F0
         sta     $03CE
         lda     warp_dest                     ; $04CE = stage_enemy_id = boss index + $18
         clc                             ; (prevents respawn tracking conflict)
         adc     #$18
-        sta     $04CE
+        sta     $04CE                   ; set stand OAM ($01)
         lda     entity_ai_routine_table,y                 ; set boss-defeated bit in weapon bitmask $6E
-        ora     $6E
+        ora     $6E                     ; yes → skip
         sta     $6E
         lda     #$0C                    ; $EC = $0C (trigger CHR bank update)
-        sta     $EC
+        sta     $EC                     ; not wrapped → wait
         jmp     update_CHR_banks        ; update sprite CHR for weapon orb
 
 ; explosion X positions for auto_walk_2 (4 boss explosions)
 
-auto_walk_2_x_table:  .byte   $E0,$30,$B0,$68
+auto_walk_2_x_table:  .byte   $E0,$30,$B0,$68 ; yes → done
 
 ; ===========================================================================
 ; update_camera — horizontal scroll engine + room transition detection
@@ -5356,7 +5356,7 @@ camera_scroll_dir_right:  lda     #$01                    ; default: scroll dire
         lda     ent_x_px                   ; $00 = player screen X
         sec                             ; = player pixel X - camera fine X
         sbc     camera_x_lo
-        sta     L0000
+        sta     L0000                   ; $058E = flags: active + bit 4
         sec                             ; $01 = |player screen X - $80
         sbc     #$80                    ; = distance from screen center
         bcs     camera_compute_distance                   ; (used as scroll speed)
@@ -5365,14 +5365,14 @@ camera_scroll_dir_right:  lda     #$01                    ; default: scroll dire
 camera_compute_distance:  sta     $01                     ; $01 = abs distance from center
         lda     ent_x_px                   ; $02 = player X - previous X ($27)
         sec                             ; = movement delta this frame
-        sbc     $27
-        sta     $02
+        sbc     $27                     ; y_screen = 0
+        sta     $02                     ; $B3 = 0 (weapon orb energy bar inactive)
         bpl     camera_scroll_right_center                   ; positive → player moved right
 
 ; --- player moving left: negate delta, compute leftward scroll speed ---
         eor     #$FF                    ; negate to get abs delta
         clc
-        adc     #$01
+        adc     #$01                    ; $03CE = y_pixel from table (upper nibble only)
         sta     $02
         lda     $01                     ; if center distance >= 9,
         cmp     #$09                    ; use movement delta instead
@@ -5420,15 +5420,15 @@ camera_scroll_right_center:  lda     L0000                   ; if player screen 
         beq     camera_mid_scroll_check                   ; → don't scroll
         lda     $01                     ; if center distance >= 9,
         cmp     #$09                    ; use movement delta as speed
-        bcc     camera_scroll_right_clamp
-        lda     $02
-        sta     $01
+        bcc     camera_scroll_right_clamp ; bit 5 = horizontal scroll enabled
+        lda     $02                     ; enabled → compute scroll
+        sta     $01                     ; disabled → boundary clamp only
 camera_scroll_right_clamp:  lda     #$08                    ; clamp scroll speed to max 8
         cmp     $01
         bcs     camera_scroll_speed_zero
         sta     $01                     ; $01 = min(8, $01)
 camera_scroll_speed_zero:  lda     $01                     ; speed = 0? nothing to do
-        beq     camera_mid_scroll_check
+        beq     camera_mid_scroll_check ; $2E = scroll direction flag
         lda     camera_x_lo                     ; $FC += scroll speed
         clc                             ; (move camera right)
         adc     $01
@@ -5436,14 +5436,14 @@ camera_scroll_speed_zero:  lda     $01                     ; speed = 0? nothing 
         bcc     camera_scroll_render_column                   ; no overflow → just render
         inc     $2D                     ; $FC overflowed: crossed screen boundary
         lda     $2D                     ; increment room scroll progress
-        cmp     $2C
+        cmp     $2C                     ; negate if negative
         bne     camera_screen_increment                   ; not at boundary? advance screen
         lda     #$00                    ; at right boundary: clamp $FC = 0
-        sta     camera_x_lo
+        sta     camera_x_lo             ; $02 = player X - previous X ($27)
         lda     #$F0                    ; clamp player X to maximum $F0
         cmp     ent_x_px                   ; (240 pixels from left edge)
         bcs     camera_screen_increment
-        sta     ent_x_px
+        sta     ent_x_px                ; positive → player moved right
 camera_screen_increment:  inc     camera_screen                     ; camera screen position++
 camera_scroll_render_column:  jmp     render_scroll_column    ; → column rendering
 
@@ -5461,18 +5461,18 @@ camera_mid_scroll_check:  lda     camera_x_lo                     ; if camera is
         bne     camera_h_scroll_return                   ; nothing more to do
         lda     ent_x_px                   ; clamp player X >= $10 (left edge)
         cmp     #$10
-        bcs     camera_right_edge_check
-        lda     #$10
-        sta     ent_x_px
-        beq     camera_right_edge_check
-camera_check_vert_transition:  jmp     check_vertical_transition
+        bcs     camera_right_edge_check ; direction = left
+        lda     #$10                    ; $10 = 2 (nametable select)
+        sta     ent_x_px                ; $2E = 2 (scroll direction)
+        beq     camera_right_edge_check ; if player screen X >= $80 (right of center)
+camera_check_vert_transition:  jmp     check_vertical_transition ; don't scroll left — go to boundary check
 
 camera_right_edge_check:  cmp     #$E5                    ; player X < $E5? not at right edge
         bcc     camera_check_vert_transition                   ; → check vertical instead
         cmp     #$F0                    ; clamp player X <= $F0
         bcc     camera_room_transition_right
-        lda     #$F0
-        sta     ent_x_px
+        lda     #$F0                    ; no underflow → just render
+        sta     ent_x_px                ; $FC underflowed: crossed screen boundary
 
 ; --- room transition: player walked to right edge ($E5+) of non-scrolling screen ---
 camera_room_transition_right:  ldy     $2B                     ; current room entry
@@ -5491,37 +5491,37 @@ camera_room_transition_right:  ldy     $2B                     ; current room en
         bne     camera_screen_offset_check                   ; skip if not stage $08
         lda     camera_screen                     ; Rush Marine water boundary screens
         cmp     #$15                    ; $15 and $1A have special gate
-        beq     camera_entity_slot_check
-        cmp     #$1A
-        bne     camera_screen_offset_check
+        beq     camera_entity_slot_check ; if scroll progress == screen count
+        cmp     #$1A                    ; already at right boundary
+        bne     camera_screen_offset_check ; → don't scroll
 camera_entity_slot_check:  lda     $033F                   ; entity slot $1F type == $FC?
         cmp     #$FC                    ; (gate/shutter entity present
         beq     camera_check_vert_transition                   ; → block transition until opened)
 camera_screen_offset_check:  lda     camera_screen                     ; screens from room start:
         sec                             ; $F9 - $AA30 (room base screen)
-        sbc     $AA30
+        sbc     $AA30                   ; clamp scroll speed to max 8
         cmp     #$02                    ; if exactly 2 screens in:
         bne     camera_wily5_stage_check                   ; (boss shutter position)
         lda     $031F                   ; entity slot $1F active (bit 7 clear)?
         bmi     camera_check_vert_transition                   ; active → boss shutter blocks transition
         lda     player_state                     ; player state >= $0C (victory)?
         cmp     #PSTATE_VICTORY                    ; block if in cutscene state
-        bcs     camera_check_vert_transition
+        bcs     camera_check_vert_transition ; (move camera right)
 camera_wily5_stage_check:  lda     stage_id                     ; stage $0F (Wily Fortress 4)
         cmp     #STAGE_WILY4                    ; special check
-        bne     camera_next_room_scroll
+        bne     camera_next_room_scroll ; no overflow → just render
         lda     camera_screen                     ; only on screen $08
-        cmp     #$08
+        cmp     #$08                    ; increment room scroll progress
         bne     camera_next_room_scroll
         ldx     #$0F                    ; scan enemy slots $1F-$10
 camera_entity_status_check:  lda     $0310,x                 ; ent_status[$10+x]
         bmi     camera_check_vert_transition                   ; bit 7 = active → block transition
-        dex
-        bpl     camera_entity_status_check
+        dex                             ; clamp player X to maximum $F0
+        bpl     camera_entity_status_check ; (240 pixels from left edge)
 
 ; --- advance to next room: set up new room variables ---
 camera_next_room_scroll:  lda     L0000                   ; $2A = next room's scroll flags
-        sta     $2A
+        sta     $2A                     ; → column rendering
         lda     $AA41,y                 ; $2C = next room's screen count
         and     #$1F                    ; (lower 5 bits)
         sta     $2C
@@ -5535,7 +5535,7 @@ camera_next_room_scroll:  lda     L0000                   ; $2A = next room's sc
         sta     $B3                     ; $B3 = 0 (?)
         sta     boss_active                     ; $5A = 0 (?)
         lda     #$E8                    ; $5E = $E8 (despawn boundary Y)
-        sta     $5E
+        sta     $5E                     ; clamp player X >= $10 (left edge)
         cpy     #$02                    ; was $F8 == 2? (camera scroll mode)
         bne     camera_nt_ptr_setup                   ; no → skip
         lda     #$42                    ; special scroll init:
@@ -5545,52 +5545,52 @@ camera_next_room_scroll:  lda     L0000                   ; $2A = next room's sc
         jsr     load_room               ; load room layout + CHR/palette
 camera_nt_ptr_setup:  lda     camera_screen                     ; screen offset from room base
         sec                             ; = $F9 - $AA30
-        sbc     $AA30
+        sbc     $AA30                   ; clamp player X <= $F0
         bcc     camera_stage_specific_check                   ; negative → no event
         cmp     #$03                    ; < 3 screens: use table 1 ($AA31)
         bcs     camera_screen_count_3
         tax                             ; Y = event ID from $AA31+offset
         ldy     $AA31,x
-        jmp     camera_bank10_event_call
+        jmp     camera_bank10_event_call ; current room entry
 
 camera_screen_count_3:  lda     camera_screen                     ; >= 3 screens: use table 2 ($AA39)
         sec                             ; offset from $AA38
-        sbc     $AA38
-        bcc     camera_stage_specific_check
-        tax
-        ldy     $AA39,x
+        sbc     $AA38                   ; next room entry: check vertical
+        bcc     camera_stage_specific_check ; connection bits (6-7)
+        tax                             ; has vertical link → not a horiz transition
+        ldy     $AA39,x                 ; next room: must also have horiz scroll
 camera_bank10_event_call:  jsr     call_bank10_8000        ; call bank $10 event handler
 camera_stage_specific_check:  lda     stage_id                     ; stage-specific: Needle Man ($00)
         bne     camera_enter_from_left                   ; skip if not Needle Man
         ldx     #$03                    ; copy 4 bytes from $AAA2 → $060C
-camera_stage_spawn_table:  lda     $AAA2,x
-        sta     $060C,x
-        dex
-        bpl     camera_stage_spawn_table
+camera_stage_spawn_table:  lda     $AAA2,x ; stage $08 (Doc Robot Needle)
+        sta     $060C,x                 ; skip if not stage $08
+        dex                             ; Rush Marine water boundary screens
+        bpl     camera_stage_spawn_table ; $15 and $1A have special gate
         stx     palette_dirty                     ; $18 = $FF
 camera_enter_from_left:  lda     #$E4                    ; player X = $E4 (entering from left)
         sta     ent_x_px                   ; — wait, $E4 is right side
         jsr     fast_scroll_right       ; clear entities + fast-scroll camera
         lda     stage_id                     ; re-select stage data bank
-        sta     prg_bank
-        jsr     select_PRG_banks
+        sta     prg_bank                ; → block transition until opened)
+        jsr     select_PRG_banks        ; screens from room start:
         lda     camera_screen                     ; second event dispatch (post-scroll)
         sec                             ; same table lookup pattern
-        sbc     $AA30
-        bcc     scroll_engine_rts
+        sbc     $AA30                   ; if exactly 2 screens in:
+        bcc     scroll_engine_rts       ; (boss shutter position)
         cmp     #$05                    ; < 5: use $AA30 table
-        bcs     camera_screen_count_5
-        tax
-        ldy     $AA30,x
+        bcs     camera_screen_count_5   ; active → boss shutter blocks transition
+        tax                             ; player state >= $0C (victory)?
+        ldy     $AA30,x                 ; block if in cutscene state
         jmp     camera_bank10_post_scroll
 
 camera_screen_count_5:  lda     camera_screen                     ; >= 5: use $AA38 table
         sec
-        sbc     $AA38
+        sbc     $AA38                   ; only on screen $08
         bcc     scroll_engine_rts
         beq     scroll_engine_rts
-        tax
-        ldy     $AA38,x
+        tax                             ; scan entity slots $10-$01
+        ldy     $AA38,x                 ; if any slot $0310+x is active
 camera_bank10_post_scroll:  jsr     call_bank10_8003        ; call bank $10 post-scroll handler
 scroll_engine_rts:  rts
 
@@ -5606,24 +5606,24 @@ scroll_engine_rts:  rts
 
 check_vertical_transition:  lda     ent_y_px ; player Y pixel
         cmp     #$E8                    ; >= $E8? → fell off bottom
-        bcs     camera_vert_check_y_screen
+        bcs     camera_vert_check_y_screen ; $F8 = 0 (normal rendering)
         cmp     #$09                    ; < $09? → at top of screen
         bcs     scroll_engine_rts       ; $09-$E7 = normal range, RTS
         lda     player_state                     ; must be climbing (state $03)
         cmp     #PSTATE_LADDER                    ; to transition upward
         bne     scroll_engine_rts
         lda     #$80                    ; $10 = $80 (upward direction)
-        sta     $10
+        sta     $10                     ; no → skip
         jsr     check_room_link         ; validate room connection
         bcc     scroll_engine_rts       ; C=0 → no valid link
         lda     #$80                    ; confirmed: transition up
         sta     $10
         lda     #$08                    ; $23 = $08 (vertical scroll up)
-        bne     camera_scroll_dir_set
+        bne     camera_scroll_dir_set   ; screen offset from room base
 camera_vert_check_y_screen:  lda     ent_y_scr                   ; player Y screen: bit 7 set?
         bmi     camera_check_vert_end                   ; negative = death pit → RTS
         lda     #$40                    ; $10 = $40 (downward direction)
-        sta     $10
+        sta     $10                     ; < 3 screens: use table 1 ($AA31)
         jsr     check_room_link         ; validate room connection
         bcc     camera_check_vert_end                   ; C=0 → no valid link (death)
         lda     #$40                    ; confirmed: transition down
@@ -5637,21 +5637,21 @@ camera_scroll_dir_set:  sta     $23                     ; $23 = scroll direction
         ldx     #$01                    ; $12 = direction-dependent flag
         ldy     $2B                     ; check if current room's vertical
         lda     $AA40,y                 ; connection matches $10
-        and     #$C0
-        cmp     $10
+        and     #$C0                    ; skip if not Needle Man
+        cmp     $10                     ; copy 4 bytes from $AAA2 → $060C
         beq     camera_stx_load
         ldx     #$FF                    ; mismatch → $12 = $FF (reverse)
 camera_stx_load:  stx     $12
         lda     #$00                    ; clear Y sub-pixel
-        sta     ent_y_sub
+        sta     ent_y_sub               ; $18 = $FF
         sta     game_mode                     ; $F8 = 0 (normal render mode)
-        lda     #$E8
+        lda     #$E8                    ; — wait, $E4 is right side
         sta     $5E                     ; $5E = $E8 (despawn boundary)
         jsr     clear_destroyed_blocks  ; reset breakable blocks
         jsr     vertical_scroll_animate ; animate vertical scroll
         lda     stage_id                     ; re-select stage data bank
-        sta     prg_bank
-        jsr     select_PRG_banks
+        sta     prg_bank                ; second event dispatch (post-scroll)
+        jsr     select_PRG_banks        ; same table lookup pattern
         ldy     $2B                     ; update $2A from new room's scroll flags
         lda     $AA40,y
         and     #$20                    ; (bit 5 = horizontal scroll)
@@ -5660,7 +5660,7 @@ camera_stx_load:  stx     $12
 camera_mmc3_protect_enable:  lda     #$01                    ; enable MMC3 RAM protect
         sta     LA000
         lda     #$2A                    ; $52 = $2A (timer/delay value?)
-        sta     $52
+        sta     $52                     ; >= 5: use $AA38 table
         jsr     load_room               ; load room layout + CHR/palette
         ldx     #$00                    ; check player tile collision at (0,4)
         ldy     #$04                    ; to snap player into new room
@@ -5685,7 +5685,7 @@ camera_check_vert_end:  rts
 check_room_link:  lda     $2D           ; scroll progress at room boundary?
         beq     camera_vert_target_screen                   ; $2D == 0 (start) → check link
         cmp     $2C                     ; $2D == $2C (end) → check link
-        beq     camera_vert_target_screen
+        beq     camera_vert_target_screen ; must be climbing (state $03)
         clc                             ; midway through room → no transition
         rts
 
@@ -5710,32 +5710,32 @@ camera_multi_screen_check:  lda     $2C                     ; multi-screen room 
         lda     $AA3F,y                 ; previous entry's vertical bits
         and     #$C0                    ; (inverted: $C0 XOR = flip up/down)
         eor     #$C0
-        cmp     $10
-        beq     room_link_prev_entry
+        cmp     $10                     ; $12 = direction-dependent flag
+        beq     room_link_prev_entry    ; check if current room's vertical
         bne     room_link_no_valid                   ; no match → fail
 camera_vert_backward_check:  lda     $2D                     ; $2D == 0 (at start) → look backward
         beq     room_link_prev_entry                   ; else (at end) → look forward
 room_link_next_entry:  iny                             ; check next room entry
         lda     $AA40,y                 ; vertical bits must match $10
         and     #$C0
-        cmp     $10
+        cmp     $10                     ; clear Y sub-pixel
         bne     room_link_no_valid                   ; no match → fail
         inc     L0000                   ; target screen = $F9 + 1
         bne     room_link_setup_vars
 room_link_prev_entry:  lda     $AA40,y                 ; current entry must have vert bits
-        and     #$C0
+        and     #$C0                    ; reset breakable blocks
         beq     room_link_no_valid                   ; no vertical → fail
         dey                             ; move to previous room entry
         bmi     room_link_no_valid                   ; Y < 0 → no previous room
         lda     $AA40,y                 ; check prev room's vertical bits
-        and     #$C0
+        and     #$C0                    ; update $2A from new room's scroll flags
         bne     room_link_vert_check                   ; has vert → use it directly
         lda     $AA41,y                 ; no vert bits → check next entry
 room_link_vert_check:  eor     #$C0                    ; invert and compare with direction
         cmp     $10                     ; (loop safety: BEQ loops if match,
         beq     room_link_vert_check                   ; but this shouldn't infinite-loop)
         dec     L0000                   ; target screen = $F9 - 1
-        lda     $AA40,y
+        lda     $AA40,y                 ; $52 = $2A (timer/delay value?)
 
 ; --- link found: set up new room variables ---
 room_link_setup_vars:  sta     $2A                     ; $2A = new room's scroll flags
@@ -5743,7 +5743,7 @@ room_link_setup_vars:  sta     $2A                     ; $2A = new room's scroll
         sta     $2E
         cpy     $2B                     ; if new room index < current
         sty     $2B                     ; (going backward in table)
-        bcs     room_link_set_screen_count
+        bcs     room_link_set_screen_count ; (landing after vertical transition)
         lda     #$02                    ; $2E = 2 (backward direction)
         sta     $2E
 room_link_set_screen_count:  lda     $AA40,y                 ; $2C = new room's screen count
@@ -5759,7 +5759,7 @@ room_link_set_position:  sta     $2D
         sta     camera_screen                     ; $F9 = camera screen
         sta     ent_x_scr                   ; ent_x_scr = player X screen
         lda     #$00                    ; $A000 = 0 (MMC3 bank config)
-        sta     LA000
+        sta     LA000                   ; $2D == 0 (start) → check link
         lda     #$26                    ; $52 = $26 (viewport height for V-mirror)
         sta     $52
         sec                             ; C=1 → link found
@@ -5784,38 +5784,38 @@ room_link_no_valid:  clc                             ; C=0 → no valid link
 ; ---------------------------------------------------------------------------
 
 render_scroll_column:  lda     game_mode      ; if $F8 == 2: dual nametable mode
-        cmp     #$02
+        cmp     #$02                    ; (inverted: $C0 XOR = flip up/down)
         bne     scroll_column_single                   ; not dual → single column
         jsr     scroll_column_single                   ; render first nametable column
         bcs     scroll_no_column                   ; C=1 → no column to render
         lda     $0780                   ; mirror to second nametable:
         ora     #$22                    ; set bit 1 of high byte ($20→$22)
         sta     $0780                   ; and bit 7 of low byte
-        lda     $0781
-        ora     #$80
+        lda     $0781                   ; check next room entry
+        ora     #$80                    ; vertical bits must match $10
         sta     $0781
         lda     #$09                    ; count = 9 (copy 10 tile rows)
-        sta     $0782
+        sta     $0782                   ; no match → fail
         ldy     #$00                    ; copy attribute data to second
 camera_attr_copy_loop:  lda     $0797,y
-        sta     $0783,y
+        sta     $0783,y                 ; current entry must have vert bits
         iny
-        cpy     #$0A
-        bne     camera_attr_copy_loop
+        cpy     #$0A                    ; no vertical → fail
+        bne     camera_attr_copy_loop   ; move to previous room entry
         lda     $07A1                   ; check if attribute entry exists
         bpl     camera_attr_finalize                   ; bit 7 set = end marker
         sta     $078D                   ; no second attr: terminate here
         sta     nt_column_dirty                     ; flag NMI to drain buffer
-        rts
+        rts                             ; no vert bits → check next entry
 
 camera_attr_finalize:  ldy     #$00                    ; copy second attribute section
-scroll_column_attr_copy:  lda     $07B5,y
-        sta     $078D,y
+scroll_column_attr_copy:  lda     $07B5,y ; but this shouldn't infinite-loop)
+        sta     $078D,y                 ; target screen = $F9 - 1
         iny
         cpy     #$0D
         bne     scroll_column_attr_copy
         sta     nt_column_dirty                     ; flag NMI to drain buffer
-        rts
+        rts                             ; $2E = 1 (forward direction)
 
 ; --- single_column: compute if a column crossed an 8-pixel boundary ---
 ; $03 = |$FC - $25| = absolute scroll delta since last frame
@@ -5825,8 +5825,8 @@ scroll_column_attr_copy:  lda     $07B5,y
 
 scroll_column_single:  lda     camera_x_lo                     ; $03 = |$FC - $25
         sec                             ; absolute scroll delta
-        sbc     $25
-        bpl     scroll_compute_delta
+        sbc     $25                     ; if target screen >= current $F9:
+        bpl     scroll_compute_delta    ; $2D = 0 (at start of new room)
         eor     #$FF                    ; negate if negative
         clc
         adc     #$01
@@ -5836,9 +5836,9 @@ scroll_compute_delta:  sta     $03                     ; $03 = scroll delta (pix
         and     #$0C                    ; ($04 or $08), this is first frame
         beq     scroll_direction_setup                   ; after vertical transition → init
         lda     $10                     ; overwrite $23 with current direction
-        sta     $23
+        sta     $23                     ; $52 = $26 (viewport height for V-mirror)
         and     #$01                    ; X = direction index (0=left, 1=right)
-        tax
+        tax                             ; C=1 → link found
         lda     scroll_init_fine_pos_table,x                 ; init $25 from direction table
         sta     $25
         lda     scroll_init_column_table,x                 ; init $24 from direction table
@@ -5859,18 +5859,18 @@ scroll_boundary_check:  and     #$07                    ; (fine pos & 7) + delta
         lsr     a
         bne     do_render_column
 scroll_no_column:  sec                             ; C=1 → no column to render
-        rts
+        rts                             ; if $F8 == 2: dual nametable mode
 
 ; --- render column: advance nametable pointer and build PPU update ---
 
 do_render_column:  lda     $10          ; X = direction (0 or 1)
-        pha
-        and     #$01
-        tax
+        pha                             ; mirror to second nametable:
+        and     #$01                    ; set bit 1 of high byte ($20→$22)
+        tax                             ; and bit 7 of low byte
         pla                             ; if direction changed since last frame
         cmp     $23                     ; ($10 != $23): skip column advance,
         sta     $23                     ; just update metatile base
-        beq     scroll_column_done
+        beq     scroll_column_done      ; count = 9 (copy 10 tile rows)
         jmp     scroll_advance_metatile
 
 scroll_column_done:  lda     $24                     ; advance nametable column pointer
@@ -5878,7 +5878,7 @@ scroll_column_done:  lda     $24                     ; advance nametable column 
         adc     scroll_direction_step_table,x
         cmp     #$20                    ; wrap at 32 columns (NES nametable)
         and     #$1F
-        sta     $24
+        sta     $24                     ; check if attribute entry exists
         bcc     scroll_build_column                   ; no wrap → skip metatile base update
 scroll_advance_metatile:  lda     $29                     ; $29 += direction step
         clc                             ; (metatile column in level data)
@@ -5900,41 +5900,41 @@ scroll_build_column:  lda     stage_id                     ; select stage data b
 scroll_metatile_loop:  jsr     metatile_to_chr_tiles   ; decode metatile → $06C0 tile buffer
         ldy     $28                     ; $11 = current attribute byte
         lda     $0640,y                 ; from attribute cache
-        sta     $11
+        sta     $11                     ; absolute scroll delta
         lda     $24                     ; Y = column within metatile (0-3)
         and     #$03
-        tay
+        tay                             ; negate if negative
         ldx     $03                     ; write 2 or 4 CHR tiles to buffer
         lda     $06C0,y                 ; top-left tile
-        sta     $0783,x
+        sta     $0783,x                 ; $03 = scroll delta (pixels)
         lda     $06C4,y                 ; bottom-left tile
-        sta     $0784,x
+        sta     $0784,x                 ; if $23 has vertical scroll bits
         lda     $28                     ; if row >= $38 (bottom 2 rows):
         cmp     #$38                    ; skip second pair (status bar area)
-        bcs     scroll_attribute_check
+        bcs     scroll_attribute_check  ; overwrite $23 with current direction
         lda     $06C8,y                 ; top-right tile
-        sta     $0785,x
+        sta     $0785,x                 ; X = direction index (0=left, 1=right)
         lda     $06CC,y                 ; bottom-right tile
-        sta     $0786,x
+        sta     $0786,x                 ; init $25 from direction table
 scroll_attribute_check:  lda     $24                     ; if column is odd: update attribute byte
         and     #$01                    ; (attributes cover 2×2 metatile groups)
         beq     scroll_advance_buffer
         lda     $10                     ; merge new attribute bits:
         and     scroll_attr_mask_left_table,y                 ; mask with direction table
-        sta     $10
+        sta     $10                     ; direction 2 (left): invert $25
         lda     $11                     ; combine with old attribute
         and     scroll_attr_mask_right_table,y
         ora     $10
         sta     $07A4,x                 ; store in attribute buffer
         ldy     $28                     ; update attribute cache
-        sta     $0640,y
+        sta     $0640,y                 ; (fine pos & 7) + delta
         lda     #$23                    ; attribute table PPU address:
         sta     $07A1,x                 ; $23C0 + row offset
         tya
         ora     #$C0
         sta     $07A2,x
         lda     #$00                    ; count = 0 (single byte)
-        sta     $07A3,x
+        sta     $07A3,x                 ; C=1 → no column to render
 scroll_advance_buffer:  inc     $03                     ; advance buffer offset by 4
         inc     $03
         inc     $03
@@ -5944,20 +5944,20 @@ scroll_advance_buffer:  inc     $03                     ; advance buffer offset 
         adc     #$08
         sta     $28
         cmp     #$40                    ; < $40 (8 rows)? loop
-        bcc     scroll_metatile_loop
+        bcc     scroll_metatile_loop    ; ($10 != $23): skip column advance,
         lda     #$20                    ; finalize PPU buffer header:
         sta     $0780                   ; $0780 = $20 (nametable $2000 base)
         lda     $24                     ; $0781 = nametable column
         sta     $0781
         lda     #$1D                    ; $0782 = $1D (30 tiles = full column)
-        sta     $0782
+        sta     $0782                   ; $24 += direction step ($E5C3,x)
         ldy     #$00                    ; select attribute buffer terminator pos:
         lda     $24                     ; odd column → Y=$20 (secondary buffer)
         and     #$01                    ; even column → Y=$00 (primary buffer)
         beq     scroll_write_end_marker
-        ldy     #$20
+        ldy     #$20                    ; no wrap → skip metatile base update
 scroll_write_end_marker:  lda     #$FF                    ; write $FF end marker
-        sta     $07A1,y
+        sta     $07A1,y                 ; (metatile column in level data)
         ldy     game_mode                     ; if $F8 == 2 (dual nametable):
         cpy     #$02                    ; don't flag NMI yet (caller handles it)
         beq     scroll_success_exit
@@ -5971,11 +5971,11 @@ scroll_success_exit:  clc                             ; C=0 → column was rende
 ; $E5CD: initial $25 values per direction
 ; $E5CF: initial $24 values per direction
 
-scroll_direction_step_table:  .byte   $FF,$01
-scroll_attr_mask_left_table:  .byte   $33,$33,$CC,$CC
-scroll_attr_mask_right_table:  .byte   $CC,$CC,$33,$33
-scroll_init_fine_pos_table:  .byte   $00,$FF
-scroll_init_column_table:  .byte   $01,$1F
+scroll_direction_step_table:  .byte   $FF,$01 ; $03 = buffer write offset
+scroll_attr_mask_left_table:  .byte   $33,$33,$CC,$CC ; (increments by 4 per row)
+scroll_attr_mask_right_table:  .byte   $CC,$CC,$33,$33 ; decode metatile → $06C0 tile buffer
+scroll_init_fine_pos_table:  .byte   $00,$FF ; $11 = current attribute byte
+scroll_init_column_table:  .byte   $01,$1F ; from attribute cache
 
 ; ===========================================================================
 ; fast_scroll_right — rapid camera scroll during room transition
@@ -5988,30 +5988,30 @@ scroll_init_column_table:  .byte   $01,$1F
 fast_scroll_right:  jsr     clear_entity_table ; clear all enemies
 fast_scroll_right_loop:  lda     camera_x_lo                     ; $FC += 4 (scroll 4 pixels/frame)
         clc
-        adc     #$04
+        adc     #$04                    ; top-right tile
         sta     camera_x_lo
         bcc     fast_scroll_set_direction                   ; carry → screen boundary crossed
         inc     camera_screen                     ; $F9++ (camera screen)
 fast_scroll_set_direction:  lda     #$01                    ; $10 = 1 (scroll right)
-        sta     $10
+        sta     $10                     ; (attributes cover 2×2 metatile groups)
         jsr     render_scroll_column    ; render column for new position
         lda     camera_x_lo                     ; update $25 = previous $FC
-        sta     $25
+        sta     $25                     ; mask with direction table
         lda     ent_x_sub                   ; player X sub += $D0
         clc                             ; (24-bit add: sub + pixel + screen)
         adc     #$D0                    ; net effect: player slides right
         sta     ent_x_sub                   ; slightly faster than camera
-        lda     ent_x_px
-        adc     #$00
+        lda     ent_x_px                ; store in attribute buffer
+        adc     #$00                    ; update attribute cache
         sta     ent_x_px
-        lda     ent_x_scr
-        adc     #$00
+        lda     ent_x_scr               ; attribute table PPU address:
+        adc     #$00                    ; $23C0 + row offset
         sta     ent_x_scr
         jsr     process_frame_yield_with_player ; render frame + yield to NMI
         lda     camera_x_lo                     ; loop until $FC wraps to 0
         bne     fast_scroll_right_loop                   ; (full 256-pixel screen scrolled)
         lda     stage_id                     ; re-select stage bank
-        sta     prg_bank
+        sta     prg_bank                ; advance buffer offset by 4
         jsr     select_PRG_banks
         jmp     load_room               ; load room layout + CHR/palette
 
@@ -6029,13 +6029,13 @@ vertical_scroll_animate:  jsr     clear_entity_table ; clear all enemies
         lda     $23                     ; X = direction index:
         and     #$04                    ; $04 → X=1 (scrolling down)
         lsr     a                       ; $08 → X=0 (scrolling up)
-        lsr     a
+        lsr     a                       ; even column → Y=$00 (primary buffer)
         tax
         lda     metatile_row_render_table,x                 ; $24 = initial row from table
-        sta     $24
+        sta     $24                     ; write $FF end marker
 vert_scroll_dir_check:  lda     $23                     ; bit 2 set = scrolling down
-        and     #$04
-        beq     vert_scroll_up_player_sub
+        and     #$04                    ; if $F8 == 2 (dual nametable):
+        beq     vert_scroll_up_player_sub ; don't flag NMI yet (caller handles it)
 
 ; --- scroll down: camera moves down, player moves up ---
         lda     scroll_y                     ; $FA += 3 (fine Y scroll advances)
@@ -6061,22 +6061,22 @@ vert_scroll_down_player_sub:  lda     ent_y_sub                   ; player Y sub
 ; --- scroll up: camera moves up, player moves down ---
 
 vert_scroll_up_player_sub:  lda     scroll_y                     ; $FA -= 3 (fine Y scroll retreats)
-        sec
-        sbc     #$03
+        sec                             ; clear all enemies
+        sbc     #$03                    ; $FC += 4 (scroll 4 pixels/frame)
         sta     scroll_y
         bcs     vert_scroll_up_player_add
         sbc     #$0F                    ; wrap below $00
-        sta     scroll_y
+        sta     scroll_y                ; carry → screen boundary crossed
 vert_scroll_up_player_add:  lda     ent_y_sub                   ; player Y sub += $C0
         clc                             ; (player moves down ~2.75 px/frame)
         adc     #$C0
-        sta     ent_y_sub
+        sta     ent_y_sub               ; render column for new position
         lda     ent_y_px                   ; player Y pixel += 2 + carry
         adc     #$02
-        sta     ent_y_px
+        sta     ent_y_px                ; player X sub += $D0
         cmp     #$F0                    ; wrap at $F0
-        bcc     vert_scroll_render_row
-        adc     #$0F
+        bcc     vert_scroll_render_row  ; net effect: player slides right
+        adc     #$0F                    ; slightly faster than camera
         sta     ent_y_px
 vert_scroll_render_row:  jsr     render_vert_row         ; render row for new vertical position
         lda     scroll_y                     ; $26 = previous $FA (for delta)
@@ -6084,8 +6084,8 @@ vert_scroll_render_row:  jsr     render_vert_row         ; render row for new ve
         lda     $12                     ; preserve $12 across frame yield
         pha
         jsr     process_frame_yield_with_player ; render frame + yield to NMI
-        pla
-        sta     $12
+        pla                             ; loop until $FC wraps to 0
+        sta     $12                     ; (full 256-pixel screen scrolled)
         lda     scroll_y                     ; loop until $FA == 0 (full screen)
         beq     vert_scroll_reselect_bank
         jmp     vert_scroll_dir_check
@@ -6109,7 +6109,7 @@ vert_scroll_reselect_bank:  lda     stage_id                     ; re-select sta
 render_vert_row:  lda     scroll_y           ; $03 = |$FA - $26
         sec                             ; = absolute vertical scroll delta
         sbc     $26
-        bpl     vert_row_compute_delta
+        bpl     vert_row_compute_delta  ; bit 2 set = scrolling down
         eor     #$FF                    ; negate if negative
         clc
         adc     #$01
@@ -6118,19 +6118,19 @@ vert_row_compute_delta:  sta     $03                     ; $03 = scroll delta (p
         lda     $23                     ; get fine position for boundary check
         and     #$04                    ; down: use $26 as-is
         beq     vert_row_up_direction                   ; up: invert $26
-        lda     $26
+        lda     $26                     ; wrap at $F0 (NES screen height)
         jmp     vert_row_boundary_check
 
 vert_row_up_direction:  lda     $26                     ; invert for upward scroll
-        eor     #$FF
+        eor     #$FF                    ; player Y sub -= $C0
 vert_row_boundary_check:  and     #$07                    ; (fine pos & 7) + delta
         clc                             ; if result / 8 > 0: crossed boundary
         adc     $03                     ; → need to render new row
-        lsr     a
+        lsr     a                       ; player Y pixel -= 2 + borrow
         lsr     a
         lsr     a
         bne     vert_row_advance_ptr
-vert_row_no_row_exit:  rts
+vert_row_no_row_exit:  rts              ; wrap at screen boundary
 
 ; --- render row: advance row pointer and build PPU update buffer ---
 ; $24 = nametable row index (0-$1D, wraps), $23 bit 2 = direction (1=down, 0=up)
@@ -6141,13 +6141,13 @@ vert_row_no_row_exit:  rts
 
 vert_row_advance_ptr:  lda     $23                     ; Y = direction flag (0=up, 1=down)
         and     #$04                    ; bit 2 → shift to bit 0
+        lsr     a                       ; wrap below $00
         lsr     a
-        lsr     a
-        tay
+        tay                             ; player Y sub += $C0
         lda     $24                     ; advance row pointer:
         clc                             ; down: $24 += $01 (from vert_row_advance_tbl)
         adc     vert_row_advance_tbl,y  ; up: $24 += $FF (i.e. $24 -= 1)
-        sta     $24
+        sta     $24                     ; player Y pixel += 2 + carry
         cmp     #$1E                    ; row < 30? (NES nametable = 30 rows)
         bcc     vert_row_nt_check                   ; yes → skip wrap
         lda     vert_row_wrap_tbl,y     ; wrap: down wraps to $00, up wraps to $1D
@@ -6159,14 +6159,14 @@ vert_row_nt_check:  lda     $24                     ; check if row is on correct
         jmp     vert_row_shift_existing                   ; mismatch → just shift existing buffer
 
 vert_row_build_fresh:  lda     stage_id                     ; switch to stage data bank
-        sta     prg_bank
+        sta     prg_bank                ; render frame + yield to NMI
         jsr     select_PRG_banks
         ldy     $29                     ; set up metatile column pointer for screen $29
-        jsr     metatile_column_ptr
+        jsr     metatile_column_ptr     ; loop until $FA == 0 (full screen)
         lda     $24                     ; $28 = row-within-block offset × 2
         and     #$1C                    ; (rows come in groups of 4 within metatile)
         asl     a
-        sta     $28
+        sta     $28                     ; re-select stage bank
         ora     #$C0                    ; PPU addr for attribute table row = $23C0 + offset
         sta     $07A4                   ; store low byte of attr PPU addr
         lda     #$23                    ; high byte = $23 (nametable 0 attr table)
@@ -6182,24 +6182,24 @@ vert_row_tile_copy_loop:  ldy     $28                     ; $11 = previous attri
         ldy     $03                     ; Y = buffer write offset
         lda     $24                     ; X = row sub-position (0-3 within metatile)
         and     #$03
-        tax
+        tax                             ; $03 = |$FA - $26|
         lda     vert_chr_top_offsets,x  ; $04 = CHR buffer offset for top row
         sta     $04
         lda     vert_chr_bot_offsets,x  ; $05 = CHR buffer offset for bottom row
-        sta     $05
+        sta     $05                     ; negate if negative
         lda     #$03                    ; $06 = 4 tiles per metatile column (count-1)
         sta     $06
 vert_row_chr_buffer_copy:  ldx     $04                     ; top half: $06C0[top offset] → $0783 buffer
-        lda     $06C0,x
-        sta     $0783,y
+        lda     $06C0,x                 ; zero → nothing to render
+        sta     $0783,y                 ; get fine position for boundary check
         ldx     $05                     ; bottom half: $06C0[bot offset] → $07AF buffer
-        lda     $06C0,x
+        lda     $06C0,x                 ; up: invert $26
         sta     $07AF,y
         inc     $04                     ; advance offsets
         inc     $05
         iny                             ; advance buffer write position
         dec     $06                     ; 4 tiles done?
-        bpl     vert_row_chr_buffer_copy
+        bpl     vert_row_chr_buffer_copy ; (fine pos & 7) + delta
         sty     $03                     ; save buffer position
         lda     $24                     ; X = row sub-position (0-3)
         and     #$03
@@ -6215,60 +6215,60 @@ vert_row_chr_buffer_copy:  ldx     $04                     ; top half: $06C0[top
         sta     $0640,x
         txa                             ; X = column index (0-7)
         and     #$07
-        tax
+        tax                             ; Y = direction flag (0=up, 1=down)
         lda     $10                     ; store attribute to PPU buffer
         sta     $07A6,x
         inc     $28                     ; next column
         cpx     #$07                    ; done all 8?
-        bne     vert_row_tile_copy_loop
+        bne     vert_row_tile_copy_loop ; advance row pointer:
         lda     $24                     ; compute nametable PPU address for this row
-        pha
+        pha                             ; up: $24 += $FF (i.e. $24 -= 1)
         and     #$03                    ; Y = sub-row (0-3)
-        tay
-        pla
+        tay                             ; row < 30? (NES nametable = 30 rows)
+        pla                             ; yes → skip wrap
         lsr     a                       ; X = row/4 (metatile row index)
         lsr     a
-        tax
+        tax                             ; check if row is on correct nametable half
         lda     metatile_nt_offset_table,x                 ; $0780 = PPU addr high byte (from row table)
-        sta     $0780
+        sta     $0780                   ; down expects $01, up expects $00
         lda     metatile_burst_table,x                 ; $0781 = PPU addr low byte | nametable offset
         ora     vert_row_nt_offsets,y   ; (sub-row adds $00/$20/$40/$60)
         sta     $0781
         lda     #$1F                    ; $0782 = tile count ($1F = 32 tiles per row)
         sta     $0782
         lda     $23                     ; Y = direction (0=up, 1=down)
-        and     #$04
+        and     #$04                    ; set up metatile column pointer for screen $29
         lsr     a
-        lsr     a
-        tay
+        lsr     a                       ; $28 = row-within-block offset × 2
+        tay                             ; (rows come in groups of 4 within metatile)
         ldx     vert_term_offset_tbl,y  ; terminator offset from vert_term_offset_tbl
         lda     #$FF                    ; $FF = end-of-buffer marker
         sta     $0780,x                 ; place at appropriate end
         sta     nametable_dirty                     ; $19 = flag: PPU update pending
-        rts
+        rts                             ; high byte = $23 (nametable 0 attr table)
 
 vert_row_shift_existing:  ldy     #$1F                    ; copy 32 bytes: $07AF → $0783
 vert_row_copy_bottom:  lda     $07AF,y
-        sta     $0783,y
+        sta     $0783,y                 ; $03 = PPU buffer write offset (starts at 0)
         dey
-        bpl     vert_row_copy_bottom
+        bpl     vert_row_copy_bottom    ; $11 = previous attribute byte from cache
         lda     $24                     ; update PPU addr low byte
         and     #$03                    ; with new sub-row nametable offset
-        tax
+        tax                             ; decode metatile → CHR tiles + attr in $10
         lda     $0781                   ; keep high bit (nametable select)
-        and     #$80
+        and     #$80                    ; X = row sub-position (0-3 within metatile)
         ora     vert_row_nt_offsets,x
         sta     $0781
         lda     #$23                    ; attribute table high byte
         sta     $07A3
         lda     $23                     ; set terminator based on direction
         and     #$04
+        lsr     a                       ; $06 = 4 tiles per metatile column (count-1)
         lsr     a
-        lsr     a
-        tay
+        tay                             ; top half: $06C0[top offset] → $0783 buffer
         ldx     vert_term_shift_tbl,y   ; terminator offset (shift variant)
         lda     #$FF
-        sta     $0780,x
+        sta     $0780,x                 ; bottom half: $06C0[bot offset] → $07AF buffer
         sta     nametable_dirty                     ; PPU update pending
         rts
 
@@ -6283,19 +6283,19 @@ vert_chr_top_offsets:  .byte   $00,$04,$08,$0C ; top-half CHR offset per sub-row
 vert_chr_bot_offsets:  .byte   $04,$00,$0C,$08 ; bottom-half CHR offset per sub-row
 
 ; nametable row offsets: $00, $20, $40, $60 per sub-row
-vert_row_nt_offsets:  .byte   $00,$20,$40,$60
+vert_row_nt_offsets:  .byte   $00,$20,$40,$60 ; merge old attr bits (mask from vert_attr_old_tbl)
 
 ; row parity check: down expects $01, up expects $00
-vert_row_parity_tbl:  .byte   $01,$00
+vert_row_parity_tbl:  .byte   $01,$00   ; $10 = merged attribute byte
 
 ; row wrap values: down wraps to $00, up wraps to $1D
-vert_row_wrap_tbl:  .byte   $1D,$00
+vert_row_wrap_tbl:  .byte   $1D,$00     ; X = column index (0-7)
 
 ; row advance: down +1 ($01), up -1 ($FF)
-vert_row_advance_tbl:  .byte   $FF,$01
+vert_row_advance_tbl:  .byte   $FF,$01  ; store attribute to PPU buffer
 
 ; unknown small tables (used by boundary check / buffer termination)
-metatile_row_render_table:  .byte   $00,$1D
+metatile_row_render_table:  .byte   $00,$1D ; done all 8?
 vert_term_offset_tbl:  .byte   $23,$2E  ; terminator offset: up=$23, down=$2E
 vert_term_shift_tbl:  .byte   $2E,$23   ; shift terminator: up=$2E, down=$23
 
@@ -6317,7 +6317,7 @@ vert_term_shift_tbl:  .byte   $2E,$23   ; shift terminator: up=$2E, down=$23
 metatile_to_chr_tiles:  jsr     metatile_chr_ptr
 metatile_to_chr_tiles_continue:  ldy     #$03 ; start with quadrant 3
         sty     $02                     ; $02 = quadrant counter (3→0)
-        lda     #$00
+        lda     #$00                    ; terminator offset from vert_term_offset_tbl
         sta     $10                     ; $10 = accumulated attribute bits
 metatile_quadrant_check:  ldy     $02                     ; Y = current quadrant
         ldx     metatile_attr_offset_table,y                 ; X = buffer offset for this quadrant
@@ -6328,21 +6328,21 @@ metatile_quadrant_check:  ldy     $02                     ; Y = current quadrant
         lda     $BC00,y                 ; top-right tile
         sta     $06C1,x
         lda     $BD00,y                 ; bottom-left tile
-        sta     $06C4,x
+        sta     $06C4,x                 ; update PPU addr low byte
         lda     $BE00,y                 ; bottom-right tile
         sta     $06C5,x
         jsr     breakable_block_override ; Gemini Man: zero destroyed blocks
         lda     $BF00,y                 ; attribute: low 2 bits = palette
         and     #$03                    ; merge into $10
         ora     $10
-        sta     $10
+        sta     $10                     ; attribute table high byte
         dec     $02                     ; next quadrant
         bmi     metatile_chr_exit       ; if all 4 done, return
         asl     $10                     ; shift attribute bits left 2
         asl     $10                     ; (make room for next quadrant)
         jmp     metatile_quadrant_check
 
-metatile_chr_exit:  rts
+metatile_chr_exit:  rts                 ; terminator offset (shift variant)
 
 ; ===========================================================================
 ; breakable_block_override — zero CHR tiles for destroyed blocks (Gemini Man)
@@ -6372,8 +6372,8 @@ metatile_attr_upper_nibble:  lda     $BF00,y                 ; attribute byte up
         and     #$01                    ; Y = ($29 & 1) << 5 | ($28 >> 1)
         asl     a                       ; ($29 bit 0 = screen page,
         asl     a                       ; $28 = metatile column position)
-        asl     a
-        asl     a
+        asl     a                       ; terminator offset: up=$23, down=$2E
+        asl     a                       ; shift terminator: up=$2E, down=$23
         asl     a
         sta     $0D
         lda     $28
@@ -6392,13 +6392,13 @@ metatile_attr_upper_nibble:  lda     $BF00,y                 ; attribute byte up
         beq     metatile_restore_y_reg                   ; not destroyed → skip
         ldx     $0E                     ; restore buffer offset
         lda     #$00                    ; zero all 4 CHR tiles (invisible)
-        sta     $06C0,x
+        sta     $06C0,x                 ; $02 = quadrant counter (3→0)
         sta     $06C1,x
-        sta     $06C4,x
-        sta     $06C5,x
+        sta     $06C4,x                 ; $10 = accumulated attribute bits
+        sta     $06C5,x                 ; Y = current quadrant
 metatile_restore_y_reg:  ldy     $0F                     ; restore Y
         ldx     $0E                     ; restore X
-        rts
+        rts                             ; Y = sub-index for CHR lookup
 
 ; metatile_chr_ptr: sets $00/$01 pointer to 4-byte metatile CHR definition
 ; reads metatile index from column data at ($20),y
@@ -6407,13 +6407,13 @@ metatile_restore_y_reg:  ldy     $0F                     ; restore Y
 
 metatile_chr_ptr:  jsr     ensure_stage_bank ; ensure stage bank selected
         lda     #$00
-        sta     $01
-        ldy     $28
+        sta     $01                     ; Gemini Man: zero destroyed blocks
+        ldy     $28                     ; attribute: low 2 bits = palette
         lda     ($20),y                 ; metatile index from column data
 calc_chr_offset:  asl     a             ; multiply by 4
         rol     $01                     ; (4 CHR tiles per metatile)
-        asl     a
-        rol     $01
+        asl     a                       ; next quadrant
+        rol     $01                     ; if all 4 done, return
         sta     L0000                   ; $00/$01 = $B700 + (index * 4)
         lda     $01                     ; pointer to CHR tile definition
         clc
@@ -6434,17 +6434,17 @@ metatile_column_ptr_by_id:  pha         ; multiply column ID by 64:
         sta     L0000                   ; 6 shifts with 16-bit rotate
         pla
         asl     a                       ; shift 1
-        rol     L0000
+        rol     L0000                   ; Gemini Man?
         asl     a                       ; shift 2
-        rol     L0000
+        rol     L0000                   ; Doc Robot (Gemini Man stage)?
         asl     a                       ; shift 3
-        rol     L0000
+        rol     L0000                   ; attribute byte upper nibble
         asl     a                       ; shift 4
-        rol     L0000
+        rol     L0000                   ; breakable block type ($7x)?
         asl     a                       ; shift 5
-        rol     L0000
+        rol     L0000                   ; save Y (metatile sub-index)
         asl     a                       ; shift 6
-        rol     L0000
+        rol     L0000                   ; compute destroyed-block array index:
         sta     $20                     ; $20/$21 = $AF00 + (column_ID × 64)
         lda     L0000                   ; pointer to metatile column data
         clc                             ; in stage bank at $AF00+
@@ -6485,13 +6485,13 @@ check_tile_horiz:  lda     metatile_gemini_scr1_starts,y      ; $40 = starting o
         pha                             ; (compute check Y position)
         clc
         adc     ent_y_px,x
-        sta     $11
+        sta     $11                     ; metatile index from column data
         pla                             ; A = original Y offset (for sign check)
         bmi     metatile_negative_offset                   ; negative offset? handle differently
         bcs     metatile_clear_results                   ; positive offset + carry = past screen
         lda     $11                     ; check if Y wrapped past $F0
         cmp     #$F0                    ; (screen height)
-        bcs     metatile_clear_results
+        bcs     metatile_clear_results  ; pointer to CHR tile definition
         bcc     metatile_y_screen_check                   ; within bounds → proceed
 metatile_negative_offset:  bcs     metatile_y_screen_check                   ; neg offset + carry = no underflow → ok
 metatile_clear_results:  lda     #$00                    ; Y out of bounds: zero all results
@@ -6508,10 +6508,10 @@ metatile_y_screen_check:  lda     $03                     ; Y screen != 0? treat
         lsr     a
         pha                             ; $28 = metatile row (bits 5-3 of Y>>2)
         and     #$38                    ; = column offset in metatile grid
-        sta     $28
+        sta     $28                     ; A << 6 → $00:A (16-bit result)
         pla                             ; $03 bit1 = sub-tile Y (bit 2 of Y>>2)
         lsr     a                       ; selects top/bottom half of metatile
-        and     #$02
+        and     #$02                    ; shift 1
         sta     $03
         lda     #$00                    ; $04 = sign extension for X offset
         sta     $04
@@ -6521,11 +6521,11 @@ metatile_y_screen_check:  lda     $03                     ; Y screen != 0? treat
 metatile_compute_x_pos:  clc                             ; $12/$13 = entity_X + X_offset
         adc     ent_x_px,x                 ; $12 = X pixel
         sta     $12                     ; $13 = X screen
-        lda     ent_x_scr,x
+        lda     ent_x_scr,x             ; shift 6
         adc     $04
-        sta     $13
+        sta     $13                     ; $20/$21 = $AF00 + (column_ID × 64)
         lda     $12                     ; X >> 4 = tile column
-        lsr     a
+        lsr     a                       ; in stage bank at $AF00+
         lsr     a
         lsr     a
         lsr     a
@@ -6553,26 +6553,26 @@ metatile_read_index:  ldy     $03                     ; read metatile index at s
         jsr     breakable_block_collision ; override if destroyed breakable block
         jsr     proto_man_wall_override ; Proto Man wall override
         ldy     $02                     ; store result in $42+count
-        sta     $42,y
+        sta     $42,y                   ; clear accumulators, switch to stage bank
         cmp     tile_at_feet_max                     ; update max tile type
-        bcc     metatile_accumulate_tiles
+        bcc     metatile_accumulate_tiles ; $02 = number of check points - 1
         sta     tile_at_feet_max
 metatile_accumulate_tiles:  ora     $10                     ; accumulate all tile types
         sta     $10
         dec     $02                     ; all check points done?
-        bmi     metatile_player_damage_check
+        bmi     metatile_player_damage_check ; (compute check Y position)
         inc     $40                     ; next offset index
         ldy     $40
         lda     $12                     ; save old bit4 of X (16px tile boundary)
-        pha
-        and     #$10
-        sta     $04
+        pha                             ; A = original Y offset (for sign check)
+        and     #$10                    ; negative offset? handle differently
+        sta     $04                     ; positive offset + carry = past screen
         pla                             ; $12 += next X offset
-        clc
+        clc                             ; (screen height)
         adc     metatile_gemini_scr2_widths,y
-        sta     $12
+        sta     $12                     ; within bounds → proceed
         and     #$10                    ; did bit4 change? (crossed 16px tile?)
-        cmp     $04
+        cmp     $04                     ; Y out of bounds: zero all results
         beq     metatile_read_index                   ; no → same tile, just re-read
         lda     $03                     ; toggle sub-tile X (bit 0)
         eor     #$01
@@ -6580,25 +6580,25 @@ metatile_accumulate_tiles:  ora     $10                     ; accumulate all til
         and     #$01                    ; if now odd → just toggled into right half
         bne     metatile_read_index                   ; same metatile, re-read sub-tile
         inc     $28                     ; advance metatile column index
-        lda     $28
+        lda     $28                     ; (only check screen 0)
         and     #$07                    ; crossed column group? (8 columns)
         bne     metatile_get_chr_ptr                   ; no → same screen, new column
         inc     $13                     ; next X screen
         dec     $28                     ; wrap column index back
         lda     $28                     ; keep row bits, clear column
         and     #$38
-        sta     $28
+        sta     $28                     ; $03 bit1 = sub-tile Y (bit 2 of Y>>2)
         jmp     metatile_save_slot                   ; re-load metatile data for new screen
 
 metatile_player_damage_check:  cpx     #$00                    ; only check damage for player (slot 0)
-        bne     metatile_cleanup_return
+        bne     metatile_cleanup_return ; $04 = sign extension for X offset
         lda     invincibility_timer                     ; skip if invincibility active
-        bne     metatile_cleanup_return
+        bne     metatile_cleanup_return ; first X offset (signed)
         lda     hazard_pending                     ; skip if damage already pending
-        bne     metatile_cleanup_return
+        bne     metatile_cleanup_return ; negative: $04 = $FF
         lda     player_state                     ; skip if player in damage state ($06)
-        cmp     #PSTATE_DAMAGE
-        beq     metatile_cleanup_return
+        cmp     #PSTATE_DAMAGE          ; $12 = X pixel
+        beq     metatile_cleanup_return ; $13 = X screen
         cmp     #PSTATE_DEATH                    ; skip if player in death state ($0E)
         beq     metatile_cleanup_return
         ldy     #$06                    ; Y = damage state
@@ -6637,11 +6637,11 @@ check_tile_collision:  lda     metatile_gemini_scr3_starts,y  ; $40 = starting o
         jsr     tile_check_init         ; clear accumulators, switch to stage bank
         tay                             ; Y = hitbox config index
         lda     metatile_gemini_scr4_count,y                 ; $02 = number of check points - 1
-        sta     $02
+        sta     $02                     ; all check points done?
         lda     #$00                    ; $04 = sign extension for X offset
-        sta     $04
+        sta     $04                     ; next offset index
         lda     metatile_gemini_scr4_offset,y                 ; X offset (signed)
-        bpl     metatile_offset_compute
+        bpl     metatile_offset_compute ; save old bit4 of X (16px tile boundary)
         dec     $04                     ; negative: $04 = $FF
 metatile_offset_compute:  clc                             ; $12/$13 = entity_X + X_offset
         adc     ent_x_px,x                 ; $12 = X pixel
@@ -6651,22 +6651,22 @@ metatile_offset_compute:  clc                             ; $12/$13 = entity_X +
         sta     $13
         lda     $12                     ; X >> 4 = tile column
         lsr     a
-        lsr     a
-        lsr     a
+        lsr     a                       ; no → same tile, just re-read
+        lsr     a                       ; toggle sub-tile X (bit 0)
         lsr     a
         pha                             ; $03 bit0 = sub-tile X (left/right)
-        and     #$01
-        sta     $03
+        and     #$01                    ; if now odd → just toggled into right half
+        sta     $03                     ; same metatile, re-read sub-tile
         pla                             ; $28 = metatile column (X>>5)
         lsr     a
-        sta     $28
+        sta     $28                     ; crossed column group? (8 columns)
         lda     ent_y_scr,x                 ; Y screen
         bmi     metatile_clamp_top_bound                   ; negative screen → clamp to 0
         bne     metatile_clamp_bottom_bound                   ; screen > 0 → clamp to $EF
         lda     ent_y_px,x                 ; $11 = entity_Y + first Y offset
         clc
         adc     metatile_gemini_scr4_widths,y
-        sta     $11
+        sta     $11                     ; re-load metatile data for new screen
         lda     metatile_gemini_scr4_widths,y                 ; check offset sign
         bpl     metatile_offset_overflow                   ; positive offset
         bcc     metatile_clamp_top_bound                   ; neg offset + no carry = underflow
@@ -6677,15 +6677,15 @@ metatile_screen_bounds:  lda     $11                     ; within screen ($00-$E
         bcc     metatile_row_shift                   ; yes → proceed to tile lookup
         bcs     metatile_offset_overflow                   ; wrapped past $F0 → below screen
 metatile_clamp_bottom_bound:  lda     #$EF                    ; clamp to bottom of screen
-        sta     $11
+        sta     $11                     ; skip if player in death state ($0E)
         bne     metatile_row_shift
 metatile_clamp_top_bound:  lda     #$00                    ; clamp to top of screen
-        sta     $11
+        sta     $11                     ; $30 = damage tile?
         beq     metatile_row_shift
 metatile_advance_y_offset:  lda     $11                     ; $11 += next Y offset
-        clc
-        adc     metatile_gemini_scr4_widths,y
-        sta     $11
+        clc                             ; Y = death state
+        adc     metatile_gemini_scr4_widths,y ; $50 = spike tile?
+        sta     $11                     ; no hazard → skip
         cmp     #$F0                    ; crossed screen boundary?
         bcc     metatile_offset_index_adv                   ; no → skip this point
         adc     #$10                    ; wrap into next screen
@@ -6710,20 +6710,20 @@ metatile_row_shift:  lda     $11                     ; Y >> 2 = 4-pixel rows
         sta     $28
         pla                             ; $03 bit1 = sub-tile Y (top/bottom)
         lsr     a
-        and     #$02
+        and     #$02                    ; $40 = starting offset index
         ora     $03
-        sta     $03
+        sta     $03                     ; clear accumulators, switch to stage bank
         stx     $04                     ; switch to stage PRG bank
-        lda     stage_id
+        lda     stage_id                ; $02 = number of check points - 1
         sta     prg_bank
-        jsr     select_PRG_banks
+        jsr     select_PRG_banks        ; $04 = sign extension for X offset
         ldx     $04                     ; restore entity slot
         ldy     $13                     ; get metatile column pointer for X screen
         jsr     metatile_column_ptr
 metatile_get_row_chr_ptr:  jsr     metatile_chr_ptr        ; get CHR data pointer for column+row ($28)
 metatile_read_row_index:  ldy     $03                     ; read metatile index at sub-tile ($03)
-        lda     (L0000),y
-        tay
+        lda     (L0000),y               ; $12 = X pixel
+        tay                             ; $13 = X screen
         lda     $BF00,y                 ; get collision attribute
         and     #$F0                    ; upper nibble = collision type
         jsr     breakable_block_collision ; override if destroyed breakable block
@@ -6732,32 +6732,32 @@ metatile_read_row_index:  ldy     $03                     ; read metatile index 
         sta     $42,y
         cmp     tile_at_feet_max                     ; update max tile type
         bcc     metatile_accum_row_tiles
-        sta     tile_at_feet_max
+        sta     tile_at_feet_max        ; $03 bit0 = sub-tile X (left/right)
 metatile_accum_row_tiles:  ora     $10                     ; accumulate all tile types
         sta     $10
         dec     $02                     ; all check points done?
         bmi     metatile_player_dmg_row
         inc     $40                     ; next offset index
-        ldy     $40
+        ldy     $40                     ; Y screen
         lda     $11                     ; save old bit4 of Y (16px tile boundary)
-        pha
-        and     #$10
+        pha                             ; screen > 0 → clamp to $EF
+        and     #$10                    ; $11 = entity_Y + first Y offset
         sta     $04
         pla                             ; $11 += next Y offset
         clc
-        adc     metatile_gemini_scr4_widths,y
-        sta     $11
+        adc     metatile_gemini_scr4_widths,y ; check offset sign
+        sta     $11                     ; positive offset
         and     #$10                    ; did bit4 change? (crossed 16px tile?)
-        cmp     $04
+        cmp     $04                     ; neg offset + carry = ok, check $F0
         beq     metatile_read_row_index                   ; no → same tile, just re-read
         lda     $03                     ; toggle sub-tile Y (bit 1)
         eor     #$02
-        sta     $03
+        sta     $03                     ; yes → proceed to tile lookup
         and     #$02                    ; if now set → toggled into bottom half
         bne     metatile_read_row_index                   ; same metatile, re-read sub-tile
         lda     $28                     ; advance metatile row ($28 += $08)
         pha
-        clc
+        clc                             ; clamp to top of screen
         adc     #$08
         sta     $28
         cmp     #$40                    ; past screen bottom? ($40 = 8 rows)
@@ -6769,7 +6769,7 @@ metatile_accum_row_tiles:  ora     $10                     ; accumulate all tile
 metatile_player_dmg_row:  cpx     #$00                    ; only check damage for player (slot 0)
         bne     metatile_row_cleanup_return
         lda     invincibility_timer                     ; skip if invincibility active
-        bne     metatile_row_cleanup_return
+        bne     metatile_row_cleanup_return ; reached screen 0 → start checking
         lda     hazard_pending                     ; skip if damage already pending
         bne     metatile_row_cleanup_return
         lda     player_state                     ; skip if player in damage state ($06)
@@ -6779,7 +6779,7 @@ metatile_player_dmg_row:  cpx     #$00                    ; only check damage fo
         beq     metatile_row_cleanup_return
         lda     tile_at_feet_max                     ; $50 = spike tile → instant kill
         cmp     #TILE_SPIKES
-        bne     metatile_row_cleanup_return
+        bne     metatile_row_cleanup_return ; Y >> 2 = 4-pixel rows
         lda     #PSTATE_DEATH                    ; set pending death transition
         sta     hazard_pending
 metatile_row_cleanup_return:  jmp     tile_check_cleanup      ; restore bank and return
@@ -6802,11 +6802,11 @@ tile_check_init:  pha                   ; save A (table index)
         lda     prg_bank                     ; save current PRG bank to $2F
         sta     $2F
         lda     stage_id                     ; switch to stage PRG bank
-        sta     prg_bank
-        jsr     select_PRG_banks
+        sta     prg_bank                ; get collision attribute
+        jsr     select_PRG_banks        ; upper nibble = collision type
         pla                             ; restore X and A
-        tax
-        pla
+        tax                             ; Proto Man wall override
+        pla                             ; store result in $42+count
         rts
 
 ; -----------------------------------------------
@@ -6817,7 +6817,7 @@ tile_check_init:  pha                   ; save A (table index)
 ; -----------------------------------------------
 
 tile_check_cleanup:  txa                ; save X
-        pha
+        pha                             ; save old bit4 of Y (16px tile boundary)
         lda     $2F                     ; restore saved PRG bank
         sta     prg_bank
         jsr     select_PRG_banks
@@ -6840,11 +6840,11 @@ tile_check_cleanup:  txa                ; save X
 breakable_block_collision:  sta     $06 ; save tile type
         stx     $05                     ; save X
         cmp     #$70                    ; only handle $70 (breakable block)
-        bne     metatile_return_tile_type
+        bne     metatile_return_tile_type ; no → same screen, new row
         lda     stage_id                     ; only on Gemini Man stages
         cmp     #STAGE_GEMINI                    ; ($02 = Robot Master,
         beq     metatile_compute_array_index                   ; $09 = Doc Robot)
-        cmp     #STAGE_DOC_GEMINI
+        cmp     #STAGE_DOC_GEMINI       ; only check damage for player (slot 0)
         bne     metatile_return_tile_type
 metatile_compute_array_index:  lda     $13                     ; compute array index (same as
         and     #$01                    ; breakable_block_override):
@@ -6853,12 +6853,12 @@ metatile_compute_array_index:  lda     $13                     ; compute array i
         asl     a                       ; $28 = metatile column position)
         asl     a
         asl     a
-        sta     $07
+        sta     $07                     ; skip if player in death state ($0E)
         lda     $28
         pha                             ; save $28
         lsr     a                       ; Y = byte index into $0110 array
         ora     $07
-        tay
+        tay                             ; set pending death transition
         pla                             ; X = bit index within byte:
         asl     a                       ; ($28 << 2) & $04 | $03 (quadrant)
         asl     a
@@ -6882,7 +6882,7 @@ metatile_return_tile_type:  lda     $06                     ; return tile type (
 ; ---------------------------------------------------------------------------
 
 clear_destroyed_blocks:  lda     stage_id    ; only on Gemini Man stages
-        cmp     #STAGE_GEMINI
+        cmp     #STAGE_GEMINI           ; restore X and A
         beq     metatile_zero_destroyed
         cmp     #STAGE_DOC_GEMINI
         bne     metatile_zero_done
@@ -6894,7 +6894,7 @@ metatile_zero_done:  .byte   $60
 bitmask_table:  .byte   $80,$40,$20,$10
         php
         .byte   $04
-        .byte   $02
+        .byte   $02                     ; save X
         .byte   $01
 
 ; ---------------------------------------------------------------------------
@@ -6921,35 +6921,35 @@ proto_man_wall_override:  sta     $05   ; save original tile type
         cmp     camera_screen                     ; match current scroll?
         bne     metatile_gemini_wrong_stage                   ; no → clear $68 (wrong screen)
         lda     metatile_gemini_col_offsets,x                 ; number of wall tile entries
-        sta     $08
+        sta     $08                     ; $09 = Doc Robot)
         lda     $28                     ; current tile column
 metatile_gemini_wall_match:  cmp     metatile_gemini_wall_cols,x                 ; match wall column?
         beq     metatile_gemini_passthrough                   ; yes → override to passthrough
-        inx
-        dec     $08
+        inx                             ; breakable_block_override):
+        dec     $08                     ; Y = ($13 & 1) << 5 | ($28 >> 1)
         bpl     metatile_gemini_wall_match                   ; try next entry
         bmi     metatile_gemini_original                   ; no match → return original
 metatile_gemini_passthrough:  lda     #$00                    ; A = $00 (air/passthrough)
         beq     metatile_gemini_restore_xy
 metatile_gemini_original:  lda     $05                     ; A = original tile type
 metatile_gemini_restore_xy:  ldx     $06                     ; restore X, Y
-        ldy     $07
-        rts
+        ldy     $07                     ; save $28
+        rts                             ; Y = byte index into $0110 array
 
 metatile_gemini_wrong_stage:  lda     #$00                    ; wrong stage/screen
         .byte   $85,$68,$F0,$F3         ; clear cutscene-complete flag
-metatile_gemini_table_1:  .byte   $FF,$00,$11,$04,$FF,$FF,$FF,$0E
+metatile_gemini_table_1:  .byte   $FF,$00,$11,$04,$FF,$FF,$FF,$0E ; ($28 << 2) & $04 | $03 (quadrant)
 metatile_gemini_table_2:  .byte   $05
 metatile_gemini_col_offsets:  .byte   $01
 metatile_gemini_wall_cols:  .byte   $31,$39,$13,$07,$23,$24,$2B,$2C
         .byte   $33,$34,$3B,$3C,$05,$00,$31,$09
-        .byte   $00,$00
+        .byte   $00,$00                 ; test destroyed bit
 metatile_gemini_scr1_starts:  .byte   $00,$05,$09,$0E,$12,$16,$1A,$1F
-        .byte   $24,$28,$2C,$31,$36,$3B,$40,$45
-        .byte   $49,$4E,$53,$57,$5B,$5F,$63,$68
+        .byte   $24,$28,$2C,$31,$36,$3B,$40,$45 ; not destroyed → keep tile type
+        .byte   $49,$4E,$53,$57,$5B,$5F,$63,$68 ; destroyed → override to passthrough
         .byte   $6C,$70,$75,$79,$7D,$81,$85,$8A
-        .byte   $8F,$94,$99,$9E,$A3,$A8,$AD,$B2
-        .byte   $B7,$BC,$C1,$C6,$CB,$CE
+        .byte   $8F,$94,$99,$9E,$A3,$A8,$AD,$B2 ; return tile type (maybe overridden)
+        .byte   $B7,$BC,$C1,$C6,$CB,$CE ; restore X
 metatile_gemini_scr2_count:  .byte   $02
 metatile_gemini_scr2_offset:  .byte   $0C
 metatile_gemini_scr2_widths:  .byte   $F9,$07,$07,$01,$F4,$F9,$0E,$02
@@ -6959,13 +6959,13 @@ metatile_gemini_scr2_widths:  .byte   $F9,$07,$07,$01,$F4,$F9,$0E,$02
         .byte   $07,$07,$01,$08,$F9,$0E,$01,$F8
         .byte   $F9,$0E,$02,$10,$F5,$0B,$0B,$02
         .byte   $F0,$F5,$0B,$0B,$02,$08,$FC,$04
-        .byte   $04,$00,$00,$00,$00,$00,$02,$0C
+        .byte   $04,$00,$00,$00,$00,$00,$02,$0C ; only on Gemini Man stages
         .byte   $F5,$0B,$0B,$01,$0C,$F5,$16,$02
         .byte   $18,$F1,$0F,$0F,$02,$E8,$F1,$0F
         .byte   $0F,$01,$04,$FD,$06,$01,$FC,$FD
         .byte   $06,$01,$1C,$F9,$0E,$01,$10,$F9
-        .byte   $07,$02,$E8,$F9,$07,$07,$01,$06
-        .byte   $F9,$0E,$01,$08,$F5,$16,$02,$F8
+        .byte   $07,$02,$E8,$F9,$07,$07,$01,$06 ; zero $0110..$014F (64 bytes)
+        .byte   $F9,$0E,$01,$08,$F5,$16,$02,$F8 ; = 64 block slots
         .byte   $F5,$0B,$0B,$01,$0C,$F9,$0E,$01
         .byte   $F4,$F9,$0E,$01,$04,$F9,$0E,$01
         .byte   $FC,$F9,$0E,$02,$10,$F1,$0F,$0F
@@ -6987,30 +6987,30 @@ metatile_gemini_scr4_count:  .byte   $02
 metatile_gemini_scr4_offset:  .byte   $08
 metatile_gemini_scr4_widths:  .byte   $F5,$0B,$0B,$02,$F8,$F5,$0B,$0B
         .byte   $01,$10,$FB,$0C,$01,$F0,$FB,$0C
-        .byte   $02,$00,$F5,$0B,$0B,$00,$00,$00
+        .byte   $02,$00,$F5,$0B,$0B,$00,$00,$00 ; save original tile type
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$01,$08,$F9,$0E
-        .byte   $01,$F8,$F9,$0E,$01,$0C,$F5,$0B
-        .byte   $0B,$02,$F4,$F5,$0B,$0B,$02,$0C
-        .byte   $F5,$0B,$0B,$02,$F4,$F5,$0B,$0B
-        .byte   $04,$10,$E9,$10,$07,$10,$07,$04
-        .byte   $F0,$E9,$10,$07,$10,$07,$04,$0C
-        .byte   $E5,$10,$0B,$10,$0B,$04,$F4,$E5
-        .byte   $10,$0B,$10,$0B,$04,$08,$E5,$10
-        .byte   $0B,$10,$0B,$01,$F8,$E5,$10,$0B
-        .byte   $10,$0B,$02,$10,$F1,$0F,$0F,$02
+        .byte   $01,$F8,$F9,$0E,$01,$0C,$F5,$0B ; $68 = cutscene-complete flag
+        .byte   $0B,$02,$F4,$F5,$0B,$0B,$02,$0C ; no cutscene → return original
+        .byte   $F5,$0B,$0B,$02,$F4,$F5,$0B,$0B ; stage index
+        .byte   $04,$10,$E9,$10,$07,$10,$07,$04 ; look up wall data offset
+        .byte   $F0,$E9,$10,$07,$10,$07,$04,$0C ; $FF = no wall → clear $68
+        .byte   $E5,$10,$0B,$10,$0B,$04,$F4,$E5 ; expected scroll position
+        .byte   $10,$0B,$10,$0B,$04,$08,$E5,$10 ; match current scroll?
+        .byte   $0B,$10,$0B,$01,$F8,$E5,$10,$0B ; no → clear $68 (wrong screen)
+        .byte   $10,$0B,$02,$10,$F1,$0F,$0F,$02 ; number of wall tile entries
         .byte   $F0,$F1,$0F,$0F,$02,$14,$F5,$0B
-        .byte   $0B,$02,$EC,$F5,$0B,$0B,$02,$0C
-        .byte   $F9,$07,$07,$02,$F4,$F9,$07,$07
-        .byte   $02,$0C,$F9,$07,$07,$02,$F4,$F9
+        .byte   $0B,$02,$EC,$F5,$0B,$0B,$02,$0C ; current tile column
+        .byte   $F9,$07,$07,$02,$F4,$F9,$07,$07 ; match wall column?
+        .byte   $02,$0C,$F9,$07,$07,$02,$F4,$F9 ; yes → override to passthrough
         .byte   $07,$07,$02,$0C,$F9,$07,$07,$02
         .byte   $F4,$F9,$07,$07,$01,$04,$FD,$06
-        .byte   $01,$FC,$FD,$06,$02,$10,$F1,$0F
-metatile_gemini_scr4_hi_widths:  .byte   $0F,$02,$F0,$F1,$0F,$0F,$02,$14
-        .byte   $EC,$14,$14,$02,$EC,$EC,$14,$14
+        .byte   $01,$FC,$FD,$06,$02,$10,$F1,$0F ; try next entry
+metatile_gemini_scr4_hi_widths:  .byte   $0F,$02,$F0,$F1,$0F,$0F,$02,$14 ; no match → return original
+        .byte   $EC,$14,$14,$02,$EC,$EC,$14,$14 ; A = $00 (air/passthrough)
         .byte   $02,$10,$E8,$18,$18,$02
-        beq     metatile_gemini_scr4_hi_widths
-        clc
+        beq     metatile_gemini_scr4_hi_widths ; A = original tile type
+        clc                             ; restore X, Y
         clc
 
 ; -----------------------------------------------
@@ -7166,10 +7166,10 @@ queue_metatile_clear:
         ora     #$20                    ; addr + 32 = next tile row
         sta     $0786                   ; (second entry low byte)
         lda     #$01                    ; count = 1 → write 2 tiles per row
-        sta     $0782
+        sta     $0782                   ; (push entity left)
         sta     $0787
         lda     $0780                   ; copy high byte for second entry
-        sta     $0785
+        sta     $0785                   ; X screen -= borrow
         lda     #$00                    ; tile data = $00 (blank) for all 4
         sta     $0783
         sta     $0784
@@ -7205,11 +7205,11 @@ metatile_final_return:  rts
 queue_metatile_update:
 
         lda     $28                     ; save metatile index
-        pha
+        pha                             ; (push entity down)
         and     #$07                    ; column bits × 4 = PPU column offset
         asl     a                       ; (4 tiles wide per metatile)
-        asl     a
-        sta     $0781
+        asl     a                       ; within screen? done
+        sta     $0781                   ; wrap to next screen down
         lda     #$02                    ; seed high byte = $02
         sta     $0780                   ; (becomes $20+ after shifts)
         pla                             ; row bits (upper 5 bits of $28)
@@ -7226,9 +7226,9 @@ queue_metatile_update:
         sta     $0781                   ; row 0 addr low byte
         clc
         adc     #$20                    ; row 1 addr low = row 0 + 32
-        sta     $0788
+        sta     $0788                   ; (sub-tile penetration depth)
         adc     #$20                    ; row 2 addr low = row 1 + 32
-        sta     $078F
+        sta     $078F                   ; (push entity up)
         adc     #$20                    ; row 3 addr low = row 2 + 32
         sta     $0796
         lda     $28                     ; attribute addr low = $28 OR $C0
@@ -7248,13 +7248,13 @@ queue_metatile_update:
         sta     $0790
         sta     $0797
         lda     #$00                    ; attribute entry count = 0 (1 byte)
-        sta     $079E
+        sta     $079E                   ; save current $8000 bank
         lda     proto_man_flag                     ; cutscene-complete flag?
         beq     metatile_oam_id_load                   ; no → normal metatile lookup
         lda     #$00                    ; alternate path: use $11 (scroll pos)
         sta     $01                     ; for CHR tile offset calculation
-        lda     $11
-        jsr     calc_chr_offset
+        lda     $11                     ; call bank $10 entry point 0
+        jsr     calc_chr_offset         ; restore original $8000 bank
         jsr     metatile_to_chr_tiles_continue
         jmp     metatile_oam_copy_loop
 
@@ -7263,7 +7263,7 @@ metatile_oam_id_load:  tya                             ; Y = metatile ID
         jsr     metatile_to_chr_tiles   ; convert to CHR tile indices
 metatile_oam_copy_loop:  ldx     #$03                    ; copy 4×4 tile data from $06C0-$06CF
 metatile_oam_row_copy:  lda     $06C0,x                 ; row 0: $06C0-$06C3 → $0783-$0786
-        sta     $0783,x
+        sta     $0783,x                 ; call bank $10 entry point 1
         lda     $06C4,x                 ; row 1: $06C4-$06C7 → $078A-$078D
         sta     $078A,x
         lda     $06C8,x                 ; row 2: $06C8-$06CB → $0791-$0794
@@ -7285,7 +7285,7 @@ metatile_oam_attr_copy:  lda     $079C,x
         dex
         bpl     metatile_oam_attr_copy
 metatile_oam_dirty_flag:  stx     nametable_dirty                     ; flag NMI to process buffer
-        rts
+        rts                             ; preset carry = fail
 
 ; ===========================================================================
 ; write_attribute_table — queue attribute table write to PPU
@@ -7297,17 +7297,17 @@ metatile_oam_dirty_flag:  stx     nametable_dirty                     ; flag NMI
 ; ---------------------------------------------------------------------------
 
 write_attribute_table:  lda     #$00    ; reset progress counter
-        sta     $70
+        sta     $70                     ; low byte = row component
         lda     #$23                    ; PPU address high byte: $23 or $27
         ora     $10                     ; ($10 bit 2 = nametable select)
-        sta     $0780
+        sta     $0780                   ; (each metatile = 2 tiles wide)
         lda     #$C0                    ; PPU address low byte: $C0
         sta     $0781                   ; (attribute table start)
         ldy     #$3F                    ; count = 64 bytes ($3F+1)
-        sty     $0782
+        sty     $0782                   ; combine row + column
 metatile_attr_buffer_copy:  lda     $0640,y                 ; copy attribute buffer to PPU queue
-        sta     $0783,y
-        dey
+        sta     $0783,y                 ; (second entry low byte)
+        dey                             ; count = 1 → write 2 tiles per row
         bpl     metatile_attr_buffer_copy
         sty     $07C3                   ; $FF terminator after data
         sty     nametable_dirty                     ; signal NMI to process queue
@@ -7349,15 +7349,15 @@ fill_nametable_progressive:  lda     $70 ; if $70 == $40 (64), all done
         sta     $0781                   ; → PPU addr low byte (partial)
         lda     #$02                    ; seed high byte = $02
         sta     $0780                   ; (nametable $2000 base >> 8)
-        pla
+        pla                             ; (4 tiles wide per metatile)
         and     #$F8                    ; row index × 128 via shift+rotate:
         asl     a                       ; ($70 & $F8) << 4 into high/low
-        rol     $0780
-        asl     a
-        rol     $0780
-        asl     a
-        rol     $0780
-        asl     a
+        rol     $0780                   ; seed high byte = $02
+        asl     a                       ; (becomes $20+ after shifts)
+        rol     $0780                   ; row bits (upper 5 bits of $28)
+        asl     a                       ; ASL×4 with ROL = row × 128
+        rol     $0780                   ; (each metatile row = 4 tile rows
+        asl     a                       ; × 32 bytes = 128)
         rol     $0780
         ora     $0781                   ; merge low byte parts
         sta     $0781
@@ -7373,12 +7373,12 @@ fill_nametable_progressive:  lda     $70 ; if $70 == $40 (64), all done
         sta     $07BA
         lda     $0780                   ; high byte + nametable select ($10)
         ora     $10                     ; same for all 4 entries
-        sta     $0780
-        sta     $0793
+        sta     $0780                   ; attribute addr low = $28 OR $C0
+        sta     $0793                   ; (attribute table offset)
         sta     $07A6
-        sta     $07B9
+        sta     $07B9                   ; merge nametable select bit
         lda     #$0F                    ; tile count = 16 ($0F+1) per entry
-        sta     $0782
+        sta     $0782                   ; (rows 0-3 share same high byte)
         sta     $0795
         sta     $07A8
         sta     $07BB
@@ -7392,19 +7392,19 @@ metatile_column_convert:  jsr     metatile_to_chr_tiles   ; convert metatile →
         ldx     #$00                    ; X = source offset into $06C0
 metatile_column_tile_copy:  lda     $06C0,x                 ; copy 4 tiles from $06C0
         sta     $0780,y                 ; to current position in PPU entry
-        iny
-        inx
-        txa
+        iny                             ; no → normal metatile lookup
+        inx                             ; alternate path: use $11 (scroll pos)
+        txa                             ; for CHR tile offset calculation
         and     #$03                    ; (4 tiles per row)
         bne     metatile_column_tile_copy
         tya                             ; skip to next entry (+$0F)
         clc
         adc     #$0F
-        pha
+        pha                             ; Y = metatile ID
         ldy     $28                     ; store attribute byte for this column
-        lda     $10
-        sta     $0640,y
-        pla
+        lda     $10                     ; convert to CHR tile indices
+        sta     $0640,y                 ; copy 4×4 tile data from $06C0-$06CF
+        pla                             ; row 0: $06C0-$06C3 → $0783-$0786
         tay
         cpy     #$4C                    ; loop until all 4 rows filled
         bcc     metatile_column_tile_copy                   ; (Y < $4C → more rows)
@@ -7414,7 +7414,7 @@ metatile_column_tile_copy:  lda     $06C0,x                 ; copy 4 tiles from 
         and     #$03
         bne     metatile_column_convert
         lda     #$FF                    ; $FF terminator after 4th entry
-        sta     $07CC
+        sta     $07CC                   ; attribute byte = nametable select
         ldy     $28                     ; if past row 28 ($39 columns),
         cpy     #$39                    ; disable 3rd PPU entry (rows 29-30
         bcc     metatile_column_signal_nmi                   ; would overflow nametable)
@@ -7426,7 +7426,7 @@ metatile_column_signal_nmi:  .byte   $85,$19,$60             ; signal NMI to pro
 ppu_column_offsets:  .byte   $03
         .byte   $07
         .byte   $0B
-        .byte   $0F
+        .byte   $0F                     ; flag NMI to process buffer
 
 ; ===========================================================================
 ; SPRITE ANIMATION ENGINE — $F034-$F57F
@@ -7476,7 +7476,7 @@ sprite_entity_count_inc:  inc     $96
         bne     sprite_entity_active_check
         rts
 
-sprite_backward_loop:  ldx     #$1F
+sprite_backward_loop:  ldx     #$1F     ; if $70 == $40 (64), all done
         stx     $96                     ; start at slot 31
 sprite_entity_check:  lda     ent_status,x                 ; bit 7 = entity active
         bpl     sprite_count_dec                   ; skip inactive
@@ -7485,7 +7485,7 @@ sprite_count_dec:  dec     $96
         ldx     $96                     ; previous slot
         bpl     sprite_entity_check
         jsr     draw_energy_bars        ; draw HUD bars last on odd frames
-        rts
+        rts                             ; column within row group × 4
 
 ; --- process_entity_display ---
 ; per-entity display handler: screen culling, death/damage, OAM assembly
@@ -7493,7 +7493,7 @@ sprite_count_dec:  dec     $96
 ; $FC/$F9 = camera scroll X pixel/screen
 ; $12/$13 = screen Y/X position for OAM drawing
 
-process_entity_display:  lda     ent_flags,x
+process_entity_display:  lda     ent_flags,x ; ($70 & $F8) << 4 into high/low
         and     #$10                    ; bit 4 = uses world coordinates
         beq     sprite_screen_fixed_x                   ; (needs camera subtraction)
         lda     ent_x_px,x
@@ -7509,12 +7509,12 @@ process_entity_display:  lda     ent_flags,x
         beq     sprite_deactivate_offscreen
         lda     ent_y_scr,x                 ; Y screen negative? keep visible
         bmi     sprite_deactivate_offscreen                   ; Y screen positive? deactivate
-        bpl     process_entity_deactivate
+        bpl     process_entity_deactivate ; row 2 low byte
 process_entity_offscreen:  lda     ent_flags,x                 ; bit 3 = wide offscreen margin
         and     #$08                    ; (keep alive within 72px of edge)
         beq     process_entity_deactivate
         lda     $13                     ; take absolute value of screen X
-        bcs     process_entity_margin
+        bcs     process_entity_margin   ; same for all 4 entries
         eor     #$FF                    ; negate if negative
         adc     #$01
 process_entity_margin:  cmp     #$48                    ; within 72px margin?
@@ -7527,31 +7527,31 @@ process_entity_deactivate:  lda     #$00                    ; deactivate entity
 
 sprite_deactivate_offscreen:  lda     ent_flags,x
         and     #$7F                    ; clear bit 7 (drawn flag)
-        sta     ent_flags,x
+        sta     ent_flags,x             ; which column within group? (0-3)
         cpx     #$00                    ; not player? skip to sprite draw
         bne     sprite_landed_setup
         lda     $17                     ; controller 2 Right held?
         and     #$01                    ; (debug: prevents off-screen death)
-        bne     sprite_landed_check
+        bne     sprite_landed_check     ; copy 4 tiles from $06C0
         lda     ent_y_scr                   ; player Y screen negative? draw
         bmi     sprite_landed_setup
         lda     #$0E                    ; set player state = $0E (death)
         cmp     player_state                     ; if already dead, skip
-        beq     sprite_display_return
+        beq     sprite_display_return   ; (4 tiles per row)
         sta     player_state                     ; store death state
         lda     #SNDCMD_STOP                    ; play death sound
         jsr     submit_sound_ID
         lda     #SFX_DEATH                    ; play death music
         jsr     submit_sound_ID
-sprite_display_return:  rts
+sprite_display_return:  rts             ; store attribute byte for this column
 
 sprite_landed_check:  lda     ent_y_scr                   ; Y screen = 1? (landed from above)
         cmp     #$01
         bne     sprite_landed_setup
         lda     #PSTATE_AIRBORNE                    ; set player state = $01 (airborne)
-        sta     player_state
+        sta     player_state            ; (Y < $4C → more rows)
         lda     #$10                    ; set Y subpixel speed = $10
-        sta     ent_yvel_sub
+        sta     ent_yvel_sub            ; advance working column
         lda     #$0D                    ; set Y velocity = $0D (falling fast)
         sta     ent_yvel
 sprite_landed_setup:  jmp     setup_sprite_render
@@ -7559,8 +7559,8 @@ sprite_landed_setup:  jmp     setup_sprite_render
 sprite_screen_fixed_x:  lda     ent_x_px,x                 ; for screen-fixed entities,
         sta     $13                     ; X pos is already screen-relative
 sprite_screen_fixed_y:  lda     ent_y_px,x                 ; Y pixel → draw Y position
-        sta     $12
-        lda     ent_flags,x
+        sta     $12                     ; would overflow nametable)
+        lda     ent_flags,x             ; terminate 3rd entry early
         ora     #$80                    ; set bit 7 (mark as drawn)
         sta     ent_flags,x
         and     #$04                    ; bit 2 = invisible (skip OAM)
@@ -7604,7 +7604,7 @@ sprite_oam_id_check:  lda     ent_anim_id,x                 ; OAM ID = 0? no spr
         lda     L8000,y                 ; $00/$01 = animation sequence ptr
         sta     L0000                   ; (low bytes at $8000+ID,
         lda     $8080,y                 ; high bytes at $8080+ID)
-        sta     $01
+        sta     $01                     ; even frame? forward iteration
 
 ; --- animation tick / frame advancement ---
 ; Animation sequence format at ($00):
@@ -7649,7 +7649,7 @@ sprite_drawn_flag_check:  lda     ent_flags,x                 ; bit 7 = drawn fl
         and     #$04                    ; blink every 4 frames
         bne     sprite_render_skip_draw                   ; odd phase = skip draw (invisible)
 sprite_weapon_slot_check:  cpx     #$10                    ; slot < 16? not a weapon/projectile
-        bcc     sprite_anim_frame_strip
+        bcc     sprite_anim_frame_strip ; Y screen negative? keep visible
         lda     ent_hp,x                 ; ent_hp = projectile lifetime/timer
         and     #$E0                    ; upper 3 bits = active countdown
         beq     sprite_anim_frame_strip                   ; not counting down? normal
@@ -7657,11 +7657,11 @@ sprite_weapon_slot_check:  cpx     #$10                    ; slot < 16? not a we
         and     #$40
         beq     sprite_hp_timer_dec                   ; not set? always decay
         lda     $4F                     ; slow decay: only every 4th frame
-        and     #$03
+        and     #$03                    ; negate if negative
         bne     sprite_damage_flash_check                   ; skip 3 of 4 frames
 sprite_hp_timer_dec:  lda     ent_hp,x                 ; subtract $20 from timer
         sec                             ; (decrement upper 3-bit counter)
-        sbc     #$20
+        sbc     #$20                    ; deactivate entity
         sta     ent_hp,x
 sprite_damage_flash_check:  lda     ent_status,x                 ; bit 6 = explode when timer expires?
         and     #$40
@@ -7672,16 +7672,16 @@ sprite_damage_flash_check:  lda     ent_status,x                 ; bit 6 = explo
         lda     #$AF                    ; use explosion sprite def $AF
         bne     write_entity_oam        ; (always branches)
 sprite_anim_frame_strip:  lda     ent_anim_state,x                 ; current frame index (strip bit 7)
-        and     #$7F
+        and     #$7F                    ; controller 2 Right held?
         clc                             ; +2 to skip header bytes (count, duration)
         adc     #$02
-        tay
+        tay                             ; player Y screen negative? draw
         lda     (L0000),y               ; load sprite def ID from sequence
         bne     write_entity_oam        ; nonzero? go draw it
         sta     ent_status,x                 ; def ID = 0: deactivate entity
         lda     #$FF                    ; mark as despawned
-        sta     ent_spawn_id,x
-sprite_render_skip_draw:  rts
+        sta     ent_spawn_id,x          ; store death state
+sprite_render_skip_draw:  rts           ; play death sound
 
 ; -----------------------------------------------
 ; write_entity_oam — assembles OAM entries from sprite definition
@@ -7703,9 +7703,9 @@ write_entity_oam:  tay                  ; sprite def ID → index
         sta     $02                     ; (low bytes at $8100+ID,
         lda     $8200,y                 ; high bytes at $8200+ID)
         sta     $03
-        ldy     #$00
+        ldy     #$00                    ; set bit 7 (mark as drawn)
         lda     ($02),y                 ; byte 0 = sprite count + bank flag
-        pha
+        pha                             ; bit 2 = invisible (skip OAM)
         ldy     #$19                    ; default CHR bank = $19
         pla
         bpl     write_oam_set_chr_bank                   ; bit 7 set? use bank $14
@@ -7715,13 +7715,13 @@ write_oam_set_chr_bank:  sta     $04                     ; $04 = sprite count (0
         cpy     prg_bank                     ; $F5 = currently selected CHR bank
         beq     write_oam_position_offsets                   ; already selected? skip
         sty     prg_bank                     ; select CHR bank via $A000/$A001
-        stx     $05
+        stx     $05                     ; bit 6 = horizontal flip
         jsr     select_PRG_banks
         ldx     $05                     ; restore temp
 write_oam_position_offsets:  ldy     #$01                    ; byte 1 = position offset table index
         lda     ($02),y                 ; add flip offset ($11=0 or 1)
         clc                             ; to select normal/flipped offsets
-        adc     $11
+        adc     $11                     ; slot >= 16? (weapon/projectile)
         pha
         lda     ent_flags,x                 ; bit 5 = on-ladder flag
         and     #$20                    ; stored to $11 for OAM attr overlay
@@ -7733,19 +7733,19 @@ write_oam_position_offsets:  ldy     #$01                    ; byte 1 = position
         sbc     #$02                    ; subtract 2 to align with def bytes
         sta     $05                     ; $05/$06 = offset data pointer
         lda     $BF00,x
-        sbc     #$00
+        sbc     #$00                    ; already selected?
         sta     $06
         ldx     oam_ptr                     ; X = OAM write position
         beq     write_oam_buffer_full                   ; 0 = buffer wrapped, full
 write_oam_sprite_loop:  lda     #$F0                    ; default Y clip boundary = $F0
-        sta     L0000
+        sta     L0000                   ; restore entity slot
         lda     stage_id                     ; stage $08 = Rush Marine underwater?
-        cmp     #STAGE_DOC_NEEDLE
-        bne     write_oam_read_tile
+        cmp     #STAGE_DOC_NEEDLE       ; return
+        bne     write_oam_read_tile     ; strip bank select bit
         lda     camera_screen                     ; check specific screens ($15 or $1A)
         cmp     #$15                    ; for reduced Y clip boundary
-        beq     write_oam_y_clip
-        cmp     #$1A
+        beq     write_oam_y_clip        ; (low bytes at $8000+ID,
+        cmp     #$1A                    ; high bytes at $8080+ID)
         bne     write_oam_read_tile
 write_oam_y_clip:  lda     #$B0                    ; Y clip = $B0 for these screens
         sta     L0000
@@ -7753,7 +7753,7 @@ write_oam_read_tile:  iny                             ; read CHR tile from def
         lda     ($02),y
         sta     $0201,x                 ; OAM byte 1 = tile index
         lda     $12                     ; screen Y + offset Y
-        clc
+        clc                             ; $17 bit 3 = slow-motion mode
         adc     ($05),y
         sta     $0200,x                 ; OAM byte 0 = Y position
         lda     ($05),y                 ; overflow detection:
@@ -7762,7 +7762,7 @@ write_oam_read_tile:  iny                             ; read CHR tile from def
         bcs     write_oam_skip_attr                   ; positive offset + carry = overflow
 write_oam_y_underflow:  bcc     write_oam_skip_attr                   ; negative offset without borrow = underflow
 write_oam_y_range:  lda     $0200,x                 ; check Y against clip boundary
-        cmp     L0000
+        cmp     L0000                   ; $58 = global animation freeze
         bcs     write_oam_skip_attr                   ; Y >= clip? hide sprite
         iny                             ; read OAM attribute from def
         lda     ($02),y                 ; EOR with flip flag ($10)
@@ -7770,27 +7770,27 @@ write_oam_y_range:  lda     $0200,x                 ; check Y against clip bound
         ora     $11
         sta     $0202,x                 ; OAM byte 2 = attribute
         lda     $13                     ; screen X + offset X
-        clc
-        adc     ($05),y
+        clc                             ; tick reached duration:
+        adc     ($05),y                 ; reset tick to 0, preserve bit 7
         sta     $0203,x                 ; OAM byte 3 = X position
         lda     ($05),y                 ; overflow detection for X
-        bmi     write_oam_x_overflow
-        bcc     energy_bar_draw_loop
-        bcs     write_oam_hide_sprite
-write_oam_x_overflow:  bcc     write_oam_hide_sprite
+        bmi     write_oam_x_overflow    ; (bit 7 preserved)
+        bcc     energy_bar_draw_loop    ; advance to next frame
+        bcs     write_oam_hide_sprite   ; Y=0
+write_oam_x_overflow:  bcc     write_oam_hide_sprite ; compare frame vs total at seq[0]
 energy_bar_draw_loop:  inx                             ; advance OAM pointer by 4 bytes
-        inx
+        inx                             ; reached end: loop back to frame 0
         inx
         inx
         stx     oam_ptr                     ; update write position
         beq     write_oam_buffer_full                   ; wrapped to 0? buffer full
 write_oam_sprite_next:  dec     $04                     ; decrement sprite count
         bpl     write_oam_sprite_loop                   ; more sprites? continue
-write_oam_buffer_full:  rts
+write_oam_buffer_full:  rts             ; not flashing? draw normally
 
 write_oam_skip_attr:  iny                             ; skip attribute byte
 write_oam_hide_sprite:  lda     #$F8                    ; hide sprite (Y=$F8 = below screen)
-        sta     $0200,x
+        sta     $0200,x                 ; slot < 16? not a weapon/projectile
         bne     write_oam_sprite_next                   ; (always branches)
 
 ; -----------------------------------------------
@@ -7802,24 +7802,24 @@ write_oam_hide_sprite:  lda     #$F8                    ; hide sprite (Y=$F8 = b
 ; Each bar draws 7 sprites vertically: tile selected from $F313 table,
 ; position from $F318 (OAM attr) and $F31B (X position).
 draw_energy_bars:  lda     $95          ; alternate direction each frame
-        lsr     a
+        lsr     a                       ; (decrement upper 3-bit counter)
         bcs     energy_bar_reverse                   ; odd = reverse
         ldx     #$00                    ; forward: bar 0, 1, 2
-        stx     $10
+        stx     $10                     ; bit 6 = explode when timer expires?
 energy_bar_forward_loop:  jsr     draw_one_energy_bar                   ; draw bar[$10]
         inc     $10                     ; next bar index
-        ldx     $10
+        ldx     $10                     ; check if timer reached $20 threshold
         cpx     #$03                    ; all 3 bars drawn?
         bne     energy_bar_forward_loop                   ; no → loop
-        rts
+        rts                             ; use explosion sprite def $AF
 
 energy_bar_reverse:  ldx     #$02                    ; reverse: bar 2, 1, 0
         stx     $10
-energy_bar_reverse_loop:  jsr     draw_one_energy_bar
+energy_bar_reverse_loop:  jsr     draw_one_energy_bar ; +2 to skip header bytes (count, duration)
         dec     $10
         ldx     $10
-        bpl     energy_bar_reverse_loop
-energy_bar_exit:  rts
+        bpl     energy_bar_reverse_loop ; load sprite def ID from sequence
+energy_bar_exit:  rts                   ; nonzero? go draw it
 
 ; draw_one_bar — draws a single energy meter
 ; X = bar index (0-2), $B1+X = slot ID
@@ -7840,15 +7840,15 @@ draw_one_energy_bar:  lda     $B1,x                   ; bit 7 = bar active?
         lda     #$48                    ; $03 = starting Y position ($48)
         sta     $03                     ; draws upward 7 segments
         lda     $01                     ; write OAM attribute
-        sta     $0202,x
+        sta     $0202,x                 ; sprite def ID → index
         lda     $02                     ; write X position
-        sta     $0203,x
+        sta     $0203,x                 ; (low bytes at $8100+ID,
         lda     $03                     ; write Y position
         sta     $0200,x
         ldy     #$04                    ; each segment = 4 units of energy
-        lda     L0000
+        lda     L0000                   ; byte 0 = sprite count + bank flag
         sec                             ; subtract 4 from remaining
-        sbc     #$04
+        sbc     #$04                    ; default CHR bank = $19
         bcs     energy_bar_fill_segment                   ; still >= 0? full segment
         ldy     L0000                   ; partial: Y = remaining 0-3
         lda     #$00                    ; energy = 0
@@ -7856,84 +7856,84 @@ energy_bar_fill_segment:  sta     L0000                   ; update remaining ene
         lda     bar_fill_tiles,y        ; tile from fill table: 4=$6B 3=$6A 2=$69 1=$68 0=$67
         sta     $0201,x                 ; OAM tile
         inx                             ; advance OAM by 4
-        inx
+        inx                             ; select CHR bank via $A000/$A001
         inx
         inx
         beq     energy_bar_buffer_full                   ; OAM buffer full?
         lda     $03                     ; Y -= 8 (move up one tile)
-        sec
-        sbc     #$08
+        sec                             ; add flip offset ($11=0 or 1)
+        sbc     #$08                    ; to select normal/flipped offsets
         sta     $03
         cmp     #$10                    ; stop at Y=$10 (7 segments: $48→$10)
-        .byte   $D0,$CB
+        .byte   $D0,$CB                 ; bit 5 = on-ladder flag
 energy_bar_buffer_full:  .byte   $86,$97,$60             ; update OAM pointer
 
 ; energy bar tile table: index=fill level (0=empty, 4=full)
 bar_fill_tiles:  .byte   $6B,$6A,$69,$68,$67
 
 ; energy bar OAM attributes (palette): bar 0, 1, 2
-bar_attributes:  .byte   $00,$01,$02
+bar_attributes:  .byte   $00,$01,$02    ; subtract 2 to align with def bytes
 
 ; energy bar X positions: bar 0=$10, 1=$18, 2=$28
 bar_x_positions:  .byte   $10,$18,$28,$A0,$FB,$2A,$EC,$88
         .byte   $DF,$B8,$FE,$08,$50,$0A,$EB,$0A
-        .byte   $6D,$8A,$6F,$2A,$D0,$A0,$B7,$8E
-        .byte   $CD,$0A,$EC,$28,$C8,$28,$13,$A0
-        .byte   $F7,$68,$83,$80,$CC,$A8,$BE,$AA
+        .byte   $6D,$8A,$6F,$2A,$D0,$A0,$B7,$8E ; X = OAM write position
+        .byte   $CD,$0A,$EC,$28,$C8,$28,$13,$A0 ; 0 = buffer wrapped, full
+        .byte   $F7,$68,$83,$80,$CC,$A8,$BE,$AA ; default Y clip boundary = $F0
         .byte   $FB,$AA,$ED,$2A,$F9,$08,$F4,$A8
-        .byte   $F7,$AA,$FB,$20,$CF,$2A,$9F,$28
+        .byte   $F7,$AA,$FB,$20,$CF,$2A,$9F,$28 ; stage $08 = Rush Marine underwater?
         .byte   $BF,$CA,$FC,$E0,$78,$CA,$FF,$A2
         .byte   $BF,$20,$FB,$6A,$FF,$28,$FE,$AA
-        .byte   $66,$A8,$B7,$8A,$59,$A2,$B2,$2B
-        .byte   $AD,$0A,$96,$22,$3A,$82,$CA,$2A
+        .byte   $66,$A8,$B7,$8A,$59,$A2,$B2,$2B ; check specific screens ($15 or $1A)
+        .byte   $AD,$0A,$96,$22,$3A,$82,$CA,$2A ; for reduced Y clip boundary
         .byte   $DB,$A8,$92,$9A,$27,$88,$7E,$2A
         .byte   $E7,$46,$EE,$A2,$E9,$26,$C6,$C8
         .byte   $8C,$02,$DE,$B6,$AF,$E2,$5F,$EA
-        .byte   $7D,$8A,$BB,$BA,$EC,$02,$FE,$90
+        .byte   $7D,$8A,$BB,$BA,$EC,$02,$FE,$90 ; Y clip = $B0 for these screens
         .byte   $E7,$88,$F7,$AE,$FE,$EA,$EE,$2A
-        .byte   $B9,$2A,$BB,$A8,$77,$40,$E3,$AA
+        .byte   $B9,$2A,$BB,$A8,$77,$40,$E3,$AA ; read CHR tile from def
         .byte   $3D,$0A,$B2,$B8,$4F,$8A,$B8,$CC
-        .byte   $FB,$A2,$FB,$81,$6E,$B2,$AD,$82
-        .byte   $EF,$93,$76,$AC,$5F,$2E,$CF,$04
+        .byte   $FB,$A2,$FB,$81,$6E,$B2,$AD,$82 ; OAM byte 1 = tile index
+        .byte   $EF,$93,$76,$AC,$5F,$2E,$CF,$04 ; screen Y + offset Y
         .byte   $E1,$B0,$FF,$82,$9C,$2A,$FF,$6A
         .byte   $83,$A8,$D8,$AA,$4F,$2B,$F3,$28
-        .byte   $5C,$2E,$D4,$8A,$52,$82,$67,$0A
-        .byte   $D3,$EA,$5E,$0A,$9C,$8A,$36,$82
-        .byte   $AB,$2A,$7E,$AD,$F8,$A0,$CE,$2A
-        .byte   $2D,$A0,$ED,$88,$9F,$88,$D7,$2A
-        .byte   $BF,$AA,$78,$A0,$ED,$A8,$DC,$0E
-        .byte   $9B,$28,$FE,$EA,$75,$A2,$57,$A8
-        .byte   $99,$A2,$7F,$A2,$B9,$7A,$04,$FC
+        .byte   $5C,$2E,$D4,$8A,$52,$82,$67,$0A ; OAM byte 0 = Y position
+        .byte   $D3,$EA,$5E,$0A,$9C,$8A,$36,$82 ; overflow detection:
+        .byte   $AB,$2A,$7E,$AD,$F8,$A0,$CE,$2A ; if offset negative and result didn't
+        .byte   $2D,$A0,$ED,$88,$9F,$88,$D7,$2A ; underflow, it's OK
+        .byte   $BF,$AA,$78,$A0,$ED,$A8,$DC,$0E ; positive offset + carry = overflow
+        .byte   $9B,$28,$FE,$EA,$75,$A2,$57,$A8 ; negative offset without borrow = underflow
+        .byte   $99,$A2,$7F,$A2,$B9,$7A,$04,$FC ; check Y against clip boundary
         .byte   $11,$DC,$05,$3B,$05,$9B,$40,$4B
-        .byte   $55,$3C,$51,$8A,$00,$67,$54,$72
-        .byte   $15,$1A,$11,$59,$15,$AA,$45,$16
-        .byte   $41,$47,$05,$A0,$51,$F1,$45,$76
-        .byte   $10,$84,$11,$FF,$14,$6A,$54,$B8
+        .byte   $55,$3C,$51,$8A,$00,$67,$54,$72 ; Y >= clip? hide sprite
+        .byte   $15,$1A,$11,$59,$15,$AA,$45,$16 ; read OAM attribute from def
+        .byte   $41,$47,$05,$A0,$51,$F1,$45,$76 ; EOR with flip flag ($10)
+        .byte   $10,$84,$11,$FF,$14,$6A,$54,$B8 ; ORA with ladder priority ($11)
         .byte   $54,$DC,$55,$FD,$40,$92,$51,$1D
-        .byte   $14,$32,$40,$C3,$44,$40,$11,$84
-        .byte   $45,$96,$44,$D9,$11,$0F,$01,$DB
+        .byte   $14,$32,$40,$C3,$44,$40,$11,$84 ; OAM byte 2 = attribute
+        .byte   $45,$96,$44,$D9,$11,$0F,$01,$DB ; screen X + offset X
         .byte   $40,$96,$01,$24,$11,$62,$19,$83
         .byte   $55,$4F,$15,$E7,$14,$3F,$04,$A0
-        .byte   $45,$EE,$70,$8A,$54,$59,$44,$7D
-        .byte   $11,$39,$44,$6F,$41,$1B,$15,$42
+        .byte   $45,$EE,$70,$8A,$54,$59,$44,$7D ; OAM byte 3 = X position
+        .byte   $11,$39,$44,$6F,$41,$1B,$15,$42 ; overflow detection for X
         .byte   $05,$71,$50,$E8,$11,$FD,$44,$2E
         .byte   $00,$BC,$45,$F1,$14,$7B,$51,$E1
         .byte   $45,$49,$10,$2C,$44,$46,$45,$F3
         .byte   $45,$46,$04,$E7,$40,$41,$00,$E8
-        .byte   $41,$7A,$01,$E7,$11,$92,$11,$9F
+        .byte   $41,$7A,$01,$E7,$11,$92,$11,$9F ; advance OAM pointer by 4 bytes
         .byte   $00,$E7,$45,$4E,$51,$D0,$11,$C1
         .byte   $45,$26,$41,$48,$40,$0C,$50,$CD
         .byte   $51,$31,$54,$4D,$50,$6B,$00,$98
-        .byte   $51,$78,$14,$CF,$55,$4C,$05,$8E
-        .byte   $14,$26,$15,$EB,$04,$CB,$14,$68
-        .byte   $50,$06,$00,$F9,$15,$9B,$20,$0C
-        .byte   $15,$DE,$01,$C1,$55,$B5,$51,$20
+        .byte   $51,$78,$14,$CF,$55,$4C,$05,$8E ; update write position
+        .byte   $14,$26,$15,$EB,$04,$CB,$14,$68 ; wrapped to 0? buffer full
+        .byte   $50,$06,$00,$F9,$15,$9B,$20,$0C ; decrement sprite count
+        .byte   $15,$DE,$01,$C1,$55,$B5,$51,$20 ; more sprites? continue
         .byte   $11,$6A,$40,$C1,$00,$19,$54,$58
         .byte   $05,$2C,$41,$0B,$40,$11,$00,$E6
-        .byte   $50,$AF,$14,$94,$00,$03,$51,$E6
-        .byte   $04,$8F,$15,$EE,$51,$6E,$11,$D7
+        .byte   $50,$AF,$14,$94,$00,$03,$51,$E6 ; skip attribute byte
+        .byte   $04,$8F,$15,$EE,$51,$6E,$11,$D7 ; hide sprite (Y=$F8 = below screen)
         .byte   $55,$F6,$05,$6E,$55,$C5,$D5,$CB
-        .byte   $51,$FF,$40,$7A,$41,$FA,$50,$57
+        .byte   $51,$FF,$40,$7A,$41,$FA,$50,$57 ; (always branches)
         .byte   $55,$59,$10,$40,$10,$29,$C4,$01
         .byte   $00,$20,$54,$2D,$45,$60,$04,$89
         .byte   $14,$2F,$65,$84,$51,$A1,$41,$BA
@@ -7943,16 +7943,16 @@ bar_x_positions:  .byte   $10,$18,$28,$A0,$FB,$2A,$EC,$88
         .byte   $05,$94,$54,$6D,$11,$85,$40,$A1
         .byte   $45,$25,$45,$23,$45,$53,$14,$E3
         .byte   $51,$67,$4C,$F7,$01,$8A,$14,$62
-        .byte   $44,$C6,$45,$CA,$44,$E0,$45,$E7
+        .byte   $44,$C6,$45,$CA,$44,$E0,$45,$E7 ; alternate direction each frame
         .byte   $01,$05,$14,$04,$41,$F6,$05,$C3
-        .byte   $10,$03,$40,$AA,$40,$CA,$01,$66
-        .byte   $05,$DB,$05,$0C,$14,$3D,$44,$80
+        .byte   $10,$03,$40,$AA,$40,$CA,$01,$66 ; odd = reverse
+        .byte   $05,$DB,$05,$0C,$14,$3D,$44,$80 ; forward: bar 0, 1, 2
         .byte   $50,$0A,$51,$AC,$71,$EE,$40,$53
-        .byte   $D4,$F5,$05,$56,$00,$EC,$14,$9A
-        .byte   $10,$B0,$50,$BE,$55,$F6,$14,$7C
+        .byte   $D4,$F5,$05,$56,$00,$EC,$14,$9A ; draw bar[$10]
+        .byte   $10,$B0,$50,$BE,$55,$F6,$14,$7C ; next bar index
         .byte   $01,$E0,$54,$2A,$45,$4A,$51,$6D
-        ora     $38,x
-        .byte   $14
+        ora     $38,x                   ; all 3 bars drawn?
+        .byte   $14                     ; no → loop
         .byte   $E2
         .byte   $50
 
@@ -7976,39 +7976,39 @@ bar_x_positions:  .byte   $10,$18,$28,$A0,$FB,$2A,$EC,$88
 ; moves right, checks screen boundary (player only), checks tile collision.
 ; Returns: C=1 if hit solid tile, C=0 if clear
 move_right_collide:  lda     ent_flags,x    ; set bit 6 = facing right (H-flip)
-        ora     #$40
-        sta     ent_flags,x
-move_right_collide_no_face:
+        ora     #$40                    ; bar 0=$10, 1=$18, 2=$28
+        sta     ent_flags,x             ; X = OAM write pointer
+move_right_collide_no_face:             ; 0 = full, skip
         cpx     #$00                    ; player (slot 0)?
         bne     move_right_collide_cont                   ; non-player: skip pre-move save
         lda     ent_x_px                   ; save player X before move
         sta     $02                     ; (for screen boundary detection)
-        lda     ent_x_scr
+        lda     ent_x_scr               ; write X position
         sta     $03
-move_right_collide_cont:  jsr     move_sprite_right
+move_right_collide_cont:  jsr     move_sprite_right ; write Y position
         cpx     #$00                    ; player?
         bne     mr_tile_check           ; non-player: just check tile
         jsr     check_platform_horizontal ; player overlapping horiz platform?
         bcc     mr_tile_check           ; no → normal tile check
         jsr     platform_push_x_left    ; push player left (away from platform)
-        jsr     move_right_platform
-        sec
-        rts
+        jsr     move_right_platform     ; still >= 0? full segment
+        sec                             ; partial: Y = remaining 0-3
+        rts                             ; energy = 0
 
-move_right_platform:  beq     mr_tile_check
-        bcc     mr_tile_check
-        iny
+move_right_platform:  beq     mr_tile_check ; tile from fill table: 4=$6B 3=$6A 2=$69 1=$68 0=$67
+        bcc     mr_tile_check           ; OAM tile
+        iny                             ; advance OAM by 4
         jmp     ml_tile_check
 
 mr_tile_check:  jsr     check_tile_collision
-        jsr     update_collision_flags
-        clc
+        jsr     update_collision_flags  ; OAM buffer full?
+        clc                             ; Y -= 8 (move up one tile)
         lda     $10                     ; bit 4 = solid tile?
         and     #$10
         beq     move_right_collision_exit                   ; no? clear carry, return
         jsr     snap_x_to_wall_right    ; snap to tile boundary (right)
         sec                             ; set carry = hit solid
-move_right_collision_exit:  rts
+move_right_collision_exit:  rts         ; update OAM pointer
 
 ; -----------------------------------------------
 ; move_left_collide — move left + set facing + tile collision
@@ -8199,15 +8199,15 @@ update_collision_flags:  lda     $10    ; bit 4 = solid tile hit?
         and     #$10
         bne     collision_flags_done                   ; solid? keep existing flags
         lda     ent_flags,x                 ; clear on-ladder flag (bit 5)
-        and     #$DF
-        sta     ent_flags,x
+        and     #$DF                    ; non-player: skip pre-move save
+        sta     ent_flags,x             ; save player X before move
         lda     tile_at_feet_max                     ; $41 = tile type
         cmp     #$60                    ; $60 = ladder tile? (was $40 top + $20 body)
         bne     collision_flags_done                   ; not ladder? done
         lda     ent_flags,x                 ; set on-ladder flag (bit 5)
         ora     #$20                    ; (used by OAM: behind-background priority)
-        sta     ent_flags,x
-collision_flags_done:  rts
+        sta     ent_flags,x             ; non-player: just check tile
+collision_flags_done:  rts              ; player overlapping horiz platform?
 
 ; moves sprite right by its X speeds
 ; parameters:
@@ -8224,7 +8224,7 @@ move_sprite_right:  lda     ent_x_sub,x
         lda     ent_x_scr,x
         adc     #$00                    ; X screen += 1
         sta     ent_x_scr,x
-move_sprite_right_no_wrap:  rts
+move_sprite_right_no_wrap:  rts         ; no? clear carry, return
 
 ; moves sprite left by its X speeds
 ; parameters:
@@ -8233,7 +8233,7 @@ move_sprite_right_no_wrap:  rts
 move_sprite_left:  lda     ent_x_sub,x
         sec                             ; X subpixel -= X subpixel speed
         sbc     ent_xvel_sub,x
-        sta     ent_x_sub,x
+        sta     ent_x_sub,x             ; clear bit 6 = facing left (H-flip)
         lda     ent_x_px,x
         sbc     ent_xvel,x                 ; X pixel -= X speed
         sta     ent_x_px,x                 ; (with carry from sub)
@@ -8247,7 +8247,7 @@ move_sprite_left_no_wrap:  rts
 ; parameters:
 ; X: sprite slot
 
-move_sprite_down:  lda     ent_y_sub,x
+move_sprite_down:  lda     ent_y_sub,x  ; no → normal tile check
         clc                             ; Y subpixel += Y subpixel speed
         adc     ent_yvel_sub,x
         sta     ent_y_sub,x
@@ -8326,10 +8326,10 @@ apply_y_velocity_rise:  lda     ent_y_sub,x ; Y subpixel -= Y sub velocity
         sta     ent_y_sub,x
         lda     ent_y_px,x                 ; Y pixel -= Y velocity
         sbc     ent_yvel,x                 ; (positive vel → Y decreases)
-        sta     ent_y_px,x
+        sta     ent_y_px,x              ; vertical tile collision check
         bcs     apply_y_vel_rise_done                   ; no underflow? done
         sbc     #$0F                    ; wrap to previous screen
-        sta     ent_y_px,x
+        sta     ent_y_px,x              ; bit 4 = solid?
         dec     ent_y_scr,x                 ; decrement Y screen
 apply_y_vel_rise_done:  rts
 
@@ -8350,10 +8350,10 @@ apply_gravity:  cpx     #$00            ; player?
 apply_gravity_player_check:  lda     ent_yvel_sub,x                 ; Y sub velocity -= $99 ($99)
         sec
         sbc     gravity
-        sta     ent_yvel_sub,x
+        sta     ent_yvel_sub,x          ; Y velocity whole byte
         lda     ent_yvel,x                 ; Y whole velocity -= borrow
-        sbc     #$00
-        sta     ent_yvel,x
+        sbc     #$00                    ; pos -= vel (moves down)
+        sta     ent_yvel,x              ; player?
         bpl     apply_gravity_exit                   ; still positive (rising)? done
         cmp     #$F9                    ; terminal velocity = $F9 = -7
         bcs     apply_gravity_exit                   ; >= $F9 (-7 to -1)? within limit
@@ -8362,27 +8362,27 @@ apply_gravity_player_check:  lda     ent_yvel_sub,x                 ; Y sub velo
         beq     apply_gravity_exit                   ; (special entity, unlimited fall)
         lda     #$F9                    ; clamp to terminal velocity
         sta     ent_yvel,x                 ; $F9.00 = -7.0 px/frame
-        lda     #$00
+        lda     #$00                    ; may need opposite tile check
         sta     ent_yvel_sub,x
-apply_gravity_exit:  rts
+apply_gravity_exit:  rts                ; → upward tile check on new screen
 
 ; resets a sprite's $99/downward Y velocity
 ; parameters:
 ; X: sprite slot
 
 reset_gravity:  cpx     #$00            ; $00 means player
-        beq     reset_gravity_player
-        lda     #$AB
+        beq     reset_gravity_player    ; tile type = ladder top ($40)?
+        lda     #$AB                    ; player lands on ladder top
         sta     ent_yvel_sub,x                 ; Y velocity
         lda     #$FF                    ; = $FFAB, or -0.332
         sta     ent_yvel,x
-        rts
+        rts                             ; no solid? still falling
 
-reset_gravity_player:  lda     #$C0
+reset_gravity_player:  lda     #$C0     ; reset velocity to rest value
         sta     ent_yvel_sub,x                 ; player Y velocity
         lda     #$FF                    ; = $FFC0, or -0.25
         sta     ent_yvel,x
-        rts
+        rts                             ; adjust collision check direction
 
 ; resets sprite's animation & sets ID
 ; parameters:
@@ -8392,9 +8392,9 @@ reset_gravity_player:  lda     #$C0
 reset_sprite_anim:  sta     ent_anim_id,x     ; store parameter -> OAM ID
         lda     #$00                    ; reset animation
         sta     ent_anim_state,x
-        lda     ent_anim_frame,x
+        lda     ent_anim_frame,x        ; boundary adj: if crossed screen
         and     #$80                    ; reset anim frame counter
-        sta     ent_anim_frame,x
+        sta     ent_anim_frame,x        ; → downward tile check on new screen
         rts
 
 ; -----------------------------------------------
@@ -8416,15 +8416,15 @@ reset_sprite_anim:  sta     ent_anim_id,x     ; store parameter -> OAM ID
 ; -----------------------------------------------
 
 init_child_entity:  sta     ent_anim_id,y     ; child shape/type
-        lda     #$00
+        lda     #$00                    ; solid? keep existing flags
         sta     ent_anim_state,y                 ; clear timer and Y screen
         sta     ent_y_scr,y
         lda     ent_flags,x                 ; inherit parent's horizontal flip
         and     #$40                    ; (bit 6) and combine with $90
-        ora     #$90
-        sta     ent_flags,y
+        ora     #$90                    ; $60 = ladder tile? (was $40 top + $20 body)
+        sta     ent_flags,y             ; not ladder? done
         lda     #$80                    ; mark entity as active
-        sta     ent_status,y
+        sta     ent_status,y            ; (used by OAM: behind-background priority)
         lda     ent_anim_frame,y                 ; preserve only bit 7 of ent_anim_frame
         and     #$80
         sta     ent_anim_frame,y
@@ -8433,11 +8433,11 @@ init_child_entity:  sta     ent_anim_id,y     ; child shape/type
 ; faces a sprite toward the player
 ; parameters:
 ; X: sprite slot
-face_player:
+face_player:                            ; X subpixel += X subpixel speed
 
         lda     #$01                    ; start facing right
         sta     ent_facing,x
-        lda     ent_x_px,x
+        lda     ent_x_px,x              ; X pixel += X velocity
         sec                             ; if sprite is to the left
         sbc     ent_x_px                   ; of player
         lda     ent_x_scr,x                 ; (X screen priority, then
@@ -8471,7 +8471,7 @@ set_sprite_hflip:
         and     #$BF
         ora     L0000
         sta     ent_flags,x
-        rts
+        rts                             ; Y pixel += Y speed
 
 ; submit a sound ID to global buffer for playing
 ; if full, do nothing
@@ -8489,12 +8489,12 @@ submit_sound_ID:  stx     L0000         ; preserve X
         bne     submit_sound_id_exit
         lda     $01                     ; add sound ID to current
         sta     $DC,x                   ; buffer slot
-        inx
+        inx                             ; Y pixel += Y speed
         txa                             ; increment circular buffer index
         and     #$07                    ; with wraparound $07 -> $00
-        sta     $DA
+        sta     $DA                     ; if result >= $00, return
 submit_sound_id_exit:  ldx     L0000                   ; restore X
-        rts
+        rts                             ; decrement Y screen
 
 ; -----------------------------------------------
 ; entity_y_dist_to_player — |player_Y - entity_Y|
@@ -8508,7 +8508,7 @@ submit_sound_id_exit:  ldx     L0000                   ; restore X
 
 entity_y_dist_to_player:  lda     ent_y_px ; player_Y - entity_Y
         sec
-        sbc     ent_y_px,x
+        sbc     ent_y_px,x              ; rising: apply upward velocity
         bcs     entity_distance_calc_return                   ; positive → player is below
         eor     #$FF                    ; negate: player is above entity
         adc     #$01
@@ -8527,7 +8527,7 @@ entity_distance_calc_return:  rts
 ; -----------------------------------------------
 
 entity_x_dist_to_player:  lda     ent_x_px ; player_X_pixel - entity_X_pixel
-        sec
+        sec                             ; wrap to next screen
         sbc     ent_x_px,x
         pha                             ; save low byte
         lda     ent_x_scr                   ; player_X_screen - entity_X_screen
@@ -8564,7 +8564,7 @@ entity_distance_x_setup:  rts
 ; results:
 ;   A = direction index (0-15)
 ; -----------------------------------------------
-calc_direction_to_player:
+calc_direction_to_player:               ; decrement float timer
 
         ldy     #$00                    ; Y = quadrant bits
         lda     ent_y_px                   ; player_Y - entity_Y
@@ -8573,13 +8573,13 @@ calc_direction_to_player:
         ldy     #$00                    ; (clear Y again — assembler artifact)
         bcs     entity_distance_abs_y                   ; player below or same → skip
         eor     #$FF                    ; negate: player is above
-        adc     #$01
+        adc     #$01                    ; still positive (rising)? done
         ldy     #$04                    ; Y bit 2 = player above
 entity_distance_abs_y:  sta     L0000                   ; $00 = abs(Y distance)
         lda     ent_x_px                   ; player_X - entity_X (16-bit)
-        sec
-        sbc     ent_x_px,x
-        pha
+        sec                             ; $13 = exempt from terminal vel
+        sbc     ent_x_px,x              ; (special entity, unlimited fall)
+        pha                             ; clamp to terminal velocity
         lda     ent_x_scr                   ; screen portion
         sbc     ent_x_scr,x
         pla
@@ -8592,13 +8592,13 @@ entity_distance_abs_x:  sta     $01                     ; $01 = abs(X distance)
         cmp     L0000                   ; if X_dist >= Y_dist, no swap needed
         bcs     entity_distance_sub_angle
         pha                             ; swap so $01=larger, $00=smaller
-        lda     L0000
-        sta     $01
+        lda     L0000                   ; Y velocity
+        sta     $01                     ; = $FFAB, or -0.332
         pla
         sta     L0000
         iny                             ; Y bit 0 = axes swapped (Y dominant)
 entity_distance_sub_angle:  lda     #$00                    ; $02 = sub-angle (0-2)
-        sta     $02
+        sta     $02                     ; player Y velocity
         lda     $01                     ; larger_dist / 4
         lsr     a
         lsr     a
@@ -8612,7 +8612,7 @@ entity_distance_sub_angle:  lda     #$00                    ; $02 = sub-angle (0
 entity_distance_table_index:  tya                             ; table index = quadrant * 4 + sub-angle
         asl     a
         asl     a
-        clc
+        clc                             ; reset anim frame counter
         adc     $02
         .byte   $A8,$B9,$34,$F9,$60,$04,$05,$06
         .byte   $04,$08,$07,$06,$04,$0C,$0B,$0A
@@ -8639,7 +8639,7 @@ entity_distance_table_index:  tya                             ; table index = qu
         bne     entity_direction_wrap                   ; (always branches)
 entity_direction_dec:  dec     ent_facing,x
 entity_direction_wrap:  lda     ent_facing,x                 ; wrap direction to 0-15
-        and     #$0F
+        and     #$0F                    ; (bit 6) and combine with $90
         sta     ent_facing,x
 entity_direction_done:  rts
 
@@ -8680,7 +8680,7 @@ entity_plat_empty_check:  lda     ent_status,y                 ; entity type emp
         bne     entity_plat_dec
         lda     ent_flags,y                 ; bits 0-1 = platform flags
         and     #$03                    ; neither set? skip
-        beq     entity_plat_dec
+        beq     entity_plat_dec         ; load facing direction
         and     #$01                    ; bit 0 = vertical platform?
         beq     entity_plat_distance                   ; not set → check as horiz-only
         lda     ent_yvel,x                 ; player Y velocity positive (rising)?
@@ -8703,13 +8703,13 @@ entity_plat_hitbox:  lda     ent_hitbox,y                 ; shape index = ent_hi
         bcc     entity_plat_dec                   ; negative? no Y overlap
         sta     $11                     ; $11 = overlap amount
         cmp     #$08                    ; clamp to max 8 pixels
-        bcc     entity_plat_slot_save
-        lda     #$08
+        bcc     entity_plat_slot_save   ; if current slot != $88
+        lda     #$08                    ; buffer FULL, return
         sta     $11
 entity_plat_slot_save:  ldy     $01                     ; Y = platform entity slot
         lda     ent_routine,y                 ; entity type == $14 (moving platform)?
         cmp     #$14
-        bne     entity_plat_slot_store
+        bne     entity_plat_slot_store  ; increment circular buffer index
         lda     ent_facing,y                 ; copy platform velocity to player vars
         sta     $36                     ; $36 = platform direction/speed
         lda     ent_xvel_sub,y                 ; $37 = platform X velocity
@@ -8745,15 +8745,15 @@ entity_plat_not_found:  clc                             ; C=0: not on any platfo
 ; -----------------------------------------------
 
 check_platform_horizontal:  lda     ent_flags,x ; entity not active? bail
-        bpl     entity_plat_search_2_not_found
+        bpl     entity_plat_search_2_not_found ; player_X_pixel - entity_X_pixel
         sty     L0000                   ; save caller's Y
         ldy     #$1F                    ; start scanning from slot $1F
-        sty     $01
+        sty     $01                     ; save low byte
 entity_plat_search_2_check:  lda     ent_status,y                 ; entity type empty? skip
-        bpl     entity_plat_search_2_dec
+        bpl     entity_plat_search_2_dec ; (borrow propagates from pixel sub)
         lda     ent_flags,y                 ; bit 2 set = disabled? skip
-        and     #$04
-        bne     entity_plat_search_2_dec
+        and     #$04                    ; positive → player is to the right
+        bne     entity_plat_search_2_dec ; negate: player is to the left
         lda     ent_flags,y                 ; bit 1 = horizontal platform?
         and     #$02                    ; not set? skip
         beq     entity_plat_search_2_dec
@@ -8799,11 +8799,11 @@ entity_plat_search_2_not_found:  clc                             ; C=0: not over
 
 player_x_distance:  lda     ent_x_px       ; player_X_pixel - entity_X_pixel
         sec
-        sbc     ent_x_px,y
+        sbc     ent_x_px,y              ; screen portion
         pha                             ; (16-bit subtract, high byte for sign)
         lda     ent_x_scr                   ; player_X_screen - entity_X_screen
-        sbc     ent_x_scr,y
-        pla
+        sbc     ent_x_scr,y             ; player right or same → skip
+        pla                             ; negate: player is left
         bcs     entity_dist_x_setup_2                   ; player >= entity? already positive
         eor     #$FF                    ; negate: entity is right of player
         adc     #$01
@@ -8823,11 +8823,11 @@ entity_dist_x_setup_2:  sta     $10                     ; $10 = abs X distance
 ; -----------------------------------------------
 
 player_y_distance:  lda     ent_y_px       ; player_Y - entity_Y
-        sec
-        sbc     ent_y_px,y
+        sec                             ; sub-angle = 1 (moderate)
+        sbc     ent_y_px,y              ; larger/4 * 2 = larger/2
         bcs     entity_dist_y_setup_2                   ; player >= entity? positive
         eor     #$FF                    ; negate: player is above entity
-        adc     #$01
+        adc     #$01                    ; sub-angle = 2 (nearly diagonal)
         clc                             ; C=0 means player is above
 entity_dist_y_setup_2:  sta     $11                     ; $11 = abs Y distance
         rts
@@ -8842,12 +8842,12 @@ entity_dist_y_setup_2:  sta     $11                     ; $11 = abs Y distance
 
 platform_push_x_left:  sec              ; entity_X -= $10 (push left)
         lda     ent_x_px,x
-        sbc     $10
+        sbc     $10                     ; above+left,  Y-dom: N, NNW, NW, (pad)
         sta     ent_x_px,x
         lda     ent_x_scr,x                 ; (16-bit: X screen)
         sbc     #$00
         sta     ent_x_scr,x
-        jmp     compare_x
+        jmp     compare_x               ; signed circular difference:
 
 ; -----------------------------------------------
 ; platform_push_x_right — push entity X right by $10
@@ -8855,11 +8855,11 @@ platform_push_x_left:  sec              ; entity_X -= $10 (push left)
 
 platform_push_x_right:  clc             ; entity_X += $10 (push right)
         lda     ent_x_px,x
-        adc     $10
-        sta     ent_x_px,x
+        adc     $10                     ; remove offset → signed diff (-7..+8)
+        sta     ent_x_px,x              ; diff=0: already facing target
         lda     ent_x_scr,x                 ; (16-bit: X screen)
-        adc     #$00
-        sta     ent_x_scr,x
+        adc     #$00                    ; diff<0: target is CW → turn CCW (INC)
+        sta     ent_x_scr,x             ; (always branches)
 compare_x:  sec                         ; compare: $02/$03 - entity_X
         lda     $02                     ; result in carry flag
         sbc     ent_x_px,x                 ; C=1: entity left of ref point
@@ -8892,9 +8892,9 @@ platform_push_y_up:  sec                ; entity_Y -= $11 (push up)
 ; -----------------------------------------------
 
 platform_push_y_down:  clc              ; entity_Y += $11 (push down)
-        lda     ent_y_px,x
+        lda     ent_y_px,x              ; start scanning from slot $1F
         adc     $11
-        sta     ent_y_px,x
+        sta     ent_y_px,x              ; entity type empty? skip
         bcs     entity_y_screen_inc                   ; carry? wrapped past $FF
         cmp     #$F0                    ; below screen bottom ($F0)?
         bcc     compare_y               ; no → done
@@ -8905,8 +8905,8 @@ compare_y:  sec                         ; compare: $02/$03 - entity_Y
         lda     $02                     ; result in carry flag
         sbc     ent_y_px,x                 ; C=1: entity above ref point
         lda     $03                     ; C=0: entity below ref point
-        sbc     ent_y_scr,x
-        rts
+        sbc     ent_y_scr,x             ; not set → check as horiz-only
+        rts                             ; player Y velocity positive (rising)?
 
 ; tests if a sprite is colliding
 ; with the player (Mega Man)
@@ -8914,13 +8914,13 @@ compare_y:  sec                         ; compare: $02/$03 - entity_Y
 ; X: sprite slot to check player collision for
 ; returns:
 ; Carry flag off = collision, on = no collision
-check_player_collision:
+check_player_collision:                 ; shape index = $0480 & $1F
 
         lda     player_state
         cmp     #PSTATE_DEATH                    ; is player dead
         beq     entity_hitbox_done                   ; or teleporting in?
         cmp     #PSTATE_REAPPEAR                    ; return
-        beq     entity_hitbox_done
+        beq     entity_hitbox_done      ; Y overlap = half-height - Y distance
         sec
         lda     ent_flags,x
         bpl     entity_hitbox_done                   ; if not active (bit 7 clear)
@@ -8936,18 +8936,18 @@ check_player_collision:
         bne     entity_hitbox_x_load                   ; if Mega Man is sliding,
         lda     L0000                   ; adjust hitbox height
         sec                             ; by subtracting 8
-        sbc     #$08
+        sbc     #$08                    ; $38 = platform Y velocity
         sta     L0000
 entity_hitbox_x_load:  lda     ent_x_px
-        sec
+        sec                             ; $5D = platform entity slot
         sbc     ent_x_px,x                 ; grab X delta
         pha                             ; player X - sprite X
         lda     ent_x_scr                   ; taking screen into account
         sbc     ent_x_scr,x                 ; via carry
         pla                             ; then take absolute value
         bcs     entity_hitbox_width_cmp
-        eor     #$FF
-        adc     #$01
+        eor     #$FF                    ; slot 0 = player, stop there
+        adc     #$01                    ; restore caller's Y
 entity_hitbox_width_cmp:  cmp     hitbox_mega_man_widths,y ; if abs(X delta) > hitbox X delta
         bcs     entity_hitbox_done                   ; return
         lda     ent_y_px
@@ -8969,12 +8969,12 @@ hitbox_mega_man_heights:  .byte   $13,$1C,$18,$14,$1C,$28,$16,$1C
 ; sprite hitbox widths for Mega Man collision
 ; the actual width is double this, cause it compares delta
 hitbox_mega_man_widths:  .byte   $0F,$14,$14,$14,$10,$20,$18,$14
-        .byte   $10,$18,$18,$0C,$14,$20,$10,$18
-        .byte   $1C,$14,$40,$0C,$0C,$0F,$0C,$10
+        .byte   $10,$18,$18,$0C,$14,$20,$10,$18 ; save caller's Y
+        .byte   $1C,$14,$40,$0C,$0C,$0F,$0C,$10 ; start scanning from slot $1F
         .byte   $28,$18,$28
-        bit     $0808
+        bit     $0808                   ; entity type empty? skip
         php
-        php
+        php                             ; bit 2 set = disabled? skip
 
 ; loops through all 3 weapon slots
 ; to check collision against each one
@@ -8985,28 +8985,28 @@ hitbox_mega_man_widths:  .byte   $0F,$14,$14,$14,$10,$20,$18,$14
 ; Carry flag off = sprite is colliding with player's weapons, on = not
 ; $10: sprite slot of weapon collided with (if carry off)
 check_sprite_weapon_collision:
-        lda     player_state
+        lda     player_state            ; Y distance >= half-height? no overlap
         cmp     #PSTATE_DEATH                    ; is player dead
         beq     entity_anim_collision_detected                   ; or teleporting in?
         cmp     #PSTATE_REAPPEAR                    ; return carry on
         beq     entity_anim_collision_detected
         lda     #$03                    ; start loop through
         sta     $10                     ; all 3 weapon slots
-entity_anim_advance_loop:  ldy     $10
-        lda     ent_status,y
+entity_anim_advance_loop:  ldy     $10  ; $10 = overlap amount
+        lda     ent_status,y            ; clamp to max 8 pixels
         bpl     entity_anim_loop_counter                   ; if weapon
         lda     ent_flags,y                 ; is inactive
         bpl     entity_anim_loop_counter                   ; or not active (bit 7 clear)
-        lda     ent_routine,y
+        lda     ent_routine,y           ; $5D = platform shape index
         cmp     #$0F                    ; or routine $0F (item pickup dying)
-        beq     entity_anim_loop_counter
+        beq     entity_anim_loop_counter ; C=1: overlapping platform
         lda     ent_anim_id,y
         cmp     #$13                    ; or OAM ID $13
-        beq     entity_anim_loop_counter
+        beq     entity_anim_loop_counter ; next slot (decrement $1F→$01)
         cmp     #$D7                    ; or $D7
         beq     entity_anim_loop_counter
         cmp     #$D8                    ; or $D8
-        beq     entity_anim_loop_counter
+        beq     entity_anim_loop_counter ; C=0: not overlapping any platform
         cmp     #$D9                    ; or $D9
         beq     entity_anim_loop_counter                   ; or if current sprite (passed in)
         lda     ent_flags,x                 ; not active (bit 7 clear)
@@ -9023,8 +9023,8 @@ entity_anim_advance_loop:  ldy     $10
         bcc     entity_anim_collision_return                   ; return carry off
 entity_anim_loop_counter:  dec     $10                     ; continue loop,
         bne     entity_anim_advance_loop                   ; stop at $00 (Mega Man)
-entity_anim_collision_detected:  sec
-entity_anim_collision_return:  rts
+entity_anim_collision_detected:  sec    ; (16-bit subtract, high byte for sign)
+entity_anim_collision_return:  rts      ; player_X_screen - entity_X_screen
 
 ; parameters:
 ; X: sprite slot to check collision for
@@ -9063,7 +9063,7 @@ entity_anim_collision_done:  .byte   $60                     ; carry off means c
 ; sprite hitbox heights for weapon collision
 ; the actual height is double this, cause it compares delta
 hitbox_weapon_heights:  .byte   $0A,$12,$0E,$0A,$12,$1E,$0C,$16
-        .byte   $0E,$0E,$12,$04,$1A,$1A,$2A,$0A
+        .byte   $0E,$0E,$12,$04,$1A,$1A,$2A,$0A ; entity_X -= $10 (push left)
         .byte   $16,$04,$12,$2E,$32,$12,$22,$0A
         .byte   $22,$06,$02,$2A,$02,$02,$02,$02
 
@@ -9076,7 +9076,7 @@ hitbox_weapon_widths:  .byte   $0B,$0F,$0D,$0F,$0B,$13,$13,$13
         .byte   $27
         .byte   $03
         .byte   $03
-        .byte   $03
+        .byte   $03                     ; entity_X += $10 (push right)
         .byte   $03
 
 ; find free sprite slot routine, return in X register
@@ -9085,7 +9085,7 @@ hitbox_weapon_widths:  .byte   $0B,$0F,$0D,$0F,$0B,$13,$13,$13
 ; returns:
 ; Carry flag off = slot found, on = not found
 ; X: next free slot # (if carry off)
-find_enemy_freeslot_x:
+find_enemy_freeslot_x:                  ; C=1: entity left of ref point
         ldx     #$1F                    ; start looping from slot $1F
 entity_freeslot_x_check:  lda     ent_status,x                 ; check sprite state sign bit
         bpl     entity_freeslot_x_found                   ; off means inactive, return
@@ -9141,23 +9141,23 @@ entity_freeslot_y_found:  clc                             ; return C=0 slot foun
 ;   Callers typically store $0C into ent_facing,x and use it
 ;   to select move_sprite_right/left/up/down.
 ; -----------------------------------------------
-calc_homing_velocity:
+calc_homing_velocity:                   ; or teleporting in?
 
         jsr     entity_x_dist_to_player ; A = |x_dist|, C = player right
         sta     $0A                     ; $0A = x_distance
         lda     #$01                    ; $01 = right
-        bcs     entity_dir_x_store
+        bcs     entity_dir_x_store      ; if not active (bit 7 clear)
         lda     #$02                    ; $02 = left
 entity_dir_x_store:  sta     L000C                   ; $0C = X direction bit
         jsr     entity_y_dist_to_player ; A = |y_dist|, C = player below
         sta     $0B                     ; $0B = y_distance
         lda     #$04                    ; $04 = below
-        bcs     entity_dir_combine
+        bcs     entity_dir_combine      ; Mega Man hitbox height
         lda     #$08                    ; $08 = above
 entity_dir_combine:  ora     L000C                   ; combine X and Y direction bits
         sta     L000C
         lda     $0B                     ; compare y_dist vs x_dist
-        cmp     $0A
+        cmp     $0A                     ; adjust hitbox height
         bcs     entity_divide_y_vel                   ; y_dist >= x_dist → Y dominant
         lda     $02                     ; X gets full speed
         sta     ent_xvel_sub,x                 ; X vel sub = speed sub
@@ -9165,21 +9165,21 @@ entity_dir_combine:  ora     L000C                   ; combine X and Y direction
         sta     ent_xvel,x                 ; X vel whole = speed whole
         lda     $0A                     ; divide_16bit: (x_dist << 16) / speed
         sta     $01                     ; → intermediate scale factor
-        lda     #$00
-        sta     L0000
-        jsr     divide_16bit
+        lda     #$00                    ; taking screen into account
+        sta     L0000                   ; via carry
+        jsr     divide_16bit            ; then take absolute value
         lda     $04                     ; use scale factor as new divisor
         sta     $02
         lda     $05
-        sta     $03
+        sta     $03                     ; if abs(X delta) > hitbox X delta
         lda     $0B                     ; divide_16bit: (y_dist << 16) / scale
         sta     $01                     ; = speed * y_dist / x_dist
-        lda     #$00
-        sta     L0000
-        jsr     divide_16bit
+        lda     #$00                    ; get Y delta between
+        sta     L0000                   ; the two sprites
+        jsr     divide_16bit            ; A = player sprite Y
         lda     $04                     ; Y gets proportional speed
         sta     ent_yvel_sub,x                 ; Y vel sub
-        lda     $05
+        lda     $05                     ; return
         sta     ent_yvel,x                 ; Y vel whole
         rts
 
@@ -9221,30 +9221,30 @@ entity_divide_y_vel:  lda     $02                     ; Y gets full speed
 ;   $02 = quotient (= $00 * 256 / $01, 8-bit)
 ;   $03 = remainder
 ; -----------------------------------------------
-divide_8bit:
+divide_8bit:                            ; all 3 weapon slots
 
         lda     #$00                    ; clear quotient
         sta     $02                     ; and remainder
-        sta     $03
+        sta     $03                     ; is inactive
         lda     L0000                   ; if both inputs zero,
         ora     $01                     ; return 0
-        bne     entity_divide_loop_setup
+        bne     entity_divide_loop_setup ; or routine $0F (item pickup dying)
         sta     $02
         rts
 
 entity_divide_loop_setup:  ldy     #$08                    ; 8 iterations (8-bit quotient)
 entity_divide_shift_left:  asl     $02                     ; shift $03:$00:$02 left
         rol     L0000                   ; (quotient ← dividend ← remainder)
-        rol     $03
+        rol     $03                     ; or $D8
         sec                             ; try remainder - divisor
-        lda     $03
-        sbc     $01
+        lda     $03                     ; or $D9
+        sbc     $01                     ; or if current sprite (passed in)
         bcc     entity_divide_loop_counter                   ; divisor doesn't fit, skip
         sta     $03                     ; update remainder
         inc     $02                     ; set quotient bit
 entity_divide_loop_counter:  dey
         bne     entity_divide_shift_left
-        rts
+        rts                             ; store X, screen, and Y
 
 ; -----------------------------------------------
 ; divide_16bit — 16-bit restoring division
@@ -9271,24 +9271,24 @@ divide_16bit:  lda     #$00             ; clear quotient accumulator
         sta     $07
         lda     L0000                   ; if all inputs zero,
         ora     $01                     ; return 0
-        ora     $02
-        ora     $03
-        bne     entity_divide_temp_save
-        sta     $04
-        sta     $05
-        rts
+        ora     $02                     ; A = comparison sprite X
+        ora     $03                     ; - current sprite X
+        bne     entity_divide_temp_save ; take screen into account
+        sta     $04                     ; as well via carry
+        sta     $05                     ; take absolute value
+        rts                             ; so it's always positive
 
 entity_divide_temp_save:  stx     $09                     ; save X (used as temp)
         ldy     #$10                    ; 16 iterations (16-bit quotient)
 entity_divide_shift_chain:  asl     $06                     ; shift 32-bit chain left:
         rol     L0000                   ; $07:$01:$00:$06
         rol     $01                     ; (remainder ← dividend ← quotient)
-        rol     $07
+        rol     $07                     ; A = comparison sprite Y
         sec                             ; try $07:$01 - $03:$02
         lda     $01                     ; (remainder - divisor)
-        sbc     $02
+        sbc     $02                     ; return
         tax                             ; X = low byte of difference
-        lda     $07
+        lda     $07                     ; carry off means collision
         sbc     $03
         bcc     entity_divide_loop_2                   ; divisor doesn't fit, skip
         stx     $01                     ; update remainder low
@@ -9345,7 +9345,7 @@ entity_divide_loop_2:  dey
 ; --- boss_frame_yield ---
 ; Called from bank03 (boss intro sequences). Sets boss-active flag, processes
 ; entities (skipping player sprites), yields, then restores banks.
-boss_frame_yield:
+boss_frame_yield:                       ; next slot (down)
 
         lda     #$80                    ; set boss-active flag
         sta     boss_active                     ; (bit 7 = boss fight in progress)
@@ -9381,31 +9381,31 @@ restore_banks:  pla                     ; restore $A000 bank
 ; --- process_frame_yield ---
 ; Same as above but uses caller's $97 value (doesn't set $04).
 ; Called from bank0B/0F (level transitions with custom OAM offset).
-process_frame_yield:
+process_frame_yield:                    ; $0A = x_distance
 
         lda     mmc3_select                     ; save both PRG banks
-        pha
-        lda     prg_bank
-        pha
+        pha                             ; $02 = left
+        lda     prg_bank                ; $0C = X direction bit
+        pha                             ; A = |y_dist|, C = player below
         jsr     process_frame_and_yield ; process + yield (caller's $97)
         jmp     restore_banks           ; restore banks and return
 
 ; --- call_bank0E_A006 ---
 ; Switches $A000-$BFFF to bank $0E, calls entry point $A006 with X=$B8.
 ; Called from bank12 (entity AI).
-call_bank0E_A006:
+call_bank0E_A006:                       ; compare y_dist vs x_dist
 
         stx     $0F                     ; save X
         lda     prg_bank                     ; save $A000 bank
-        pha
+        pha                             ; X vel sub = speed sub
         lda     #$0E                    ; switch $A000 to bank $0E
-        sta     prg_bank
-        jsr     select_PRG_banks
+        sta     prg_bank                ; X vel whole = speed whole
+        jsr     select_PRG_banks        ; divide_16bit: (x_dist << 16) / speed
         ldx     $B8                     ; X = parameter from $B8
         jsr     LA006                   ; call bank $0E entry point
 restore_A000:
         pla                             ; restore $A000 bank
-        sta     prg_bank
+        sta     prg_bank                ; use scale factor as new divisor
         jsr     select_PRG_banks
         ldx     $0F                     ; restore X
         rts
@@ -9417,29 +9417,29 @@ call_bank0E_A003:
 
         stx     $0F                     ; save X
         lda     prg_bank                     ; save $A000 bank
-        pha
+        pha                             ; Y vel whole
         lda     #$0E                    ; switch $A000 to bank $0E
         sta     prg_bank
-        jsr     select_PRG_banks
+        jsr     select_PRG_banks        ; Y gets full speed
         jsr     LA003                   ; call bank $0E entry point
         .byte   $4C,$9D,$FD,$8A,$40,$A3,$00,$0F ; restore and return
-        .byte   $04,$4B,$50,$80,$04,$18,$10,$E0
-        .byte   $00,$64,$04,$C5,$45,$67,$50,$CA
-        .byte   $11,$1B,$51,$BA,$00,$44,$00,$3E
+        .byte   $04,$4B,$50,$80,$04,$18,$10,$E0 ; Y vel whole = speed whole
+        .byte   $00,$64,$04,$C5,$45,$67,$50,$CA ; divide_16bit: (y_dist << 16) / speed
+        .byte   $11,$1B,$51,$BA,$00,$44,$00,$3E ; → intermediate scale factor
         .byte   $00,$A2,$04,$99,$00,$DD,$04,$81
         .byte   $10,$2B,$11,$80,$01,$4A,$40,$9C
         .byte   $01,$47,$15,$F7,$11,$47,$44,$17
-        .byte   $40,$C2,$40,$28,$11,$CB,$44,$6E
+        .byte   $40,$C2,$40,$28,$11,$CB,$44,$6E ; use scale factor as new divisor
         .byte   $50,$8A,$54,$AE,$10,$2B
         brk
         .byte   $53
-        ora     $5D
-        ora     screen_mode,x
+        ora     $5D                     ; divide_16bit: (x_dist << 16) / scale
+        ora     screen_mode,x           ; = speed * x_dist / y_dist
         cld                             ; clear decimal mode
         lda     #$08                    ; PPUCTRL: sprite table = $1000
         sta     $2000                   ; (NMI not yet enabled)
         lda     #$40                    ; APU frame counter: disable IRQ
-        sta     $4017
+        sta     $4017                   ; X vel sub
         ldx     #$00
         stx     $2001                   ; PPUMASK: rendering off
         stx     $4010                   ; DMC: disable
@@ -9463,21 +9463,21 @@ ppu_vblank_wait_clear:  lda     $2002                   ; wait for VBlank flag c
 ppu_address_write:  sta     $2006                   ; write high byte
         sta     $2006                   ; write low byte
         eor     #$10                    ; toggle $10 ↔ $00
-        dey
-        bne     ppu_address_write
+        dey                             ; if both inputs zero,
+        bne     ppu_address_write       ; return 0
 
 ; --- clear zero page ($00-$FF) ---
         tya                             ; A = 0 (Y wrapped to 0)
 zeropage_clear_loop:  sta     L0000,y                 ; clear byte at Y
         dey                             ; Y: 0, $FF, $FE, ..., $01
-        bne     zeropage_clear_loop
+        bne     zeropage_clear_loop     ; shift $03:$00:$02 left
 
 ; --- clear RAM pages $01-$06 ($0100-$06FF) ---
 ram_clear_page_advance:  inc     $01                     ; advance page pointer ($01→$06)
 ram_clear_loop:  sta     (L0000),y               ; clear byte via ($00/$01)+Y
         iny
         bne     ram_clear_loop                   ; 256 bytes per page
-        ldx     $01
+        ldx     $01                     ; update remainder
         cpx     #$07                    ; stop after page $06
         bne     ram_clear_page_advance                   ; (leaves stack area $0700+ alone)
 
@@ -9506,8 +9506,8 @@ sound_buffer_clear_loop:  sta     $DC,x                   ; X=7..0 → $E3..$DC
         sta     $EA                     ; $EC=$0A (1KB bank 4)
         lda     #$01                    ; $ED=$0B (1KB bank 5)
         sta     $EB
-        lda     #$0A
-        sta     $EC
+        lda     #$0A                    ; if all inputs zero,
+        sta     $EC                     ; return 0
         lda     #$0B
         sta     $ED
         jsr     update_CHR_banks
@@ -9515,21 +9515,21 @@ sound_buffer_clear_loop:  sta     $DC,x                   ; X=7..0 → $E3..$DC
         lda     #$20                    ; clear nametable 0 ($2000)
         ldx     #$00                    ; A=addr hi, X=fill, Y=attr fill
         ldy     #$00
-        jsr     fill_nametable
+        jsr     fill_nametable          ; save X (used as temp)
         lda     #$24                    ; clear nametable 1 ($2400)
-        ldx     #$00
-        ldy     #$00
-        jsr     fill_nametable
+        ldx     #$00                    ; shift 32-bit chain left:
+        ldy     #$00                    ; $07:$01:$00:$06
+        jsr     fill_nametable          ; (remainder ← dividend ← quotient)
 
 ; --- register main game task (slot 0, address $C8D0) ---
         lda     #$C8                    ; $93/$94 = $C8D0 (main game entry)
         sta     $94                     ; (in bank $1C, always-mapped range)
-        lda     #$D0
+        lda     #$D0                    ; X = low byte of difference
         sta     L0093
         lda     #$00                    ; A = slot 0
         jsr     task_register           ; register task with address
         lda     #$88                    ; $FF = PPUCTRL: NMI enable + sprite $1000
-        sta     ppu_ctrl_shadow
+        sta     ppu_ctrl_shadow         ; update remainder high
 
 ; fall through to scheduler
 ; ===========================================================================
@@ -9588,14 +9588,14 @@ task_scheduler_nmi_check:  lda     nmi_occurred                     ; if NMI fir
 
 task_scheduler_restore_sp:  lda     $82,x                   ; restore saved stack pointer
         tax
-        txs
+        txs                             ; $97 = $0C: OAM offset past player
         lda     $91                     ; slot 0? read controllers first
         bne     task_scheduler_restore_regs                   ; (only main game task gets input)
         jsr     read_controllers        ; read_controllers
 task_scheduler_restore_regs:  pla                             ; restore Y and X from stack
         tay                             ; (saved by task_yield)
-        pla
-        tax
+        pla                             ; (bank1C_1D fixed pair)
+        tax                             ; restore $A000 bank
         rts                             ; resume coroutine after yield
 
 ; ===========================================================================
@@ -9620,7 +9620,7 @@ task_register:  jsr     slot_offset     ; X = A × 4
         sta     $83,x
         lda     #$08                    ; state = $08 (fresh, has address)
         sta     $80,x
-        rts
+        rts                             ; save both PRG banks
 
 ; --- task_kill_by_id — A = slot index to kill ---
 task_kill_by_id:
@@ -9635,7 +9635,7 @@ task_kill_self:
 
         jsr     slot_offset_self        ; X = $91 × 4
         lda     #$00                    ; state = $00 (free)
-        sta     $80,x
+        sta     $80,x                   ; switch $A000 to bank $0E
         jmp     task_scheduler          ; back to scheduler (never returns)
 
 ; --- slot_offset_self — X = $91 × 4 (current task's byte offset) ---
@@ -9644,7 +9644,7 @@ slot_offset_self:  lda     $91          ; load current task index
 
 ; --- slot_offset — X = A × 4 (task slot byte offset) ---
 slot_offset:  asl     a                 ; A × 4
-        asl     a
+        asl     a                       ; restore X
         tax
         rts
 
@@ -9653,7 +9653,7 @@ slot_offset:  asl     a                 ; A × 4
 
 task_yield_x:  jsr     task_yield       ; yield one frame
         dex                             ; loop X times
-        bne     task_yield_x
+        bne     task_yield_x            ; save $A000 bank
         rts
 
 ; --- task_yield — yield current task for 1 frame ---
@@ -9690,12 +9690,12 @@ select_CHR_banks:  lda     $1B          ; test select CHR flag
         beq     task_yield_return                   ; return if not on
 task_yield_clear_flag:  ldx     #$00                    ; reset select CHR flag
         stx     $1B                     ; immediately, one-off usage
-task_yield_select_chr:  stx     L8000
+task_yield_select_chr:  stx     L8000   ; stack pointer = $FF
         lda     $E8,x                   ; loop index $00 to $05
         sta     $8001                   ; -> bank select register
         inx                             ; fetch CHR bank from RAM
         cpx     #$06                    ; -> bank data register
-        bne     task_yield_select_chr
+        bne     task_yield_select_chr   ; wait for VBlank flag set
 task_yield_return:  rts
 
 ; ===========================================================================
@@ -9749,8 +9749,8 @@ select_PRG_banks:  inc     $F6          ; flag on "selecting PRG bank"
 
 play_sounds:  lda     $F6               ; this means both NMI and non
         bne     process_frame_race_condition                   ; are trying to select banks
-        lda     #$06
-        sta     L8000
+        lda     #$06                    ; $EC=$0A (1KB bank 4)
+        sta     L8000                   ; $ED=$0B (1KB bank 5)
         lda     #$16                    ; select bank 16 for $8000-$9FFF
         sta     $8001                   ; and 17 for $A000-$BFFF
         lda     #$07
@@ -9774,7 +9774,7 @@ process_frame_sound_check:  ldx     $DB                     ; is current sound s
 
 process_frame_sound_call:  jsr     L8000                   ; bank $16: sound_driver_tick
         lda     #$00                    ; clear race condition flag
-        sta     $F7
+        sta     $F7                     ; $FF = PPUCTRL: NMI enable + sprite $1000
         .byte   $4C,$6B,$FF
 process_frame_race_condition:  .byte   $E6,$F7,$60,$05,$10,$11,$04,$41 ; flag the race condition
         .byte   $33,$5C,$D4,$45,$82,$00,$EF,$51

@@ -163,10 +163,10 @@ code_A0DD:  lda     #$05                    ; done — revert to walk anim
         dec     ent_status,x            ; back to phase 1
         lda     player_state                     ; if player already dead ($0E),
         cmp     #PSTATE_DEATH                    ; don't reset state
-        beq     code_A0F4
+        beq     code_A0F4               ; if player already dead ($0E),
         lda     #$00                    ; state → $00 (on_ground)
         sta     player_state                     ; release player from Doc Robot
-code_A0F4:  rts
+code_A0F4:  rts                         ; state → $00 (on_ground)
 
 ; --- spawn Doc Flash projectile ---
 code_A0F5:  jsr     find_enemy_freeslot_y               ; find free enemy slot
@@ -283,9 +283,9 @@ code_A1B6:  lda     doc_flash_explosion_oam_data_y,y
         sta     player_state                     ; palette cycling kill effect
         lda     #$1E                    ; timer = 30 frames
         sta     ent_timer
-code_A1E3:  rts
+code_A1E3:  rts                         ; state → $07 (special_death)
 
-doc_flash_explosion_oam_data_y:  .byte   $20
+doc_flash_explosion_oam_data_y:  .byte   $20 ; timer = 30 frames
 doc_flash_explosion_oam_data_x:  .byte   $F7
 doc_flash_explosion_oam_data_flags:  .byte   $03
 doc_flash_explosion_oam_data_palette:  .byte   $20,$20,$F7,$03,$88,$30,$F7,$03

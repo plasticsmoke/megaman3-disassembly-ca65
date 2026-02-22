@@ -791,7 +791,7 @@ code_A885:  sta     $0150,y
 code_A88E:  sty     $00
         ldy     #$00
 code_A892:  ldx     progression_robot_master_cells_table,y                 ; Robot Master slot
-        lda     $0150,x
+        lda     $0150,x                 ; reset tier and defeat
         beq     code_A8A9               ; not beaten → check Doc Robot
         pha
         ldx     progression_weapon_energy_robot_master_table,y
@@ -840,22 +840,22 @@ code_A8D6:  lda     #$02
         beq     code_A8E9
         lda     #$FF                    ; if in Doc Robot or Wily tier, show all
         sta     $10
-code_A8E9:  ldy     #$00
-code_A8EB:  lda     #$00
+code_A8E9:  ldy     #$00                ; accumulate defeated bit
+code_A8EB:  lda     #$00                ; into boss-defeated bitmask
         sta     $13
         lda     $10
         and     #$03
         beq     code_A90B
         cmp     #$03
-        beq     code_A906
-        and     #$01
-        bne     code_A908
-        lda     progression_doc_robot_cells_table,y
+        beq     code_A906               ; if already in Doc Robot tier,
+        and     #$01                    ; skip Robot Master check
+        bne     code_A908               ; all 8 Robot Masters beaten?
+        lda     progression_doc_robot_cells_table,y ; ($FF = bits 0-7 all set)
         jsr     code_A988
-        jmp     code_A90B
+        jmp     code_A90B               ; advance to Doc Robot tier
 
-code_A906:  inc     $13
-code_A908:  jsr     code_A985
+code_A906:  inc     $13                 ; $61 = $3A (pre-set defeated bits
+code_A908:  jsr     code_A985           ; for stages without Doc Robots)
 code_A90B:  lsr     $10
         lsr     $10
         iny
@@ -865,23 +865,23 @@ code_A90B:  lsr     $10
         sta     $10
         lda     stage_select_page
         beq     code_A975
-        cmp     #$12
-        bcc     code_A924
+        cmp     #$12                    ; check Doc Robot completion
+        bcc     code_A924               ; for this stage pair
         lda     #$FF
-        sta     $10
-code_A924:  lda     #$00
+        sta     $10                     ; mark Doc Robot stage defeated
+code_A924:  lda     #$00                ; using Doc Robot bitmask table
         sta     $13
         ldy     #$04
         lda     $10
-        and     #$05
-        beq     code_A946
+        and     #$05                    ; all 4 Doc Robot stages beaten?
+        beq     code_A946               ; ($FF = all bits set)
         cmp     #$05
-        beq     code_A941
-        and     #$01
-        bne     code_A943
-        lda     progression_doc_robot_cells_table,y
-        jsr     code_A988
-        jmp     code_A946
+        beq     code_A941               ; advance to Wily tier
+        and     #$01                    ; $60 = $12
+        bne     code_A943               ; if Break Man defeated too,
+        lda     progression_doc_robot_cells_table,y ; done
+        jsr     code_A988               ; $60 = $FF marks all stages
+        jmp     code_A946               ; complete (Wily fortress)
 
 code_A941:  inc     $13
 code_A943:  jsr     code_A985
