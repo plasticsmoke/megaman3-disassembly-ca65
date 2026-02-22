@@ -39,6 +39,7 @@
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 
 .segment "BANK0D"

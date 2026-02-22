@@ -25,6 +25,7 @@ main_yellow_devil:
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 ; --- External references (fixed bank + $8000 entry points, bank $1C) ---
 L0000           := $0000

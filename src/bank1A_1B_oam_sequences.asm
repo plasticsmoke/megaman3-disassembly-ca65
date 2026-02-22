@@ -49,6 +49,7 @@
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 reset_gravity           := $F81B
 reset_sprite_anim           := $F835

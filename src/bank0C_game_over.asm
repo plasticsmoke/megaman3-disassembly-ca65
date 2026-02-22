@@ -25,6 +25,7 @@
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 ; --- External references (fixed bank + swappable bank $0E) ---
 LA000           := $A000                ; init music driver (bank $0E)

@@ -31,6 +31,7 @@
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 L0000           := $0000
 L0400           := $0400

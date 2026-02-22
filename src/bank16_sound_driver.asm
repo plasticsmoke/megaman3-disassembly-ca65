@@ -29,6 +29,7 @@
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 L00C1           := $00C1
 
@@ -185,7 +186,7 @@ code_80D8:  txa                         ; get channel index
         cpy     #$08                    ; offset $08 = triangle ch
         bne     code_80E8               ; use $30 for pulse/noise
         lda     #$00                    ; triangle: linear ctr = 0
-code_80E8:  sta     $4000,y             ; write silence to channel
+code_80E8:  sta     SQ1_VOL,y           ; write silence to channel
         rts
 
 code_80EC:  pha                         ; save value to write
@@ -198,7 +199,7 @@ code_80EC:  pha                         ; save value to write
         ora     $C4                     ; combine base + sub-offset
         tay                             ; Y = full APU register index
         pla                             ; restore value
-        sta     $4000,y                 ; write to APU register
+        sta     SQ1_VOL,y               ; write to APU register
         rts
 
 code_80FE:  inc     $C0                 ; set odd-frame flag
@@ -340,10 +341,10 @@ code_820A:  dex                         ; next channel
         pla                             ; restore channel mask
         sta     $CF                     ; restore $CF
         lda     #$08                    ; disable sweep ($08)
-        sta     $4001                   ; pulse 1 sweep off
-        sta     $4005                   ; pulse 2 sweep off
+        sta     SQ1_SWEEP               ; pulse 1 sweep off
+        sta     SQ2_SWEEP               ; pulse 2 sweep off
         lda     #$0F                    ; enable all sound channels
-        sta     $4015                   ; APU status: enable all
+        sta     SND_CHN                 ; APU status: enable all
         rts
 
         lda     $C0                     ; cmd: set SFX mute flag

@@ -56,6 +56,7 @@ process_sprites_j:
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 L0000           := $0000
 LE11A           := $E11A

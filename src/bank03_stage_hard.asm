@@ -35,6 +35,7 @@ stage_transition_entry:
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 stage_select_proto_man_oam           := $9212
 L938B           := $938B

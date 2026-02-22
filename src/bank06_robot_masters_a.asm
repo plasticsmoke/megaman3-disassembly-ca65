@@ -25,6 +25,7 @@ main_needle_man_j:
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 L0000           := $0000
 move_right_collide           := $F580

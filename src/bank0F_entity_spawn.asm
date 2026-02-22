@@ -22,6 +22,7 @@
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 ; --- fixed bank subroutines ---
 apply_y_speed           := $F797        ; apply_y_speed — apply Y velocity to entity
