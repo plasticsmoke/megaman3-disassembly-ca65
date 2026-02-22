@@ -116,6 +116,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
 ; Each frame is terminated by $FF. Frames are indexed 0-8 via the
 ; pointer table above.
 ; ---------------------------------------------------------------------------
+; --- portrait 0: Needle Man ---
         .byte   $A8,$80,$03,$40,$A8,$81,$03
         .byte   $48,$A8,$82,$03,$50,$A8,$83,$03
         .byte   $58,$B0,$84,$03,$40,$B0,$85,$03
@@ -127,6 +128,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $58,$BC,$8D,$02,$40,$BC,$8D,$42
         .byte   $58,$B8,$90,$02,$4C,$C0,$8E,$02
         .byte   $48,$C0,$8F,$02,$50,$A8,$8A,$00
+; --- portrait 1: Magnet Man ---
         .byte   $44,$B8,$8B,$00,$4C,$FF,$A8,$91
         .byte   $03,$44,$A8,$92,$03,$4C,$A8,$93
         .byte   $03,$54,$B0,$94,$03,$40,$B0,$95
@@ -136,6 +138,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $43,$58,$C0,$99,$03,$44,$C0,$9A
         .byte   $03,$4C,$C0,$9B,$03,$54,$B3,$9C
         .byte   $00,$4C,$BD,$9D,$01,$48,$BD,$9E
+; --- portrait 2: Gemini Man ---
         .byte   $01,$50,$FF,$A8,$9F,$03,$44,$A8
         .byte   $A0,$03,$4C,$A8,$A1,$03,$54,$B0
         .byte   $A2,$03,$40,$B0,$A3,$03,$48,$B0
@@ -147,6 +150,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $AE,$02,$40,$B0,$AD,$02,$4C,$B0
         .byte   $AE,$42,$58,$B8,$AF,$02,$40,$B8
         .byte   $AF,$42,$58,$B3,$9C,$00,$4C,$FF
+; --- portrait 3: Hard Man ---
         .byte   $A8,$B0,$02,$40,$A8,$B1,$02,$48
         .byte   $A8,$B2,$02,$50,$A8,$B0,$42,$58
         .byte   $B0,$B3,$03,$40,$B0,$B4,$03,$48
@@ -156,6 +160,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $C0,$B8,$03,$40,$C0,$B9,$03,$48
         .byte   $C0,$BA,$03,$50,$C0,$B8,$43,$58
         .byte   $B0,$BB,$02,$40,$B0,$BB,$42,$58
+; --- portrait 4: Top Man ---
         .byte   $B8,$BC,$02,$4C,$FF,$A8,$BD,$02
         .byte   $44,$A8,$BE,$02,$4C,$A8,$BF,$02
         .byte   $54,$B0,$C0,$02,$40,$B0,$C1,$02
@@ -168,6 +173,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $40,$B8,$CD,$02,$48,$B8,$CD,$42
         .byte   $50,$B8,$CC,$42,$58,$A8,$C9,$00
         .byte   $44,$A8,$CA,$00,$4C,$A8,$C9,$40
+; --- portrait 5: Snake Man ---
         .byte   $54,$B0,$9C,$00,$4C,$FF,$A8,$CE
         .byte   $03,$44,$A8,$CF,$03,$4C,$A8,$D0
         .byte   $03,$54,$B0,$D1,$03,$44,$B0,$D2
@@ -178,6 +184,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $02,$4C,$B3,$DB,$02,$40,$B3,$DC
         .byte   $02,$48,$B3,$DC,$42,$50,$B3,$DB
         .byte   $42,$58,$BB,$DD,$02,$40,$BB,$DD
+; --- portrait 6: Spark Man ---
         .byte   $42,$58,$B4,$9C,$00,$4C,$FF,$A8
         .byte   $DE,$03,$40,$A8,$DF,$03,$48,$A8
         .byte   $E0,$03,$50,$A8,$E1,$03,$58,$B0
@@ -188,6 +195,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $E9,$02,$47,$C0,$EA,$02,$4F,$C0
         .byte   $EB,$03,$57,$B0,$EC,$02,$48,$B0
         .byte   $EC,$42,$50,$B8,$ED,$03,$4C,$B8
+; --- portrait 7: Shadow Man ---
         .byte   $EE,$02,$58,$FF,$A8,$EF,$03,$40
         .byte   $A8,$F0,$03,$48,$A8,$F1,$03,$50
         .byte   $A8,$F2,$03,$58,$B0,$F3,$03,$40
@@ -199,6 +207,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $B0,$FC,$02,$44,$B0,$FC,$42,$54
         .byte   $B8,$FD,$02,$40,$B8,$FE,$03,$4C
         .byte   $B8,$FD,$42,$58,$C0,$FF,$03,$40
+; --- portrait 8: Doc Robot ---
         .byte   $C0,$FF,$43,$58,$FF,$A8,$67,$03
         .byte   $44,$A8,$68,$03,$4C,$A8,$69,$03
         .byte   $54,$B0,$55,$03,$40,$B0,$56,$03
@@ -691,7 +700,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
 ; data at $AA98+ (16 column IDs per screen). Total: up to 32 columns
 ; x 64 bytes = 2048 bytes. Read by fixed bank routine at $E425.
 ; ---------------------------------------------------------------------------
-        .byte   $00,$01,$02,$03,$04,$05,$06,$07
+        .byte   $00,$01,$02,$03,$04,$05,$06,$07 ; Column $00
         .byte   $07,$08,$09,$0A,$0B,$08,$09,$00
         .byte   $00,$07,$00,$0A,$0B,$07,$00,$07
         .byte   $07,$00,$07,$0A,$0B,$00,$07,$00
@@ -699,7 +708,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $07,$00,$07,$0A,$0B,$00,$07,$00
         .byte   $00,$07,$00,$0C,$0D,$07,$00,$07
         .byte   $07,$00,$07,$00,$07,$00,$07,$00
-        .byte   $0E,$01,$07,$0F,$10,$07,$06,$11
+        .byte   $0E,$01,$07,$0F,$10,$07,$06,$11 ; Column $01
         .byte   $11,$01,$00,$03,$04,$00,$06,$0E
         .byte   $0E,$0A,$07,$0A,$0B,$12,$0B,$11
         .byte   $11,$0A,$00,$0A,$0B,$05,$0B,$0E
@@ -707,7 +716,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $11,$01,$17,$03,$04,$18,$06,$0E
         .byte   $0E,$01,$0C,$19,$1A,$0C,$06,$11
         .byte   $11,$01,$17,$1B,$1C,$18,$06,$0E
-        .byte   $00,$01,$12,$12,$12,$12,$12,$07
+        .byte   $00,$01,$12,$12,$12,$12,$12,$07 ; Column $02
         .byte   $07,$0A,$02,$05,$02,$05,$02,$00
         .byte   $00,$1D,$1E,$1D,$1E,$08,$0B,$07
         .byte   $07,$05,$02,$05,$02,$18,$16,$00
@@ -715,7 +724,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $07,$01,$11,$22,$23,$0E,$06,$00
         .byte   $00,$01,$11,$24,$23,$11,$06,$07
         .byte   $07,$01,$11,$22,$23,$0E,$06,$00
-        .byte   $0E,$12,$12,$12,$07,$00,$07,$00
+        .byte   $0E,$12,$12,$12,$07,$00,$07,$00 ; Column $03
         .byte   $11,$05,$02,$05,$25,$25,$25,$25
         .byte   $0E,$0A,$0B,$1F,$26,$26,$26,$26
         .byte   $11,$13,$1F,$0E,$11,$0E,$11,$0E
@@ -723,7 +732,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $11,$01,$11,$0E,$11,$0E,$11,$0E
         .byte   $0E,$01,$0E,$11,$0E,$11,$0E,$11
         .byte   $11,$01,$11,$0E,$11,$0E,$11,$0E
-        .byte   $12,$27,$28,$29,$2A,$28,$2B,$28
+        .byte   $12,$27,$28,$29,$2A,$28,$2B,$28 ; Column $04
         .byte   $02,$2C,$2D,$2E,$2F,$30,$2B,$2D
         .byte   $1F,$2B,$2B,$2E,$2B,$2B,$2B,$2B
         .byte   $11,$2B,$2B,$2E,$2B,$2B,$2B,$2B
@@ -731,7 +740,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $11,$2B,$31,$2E,$31,$2B,$26,$2B
         .byte   $0E,$32,$1F,$33,$1F,$32,$11,$1F
         .byte   $11,$1F,$0E,$1F,$0E,$1F,$0E,$11
-        .byte   $34,$35,$28,$28,$29,$2A,$36,$28
+        .byte   $34,$35,$28,$28,$29,$2A,$36,$28 ; Column $05
         .byte   $37,$35,$2D,$2D,$29,$2F,$38,$2D
         .byte   $2B,$39,$2B,$2B,$2E,$2B,$2B,$31
         .byte   $2B,$39,$2B,$2B,$2E,$31,$2B,$3A
@@ -739,7 +748,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $1F,$1F,$1F,$11,$2E,$2B,$2B,$2B
         .byte   $11,$0E,$11,$0E,$3B,$3B,$3B,$3B
         .byte   $0E,$11,$0E,$11,$0E,$11,$0E,$11
-        .byte   $29,$2A,$36,$28,$29,$2A,$3C,$17
+        .byte   $29,$2A,$36,$28,$29,$2A,$3C,$17 ; Column $06
         .byte   $2E,$3D,$38,$2D,$29,$2F,$38,$0B
         .byte   $2E,$2B,$2B,$2B,$2E,$2B,$2B,$0B
         .byte   $2E,$31,$2B,$31,$2E,$2B,$2B,$0B
@@ -747,7 +756,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $2E,$2B,$2B,$11,$1F,$1F,$1F,$0B
         .byte   $3B,$3B,$3B,$0E,$11,$0E,$11,$3E
         .byte   $0E,$11,$0E,$11,$0E,$11,$0E,$1F
-        .byte   $18,$17,$0E,$11,$0E,$17,$18,$17
+        .byte   $18,$17,$0E,$11,$0E,$17,$18,$17 ; Column $07
         .byte   $0A,$0B,$3F,$40,$3F,$0B,$0A,$0B
         .byte   $0A,$0B,$05,$02,$05,$0B,$0A,$0B
         .byte   $0A,$0B,$3A,$3A,$3A,$1E,$0A,$0B
@@ -755,7 +764,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $0A,$0B,$0A,$0B,$0A,$0B,$0A,$0B
         .byte   $41,$3E,$1F,$1F,$1F,$3E,$41,$3E
         .byte   $1F,$1F,$0E,$11,$0E,$1F,$1F,$1F
-        .byte   $18,$17,$18,$17,$0E,$18,$17,$18
+        .byte   $18,$17,$18,$17,$0E,$18,$17,$18 ; Column $08
         .byte   $0A,$0B,$0A,$0B,$3F,$0A,$0B,$0A
         .byte   $3A,$0B,$0A,$0B,$05,$0B,$0A,$0B
         .byte   $05,$0B,$0A,$0B,$3A,$1E,$0A,$0B
@@ -763,7 +772,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $05,$02,$0A,$0B,$0A,$0B,$0A,$0B
         .byte   $1F,$3E,$41,$3E,$1F,$3E,$41,$3E
         .byte   $0E,$1F,$1F,$1F,$0E,$1F,$1F,$1F
-        .byte   $17,$18,$17,$18,$17,$18,$0E,$11
+        .byte   $17,$18,$17,$18,$17,$18,$0E,$11 ; Column $09
         .byte   $0A,$0B,$0A,$0B,$0A,$0B,$11,$0E
         .byte   $3A,$3A,$0A,$0B,$0A,$0B,$40,$3F
         .byte   $05,$02,$0A,$0B,$0A,$0B,$05,$42
@@ -771,7 +780,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $05,$02,$05,$0B,$1F,$1F,$1F,$1F
         .byte   $1F,$1F,$41,$3E,$11,$0E,$11,$0E
         .byte   $0E,$11,$1F,$1F,$0E,$11,$0E,$11
-        .byte   $40,$3F,$40,$3F,$40,$3F,$40,$44
+        .byte   $40,$3F,$40,$3F,$40,$3F,$40,$44 ; Column $0A
         .byte   $45,$46,$47,$48,$48,$49,$46,$4A
         .byte   $4B,$46,$46,$46,$46,$46,$46,$4A
         .byte   $4C,$46,$46,$46,$46,$46,$46,$4A
@@ -779,7 +788,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $1F,$1F,$1F,$1F,$1F,$1F,$1F,$1F
         .byte   $11,$0E,$11,$0E,$11,$0E,$11,$0E
         .byte   $0E,$11,$0E,$11,$0E,$11,$0E,$11
-        .byte   $00,$4D,$12,$12,$12,$07,$06,$07
+        .byte   $00,$4D,$12,$12,$12,$07,$06,$07 ; Column $0B
         .byte   $07,$4E,$02,$05,$02,$00,$06,$00
         .byte   $00,$0A,$0B,$0A,$0B,$18,$06,$07
         .byte   $07,$0D,$0B,$4F,$50,$0D,$06,$00
@@ -787,7 +796,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $07,$00,$0B,$0A,$0B,$00,$0B,$00
         .byte   $00,$07,$0D,$0C,$0D,$07,$0D,$07
         .byte   $07,$00,$07,$00,$07,$00,$07,$00
-        .byte   $00,$0A,$51,$0A,$12,$0A,$0B,$07
+        .byte   $00,$0A,$51,$0A,$12,$0A,$0B,$07 ; Column $0C
         .byte   $07,$0A,$0B,$0A,$52,$1D,$0B,$00
         .byte   $00,$0A,$0B,$1D,$00,$05,$16,$07
         .byte   $07,$1D,$0B,$05,$07,$4F,$06,$00
@@ -795,7 +804,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $07,$0A,$0B,$05,$07,$05,$06,$00
         .byte   $00,$53,$0D,$0C,$00,$0C,$06,$07
         .byte   $07,$4D,$12,$12,$12,$07,$06,$00
-        .byte   $00,$12,$12,$12,$12,$12,$12,$12
+        .byte   $00,$12,$12,$12,$12,$12,$12,$12 ; Column $0D
         .byte   $07,$05,$02,$05,$02,$05,$02,$05
         .byte   $00,$0A,$0B,$0A,$0B,$0A,$0B,$0A
         .byte   $07,$0A,$0B,$0D,$0C,$3A,$0C,$0D
@@ -803,7 +812,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $07,$0A,$0B,$18,$17,$0A,$07,$00
         .byte   $00,$3A,$54,$3A,$0D,$3A,$12,$07
         .byte   $07,$05,$55,$05,$07,$05,$02,$00
-        .byte   $12,$0A,$0B,$0A,$0B,$0A,$56,$0A
+        .byte   $12,$0A,$0B,$0A,$0B,$0A,$56,$0A ; Column $0E
         .byte   $02,$0A,$0B,$0A,$0B,$0A,$10,$0A
         .byte   $0B,$0A,$0B,$0A,$0B,$0A,$57,$1D
         .byte   $0B,$0A,$0B,$0D,$0B,$0A,$02,$05
@@ -811,7 +820,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $0C,$0D,$5A,$05,$5B,$0D,$0C,$0A
         .byte   $00,$07,$5C,$0C,$5D,$07,$00,$0C
         .byte   $07,$00,$07,$00,$07,$00,$07,$00
-        .byte   $00,$0A,$5E,$12,$5F,$0A,$0B,$0A
+        .byte   $00,$0A,$5E,$12,$5F,$0A,$0B,$0A ; Column $0F
         .byte   $12,$0A,$5A,$05,$5B,$0A,$0B,$0A
         .byte   $60,$0A,$61,$3A,$62,$0A,$0B,$0A
         .byte   $02,$0A,$02,$05,$02,$0A,$0B,$0A
@@ -819,7 +828,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $0B,$0A,$0B,$0A,$0B,$4F,$17,$18
         .byte   $0D,$0C,$0D,$0C,$0D,$0C,$0D,$0C
         .byte   $07,$00,$07,$00,$07,$00,$07,$00
-        .byte   $0B,$0A,$0B,$0A,$0B,$0A,$0B,$07
+        .byte   $0B,$0A,$0B,$0A,$0B,$0A,$0B,$07 ; Column $10
         .byte   $0B,$0A,$0B,$0A,$0B,$0A,$0B,$00
         .byte   $0B,$0A,$58,$3A,$59,$0A,$0B,$07
         .byte   $0C,$0D,$5A,$05,$5B,$0A,$0B,$00
@@ -827,7 +836,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $17,$0A,$0B,$08,$52,$0A,$0B,$00
         .byte   $0D,$08,$09,$07,$07,$0A,$0B,$07
         .byte   $07,$00,$07,$00,$07,$0A,$0B,$00
-        .byte   $00,$12,$12,$12,$12,$0A,$0B,$07
+        .byte   $00,$12,$12,$12,$12,$0A,$0B,$07 ; Column $11
         .byte   $07,$05,$02,$05,$02,$0A,$0B,$00
         .byte   $00,$0A,$0B,$0A,$0B,$0A,$0B,$07
         .byte   $07,$0D,$0C,$0D,$0C,$0A,$0B,$00
@@ -835,7 +844,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $07,$05,$02,$05,$02,$0A,$0B,$00
         .byte   $00,$0A,$0D,$0C,$0D,$0C,$0D,$07
         .byte   $07,$0A,$07,$00,$07,$00,$07,$00
-        .byte   $00,$0A,$00,$07,$00,$07,$00,$07
+        .byte   $00,$0A,$00,$07,$00,$07,$00,$07 ; Column $12
         .byte   $07,$0A,$07,$00,$07,$00,$07,$00
         .byte   $00,$0A,$12,$12,$12,$12,$12,$07
         .byte   $07,$0A,$02,$05,$02,$05,$02,$00
@@ -843,7 +852,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $07,$0A,$0B,$0A,$0B,$0A,$0B,$18
         .byte   $00,$0C,$0D,$0C,$0D,$0C,$0D,$0C
         .byte   $07,$00,$07,$00,$07,$00,$07,$00
-        .byte   $00,$07,$00,$07,$00,$07,$64,$07
+        .byte   $00,$07,$00,$07,$00,$07,$64,$07 ; Column $13
         .byte   $07,$00,$07,$00,$07,$00,$64,$00
         .byte   $00,$07,$12,$12,$12,$12,$65,$07
         .byte   $07,$00,$02,$05,$02,$05,$66,$00
@@ -851,7 +860,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $17,$18,$0B,$0A,$0B,$0A,$0B,$00
         .byte   $0D,$0C,$0D,$0C,$0D,$0C,$0D,$07
         .byte   $07,$00,$07,$00,$07,$00,$07,$00
-        .byte   $67,$2B,$68,$2B,$2B,$2B,$2B,$69
+        .byte   $67,$2B,$68,$2B,$2B,$2B,$2B,$69 ; Column $14
         .byte   $6A,$6B,$2B,$6B,$2B,$6B,$2B,$6C
         .byte   $6D,$2B,$2B,$2B,$2B,$2B,$2B,$6E
         .byte   $6F,$70,$2B,$2B,$70,$70,$2B,$71
@@ -859,7 +868,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $2B,$2B,$2B,$2B,$2B,$73,$2B,$2B
         .byte   $3B,$3B,$3B,$3B,$3B,$74,$75,$0C
         .byte   $07,$00,$07,$00,$07,$00,$64,$00
-        .byte   $67,$2B,$2B,$76,$2B,$2B,$2B,$69
+        .byte   $67,$2B,$2B,$76,$2B,$2B,$2B,$69 ; Column $15
         .byte   $6A,$77,$6B,$2B,$6B,$6B,$2B,$78
         .byte   $6D,$2B,$2B,$2B,$2B,$2B,$2B,$6E
         .byte   $79,$2B,$7A,$2B,$70,$32,$7B,$71
@@ -867,7 +876,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $32,$32,$75,$7D,$32,$32,$32,$32
         .byte   $7E,$7E,$7F,$7E,$7E,$7E,$7E,$7E
-        .byte   $00,$12,$12,$12,$12,$12,$12,$07
+        .byte   $00,$12,$12,$12,$12,$12,$12,$07 ; Column $16
         .byte   $07,$05,$02,$05,$02,$05,$02,$00
         .byte   $00,$0A,$0B,$0A,$0D,$0A,$0B,$07
         .byte   $07,$0A,$0B,$3A,$12,$3A,$3A,$00
@@ -875,7 +884,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $07,$0A,$0B,$0A,$0B,$0A,$0B,$81
         .byte   $00,$0C,$0D,$82,$09,$08,$09,$83
         .byte   $18,$18,$18,$84,$18,$18,$18,$18
-        .byte   $85,$86,$87,$88,$89,$8A,$8B,$8C
+        .byte   $85,$86,$87,$88,$89,$8A,$8B,$8C ; Column $17
         .byte   $85,$2B,$8D,$8E,$8F,$90,$2B,$8C
         .byte   $85,$91,$92,$93,$94,$95,$96,$8C
         .byte   $97,$98,$99,$99,$9A,$9A,$9B,$9C
@@ -883,7 +892,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $A2,$A3,$87,$88,$89,$8A,$A4,$8C
         .byte   $A5,$A6,$A7,$A8,$A9,$AA,$A6,$AB
         .byte   $07,$00,$07,$AC,$AD,$00,$07,$00
-        .byte   $07,$07,$07,$07,$07,$07,$07,$07
+        .byte   $07,$07,$07,$07,$07,$07,$07,$07 ; Column $18
         .byte   $07,$12,$12,$07,$07,$12,$12,$07
         .byte   $07,$05,$02,$12,$12,$05,$02,$07
         .byte   $07,$0C,$0B,$05,$02,$0A,$0C,$07
@@ -891,7 +900,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $07,$0A,$AF,$7E,$AF,$7E,$0B,$07
         .byte   $07,$0C,$0C,$0A,$0B,$0C,$0C,$07
         .byte   $18,$18,$18,$0A,$0B,$18,$18,$18
-        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
+        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B ; Column $19
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
@@ -899,7 +908,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $B1,$B1,$B1,$B1,$B1,$B1,$B1,$B1
         .byte   $B2,$B3,$B2,$B3,$B2,$B3,$B2,$B3
         .byte   $B4,$B5,$B4,$B5,$B4,$B5,$B4,$B5
-        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
+        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B ; Column $1A
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$B6,$B7,$B8,$B9,$2B,$2B
         .byte   $2B,$2B,$BA,$BB,$BC,$BD,$2B,$2B
@@ -907,6 +916,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
+        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B ; Column $1B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
@@ -914,6 +924,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
+        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B ; Column $1C
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
@@ -921,6 +932,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
+        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B ; Column $1D
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
@@ -928,6 +940,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
+        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B ; Column $1E
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
@@ -935,11 +948,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
-        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
-        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
-        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
-        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
-        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
+        .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B ; Column $1F
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
         .byte   $2B,$2B,$2B,$2B,$2B,$2B,$2B,$2B
