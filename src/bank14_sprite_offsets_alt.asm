@@ -35,6 +35,7 @@
 ; Indexed via the pointer tables at $BE00/$BF00.
 ; =============================================================================
 
+; --- sprite def $00 (11 tiles) ---
         .byte   $F4,$F8,$F4,$00,$FC,$F0,$FC,$F8
         .byte   $FC,$00,$FC,$08,$04,$F0,$04,$F8
         .byte   $04,$00,$04,$08,$FC,$FA,$F4,$00
@@ -43,6 +44,7 @@
         .byte   $04,$F0,$FC,$FE,$F4,$F4,$F4,$FC
         .byte   $F4,$04,$FC,$F4,$FC,$FC,$FC,$04
         .byte   $04,$F4,$04,$FC,$04,$04,$F5,$F9
+; --- sprite def $03 (10 tiles) ---
         .byte   $F4,$04,$F4,$FC,$F4,$F4,$FC,$04
         .byte   $FC,$FC,$FC,$F4,$04,$04,$04,$FC
         .byte   $04,$F4,$F5,$FF,$FA,$F9,$FA,$01
@@ -53,6 +55,7 @@
         .byte   $02,$F7,$FA,$07,$FA,$EF,$02,$07
         .byte   $02,$EF,$0A,$07,$0A,$FF,$0A,$F7
         .byte   $0A,$EF,$F2,$00,$F2,$F8,$FE,$FD
+; --- sprite def $06 (21 tiles) ---
         .byte   $E9,$F6,$E9,$FE,$F1,$EE,$F1,$F6
         .byte   $F1,$FE,$F1,$06,$F9,$EE,$F9,$F6
         .byte   $F9,$FE,$F9,$06,$01,$EE,$01,$F6
@@ -74,12 +77,14 @@
         .byte   $F9,$06,$F9,$EE,$01,$06,$01,$EE
         .byte   $09,$05,$09,$FD,$09,$F5,$09,$ED
         .byte   $F1,$FD,$F9,$FD,$FB,$F8,$FC,$00
+; --- sprite def $0B (2 tiles) ---
         .byte   $FB,$00,$FC,$F8,$FC,$F4,$FC,$FC
         .byte   $FC,$04,$04,$FC,$F4,$FC,$F4,$04
         .byte   $04,$F4,$04,$04,$0C,$FC,$F4,$F4
         .byte   $FC,$0C,$FC,$04,$FC,$FC,$FC,$F4
         .byte   $04,$FC,$F4,$FC,$F4,$F4,$04,$04
         .byte   $04,$F4,$0C,$FC,$F4,$04,$FC,$EC
+; --- sprite def $0E (17 tiles) ---
         .byte   $F4,$04,$FC,$EC,$FC,$F4,$FC,$FC
         .byte   $FC,$04,$FC,$0C,$04,$EC,$04,$F4
         .byte   $04,$FC,$04,$04,$04,$0C,$0C,$0C
@@ -93,6 +98,7 @@
         .byte   $FC,$04,$04,$EC,$04,$F4,$04,$FC
         .byte   $04,$04,$04,$0C,$FA,$FB,$04,$EF
         .byte   $FC,$10,$04,$10,$FC,$0C,$0C,$0C
+; --- sprite def $11 (18 tiles) ---
         .byte   $F4,$04,$F4,$FC,$F4,$F4,$FC,$0C
         .byte   $FC,$04,$FC,$FC,$FC,$F4,$04,$0C
         .byte   $04,$04,$04,$FC,$04,$F4,$04,$EC
@@ -105,16 +111,20 @@
         .byte   $00,$FC,$08,$FC,$F0,$04,$F0,$FC
         .byte   $F0,$F4,$00,$04,$00,$F4,$08,$04
         .byte   $08,$F4,$F8,$00,$E0,$F4,$E8,$F4
+; --- sprite def $14 (16 tiles) ---
         .byte   $E8,$E8,$E8,$F0,$E8,$08,$E8,$10
         .byte   $F0,$E8,$F0,$F0,$F0,$08,$F0,$10
         .byte   $08,$E8,$08,$F0,$08,$08,$08,$10
         .byte   $10,$E8,$10,$F0,$10,$08,$10,$10
+; --- sprite def $15 (16 tiles) ---
         .byte   $E0,$10,$E0,$08,$E0,$F0,$E0,$E8
         .byte   $E8,$10,$E8,$08,$E8,$F0,$E8,$E8
         .byte   $10,$10,$10,$08,$10,$F0,$10,$E8
         .byte   $18,$10,$18,$08,$18,$F0,$18,$E8
+; --- sprite def $16 (3 tiles) ---
         .byte   $F3,$01,$FB,$01,$03,$01,$F3,$F7
         .byte   $FB,$F7,$03,$F7,$F7,$01,$FF,$01
+; --- sprite def $19 (2 tiles) ---
         .byte   $F7,$F7,$FF,$F7,$F1,$F0,$F1,$F8
         .byte   $F1,$00,$F1,$08,$F9,$F0,$F9,$F8
         .byte   $F9,$00,$F9,$08,$01,$F0,$01,$F8
@@ -133,6 +143,7 @@
         .byte   $F0,$00,$F0,$08,$F8,$F8,$F8,$00
         .byte   $00,$F8,$00,$00,$08,$E8,$08,$F0
         .byte   $08,$F8,$08,$00,$08,$08,$08,$10
+; --- sprite def $1D (30 tiles) ---
         .byte   $D0,$F0,$D0,$E8,$D0,$E0,$D0,$D8
         .byte   $D8,$F0,$D8,$E8,$D8,$E0,$D8,$D8
         .byte   $E0,$F0,$E0,$E8,$E0,$E0,$E0,$D8
@@ -148,6 +159,7 @@
         .byte   $F0,$F8,$F0,$00,$F8,$F8,$F8,$00
         .byte   $00,$F8,$00,$00,$08,$E8,$08,$F0
         .byte   $08,$F8,$08,$00,$08,$08,$08,$10
+; --- sprite def $1F (30 tiles) ---
         .byte   $D0,$20,$D0,$18,$D0,$10,$D0,$08
         .byte   $D8,$20,$D8,$18,$D8,$10,$D8,$08
         .byte   $E0,$20,$E0,$18,$E0,$10,$E0,$08
@@ -164,24 +176,30 @@
         .byte   $F5,$FB,$FD,$13,$FD,$0B,$FD,$03
         .byte   $FD,$FB,$05,$13,$05,$0B,$05,$03
         .byte   $0D,$0A,$F5,$0B,$FD,$0B,$DD,$03
+; --- sprite def $22 (16 tiles) ---
         .byte   $D0,$F8,$D0,$00,$D8,$F8,$D8,$00
         .byte   $20,$F8,$20,$00,$28,$F8,$28,$00
         .byte   $E0,$FC,$E8,$FC,$F0,$FC,$F8,$FC
         .byte   $00,$FC,$08,$FC,$10,$FC,$18,$FC
+; --- sprite def $23 (20 tiles) ---
         .byte   $C0,$F8,$C0,$00,$C8,$F8,$C8,$00
         .byte   $30,$F8,$30,$00,$38,$F8,$38,$00
         .byte   $D0,$FC,$D8,$FC,$E0,$FC,$E8,$FC
         .byte   $F0,$FC,$F8,$FC,$00,$FC,$08,$FC
         .byte   $10,$FC,$18,$FC,$20,$FC,$28,$FC
+; --- sprite def $24 (8 tiles) ---
         .byte   $14,$F4,$1C,$F4,$14,$01,$1C,$01
         .byte   $3C,$E8,$44,$E8,$3C,$11,$44,$11
+; --- sprite def $25 (16 tiles) ---
         .byte   $14,$F4,$1C,$F4,$14,$01,$1C,$01
         .byte   $3C,$E4,$3C,$EC,$44,$E4,$44,$EC
         .byte   $4C,$E4,$4C,$EC,$3C,$0D,$3C,$15
         .byte   $44,$0D,$44,$15,$4C,$0D,$4C,$15
+; --- sprite def $26 (6 tiles) ---
         .byte   $EF,$EA,$F7,$EA,$FF,$EA,$07,$EA
         .byte   $F7,$E2,$FF,$E2,$EF,$0E,$F7,$0E
         .byte   $FF,$0E,$07,$0E,$F7,$16,$FF,$16
+; --- sprite def $28 (14 tiles) ---
         .byte   $F0,$F8,$F0,$00,$F8,$F8,$F8,$00
         .byte   $F8,$08,$00,$F0,$00,$F8,$00,$00
         .byte   $00,$08,$08,$F3,$08,$FB,$08,$03
@@ -189,6 +207,7 @@
         .byte   $F8,$00,$F8,$F8,$F8,$F0,$00,$08
         .byte   $00,$00,$00,$F8,$00,$F0,$08,$05
         .byte   $08,$FD,$08,$F5,$FC,$FC,$F8,$08
+; --- sprite def $2A (14 tiles) ---
         .byte   $F0,$F0,$F0,$F8,$F0,$00,$F0,$08
         .byte   $F8,$F0,$F8,$F8,$F8,$00,$F8,$08
         .byte   $00,$F8,$00,$00,$08,$F4,$08,$FC
@@ -196,6 +215,7 @@
         .byte   $F0,$F8,$F0,$F0,$F8,$08,$F8,$00
         .byte   $F8,$F8,$F8,$F0,$00,$00,$00,$F8
         .byte   $08,$04,$08,$FC,$08,$F4,$FA,$FD
+; --- sprite def $2C (19 tiles) ---
         .byte   $F3,$F8,$F3,$00,$FB,$F0,$FB,$F8
         .byte   $FB,$00,$FB,$08,$03,$F4,$03,$FC
         .byte   $03,$04,$0B,$F4,$0B,$FC,$0B,$04
@@ -213,6 +233,7 @@
         .byte   $F8,$F0,$00,$08,$00,$00,$00,$F8
         .byte   $00,$F0,$08,$00,$08,$F8,$10,$00
         .byte   $10,$F8,$FC,$FC,$F0,$00,$F0,$F8
+; --- sprite def $30 (19 tiles) ---
         .byte   $F2,$F8,$F2,$00,$FA,$F0,$FA,$F8
         .byte   $FA,$00,$FA,$08,$02,$F4,$02,$FC
         .byte   $02,$04,$0A,$F4,$0A,$FC,$0A,$04
@@ -226,6 +247,7 @@
         .byte   $F8,$F9,$F8,$01,$F8,$09,$00,$F9
         .byte   $00,$01,$00,$09,$08,$F9,$08,$01
         .byte   $10,$F9,$10,$01,$FC,$F1,$FC,$FD
+; --- sprite def $33 (14 tiles) ---
         .byte   $F0,$FF,$F0,$F7,$F8,$FF,$F8,$F7
         .byte   $F8,$EF,$00,$FF,$00,$F7,$00,$EF
         .byte   $08,$FF,$08,$F7,$10,$FF,$10,$F7
@@ -233,6 +255,7 @@
         .byte   $F8,$ED,$F8,$F5,$F8,$FD,$F8,$05
         .byte   $00,$ED,$00,$F5,$00,$FD,$08,$F5
         .byte   $08,$FD,$08,$05,$10,$F9,$FC,$F9
+; --- sprite def $35 (14 tiles) ---
         .byte   $F0,$03,$F0,$FB,$F8,$0B,$F8,$03
         .byte   $F8,$FB,$F8,$F3,$00,$0B,$00,$03
         .byte   $00,$FB,$08,$03,$08,$FB,$08,$F3
@@ -243,6 +266,7 @@
         .byte   $0D,$0C,$F5,$FC,$ED,$F8,$ED,$00
         .byte   $F5,$F0,$F5,$F8,$F5,$00,$F5,$08
         .byte   $ED,$F0,$ED,$08,$F5,$E8,$F5,$10
+; --- sprite def $37 (26 tiles) ---
         .byte   $FD,$0C,$FD,$04,$FD,$FC,$FD,$F4
         .byte   $FD,$EC,$05,$0C,$05,$04,$05,$FC
         .byte   $05,$F4,$05,$EC,$0D,$0C,$0D,$04
@@ -283,6 +307,7 @@
         .byte   $FF,$0C,$07,$EC,$07,$F4,$07,$FC
         .byte   $07,$04,$07,$0C,$0F,$EC,$0F,$F4
         .byte   $0F,$FC,$0F,$04,$0F,$0C,$F7,$FC
+; --- sprite def $3F (22 tiles) ---
         .byte   $EF,$00,$EF,$F8,$F7,$08,$F7,$00
         .byte   $F7,$F8,$F7,$F0,$FF,$0C,$FF,$04
         .byte   $FF,$FC,$FF,$F4,$FF,$EC,$07,$0C
@@ -299,14 +324,17 @@
         .byte   $ED,$EC,$F5,$0C,$F5,$04,$F5,$FC
         .byte   $F5,$F4,$F5,$EC,$FD,$10,$FD,$08
         .byte   $FD,$00,$FD,$F8,$FD,$F0,$FD,$E8
+; --- sprite def $42 (16 tiles) ---
         .byte   $F0,$F4,$F0,$FC,$F0,$04,$F0,$0C
         .byte   $F8,$F4,$F8,$FC,$F8,$04,$F8,$0C
         .byte   $00,$EC,$00,$F4,$00,$FC,$00,$04
         .byte   $08,$F4,$08,$FC,$08,$04,$F8,$F8
+; --- sprite def $43 (16 tiles) ---
         .byte   $F0,$04,$F0,$FC,$F0,$F4,$F0,$EC
         .byte   $F8,$04,$F8,$FC,$F8,$F4,$F8,$EC
         .byte   $00,$0C,$00,$04,$00,$FC,$00,$F4
         .byte   $08,$04,$08,$FC,$08,$F4,$F8,$00
+; --- sprite def $44 (17 tiles) ---
         .byte   $F3,$F0,$F3,$F8,$F3,$00,$F3,$08
         .byte   $FB,$F0,$FB,$F8,$FB,$00,$FB,$08
         .byte   $03,$F0,$03,$F8,$03,$00,$03,$08
@@ -324,6 +352,7 @@
         .byte   $FB,$00,$FB,$F8,$FB,$F0,$03,$08
         .byte   $03,$00,$03,$F8,$03,$F0,$0B,$08
         .byte   $0B,$00,$0B,$F8,$0B,$F0,$03,$FC
+; --- sprite def $48 (25 tiles) ---
         .byte   $F5,$EC,$F5,$F4,$F5,$FC,$F5,$04
         .byte   $F5,$0C,$FD,$EC,$FD,$F4,$FD,$FC
         .byte   $FD,$04,$FD,$0C,$05,$EC,$05,$F4
@@ -344,28 +373,35 @@
         .byte   $F8,$0E,$F8,$06,$F8,$FE,$F8,$F6
         .byte   $00,$06,$00,$FE,$00,$F6,$00,$EE
         .byte   $08,$FF,$08,$F7,$08,$EF,$F8,$02
+; --- sprite def $4C (16 tiles) ---
         .byte   $E0,$06,$E8,$06,$F0,$F2,$F0,$FA
         .byte   $F0,$02,$F0,$0A,$F8,$EA,$F8,$F2
         .byte   $F8,$FA,$F8,$02,$00,$F2,$00,$FA
         .byte   $00,$02,$08,$F9,$08,$01,$F8,$F6
+; --- sprite def $4D (16 tiles) ---
         .byte   $E0,$F2,$E8,$F2,$F0,$06,$F0,$FE
         .byte   $F0,$F6,$F0,$EE,$F8,$0E,$F8,$06
         .byte   $F8,$FE,$F8,$F6,$00,$06,$00,$FE
         .byte   $00,$F6,$08,$FF,$08,$F7,$F8,$02
+; --- sprite def $4E (16 tiles) ---
         .byte   $F2,$F0,$F2,$F8,$F2,$00,$F2,$08
         .byte   $FA,$F0,$FA,$F8,$FA,$00,$FA,$08
         .byte   $02,$F0,$02,$F8,$02,$00,$02,$08
         .byte   $0A,$F8,$0A,$00,$0A,$08,$FA,$F4
+; --- sprite def $4F (16 tiles) ---
         .byte   $F2,$08,$F2,$00,$F2,$F8,$F2,$F0
         .byte   $FA,$08,$FA,$00,$FA,$F8,$FA,$F0
         .byte   $02,$08,$02,$00,$02,$F8,$02,$F0
         .byte   $0A,$00,$0A,$F8,$0A,$F0,$FA,$04
+; --- sprite def $50 (12 tiles) ---
         .byte   $F1,$F0,$F1,$F8,$F1,$00,$F9,$F0
         .byte   $F9,$F8,$F9,$00,$F9,$08,$01,$F0
         .byte   $01,$F8,$01,$00,$09,$FD,$F9,$F4
+; --- sprite def $51 (12 tiles) ---
         .byte   $F1,$08,$F1,$00,$F1,$F8,$F9,$08
         .byte   $F9,$00,$F9,$F8,$F9,$F0,$01,$08
         .byte   $01,$00,$01,$F8,$09,$FB,$F9,$04
+; --- sprite def $52 (13 tiles) ---
         .byte   $F2,$F0,$F2,$F8,$F2,$00,$F2,$08
         .byte   $FA,$F0,$FA,$F8,$FA,$00,$FA,$08
         .byte   $02,$F4,$02,$FC,$02,$04,$0A,$F6
@@ -383,26 +419,31 @@
         .byte   $F0,$F8,$F0,$F0,$F8,$08,$F8,$F0
         .byte   $00,$F0,$08,$08,$08,$F8,$08,$F0
         .byte   $F8,$08,$F8,$00,$00,$00,$F0,$10
+; --- sprite def $56 (20 tiles) ---
         .byte   $E8,$F8,$F0,$F0,$F0,$F8,$F0,$00
         .byte   $F8,$F0,$F8,$F8,$F8,$00,$F8,$08
         .byte   $00,$F1,$00,$F9,$00,$01,$08,$F0
         .byte   $08,$F8,$08,$00,$08,$08,$F8,$F0
         .byte   $F8,$F8,$00,$F8,$F0,$08,$00,$E9
+; --- sprite def $57 (20 tiles) ---
         .byte   $E8,$00,$F0,$08,$F0,$00,$F0,$F8
         .byte   $F8,$08,$F8,$00,$F8,$F8,$F8,$F0
         .byte   $00,$07,$00,$FF,$00,$F7,$08,$08
         .byte   $08,$00,$08,$F8,$08,$F0,$F8,$08
         .byte   $F8,$00,$00,$00,$F0,$F0,$00,$0F
+; --- sprite def $58 (20 tiles) ---
         .byte   $E9,$FA,$F1,$F2,$F1,$FA,$F1,$02
         .byte   $F1,$0A,$F9,$F2,$F9,$FA,$F9,$02
         .byte   $F9,$0A,$01,$F2,$01,$FA,$01,$02
         .byte   $01,$0A,$09,$F0,$09,$F8,$09,$00
         .byte   $09,$08,$F9,$F2,$F9,$FA,$01,$FA
+; --- sprite def $59 (20 tiles) ---
         .byte   $E9,$FE,$F1,$06,$F1,$FE,$F1,$F6
         .byte   $F1,$EE,$F9,$06,$F9,$FE,$F9,$F6
         .byte   $F9,$EE,$01,$06,$01,$FE,$01,$F6
         .byte   $01,$EE,$09,$08,$09,$00,$09,$F8
         .byte   $09,$F0,$F9,$06,$F9,$FE,$01,$FE
+; --- sprite def $5A (22 tiles) ---
         .byte   $F0,$ED,$F0,$F5,$F0,$FD,$F8,$E5
         .byte   $F8,$ED,$F8,$F5,$F8,$FD,$00,$ED
         .byte   $00,$F5,$00,$FD,$08,$ED,$08,$F5
@@ -414,6 +455,7 @@
         .byte   $08,$0B,$08,$03,$08,$FB,$08,$F3
         .byte   $FF,$07,$FF,$FF,$F8,$33,$F7,$2B
         .byte   $F8,$23,$F8,$1B,$00,$33,$FF,$2B
+; --- sprite def $5C (17 tiles) ---
         .byte   $F0,$EE,$F0,$F6,$F0,$FE,$F8,$E6
         .byte   $F8,$EE,$F8,$F6,$F8,$FE,$00,$E6
         .byte   $00,$EE,$00,$F6,$00,$FE,$08,$EE
@@ -431,6 +473,7 @@
         .byte   $F8,$F0,$00,$08,$00,$00,$00,$F8
         .byte   $00,$F0,$08,$00,$08,$F8,$F0,$08
         .byte   $F0,$F0,$08,$08,$08,$F0,$F7,$FF
+; --- sprite def $60 (17 tiles) ---
         .byte   $F1,$F0,$F1,$F8,$F1,$00,$F1,$08
         .byte   $F9,$F0,$F9,$F8,$F9,$00,$F9,$08
         .byte   $01,$F0,$01,$F8,$01,$00,$01,$08
@@ -449,18 +492,21 @@
         .byte   $F8,$F8,$F8,$F0,$F8,$E8,$00,$08
         .byte   $00,$00,$00,$F8,$00,$F0,$08,$08
         .byte   $08,$00,$08,$F8,$08,$F0,$F7,$FF
+; --- sprite def $64 (24 tiles) ---
         .byte   $E1,$F8,$E1,$00,$E9,$F0,$E9,$F8
         .byte   $E9,$00,$E9,$08,$F1,$F0,$F1,$F8
         .byte   $F1,$00,$F1,$08,$F9,$F0,$F9,$F8
         .byte   $F9,$00,$F9,$08,$01,$F0,$01,$F8
         .byte   $01,$00,$01,$08,$09,$F0,$09,$F8
         .byte   $09,$00,$09,$08,$E1,$F0,$E1,$08
+; --- sprite def $65 (24 tiles) ---
         .byte   $E1,$00,$E1,$F8,$E9,$08,$E9,$00
         .byte   $E9,$F8,$E9,$F0,$F1,$08,$F1,$00
         .byte   $F1,$F8,$F1,$F0,$F9,$08,$F9,$00
         .byte   $F9,$F8,$F9,$F0,$01,$08,$01,$00
         .byte   $01,$F8,$01,$F0,$09,$08,$09,$00
         .byte   $09,$F8,$09,$F0,$E1,$08,$E1,$F0
+; --- sprite def $66 (22 tiles) ---
         .byte   $E1,$FC,$E1,$04,$E9,$F4,$E9,$FC
         .byte   $E9,$04,$E9,$0C,$F1,$F4,$F1,$FC
         .byte   $F1,$04,$F1,$0C,$F9,$F4,$F9,$FC
@@ -472,6 +518,7 @@
         .byte   $F9,$04,$F9,$FC,$F9,$F4,$F9,$EC
         .byte   $01,$04,$01,$FC,$01,$F4,$01,$EC
         .byte   $09,$08,$09,$00,$09,$F8,$09,$F0
+; --- sprite def $68 (15 tiles) ---
         .byte   $F1,$F0,$F1,$F8,$F9,$EF,$F9,$F7
         .byte   $F9,$FF,$01,$E0,$01,$E8,$01,$F0
         .byte   $01,$F8,$01,$00,$09,$F0,$09,$F8
@@ -486,6 +533,7 @@
         .byte   $F0,$FB,$F8,$03,$F8,$FB,$F8,$F3
         .byte   $00,$03,$00,$FB,$00,$F3,$08,$05
         .byte   $08,$FD,$08,$F5,$FC,$0B,$F8,$FF
+; --- sprite def $6C (13 tiles) ---
         .byte   $F1,$F8,$F1,$00,$F9,$F0,$F9,$F8
         .byte   $F9,$00,$F9,$08,$01,$F4,$01,$FC
         .byte   $01,$04,$09,$F4,$09,$FC,$09,$04
@@ -498,6 +546,7 @@
         .byte   $F8,$F9,$F0,$03,$F0,$FB,$F8,$0B
         .byte   $F8,$03,$F8,$FB,$F8,$F3,$00,$0B
         .byte   $00,$03,$00,$FB,$08,$FA,$F8,$FF
+; --- sprite def $70 (13 tiles) ---
         .byte   $F1,$F5,$F1,$FD,$F9,$ED,$F9,$F5
         .byte   $F9,$FD,$F9,$05,$01,$F5,$01,$FD
         .byte   $01,$05,$09,$F5,$09,$FD,$09,$05
@@ -513,11 +562,13 @@
         .byte   $09,$F3,$F9,$FA,$F0,$F3,$F0,$FB
         .byte   $F8,$F6,$F8,$FE,$00,$F3,$00,$FB
         .byte   $00,$03,$08,$F3,$08,$FB,$F8,$F7
+; --- sprite def $75 (10 tiles) ---
         .byte   $F0,$05,$F0,$FD,$F8,$02,$F8,$FA
         .byte   $00,$05,$00,$FD,$00,$F5,$08,$05
         .byte   $08,$FD,$F8,$01,$EE,$F4,$EE,$FC
         .byte   $F6,$EF,$F6,$F7,$F6,$FF,$FE,$EF
         .byte   $FE,$F7,$FE,$FF,$06,$FC,$F6,$F8
+; --- sprite def $77 (10 tiles) ---
         .byte   $EE,$04,$EE,$FC,$F6,$09,$F6,$01
         .byte   $F6,$F9,$FE,$09,$FE,$01,$FE,$F9
         .byte   $06,$FC,$F6,$00,$F0,$F3,$F0,$FB
@@ -529,11 +580,13 @@
         .byte   $08,$FB,$F8,$01,$F4,$F2,$F4,$FA
         .byte   $F4,$02,$FC,$ED,$FC,$F5,$FC,$FD
         .byte   $04,$ED,$04,$F5,$04,$FD,$02,$F4
+; --- sprite def $7B (10 tiles) ---
         .byte   $F4,$06,$F4,$FE,$F4,$F6,$FC,$0B
         .byte   $FC,$03,$FC,$FB,$04,$0B,$04,$03
         .byte   $04,$FB,$02,$04,$F4,$F8,$F4,$00
         .byte   $FC,$F8,$FC,$00,$04,$F8,$04,$00
         .byte   $04,$08,$F5,$F0,$F5,$08,$0C,$F9
+; --- sprite def $7D (10 tiles) ---
         .byte   $F4,$00,$F4,$F8,$FC,$00,$FC,$F8
         .byte   $04,$00,$04,$F8,$04,$F0,$F5,$08
         .byte   $F5,$F0,$0C,$FF,$F0,$F9,$F0,$01
@@ -543,18 +596,23 @@
         .byte   $F0,$F7,$F8,$04,$F8,$FC,$F8,$F4
         .byte   $00,$07,$00,$FF,$00,$F7,$00,$EF
         .byte   $08,$03,$08,$FB,$08,$F3,$FC,$FC
+; --- sprite def $84 (12 tiles) ---
         .byte   $F8,$FA,$F8,$02,$00,$F4,$00,$FC
         .byte   $00,$04,$08,$F0,$08,$F8,$08,$00
         .byte   $08,$08,$10,$F0,$10,$F8,$04,$FD
+; --- sprite def $85 (12 tiles) ---
         .byte   $F8,$FE,$F8,$F6,$00,$04,$00,$FC
         .byte   $00,$F4,$08,$08,$08,$00,$08,$F8
         .byte   $08,$F0,$10,$08,$10,$00,$04,$FB
+; --- sprite def $86 (12 tiles) ---
         .byte   $F1,$F9,$F1,$01,$F9,$F2,$F9,$FA
         .byte   $F9,$02,$F9,$0A,$01,$FA,$01,$02
         .byte   $09,$F6,$09,$FE,$09,$06,$FD,$FC
+; --- sprite def $87 (12 tiles) ---
         .byte   $F1,$FF,$F1,$F7,$F9,$06,$F9,$FE
         .byte   $F9,$F6,$F9,$EE,$01,$FE,$01,$F6
         .byte   $09,$02,$09,$FA,$09,$F2,$FD,$FC
+; --- sprite def $88 (13 tiles) ---
         .byte   $F1,$F4,$F1,$FC,$F9,$F4,$F9,$FC
         .byte   $F9,$04,$01,$EC,$01,$F4,$01,$FC
         .byte   $09,$EC,$09,$F4,$09,$FC,$09,$04
@@ -567,6 +625,7 @@
         .byte   $FC,$FE,$E8,$FA,$F0,$FD,$F0,$F5
         .byte   $F8,$FC,$F8,$F4,$00,$FB,$00,$F3
         .byte   $08,$03,$08,$FB,$08,$F3,$FC,$FA
+; --- sprite def $8C (11 tiles) ---
         .byte   $E8,$01,$F0,$FB,$F0,$03,$F8,$FC
         .byte   $F8,$04,$00,$FD,$00,$05,$08,$F5
         .byte   $08,$FD,$08,$05,$FC,$FE,$E8,$F7
@@ -576,6 +635,7 @@
         .byte   $F8,$F9,$F8,$01,$F8,$09,$00,$F1
         .byte   $00,$F9,$00,$01,$00,$09,$08,$F4
         .byte   $08,$FC,$08,$04,$F8,$FE,$00,$FE
+; --- sprite def $8F (14 tiles) ---
         .byte   $F0,$FF,$F0,$F7,$F8,$FF,$F8,$F7
         .byte   $F8,$EF,$00,$07,$00,$FF,$00,$F7
         .byte   $00,$EF,$08,$04,$08,$FC,$08,$F4
@@ -648,6 +708,7 @@
         .byte   $F9,$F8,$F9,$00,$F9,$08,$01,$F0
         .byte   $01,$F8,$01,$00,$01,$08,$09,$F0
         .byte   $09,$F8,$09,$00,$09,$08,$F9,$F8
+; --- sprite def $AB (17 tiles) ---
         .byte   $F1,$08,$F1,$00,$F1,$F8,$F1,$F0
         .byte   $F9,$08,$F9,$00,$F9,$F8,$F9,$F0
         .byte   $01,$08,$01,$00,$01,$F8,$01,$F0
