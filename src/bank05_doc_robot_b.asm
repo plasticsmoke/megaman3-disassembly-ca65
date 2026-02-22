@@ -82,13 +82,13 @@ main_doc_air_j:
 ; =============================================================================
 
 code_A022:  lda     ent_status,x        ; dispatch on status low nibble
-        and     #$0F
-        tay
+        and     #$0F                    ; mask low nibble (phase)
+        tay                             ; use as table index
         lda     doc_heat_phase_ptr_lo_table,y ; phase handler pointer (low)
-        sta     L0000
+        sta     L0000                   ; store ptr low byte
         lda     doc_heat_phase_ptr_hi_table,y ; phase handler pointer (high)
-        sta     $01
-        jmp     (L0000)
+        sta     $01                     ; store ptr high byte
+        jmp     (L0000)                 ; jump to phase handler
 
 doc_heat_phase_ptr_lo_table:  .byte   $39,$AF ; phase handler pointers (low bytes)
 doc_heat_phase_ptr_hi_table:  .byte   $A0,$A0 ; phase handler pointers (high bytes)
@@ -100,79 +100,79 @@ doc_heat_phase_ptr_hi_table:  .byte   $A0,$A0 ; phase handler pointers (high byt
         lda     ent_hp,x                ; if HP is zero, return
         beq     code_A090
         inc     ent_status,x            ; advance to phase 1
-        lda     #$07
+        lda     #$07                    ; anim ID = charge-up
         jsr     reset_sprite_anim       ; set anim: charge-up
         lda     #$AA
         sta     ent_hitbox,x            ; set hitbox for charge state
         lda     $E5                     ; PRNG: randomize jump delay
-        adc     $E4
-        sta     $E4
-        sta     L0000
-        lda     #$03
-        sta     $01
+        adc     $E4                     ; add to PRNG accumulator
+        sta     $E4                     ; update PRNG seed
+        sta     L0000                   ; dividend for divide
+        lda     #$03                    ; divisor = 3
+        sta     $01                     ; store divisor
         jsr     divide_8bit             ; divide_8bit: $E4 mod 3
-        ldy     $03
+        ldy     $03                     ; remainder = table index
         lda     doc_heat_jump_delay_table,y ; lookup delay from table
         sta     ent_timer,x             ; store as jump timer
         rts
 
 ; --- attack sequence after intro ---
 code_A06E:  lda     ent_anim_id,x       ; are we in the landing anim (#$02)?
-        cmp     #$02
-        bne     code_A091
+        cmp     #$02                    ; landing anim?
+        bne     code_A091               ; no -- check fireballs
         lda     ent_anim_frame,x        ; wait for frame 0 (loop point)
-        bne     code_A0AE
-        lda     ent_anim_state,x
+        bne     code_A0AE               ; not at loop frame yet
+        lda     ent_anim_state,x        ; check anim progress
         cmp     #$01                    ; anim state 1 → fire spread shot
-        bne     code_A084
+        bne     code_A084               ; not ready to fire yet
         jsr     code_A12C               ; spawn 3 spread projectiles
 code_A084:  lda     ent_anim_state,x
         cmp     #$03                    ; anim state 3 → done, return to idle
-        bne     code_A0AE
-        lda     #$01
+        bne     code_A0AE               ; not done yet
+        lda     #$01                    ; anim ID = idle
         jsr     reset_sprite_anim       ; set anim: idle
 code_A090:  rts
 
-code_A091:  lda     #$00                ; check if fireball entity exists
-        sta     ent_anim_frame,x
+code_A091:  lda     #$00                ; clear anim frame counter
+        sta     ent_anim_frame,x        ; reset frame to 0
         ldy     #$1F                    ; scan enemy slots $10-$1F
 code_A098:  lda     ent_status,y
         bpl     code_A0A4               ; skip inactive slots
         lda     ent_anim_id,y
         cmp     #$0A                    ; is it a fireball (#$0A)?
         beq     code_A0AE               ; yes — wait for it to finish
-code_A0A4:  dey
-        cpy     #$0F
-        bne     code_A098
+code_A0A4:  dey                         ; next slot
+        cpy     #$0F                    ; scanned all enemy slots?
+        bne     code_A098               ; loop until done
         lda     #$02                    ; no fireballs — start landing anim
         jsr     reset_sprite_anim
 code_A0AE:  rts
 
 ; --- phase 1: charge-up and dash toward player ---
         lda     ent_timer,x             ; wait for charge timer
-        beq     code_A0C8
+        beq     code_A0C8               ; timer already zero
         dec     ent_timer,x
         bne     code_A12B               ; still counting down
         lda     #$80                    ; timer expired — begin dash
         sta     ent_hitbox,x            ; set contact-damage hitbox
-        lda     #$08
+        lda     #$08                    ; anim ID = dash startup
         jsr     reset_sprite_anim       ; set anim: dash
         lda     #$01
         sta     ent_var2,x              ; var2 = dash sub-state (1=dashing)
 code_A0C8:  lda     ent_anim_id,x
         cmp     #$09                    ; already in slide anim?
         beq     code_A0FF               ; yes — continue moving
-        lda     ent_anim_frame,x
+        lda     ent_anim_frame,x        ; check current frame
         cmp     #$06                    ; wait for frame 6 (transition point)
-        bne     code_A12B
+        bne     code_A12B               ; not at transition yet
         lda     ent_anim_state,x
         cmp     ent_var2,x              ; match sub-state
-        bne     code_A12B
-        lda     ent_var2,x
-        tay
+        bne     code_A12B               ; sub-state mismatch
+        lda     ent_var2,x              ; get current sub-state
+        tay                             ; use as table index
         lda     doc_heat_anim_id_table,y ; lookup next anim from sub-state
-        jsr     reset_sprite_anim
-        lda     ent_var2,x
+        jsr     reset_sprite_anim       ; set next phase anim
+        lda     ent_var2,x              ; check sub-state again
         bne     code_A0F6               ; if dashing, store target X
         dec     ent_status,x            ; done — back to phase 0
         lda     #$CA
@@ -180,60 +180,60 @@ code_A0C8:  lda     ent_anim_id,x
         rts
 
 code_A0F6:  lda     ent_x_px            ; store player X as dash target
-        sta     ent_var1,x
+        sta     ent_var1,x              ; save as dash target X
         jsr     face_player             ; face player
 code_A0FF:  lda     ent_facing,x        ; --- move toward target X ---
-        and     #$02
-        beq     code_A113
+        and     #$02                    ; test facing-left bit
+        beq     code_A113               ; facing right -- branch
         jsr     move_sprite_left        ; move left
-        lda     ent_x_px,x
+        lda     ent_x_px,x              ; get current X pixel
         cmp     ent_var1,x              ; reached target?
-        bcs     code_A12B
+        bcs     code_A12B               ; not past target yet
         bcc     code_A11E               ; yes — stop
 code_A113:  jsr     move_sprite_right   ; move right
-        lda     ent_x_px,x
+        lda     ent_x_px,x              ; get current X pixel
         cmp     ent_var1,x              ; reached target?
-        bcc     code_A12B
+        bcc     code_A12B               ; not past target yet
 code_A11E:  lda     #$08                ; arrived at target
         jsr     reset_sprite_anim       ; set anim: stop
-        inc     ent_anim_state,x
-        lda     #$00
+        inc     ent_anim_state,x        ; advance anim state
+        lda     #$00                    ; clear dash sub-state
         sta     ent_var2,x              ; clear sub-state
 code_A12B:  rts
 
 ; --- spawn 3 spread projectiles ---
 code_A12C:  jsr     entity_x_dist_to_player ; get X distance to player
-        clc
+        clc                             ; prepare for add
         adc     #$40                    ; offset for spread angle
         sta     $0C                     ; store as base angle
         stx     $0E                     ; save parent entity index
-        lda     #$02
+        lda     #$02                    ; 3 projectiles (2,1,0)
         sta     $0F                     ; spawn 3 projectiles (2,1,0)
 code_A13A:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     code_A1A3               ; no slot — done
         ldx     $0F                     ; projectile index
         lda     doc_heat_projectile_yvel_sub_table,x ; Y velocity sub-pixel
-        sta     ent_yvel_sub,y
+        sta     ent_yvel_sub,y          ; set child Y vel sub
         lda     doc_heat_projectile_yvel_table,x ; Y velocity whole
-        sta     ent_yvel,y
+        sta     ent_yvel,y              ; set child Y vel whole
         lda     doc_heat_projectile_xspeed_div_table,x ; X speed divisor
-        sta     $03
-        lda     #$00
-        sta     $02
-        sta     L0000
+        sta     $03                     ; store as divisor
+        lda     #$00                    ; clear high bytes
+        sta     $02                     ; dividend high = 0
+        sta     L0000                   ; dividend low = 0
         lda     $0C                     ; get spread offset for this projectile
-        sec
+        sec                             ; prepare for subtract
         sbc     #$20                    ; narrow spread per projectile
-        bcs     code_A161
+        bcs     code_A161               ; no underflow -- keep value
         lda     #$00                    ; clamp to 0
-code_A161:  sta     $01
-        sta     $0C
+code_A161:  sta     $01                 ; store as X distance
+        sta     $0C                     ; update spread offset
         sty     $0D                     ; save child slot index
         jsr     divide_16bit            ; divide_16bit: compute X velocity
-        ldy     $0D
-        lda     $04
+        ldy     $0D                     ; restore child slot index
+        lda     $04                     ; quotient low byte
         sta     ent_xvel_sub,y          ; set X velocity sub-pixel
-        lda     $05
+        lda     $05                     ; quotient high byte
         sta     ent_xvel,y              ; set X velocity whole
         ldx     $0E                     ; restore parent index
         lda     #$0A                    ; anim ID for fireball
@@ -243,15 +243,15 @@ code_A161:  sta     $01
         lda     #$B4
         sta     ent_routine,y           ; routine $B4 = Heat projectile AI
         lda     ent_x_px,x              ; copy position from parent
-        sta     ent_x_px,y
-        lda     ent_x_scr,x
-        sta     ent_x_scr,y
-        lda     ent_y_px,x
-        sta     ent_y_px,y
+        sta     ent_x_px,y              ; copy X pixel to child
+        lda     ent_x_scr,x             ; parent X screen
+        sta     ent_x_scr,y             ; copy X screen to child
+        lda     ent_y_px,x              ; parent Y pixel
+        sta     ent_y_px,y              ; copy Y pixel to child
         lda     ent_facing,x            ; copy facing from parent
-        sta     ent_facing,y
+        sta     ent_facing,y            ; copy facing to child
         dec     $0F                     ; next projectile
-        bpl     code_A13A
+        bpl     code_A13A               ; loop if more projectiles
 code_A1A3:  ldx     $0E                 ; restore parent index
         rts
 
@@ -268,24 +268,24 @@ doc_heat_projectile_xspeed_div_table:  .byte   $1C,$2A,$34 ; X speed divisors (3
 ; Despawns on wall collision or when off-screen.
 ; =============================================================================
 
-code_A1B4:  ldy     #$12
+code_A1B4:  ldy     #$12                ; gravity strength index
         jsr     move_vertical_gravity   ; apply gravity
         bcs     code_A1DC               ; off-screen — despawn
-        lda     ent_facing,x
-        and     #$02
-        beq     code_A1CA
-        ldy     #$1F
+        lda     ent_facing,x            ; check facing direction
+        and     #$02                    ; test facing-left bit
+        beq     code_A1CA               ; facing right -- branch
+        ldy     #$1F                    ; left speed index
         jsr     move_left_collide       ; move left with collision
-        jmp     code_A1CF
+        jmp     code_A1CF               ; skip right-move path
 
-code_A1CA:  ldy     #$1E
+code_A1CA:  ldy     #$1E                ; right speed index
         jsr     move_right_collide      ; move right with collision
 code_A1CF:  bcs     code_A1D7           ; wall hit — despawn
-        lda     #$00
+        lda     #$00                    ; no wall hit
         sta     ent_anim_frame,x        ; reset anim frame
         rts
 
-code_A1D7:  lda     #$00
+code_A1D7:  lda     #$00                ; wall or floor hit
         sta     ent_status,x            ; kill entity
 code_A1DC:  rts
 
@@ -301,7 +301,7 @@ code_A1DC:  rts
 ; =============================================================================
 
 code_A1DD:  lda     ent_status,x        ; dispatch on status low nibble
-        and     #$0F
+        and     #$0F                    ; mask low nibble (phase)
         bne     code_A1F8               ; phase 1: jumping/falling
         lda     #$01                    ; --- phase 0: idle ---
         cmp     ent_anim_id,x           ; already in idle anim?
@@ -314,51 +314,51 @@ code_A1DD:  lda     ent_status,x        ; dispatch on status low nibble
 
 ; --- phase 1: jumping/falling ---
 code_A1F8:  jsr     code_A252           ; face player + attack check
-        lda     ent_var3,x
+        lda     ent_var3,x              ; check jump flags
         and     #$F0                    ; already set downward velocity?
         bne     code_A21B
-        lda     ent_y_px,x
+        lda     ent_y_px,x              ; get current Y position
         cmp     #$50                    ; above Y=$50? (near ceiling)
         bcs     code_A23C               ; no — move up and drift
         lda     #$00                    ; yes — start falling
-        sta     ent_yvel_sub,x
-        lda     #$01
+        sta     ent_yvel_sub,x          ; clear Y vel sub-pixel
+        lda     #$01                    ; fall speed = 1
         sta     ent_yvel,x              ; set downward velocity
-        lda     ent_var3,x
+        lda     ent_var3,x              ; get current flags
         ora     #$10                    ; flag: falling started
-        sta     ent_var3,x
-code_A21B:  ldy     #$1E
+        sta     ent_var3,x              ; store updated flags
+code_A21B:  ldy     #$1E                ; fall collision speed
         jsr     move_down_collide       ; move down with collision
         bcc     code_A1DC               ; no floor hit — keep falling
         dec     ent_status,x            ; landed — back to phase 0
         lda     #$00
         sta     ent_var2,x              ; reset bubble count
         sta     ent_var3,x              ; reset jump flags
-        lda     ent_anim_state,x
+        lda     ent_anim_state,x        ; get anim state
         and     #$01                    ; alternate landing anim
-        clc
-        adc     #$01
+        clc                             ; prepare for add
+        adc     #$01                    ; anim = (state & 1) + 1
         jsr     reset_sprite_anim       ; set landing anim
-        inc     ent_anim_state,x
+        inc     ent_anim_state,x        ; advance anim state
         rts
 
 code_A23C:  ldy     #$1F                ; --- rising: move up ---
         jsr     move_up_collide         ; move up with collision
-        lda     ent_var3,x
+        lda     ent_var3,x              ; get drift flags
         and     #$01                    ; drift direction flag
         bne     code_A24D
-        ldy     #$21
+        ldy     #$21                    ; left drift speed index
         jmp     move_left_collide_no_face ; move left (no facing change)
 
-code_A24D:  ldy     #$20
+code_A24D:  ldy     #$20                ; right drift speed index
         jmp     move_right_collide_no_face ; move right (no facing change)
 
 ; --- shared: face player, manage attack timer and bubble spawning ---
 code_A252:  jsr     face_player         ; face player
         jsr     set_sprite_hflip        ; set sprite H-flip
-        lda     ent_anim_state,x
-        bne     code_A262
-        lda     #$00
+        lda     ent_anim_state,x        ; check anim state
+        bne     code_A262               ; nonzero -- skip reset
+        lda     #$00                    ; anim state is 0
         sta     ent_anim_frame,x        ; reset frame if anim state 0
 code_A262:  lda     ent_var1,x          ; attack cooldown timer
         beq     code_A26B
@@ -366,7 +366,7 @@ code_A262:  lda     ent_var1,x          ; attack cooldown timer
         rts
 
 code_A26B:  lda     ent_status,x        ; --- attack decision ---
-        and     #$0F
+        and     #$0F                    ; mask phase (0 or 1)
         tay                             ; Y = phase (0 or 1)
         lda     ent_var2,x              ; remaining bubbles to spawn
         beq     code_A2B6               ; none — check if we should start
@@ -374,26 +374,26 @@ code_A26B:  lda     ent_status,x        ; --- attack decision ---
         beq     code_A28D               ; last bubble spawned — initiate jump
         lda     doc_bubble_inter_projectile_delay_table,y ; set inter-bubble delay per phase
         sta     ent_var1,x
-        lda     #$00
-        sta     ent_anim_frame,x
-        lda     #$01
+        lda     #$00                    ; reset anim frame
+        sta     ent_anim_frame,x        ; clear frame counter
+        lda     #$01                    ; shoot anim state = 1
         sta     ent_anim_state,x        ; set shoot anim state
         bne     code_A2DD               ; spawn a bubble
 code_A28D:  tya                         ; all bubbles spawned
         bne     code_A2DC               ; if in phase 1, just return
         inc     ent_status,x            ; phase 0 → phase 1 (start jump)
         lda     ent_y_px                ; save player Y
-        pha
+        pha                             ; save player Y on stack
         lda     #$50                    ; fake target Y at $50 (near ceiling)
         sta     ent_y_px
-        lda     #$60
+        lda     #$60                    ; homing speed sub = $60
         sta     $02                     ; speed parameter
-        lda     #$01
-        sta     $03
+        lda     #$01                    ; homing speed scale = 1
+        sta     $03                     ; store speed scale
         jsr     calc_homing_velocity    ; calc homing velocity toward target
-        lda     ent_facing,x
+        lda     ent_facing,x            ; get current facing
         sta     ent_var3,x              ; store facing as drift direction
-        pla
+        pla                             ; restore player Y
         sta     ent_y_px                ; restore player Y
         lda     #$1C                    ; set jumping anim
         jmp     reset_sprite_anim
@@ -402,19 +402,19 @@ code_A28D:  tya                         ; all bubbles spawned
 code_A2B6:  jsr     entity_y_dist_to_player ; get Y distance to player
         cmp     doc_bubble_distance_threshold_table,y ; close enough to attack?
         bcs     code_A2DC               ; no — too far
-        tya
+        tya                             ; check current phase
         beq     code_A2C5               ; phase 0: randomize bubble count
         lda     #$05                    ; phase 1: fixed 5 bubbles
-        bne     code_A2D9
+        bne     code_A2D9               ; always branches (A!=0)
 code_A2C5:  lda     $E6                 ; PRNG: randomize bubble count
-        adc     $E7
-        sta     $E6
-        sta     L0000
-        lda     #$03
-        sta     $01
+        adc     $E7                     ; add to PRNG accumulator
+        sta     $E6                     ; update PRNG seed
+        sta     L0000                   ; dividend for divide
+        lda     #$03                    ; divisor = 3
+        sta     $01                     ; store divisor
         jsr     divide_8bit             ; divide_8bit: mod 3
-        lda     $03
-        clc
+        lda     $03                     ; remainder (0..2)
+        clc                             ; prepare for add
         adc     #$02                    ; bubble count = 2..4
 code_A2D9:  sta     ent_var2,x          ; store bubble count
 code_A2DC:  rts
@@ -423,44 +423,44 @@ code_A2DC:  rts
 code_A2DD:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     code_A2DC               ; no slot — abort
         stx     L0000                   ; save parent index
-        lda     ent_status,x
-        and     #$0F
+        lda     ent_status,x            ; get parent status
+        and     #$0F                    ; mask phase
         tax                             ; X = phase (0 or 1)
-        stx     $01
+        stx     $01                     ; save phase index
         lda     doc_bubble_phase_yvel_sub_table,x ; Y velocity sub-pixel (per phase)
-        sta     ent_yvel_sub,y
+        sta     ent_yvel_sub,y          ; set child Y vel sub
         lda     doc_bubble_phase_yvel_table,x ; Y velocity whole
-        sta     ent_yvel,y
+        sta     ent_yvel,y              ; set child Y vel whole
         lda     doc_bubble_phase_xvel_sub_table,x ; X velocity sub-pixel
-        sta     ent_xvel_sub,y
+        sta     ent_xvel_sub,y          ; set child X vel sub
         lda     doc_bubble_phase_xvel_table,x ; X velocity whole
-        sta     ent_xvel,y
+        sta     ent_xvel,y              ; set child X vel whole
         lda     doc_bubble_projectile_routine_table,x ; routine index (per phase)
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set child AI routine
         lda     doc_bubble_projectile_anim_table,x ; anim ID (per phase)
-        ldx     L0000
+        ldx     L0000                   ; restore parent index
         jsr     init_child_entity       ; init child entity
         lda     #$80
         sta     ent_hitbox,y            ; set projectile hitbox
         lda     ent_x_px,x              ; copy position from parent
-        sta     ent_x_px,y
-        lda     ent_x_scr,x
-        sta     ent_x_scr,y
-        lda     ent_y_px,x
-        sta     ent_y_px,y
+        sta     ent_x_px,y              ; copy X pixel to child
+        lda     ent_x_scr,x             ; parent X screen
+        sta     ent_x_scr,y             ; copy X screen to child
+        lda     ent_y_px,x              ; parent Y pixel
+        sta     ent_y_px,y              ; copy Y pixel to child
         lda     ent_facing,x            ; copy facing
-        sta     ent_facing,y
-        ldx     $01
+        sta     ent_facing,y            ; copy facing to child
+        ldx     $01                     ; restore phase index
         beq     code_A349               ; phase 0: no X offset
         and     #$02                    ; phase 1: offset X per facing
-        tax
-        lda     ent_x_px,y
-        clc
+        tax                             ; use facing as table index
+        lda     ent_x_px,y              ; get child X pixel
+        clc                             ; prepare for add
         adc     doc_bubble_x_offset_right,x
-        sta     ent_x_px,y
-        lda     ent_x_scr,y
+        sta     ent_x_px,y              ; store offset X pixel
+        lda     ent_x_scr,y             ; get child X screen
         adc     doc_bubble_x_offset_left_table,x
-        sta     ent_x_scr,y
+        sta     ent_x_scr,y             ; store offset X screen
 code_A349:  ldx     L0000               ; restore parent index
         rts
 
@@ -484,23 +484,23 @@ doc_bubble_x_offset_left_table:  .byte   $00,$E6,$FF ; X offset + screen (facing
 ; =============================================================================
 
 code_A360:  lda     $95                 ; frame parity check
-        and     #$01
+        and     #$01                    ; test odd/even frame
         bne     code_A392               ; skip on even frames
-        ldy     #$08
+        ldy     #$08                    ; gravity strength index
         jsr     move_vertical_gravity   ; apply gravity
         bcc     code_A377               ; no floor hit
         lda     #$A8                    ; floor hit — bounce upward
-        sta     ent_yvel_sub,x
-        lda     #$05
-        sta     ent_yvel,x
+        sta     ent_yvel_sub,x          ; set bounce Y vel sub
+        lda     #$05                    ; bounce Y velocity = 5
+        sta     ent_yvel,x              ; set upward bounce vel
 code_A377:  lda     ent_facing,x        ; move horizontally
-        and     #$02
-        beq     code_A386
-        ldy     #$09
+        and     #$02                    ; test facing-left bit
+        beq     code_A386               ; facing right -- branch
+        ldy     #$09                    ; left speed index
         jsr     move_left_collide       ; move left with collision
-        jmp     code_A38B
+        jmp     code_A38B               ; skip to collision check
 
-code_A386:  ldy     #$08
+code_A386:  ldy     #$08                ; speed = 8
         jsr     move_right_collide      ; move right with collision
 code_A38B:  bcc     code_A392           ; no wall hit
         lda     #$00
@@ -521,19 +521,19 @@ code_A392:  rts
 ; =============================================================================
 
 code_A393:  lda     ent_status,x        ; dispatch on status low nibble
-        and     #$0F
-        tay
+        and     #$0F                    ; mask low nibble = phase
+        tay                             ; use as table index
         lda     doc_quick_phase_ptr_lo_table,y ; phase handler pointer (low)
         sta     L0000
         lda     doc_quick_phase_ptr_hi_table,y ; phase handler pointer (high)
         sta     $01
-        jmp     (L0000)
+        jmp     (L0000)                 ; jump to phase handler
 
 ; --- phase 0: init jump parameters ---
         lda     $E4                     ; PRNG: randomize jump params
-        adc     $E5
-        sta     $E6
-        and     #$03
+        adc     $E5                     ; add second PRNG byte
+        sta     $E6                     ; store mixed PRNG value
+        and     #$03                    ; mask to 0..3
         tay                             ; Y = random 0..3
         lda     doc_quick_bounce_count_table,y ; jump duration (bounce count)
         sta     ent_timer,x
@@ -542,8 +542,8 @@ code_A393:  lda     ent_status,x        ; dispatch on status low nibble
         inc     ent_status,x            ; advance to phase 1
 ; --- phase 1: jumping with gravity ---
         lda     ent_yvel,x              ; save current Y velocity
-        sta     $0F
-        ldy     #$1E
+        sta     $0F                     ; temp = pre-gravity Y vel
+        ldy     #$1E                    ; gravity strength
         jsr     move_vertical_gravity   ; apply gravity
         bcc     code_A43D               ; in air — drift horizontally
         jsr     face_player             ; landed — face player
@@ -553,55 +553,55 @@ code_A393:  lda     ent_status,x        ; dispatch on status low nibble
         jmp     code_A422               ; done bouncing — go to phase 2
 
 code_A3D8:  lda     $E4                 ; randomize jump velocity
-        adc     $E6
-        sta     $E7
-        and     #$03
-        tay
+        adc     $E6                     ; add second PRNG byte
+        sta     $E7                     ; store mixed PRNG value
+        and     #$03                    ; mask to 0..3
+        tay                             ; index into random tables
         lda     doc_quick_random_yvel_sub_table,y ; Y velocity sub-pixel (random)
         sta     ent_yvel_sub,x
         lda     doc_quick_random_yvel_table,y ; Y velocity whole (random)
         sta     ent_yvel,x
         lda     doc_quick_random_xspeed_div_table,y ; X speed divisor (random)
-        sta     $03
-        lda     #$00
-        sta     L0000
-        sta     $02
+        sta     $03                     ; store divisor
+        lda     #$00                    ; clear dividend high bytes
+        sta     L0000                   ; dividend high = 0
+        sta     $02                     ; dividend mid = 0
         jsr     entity_x_dist_to_player ; get X distance to player
-        sta     $01
-        clc
+        sta     $01                     ; dividend low = X distance
+        clc                             ; prepare addition
         adc     doc_quick_random_x_offset_table,y ; add random X offset
-        sta     $04
+        sta     $04                     ; store adjusted distance
         lda     doc_quick_random_x_offset_table,y ; clamp: don't overshoot
-        bpl     code_A40E
-        bcc     code_A414
-        lda     $04
-        sta     $01
+        bpl     code_A40E               ; offset positive? skip clamp
+        bcc     code_A414               ; no overflow? skip clamp
+        lda     $04                     ; use clamped value
+        sta     $01                     ; replace distance with clamped
 code_A40E:  bcs     code_A414
-        lda     $04
-        sta     $01
+        lda     $04                     ; use clamped value
+        sta     $01                     ; replace distance with clamped
 code_A414:  jsr     divide_16bit        ; divide_16bit: compute X velocity
-        lda     $04
+        lda     $04                     ; quotient low = X vel sub
         sta     ent_xvel_sub,x          ; set X velocity
-        lda     $05
+        lda     $05                     ; quotient high = X vel whole
         sta     ent_xvel,x
         rts
 
 ; --- phase 2: running on ground ---
 code_A422:  inc     ent_status,x        ; advance to phase 2
-        lda     #$00
-        sta     ent_xvel_sub,x
-        lda     #$02
+        lda     #$00                    ; clear X velocity sub-pixel
+        sta     ent_xvel_sub,x          ; zero sub-pixel speed
+        lda     #$02                    ; whole speed = 2
         sta     ent_xvel,x              ; set run speed
         lda     #$3C
         sta     ent_var1,x              ; run timer = 60 frames
         lda     #$01
         jsr     reset_sprite_anim       ; set anim: running
-        inc     ent_anim_state,x
+        inc     ent_anim_state,x        ; trigger anim update
 code_A43C:  rts
 
 ; --- in-air: drift horizontally, spawn boomerangs at apex ---
 code_A43D:  lda     ent_timer,x         ; check if at boomerang spawn point
-        cmp     ent_var2,x
+        cmp     ent_var2,x              ; compare to spawn timing
         bne     code_A451               ; not yet
         lda     $0F                     ; was previously moving down?
         bmi     code_A451               ; yes — skip
@@ -609,75 +609,75 @@ code_A43D:  lda     ent_timer,x         ; check if at boomerang spawn point
         bpl     code_A451               ; no — skip
         jsr     code_A498               ; spawn 3 boomerangs
 code_A451:  lda     ent_facing,x        ; drift horizontally
-        and     #$02
-        beq     code_A45D
-        ldy     #$21
+        and     #$02                    ; check facing left bit
+        beq     code_A45D               ; facing right? branch
+        ldy     #$21                    ; speed = $21
         jmp     move_left_collide       ; move left with collision
 
-code_A45D:  ldy     #$20
+code_A45D:  ldy     #$20                ; speed = $20
         jmp     move_right_collide      ; move right with collision
 
 ; --- phase 2 continued: run timer countdown ---
         lda     ent_var1,x              ; run timer
         beq     code_A485               ; timer done — loop back
-        dec     ent_var1,x
-        lda     ent_anim_id,x
+        dec     ent_var1,x              ; decrement run timer
+        lda     ent_anim_id,x           ; check current anim ID
         cmp     #$05                    ; already in run anim?
         beq     code_A451               ; yes — keep moving
-        lda     ent_anim_state,x
+        lda     ent_anim_state,x        ; check anim state
         bne     code_A43C               ; anim not ready
-        lda     ent_anim_frame,x
+        lda     ent_anim_frame,x        ; check current anim frame
         cmp     #$03                    ; wait for frame 3
-        bcc     code_A43C
-        lda     #$05
+        bcc     code_A43C               ; not at frame 3 yet
+        lda     #$05                    ; anim $05 = fast run
         jsr     reset_sprite_anim       ; set anim: running fast
         jmp     code_A451               ; move horizontally
 
 ; --- run timer expired: reset to phase 0 ---
 code_A485:  jsr     face_player         ; face player
         jsr     set_sprite_hflip        ; set sprite H-flip
-        lda     ent_status,x
+        lda     ent_status,x            ; get current status
         and     #$F0                    ; clear low nibble (back to phase 0)
-        sta     ent_status,x
-        lda     #$03
+        sta     ent_status,x            ; reset to phase 0
+        lda     #$03                    ; anim $03 = idle
         jmp     reset_sprite_anim       ; set anim: idle
 
 ; --- spawn 3 boomerangs ---
 code_A498:  stx     $0E                 ; save parent index
-        lda     #$02
+        lda     #$02                    ; loop counter (2,1,0)
         sta     $0F                     ; spawn 3 (2,1,0)
 code_A49E:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     code_A4EA               ; no slot — done
-        ldx     $0E
+        ldx     $0E                     ; restore parent slot
         lda     ent_x_px,x              ; copy position from parent
-        sta     ent_x_px,y
-        lda     ent_x_scr,x
-        sta     ent_x_scr,y
-        lda     ent_y_px,x
-        sta     ent_y_px,y
-        lda     #$25
+        sta     ent_x_px,y              ; set child X pixel
+        lda     ent_x_scr,x             ; parent X screen
+        sta     ent_x_scr,y             ; set child X screen
+        lda     ent_y_px,x              ; parent Y pixel
+        sta     ent_y_px,y              ; set child Y pixel
+        lda     #$25                    ; travel distance = 37 frames
         sta     ent_var1,y              ; travel distance = 37
-        lda     #$00
-        sta     ent_timer,y
+        lda     #$00                    ; no return timer yet
+        sta     ent_timer,y             ; clear return timer
         lda     #$0F                    ; anim ID for boomerang
         jsr     init_child_entity       ; init child entity
-        lda     #$80
+        lda     #$80                    ; projectile hitbox type
         sta     ent_hitbox,y            ; set projectile hitbox
-        lda     #$B6
+        lda     #$B6                    ; routine = Quick boomerang
         sta     ent_routine,y           ; routine $B6 = Quick boomerang AI
-        ldx     $0F
+        ldx     $0F                     ; X = boomerang index
         lda     ent_y_px                ; offset target Y per boomerang
-        pha
-        clc
+        pha                             ; save original player Y
+        clc                             ; prepare offset addition
         adc     doc_quick_boomerang_y_offset_table,x ; Y offset: -24, 0, +24
-        sta     ent_y_px
-        tya
-        tax
+        sta     ent_y_px                ; set offset target Y
+        tya                             ; child slot to A
+        tax                             ; X = child entity slot
         jsr     code_A518               ; calc homing velocity for this boomerang
-        pla
+        pla                             ; recover original player Y
         sta     ent_y_px                ; restore player Y
         dec     $0F                     ; next boomerang
-        bpl     code_A49E
+        bpl     code_A49E               ; loop if more to spawn
 code_A4EA:  ldx     $0E                 ; restore parent index
         rts
 
@@ -701,30 +701,30 @@ doc_quick_boomerang_y_offset_table:  .byte   $E8,$00,$18 ; Y offsets for 3 boome
 ; =============================================================================
 
 code_A50E:  lda     ent_timer,x         ; return timer active?
-        beq     code_A529
-        dec     ent_timer,x
+        beq     code_A529               ; no — check travel distance
+        dec     ent_timer,x             ; count down return timer
         bne     code_A553               ; still returning — wait
 ; --- calc homing velocity (also called during spawn) ---
-code_A518:  lda     #$00
+code_A518:  lda     #$00                ; speed param low = 0
         sta     $02                     ; speed parameter
-        lda     #$04
-        sta     $03
+        lda     #$04                    ; speed param high = 4
+        sta     $03                     ; store speed divisor
         jsr     calc_homing_velocity    ; calc homing velocity toward player
-        lda     $0C
+        lda     $0C                     ; homing result = facing
         sta     ent_facing,x            ; set facing from homing result
         rts
 
 code_A529:  lda     ent_var1,x          ; travel distance countdown
         beq     code_A539               ; expired — just move
-        dec     ent_var1,x
-        bne     code_A539
+        dec     ent_var1,x              ; count down travel frames
+        bne     code_A539               ; still traveling — move
         lda     #$1F                    ; travel done — start return (31 frames)
         sta     ent_timer,x
         rts
 
 code_A539:  lda     ent_facing,x        ; move vertically
-        and     #$08
-        beq     code_A546
+        and     #$08                    ; check vertical dir bit
+        beq     code_A546               ; bit clear — move down
         jsr     move_sprite_up          ; move up
         jmp     code_A549
 
@@ -736,8 +736,8 @@ code_A549:  lda     ent_flags,x         ; still on-screen?
 code_A553:  rts
 
 code_A554:  lda     ent_facing,x        ; move horizontally
-        and     #$02
-        beq     code_A55E
+        and     #$02                    ; check horizontal dir bit
+        beq     code_A55E               ; bit clear — move right
         jmp     move_sprite_left        ; move left
 
 code_A55E:  jmp     move_sprite_right   ; move right
@@ -756,32 +756,32 @@ code_A55E:  jmp     move_sprite_right   ; move right
 ; =============================================================================
 
 code_A561:  lda     ent_status,x        ; dispatch on status low nibble
-        and     #$0F
+        and     #$0F                    ; mask low nibble = phase
         beq     code_A56B               ; phase 0: fan attack
         jmp     code_A632               ; phase 1: jumping
 
 ; --- phase 0: fan attack sequence ---
 code_A56B:  lda     ent_anim_state,x    ; check if blowing anim playing
-        beq     code_A57C
-        lda     ent_anim_frame,x
+        beq     code_A57C               ; anim idle — proceed
+        lda     ent_anim_frame,x        ; check current anim frame
         cmp     #$08                    ; wait for frame 8 (anim done)
-        bcc     code_A553
-        lda     #$00
+        bcc     code_A553               ; anim not done — wait
+        lda     #$00                    ; clear anim state
         sta     ent_anim_state,x        ; reset anim state
-code_A57C:  sta     ent_anim_frame,x
+code_A57C:  sta     ent_anim_frame,x    ; also reset anim frame
         lda     ent_var2,x              ; tornado wait timer
-        beq     code_A593
-        dec     ent_var2,x
-        lda     ent_var2,x
+        beq     code_A593               ; timer done — next attack
+        dec     ent_var2,x              ; count down wait timer
+        lda     ent_var2,x              ; re-read timer value
         cmp     #$1E                    ; at 30 frames remaining
-        bne     code_A553
+        bne     code_A553               ; not at 30 yet — wait
         lda     #$00                    ; disable wind push on player
-        sta     $36
+        sta     $36                     ; clear wind push var
         rts
 
 code_A593:  lda     ent_var1,x          ; attack cycle counter
         beq     code_A5A6               ; no cycles left — spawn tornadoes
-        dec     ent_var1,x
+        dec     ent_var1,x              ; count down attack cycles
         bne     code_A5AB               ; still counting down
         lda     #$03                    ; all cycles done — start jump
         jsr     reset_sprite_anim       ; set anim: jump prep
@@ -789,26 +789,26 @@ code_A593:  lda     ent_var1,x          ; attack cycle counter
         rts
 
 code_A5A6:  lda     #$03                ; set 3 attack cycles
-        sta     ent_var1,x
+        sta     ent_var1,x              ; store cycle count
 code_A5AB:  lda     $E4                 ; PRNG: randomize tornado pattern
-        adc     $E6
-        sta     $E4
-        sta     L0000
-        lda     #$05
-        sta     $01
+        adc     $E6                     ; mix PRNG bytes
+        sta     $E4                     ; update PRNG state
+        sta     L0000                   ; dividend = PRNG value
+        lda     #$05                    ; divisor = 5
+        sta     $01                     ; store divisor
         jsr     divide_8bit             ; divide_8bit: mod 5
         lda     $03                     ; result * 6 = table index
-        asl     a
+        asl     a                       ; result * 2
         sta     L0000
-        asl     a
-        clc
+        asl     a                       ; result * 4
+        clc                             ; result * 4 + result * 2 = * 6
         adc     L0000
         sta     L0000                   ; L0000 = base index into tornado data
         lda     #$96
         sta     ent_var2,x              ; wait 150 frames for tornadoes
         inc     ent_anim_state,x        ; set blowing anim
         lda     #$05                    ; spawn 6 tornadoes (5,4,3,2,1,0)
-        sta     $01
+        sta     $01                     ; save tornado count
         stx     $02                     ; save parent index
 ; --- spawn 6 tornado entities ---
 code_A5D3:  jsr     find_enemy_freeslot_y ; find free enemy slot
@@ -879,15 +879,15 @@ code_A660:  dec     ent_status,x        ; back to phase 0
         lda     ent_facing,x            ; flip facing (left <-> right)
         eor     #$03
         sta     ent_facing,x
-        and     #$02
-        beq     code_A680
+        and     #$02                    ; test facing bit 1
+        beq     code_A680               ; facing right — use left pos
         lda     #$C8                    ; facing left: X = $C8 (right side)
-        bne     code_A682
+        bne     code_A682               ; always taken
 code_A680:  lda     #$38                ; facing right: X = $38 (left side)
 code_A682:  sta     ent_x_px,x          ; snap to new position
-        lda     #$01
+        lda     #$01                    ; anim ID 1 = idle
         jsr     reset_sprite_anim       ; set anim: idle
-        inc     ent_anim_state,x
+        inc     ent_anim_state,x        ; advance anim state
         rts
 
 ; =============================================================================
@@ -903,39 +903,39 @@ code_A682:  sta     ent_x_px,x          ; snap to new position
 
 code_A68E:  lda     ent_timer,x         ; rising timer
         beq     code_A6AF               ; timer done — start push phase
-        dec     ent_timer,x
+        dec     ent_timer,x             ; decrement rising timer
         dec     ent_var1,x              ; also count down spawn delay
         lda     ent_y_sub,x             ; move upward (subtract Y velocity)
-        sec
+        sec                             ; subtract Y vel sub-pixel
         sbc     ent_yvel_sub,x
         sta     ent_y_sub,x
         lda     ent_y_px,x
-        sbc     ent_yvel,x
+        sbc     ent_yvel,x              ; subtract Y vel whole
         sta     ent_y_px,x
         jmp     code_A554               ; move horizontally
 
 ; --- push phase: accelerate horizontally ---
 code_A6AF:  lda     ent_var1,x          ; deceleration delay
         beq     code_A6C2               ; delay done — accelerate
-        dec     ent_var1,x
+        dec     ent_var1,x              ; decrement decel delay
         beq     code_A6BA               ; just expired — zero out velocity
-        rts
+        rts                             ; still counting down
 
 code_A6BA:  lda     #$00                ; zero X velocity for fresh start
         sta     ent_xvel_sub,x
         sta     ent_xvel,x
 code_A6C2:  lda     ent_xvel_sub,x      ; accelerate X velocity
-        clc
+        clc                             ; add $10 to sub-pixel speed
         adc     #$10
         sta     ent_xvel_sub,x
-        lda     ent_xvel,x
-        adc     #$00
+        lda     ent_xvel,x              ; add carry to whole speed
+        adc     #$00                    ; propagate carry
         sta     ent_xvel,x
         cmp     #$04                    ; cap at speed 4
-        bcc     code_A6E1
-        lda     #$04
+        bcc     code_A6E1               ; speed < 4 — keep going
+        lda     #$04                    ; clamp X speed to 4
         sta     ent_xvel,x
-        lda     #$00
+        lda     #$00                    ; clear sub-pixel remainder
         sta     ent_xvel_sub,x
 code_A6E1:  lda     ent_facing,x        ; set wind push variables
         sta     $36                     ; $36 = wind direction
@@ -983,21 +983,21 @@ doc_air_tornado_lifetime_data:  .byte   $0C,$16,$24,$0E,$24,$18,$1B,$0E ; lifeti
 ; =============================================================================
 
 code_A796:  lda     ent_facing,x        ; vertical direction
-        and     #$08
-        beq     code_A7A3
+        and     #$08                    ; check bit 3 (up flag)
+        beq     code_A7A3               ; bit 3 clear — move down
         jsr     move_sprite_up          ; move up
         jmp     code_A7A6
 
 code_A7A3:  jsr     move_sprite_down    ; move down
 code_A7A6:  lda     ent_flags,x         ; still on-screen?
         bmi     code_A7B1               ; yes — move horizontally
-        lda     #$00
+        lda     #$00                    ; clear entity status
         sta     ent_status,x            ; off-screen — despawn
         rts
 
 code_A7B1:  lda     ent_facing,x        ; horizontal direction
-        and     #$02
-        beq     code_A7BB
+        and     #$02                    ; check bit 1 (left flag)
+        beq     code_A7BB               ; bit 1 clear — move right
         jmp     move_sprite_left        ; move left
 
 code_A7BB:  jmp     move_sprite_right   ; move right
@@ -1012,19 +1012,19 @@ code_A7BB:  jmp     move_sprite_right   ; move right
 ; =============================================================================
 
 code_A7BE:  lda     ent_timer,x         ; initial delay timer
-        beq     code_A7CF
-        dec     ent_timer,x
-        lda     ent_timer,x
+        beq     code_A7CF               ; timer zero — start moving
+        dec     ent_timer,x             ; decrement delay timer
+        lda     ent_timer,x             ; reload timer value
         cmp     doc_air_tornado_diagonal_anim_threshold,x ; threshold check (data overlap)
-        bcc     code_A7CF
+        bcc     code_A7CF               ; below threshold — start
         rts                             ; still waiting
 
 code_A7CF:  lda     ent_facing,x        ; --- horizontal movement ---
-        and     #$01
-        beq     code_A7F1
+        and     #$01                    ; check bit 0 (right flag)
+        beq     code_A7F1               ; bit 0 clear — move left
         lda     ent_timer,x             ; facing bit 0 set: move right
-        beq     code_A7E3
-        ldy     #$1E
+        beq     code_A7E3               ; timer 0 — no collision check
+        ldy     #$1E                    ; tile type: right wall
         jsr     move_right_collide      ; move right with collision
         jmp     code_A80C
 
@@ -1035,8 +1035,8 @@ code_A7E3:  lda     ent_flags,x         ; no timer — move right (no collision)
         jmp     code_A833
 
 code_A7F1:  lda     ent_timer,x         ; facing bit 0 clear: move left
-        beq     code_A7FE
-        ldy     #$1F
+        beq     code_A7FE               ; timer 0 — no collision check
+        ldy     #$1F                    ; tile type: left wall
         jsr     move_left_collide       ; move left with collision
         jmp     code_A80C
 
@@ -1048,29 +1048,29 @@ code_A7FE:  lda     ent_flags,x         ; no timer — move left (no collision)
 
 code_A80C:  bcc     code_A833           ; no wall collision
         lda     #$00                    ; wall hit — bounce: reverse direction
-        sta     ent_yvel_sub,x
-        sta     ent_xvel_sub,x
+        sta     ent_yvel_sub,x          ; zero Y sub-pixel velocity
+        sta     ent_xvel_sub,x          ; zero X sub-pixel velocity
         lda     #$03                    ; reset velocity to 3
-        sta     ent_yvel,x
-        sta     ent_xvel,x
+        sta     ent_yvel,x              ; set Y bounce speed
+        sta     ent_xvel,x              ; set X bounce speed
         lda     ent_facing,x            ; flip horizontal direction
-        eor     #$03
+        eor     #$03                    ; flip bits 0-1
         sta     ent_facing,x
         and     #$0C                    ; check vertical bits
         bne     code_A879               ; has vertical direction — done
         lda     ent_facing,x            ; no vertical — set upward
-        ora     #$08
+        ora     #$08                    ; set bit 3 = move up
         sta     ent_facing,x
-        rts
+        rts                             ; done after setting upward
 
 ; --- vertical movement ---
 code_A833:  lda     ent_facing,x
         and     #$0C                    ; vertical direction bits
         beq     code_A879               ; no vertical — skip
-        and     #$04
+        and     #$04                    ; check bit 2 (down flag)
         beq     code_A858               ; bit 2 clear → move up
         lda     ent_timer,x             ; bit 2 set → move down
-        bne     code_A84B
+        bne     code_A84B               ; timer set — use collision
         lda     #$4B                    ; no timer — move down (no collision)
         sta     ent_anim_id,x
         jmp     move_sprite_down
@@ -1082,7 +1082,7 @@ code_A84B:  ldy     #$12                ; move down with collision
         jmp     code_A86F
 
 code_A858:  lda     ent_timer,x         ; --- move up ---
-        bne     code_A865
+        bne     code_A865               ; timer set — use collision
         lda     #$4C                    ; no timer — move up (no collision)
         sta     ent_anim_id,x
         jmp     move_sprite_up
@@ -1093,9 +1093,9 @@ doc_air_tornado_diagonal_anim_threshold:  lda     #$4C ; anim: upward tornado
         sta     ent_anim_id,x
 code_A86F:  bcc     code_A879           ; no floor/ceiling collision
         lda     ent_facing,x            ; collision — flip vertical direction
-        eor     #$0C
+        eor     #$0C                    ; flip bits 2-3 (reverse V)
         sta     ent_facing,x
-code_A879:  rts
+code_A879:  rts                         ; done
 
         .byte   $B4,$B2,$B0             ; data (routine index fallthrough refs)
 ; =============================================================================

@@ -83,35 +83,35 @@ select_PRG_banks           := $FF6B     ; select_PRG_banks
 ; attribute table bits updated in the $0640 mirror.
 ; ---------------------------------------------------------------------------
 code_8006:  jsr     ensure_stage_bank   ; ensure stage PRG bank is selected
-        lda     #$00
+        lda     #$00                    ; A = 0
         sta     $95                     ; reset frame counter
         ; --- Set up PPU buffer entry 1 (nametable 0 tile) ---
         lda     boss_door_close_ppu_addr_high,y ; PPU address high byte from table
-        sta     $0780
+        sta     $0780                   ; PPU buf entry 1 high byte
         sta     $0785                   ; same high byte for entry 2 (NT1)
         lda     boss_door_close_ppu_addr_low,y ; PPU address low byte from table
-        sta     $0781
+        sta     $0781                   ; PPU buf entry 1 low byte
         ora     #$20                    ; offset $20 for nametable 1 copy
-        sta     $0786
+        sta     $0786                   ; NT1 low byte
         lda     #$01                    ; 1 byte per PPU write
-        sta     $0782
-        sta     $0787
+        sta     $0782                   ; PPU buf entry 1 count
+        sta     $0787                   ; PPU buf entry 2 count
         ; --- Set up PPU buffer entry 3 (attribute table) ---
         lda     #$23                    ; $23xx = attribute table region
-        sta     $078A
+        sta     $078A                   ; PPU buf attr high byte
         lda     boss_door_close_attr_offset,y ; attribute offset within $0640
-        sta     $03
+        sta     $03                     ; store attr offset
         ora     #$C0                    ; $23C0+ = PPU attribute table addr
-        sta     $078B
+        sta     $078B                   ; PPU buf attr low byte
         lda     boss_door_close_attr_subindex,y ; attribute sub-index for mask table
-        sta     $04
-        lda     #$00
+        sta     $04                     ; store attr sub-index
+        lda     #$00                    ; A = 0
         sta     $078C                   ; 0 extra bytes for attr write
         ; --- Play door close sound effect ---
         lda     #SFX_DOOR               ; sound ID $1D = door/shutter SFX
-        jsr     submit_sound_ID
+        jsr     submit_sound_ID         ; play door sound effect
         lda     #$04                    ; 4 columns to animate
-        sta     $02
+        sta     $02                     ; store column counter
 ; --- Write one column of door tiles ---
 code_804B:  ldx     boss_door_close_metatile_indices,y ; metatile sub-index for this column
         lda     $BB00,x                 ; top-left CHR tile
@@ -125,7 +125,7 @@ code_804B:  ldx     boss_door_close_metatile_indices,y ; metatile sub-index for 
         ; --- Update attribute table ---
         ldx     $04                     ; attribute sub-index
         lda     stage_collision_bitmask_table,x ; attribute bitmask (clear bits)
-        sta     $05
+        sta     $05                     ; store bitmask for AND
         ldx     $03                     ; attribute offset in $0640 mirror
         lda     $0640,x                 ; read current attribute byte
         and     $05                     ; mask off old palette bits
@@ -133,49 +133,49 @@ code_804B:  ldx     boss_door_close_metatile_indices,y ; metatile sub-index for 
         sta     $078D                   ; write to PPU buffer
         sta     $0640,x                 ; update RAM mirror
         lda     #$FF                    ; $FF = PPU buffer terminator
-        sta     $078E
+        sta     $078E                   ; write terminator to PPU buf
         sta     nametable_dirty         ; signal NMI to flush PPU buffer
 ; --- Wait 4 frames between columns (animation delay) ---
-code_8084:  lda     #$00
+code_8084:  lda     #$00                ; A = 0
         sta     nmi_skip                ; allow NMI processing
         jsr     task_yield              ; task_yield — wait for next frame
         inc     nmi_skip                ; re-lock NMI
         inc     $95                     ; increment frame counter
-        lda     $95
+        lda     $95                     ; read frame counter
         and     #$03                    ; wait until counter is multiple of 4
-        bne     code_8084
+        bne     code_8084               ; loop until multiple of 4
         iny                             ; advance Y to next table entry
         dec     $02                     ; decrement column counter
         beq     code_80CC               ; all 4 columns done → exit
         ; --- Move PPU address up by 2 tile rows ($40 bytes) ---
-        lda     $0781
-        sec
+        lda     $0781                   ; read PPU addr low byte
+        sec                             ; set carry for subtract
         sbc     #$40                    ; move up 2 rows in nametable
-        sta     $0781
-        ora     #$20
+        sta     $0781                   ; update NT0 PPU addr low
+        ora     #$20                    ; set bit 5 for NT1
         sta     $0786                   ; NT1 copy offset by $20
-        lda     $0780
+        lda     $0780                   ; read PPU addr high byte
         sbc     #$00                    ; propagate borrow to high byte
-        sta     $0780
-        sta     $0785
+        sta     $0780                   ; update NT0 PPU addr high
+        sta     $0785                   ; update NT1 PPU addr high
         ; --- Toggle attribute sub-index (alternates 0/2 or 1/3) ---
-        lda     $04
+        lda     $04                     ; read attr sub-index
         eor     #$02                    ; flip between upper/lower attr half
-        sta     $04
-        cmp     #$03
+        sta     $04                     ; store toggled sub-index
+        cmp     #$03                    ; check if crossed boundary
         bne     code_804B               ; if not wrapped, continue
         ; --- Crossed attribute boundary: move attr offset back ---
-        lda     $03
-        sec
+        lda     $03                     ; read attr offset
+        sec                             ; set carry for subtract
         sbc     #$08                    ; previous attribute row
-        sta     $03
+        sta     $03                     ; store new attr offset
         ora     #$C0                    ; rebuild PPU attribute address
-        sta     $078B
-        jmp     code_804B
+        sta     $078B                   ; update PPU attr address
+        jmp     code_804B               ; continue next column
 
 ; --- Door close complete: restore stage bank and return ---
-code_80CC:  lda     stage_id
-        sta     prg_bank
+code_80CC:  lda     stage_id            ; get current stage ID
+        sta     prg_bank                ; set as PRG bank number
         jmp     select_PRG_banks        ; select_PRG_banks and return
 
 ; ===========================================================================
@@ -240,32 +240,32 @@ boss_door_close_attr_palette_bits:  .byte   $40,$04,$40,$04,$2F,$03,$40,$04
 ; ---------------------------------------------------------------------------
 code_81F3:  jsr     ensure_stage_bank   ; ensure stage PRG bank is selected
         lda     boss_door_open_ppu_addr_high,y ; PPU address high byte from table
-        sta     $0780
-        sta     $0784
+        sta     $0780                   ; PPU buf entry 1 high (NT0)
+        sta     $0784                   ; PPU buf entry 2 high (NT1)
         lda     boss_door_open_ppu_addr_low,y ; PPU address low byte from table
-        sta     $0781
+        sta     $0781                   ; PPU buf entry 1 low byte
         ora     #$20                    ; offset for second nametable
-        sta     $0785
-        lda     #$00
+        sta     $0785                   ; NT1 low byte
+        lda     #$00                    ; A = 0
         sta     $0782                   ; 0 extra bytes per PPU entry
-        sta     $0786
+        sta     $0786                   ; PPU buf entry 2 count
         sta     $95                     ; reset frame counter
         ; --- Attribute table entry setup ---
         lda     #$23                    ; $23xx = attribute table region
-        sta     $0788
+        sta     $0788                   ; PPU buf attr high byte
         lda     boss_door_open_attr_offset,y ; attribute offset within $0640
-        sta     $03
+        sta     $03                     ; store attr offset
         ora     #$C0                    ; $23C0+ = PPU attribute table addr
-        sta     $0789
+        sta     $0789                   ; PPU buf attr low byte
         lda     boss_door_open_attr_subindex,y ; attribute sub-index for mask table
-        sta     $04
-        lda     #$00
+        sta     $04                     ; store attr sub-index
+        lda     #$00                    ; A = 0
         sta     $078A                   ; 0 extra bytes for attr write
         ; --- Play door open sound effect ---
         lda     #SFX_DOOR               ; sound ID $1D = door/shutter SFX
-        jsr     submit_sound_ID
+        jsr     submit_sound_ID         ; play door sound effect
         lda     #$04                    ; 4 columns to animate
-        sta     $02
+        sta     $02                     ; store column counter
 ; --- Write one column of open-door tiles ---
 code_8236:  ldx     boss_door_open_metatile_indices,y ; metatile sub-index for this column
         lda     $BC00,x                 ; top-right CHR tile
@@ -275,7 +275,7 @@ code_8236:  ldx     boss_door_open_metatile_indices,y ; metatile sub-index for t
         ; --- Update attribute table ---
         ldx     $04                     ; attribute sub-index
         lda     stage_collision_bitmask_table,x ; attribute bitmask (clear bits)
-        sta     $05
+        sta     $05                     ; store bitmask for AND
         ldx     $03                     ; attribute offset in $0640 mirror
         lda     $0640,x                 ; read current attribute byte
         and     $05                     ; mask off old palette bits
@@ -283,48 +283,48 @@ code_8236:  ldx     boss_door_open_metatile_indices,y ; metatile sub-index for t
         sta     $078B                   ; write to PPU buffer
         sta     $0640,x                 ; update RAM mirror
         lda     #$FF                    ; $FF = PPU buffer terminator
-        sta     $078C
+        sta     $078C                   ; write terminator to PPU buf
         sta     nametable_dirty         ; signal NMI to flush PPU buffer
 ; --- Wait 4 frames between columns (animation delay) ---
-code_8263:  lda     #$00
+code_8263:  lda     #$00                ; A = 0
         sta     nmi_skip                ; allow NMI processing
         jsr     task_yield              ; task_yield — wait for next frame
         inc     nmi_skip                ; re-lock NMI
         inc     $95                     ; increment frame counter
-        lda     $95
+        lda     $95                     ; read frame counter
         and     #$03                    ; wait until counter is multiple of 4
-        bne     code_8263
+        bne     code_8263               ; loop until multiple of 4
         iny                             ; advance Y to next table entry
         dec     $02                     ; decrement column counter
         beq     code_82A9               ; all 4 columns done → exit
         ; --- Move PPU address down by 2 tile rows ($40 bytes) ---
-        lda     $0781
-        clc
+        lda     $0781                   ; read PPU addr low byte
+        clc                             ; clear carry for add
         adc     #$40                    ; move down 2 rows in nametable
-        sta     $0781
-        ora     #$20
+        sta     $0781                   ; update NT0 PPU addr low
+        ora     #$20                    ; set bit 5 for NT1
         sta     $0785                   ; NT1 copy offset by $20
-        lda     $0780
+        lda     $0780                   ; read PPU addr high byte
         adc     #$00                    ; propagate carry to high byte
-        sta     $0780
-        sta     $0784
+        sta     $0780                   ; update NT0 PPU addr high
+        sta     $0784                   ; update NT1 PPU addr high
         ; --- Toggle attribute sub-index ---
-        lda     $04
+        lda     $04                     ; read attr sub-index
         eor     #$02                    ; flip between upper/lower attr half
-        sta     $04
+        sta     $04                     ; store toggled sub-index
         bne     code_8236               ; if nonzero, continue
         ; --- Crossed attribute boundary: advance attr offset ---
-        lda     $03
-        clc
+        lda     $03                     ; read attr offset
+        clc                             ; clear carry for add
         adc     #$08                    ; next attribute row
-        sta     $03
+        sta     $03                     ; store new attr offset
         ora     #$C0                    ; rebuild PPU attribute address
-        sta     $0789
-        jmp     code_8236
+        sta     $0789                   ; update PPU attr address
+        jmp     code_8236               ; continue next column
 
 ; --- Door open complete: restore stage bank and return ---
-code_82A9:  lda     stage_id
-        sta     prg_bank
+code_82A9:  lda     stage_id            ; get current stage ID
+        sta     prg_bank                ; set as PRG bank number
         jmp     select_PRG_banks        ; select_PRG_banks and return
 
 ; ===========================================================================

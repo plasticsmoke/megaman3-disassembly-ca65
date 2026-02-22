@@ -40,7 +40,7 @@ process_frame_yield           := $FD80  ; process_frame_yield — render frame +
 .segment "BANK0F"
 
         lda     #$00                    ; clear all credits state
-        sta     $95
+        sta     $95                     ; store to frame counter $95
         .byte   $8D
         .byte   $06
 credits_enemy_data_start:  ldy     #$85
@@ -69,110 +69,110 @@ code_A01B:  lda     ent_status          ; check if credits entity active
         lda     $95                     ; frame counter
         and     #$01                    ; only process on even frames
         bne     code_A077
-        lda     scroll_y
+        lda     scroll_y                ; get Y scroll position
         and     #$07                    ; check if on 8-pixel boundary
         bne     code_A077               ; not aligned, skip nametable update
         lda     scroll_y                ; convert scroll to tile row
         lsr     a                       ; divide by 8
-        lsr     a
-        lsr     a
+        lsr     a                       ; (continued shift)
+        lsr     a                       ; (continued shift)
         sta     $02                     ; $02 = current tile row
         ldx     $B8                     ; text data index
         lda     credits_text_pointer_low_bytes,x ; load text data pointer (low byte)
-        sta     $00
+        sta     $00                     ; store pointer low byte
         lda     credits_text_pointer_high_bytes,x ; load text data pointer (high byte)
-        sta     $01
-        ldy     #$00
+        sta     $01                     ; store pointer high byte
+        ldy     #$00                    ; Y = 0 for indirect read
         sty     $03                     ; $03/$04 = PPU nametable address
-        lda     scroll_y
+        lda     scroll_y                ; compute PPU row address
         and     #$F8                    ; align to 8-pixel row
         asl     a                       ; multiply by 4 to get nametable offset
         rol     $03                     ; (each row = 32 tiles)
-        asl     a
-        rol     $03
-        sta     $04
+        asl     a                       ; continue multiply by 4
+        rol     $03                     ; carry into high byte
+        sta     $04                     ; store PPU addr low byte
         cpx     #$3B                    ; past end of text data?
         bcs     code_A059               ; yes: fill with blank tiles
         lda     ($00),y                 ; read expected row from text data
         cmp     $02                     ; matches current scroll row?
         beq     code_A07A               ; yes: copy text row to nametable buffer
 ; --- fill nametable row with blank tiles ($24 = space) ---
-code_A059:  lda     $03
+code_A059:  lda     $03                 ; load PPU addr high byte
         ora     #$24                    ; set nametable base ($24xx)
         sta     $0780                   ; PPU address high byte
-        lda     $04
+        lda     $04                     ; load PPU addr low byte
         sta     $0781                   ; PPU address low byte
         ldy     #$1F                    ; 32 tiles per row
         sty     $0782                   ; tile count
         lda     #$24                    ; blank tile
 code_A06C:  sta     $0783,y             ; fill row buffer with blanks
-        dey
+        dey                             ; next tile slot
         bpl     code_A06C
         sty     $07A3                   ; terminator
         sty     nametable_dirty         ; signal NMI to upload
-code_A077:  jmp     code_A0C0
+code_A077:  jmp     code_A0C0           ; jump to scroll check
 
 ; --- copy text row from credits data to nametable buffer ---
 ; Format: [row#] [left_pad] [text_len] [tile, tile, ...] (padded with blanks)
-code_A07A:  iny
+code_A07A:  iny                         ; skip row number byte
         lda     ($00),y                 ; read left padding (spaces before text)
-        sta     $05
-        ldx     #$00
+        sta     $05                     ; store left padding count
+        ldx     #$00                    ; X = buffer write index
         lda     #$24                    ; blank tile
 code_A083:  sta     $0783,x             ; fill left padding
-        inx
-        dec     $05
-        bpl     code_A083
-        lda     $04
+        inx                             ; advance buffer index
+        dec     $05                     ; decrement pad counter
+        bpl     code_A083               ; loop until padding done
+        lda     $04                     ; load PPU addr low
         sta     $0781                   ; PPU address low byte
-        lda     $03
+        lda     $03                     ; load PPU addr high
         ora     #$24                    ; nametable base
         sta     $0780                   ; PPU address high byte
-        iny
+        iny                             ; advance to text length
         lda     #$1F                    ; 32 tiles total
         sta     $0782                   ; tile count
         lda     ($00),y                 ; read text length
-        sta     $02
-        iny
+        sta     $02                     ; store text length
+        iny                             ; advance to first tile
 code_A0A2:  lda     ($00),y             ; copy text tiles to buffer
-        sta     $0783,x
-        iny
-        inx
-        dec     $02
-        bpl     code_A0A2
+        sta     $0783,x                 ; write tile to buffer
+        iny                             ; next source byte
+        inx                             ; next buffer position
+        dec     $02                     ; decrement text counter
+        bpl     code_A0A2               ; loop until text copied
         lda     #$24                    ; pad remainder with blanks
-code_A0AF:  sta     $0783,x
-        inx
+code_A0AF:  sta     $0783,x             ; fill remaining with blanks
+        inx                             ; next buffer position
         cpx     #$20                    ; filled all 32 tiles?
         bne     code_A0AF
-        lda     #$FF
+        lda     #$FF                    ; terminator value
         sta     $07A3                   ; terminator
         sta     nametable_dirty         ; signal NMI to upload
         inc     $B8                     ; advance to next text data entry
 ; --- check if credits text finished scrolling ---
-code_A0C0:  lda     scroll_y
+code_A0C0:  lda     scroll_y            ; check scroll position
         bne     code_A0D4               ; still scrolling
-        lda     $B8
+        lda     $B8                     ; check text data index
         cmp     #$3B                    ; all 59 text entries displayed?
-        bne     code_A0D4
+        bne     code_A0D4               ; not all shown yet
         lda     ent_var2                ; screen-wrap counter
         cmp     #$02                    ; wrapped twice (full scroll)?
-        bne     code_A0D4
+        bne     code_A0D4               ; not done wrapping
         jmp     code_A137               ; start "PRESENTED BY CAPCOM" animation
 
 ; --- advance Y scroll by 1 pixel (every other frame) ---
 code_A0D4:  lda     $95
         and     #$01                    ; even frames only
-        bne     code_A0EF
-        inc     scroll_y
-        lda     scroll_y
+        bne     code_A0EF               ; skip on odd frames
+        inc     scroll_y                ; scroll Y down 1 pixel
+        lda     scroll_y                ; read new scroll value
         cmp     #$F0                    ; past 240 pixels? (nametable wrap)
-        bne     code_A0EF
-        lda     #$00
+        bne     code_A0EF               ; no wrap needed
+        lda     #$00                    ; reset scroll to top
         sta     scroll_y                ; wrap back to 0
-        lda     $B8
+        lda     $B8                     ; check text data index
         cmp     #$3B                    ; past end of text data?
-        bne     code_A0EF
+        bne     code_A0EF               ; not finished yet
         inc     ent_var2                ; count nametable wraps
 ; --- render star sprites for credits background ---
 ; Copies 12 OAM entries from credits_star_sprites_oam_y (6 per entity slot), with Y offset from ent_timer.
@@ -180,7 +180,7 @@ code_A0D4:  lda     $95
 code_A0EF:  ldy     #$00                ; OAM buffer index
         ldx     #$00                    ; entity slot offset
 code_A0F3:  lda     credits_star_sprites_oam_y,y ; sprite Y position (base)
-        clc
+        clc                             ; prepare for add
         adc     ent_timer,x             ; add vertical scroll offset
         sta     $0200,y                 ; write to OAM Y
         lda     credits_star_sprites_oam_tile,y ; tile ID
@@ -189,22 +189,22 @@ code_A0F3:  lda     credits_star_sprites_oam_y,y ; sprite Y position (base)
         sta     $0202                   ; write to OAM attr
         lda     credits_star_sprites_oam_x,y ; sprite X position
         sta     $0203,y                 ; write to OAM X
-        iny
-        iny
-        iny
+        iny                             ; skip Y byte
+        iny                             ; skip tile byte
+        iny                             ; skip attr byte
         iny                             ; advance to next OAM entry (4 bytes each)
         cpy     #$18                    ; first 6 sprites done?
-        bcc     code_A0F3
+        bcc     code_A0F3               ; loop for first 6 sprites
         ldx     #$20                    ; switch to entity slot 1 offset
         cpy     #$30                    ; all 12 sprites done?
-        bcc     code_A0F3
+        bcc     code_A0F3               ; loop for next 6 sprites
         sty     oam_ptr                 ; mark end of OAM data
         lda     ent_timer               ; advance slot 0 Y offset
-        clc
+        clc                             ; prepare for add
         adc     #$02                    ; move stars downward 2px/frame
         sta     ent_timer
         lda     ent_var1                ; advance slot 1 Y offset
-        clc
+        clc                             ; prepare for add
         adc     #$03                    ; move stars downward 3px/frame
         sta     ent_var1
         jsr     process_frame_yield     ; yield frame (process_frame_yield)
@@ -217,10 +217,10 @@ code_A0F3:  lda     credits_star_sprites_oam_y,y ; sprite Y position (base)
 ; entities that walk across the screen. Two nametable rows are cleared
 ; to make space, then characters scroll in from the right.
 ; ===========================================================================
-code_A137:  lda     ent_status
+code_A137:  lda     ent_status          ; check slot 0 status
         bmi     code_A181               ; already initialized, skip setup
         ldx     #$01                    ; set up entity slots 0 and 1
-code_A13E:  lda     #$80
+code_A13E:  lda     #$80                ; active flag value
         sta     ent_status,x            ; mark entity active
         sta     ent_flags,x             ; set active flag
         lda     credits_character_anim_ids,x ; animation ID from table
@@ -229,67 +229,67 @@ code_A13E:  lda     #$80
         sta     ent_y_px,x
         lda     #$F8                    ; start off-screen right
         sta     ent_x_px,x
-        lda     #$00
+        lda     #$00                    ; zero value
         sta     ent_anim_frame,x        ; reset animation
         sta     ent_anim_state,x
-        dex
+        dex                             ; next slot
         bpl     code_A13E               ; loop for both slots
         lda     #$25                    ; set up two nametable row clears
         sta     $0780                   ; PPU addr high (row 1)
-        lda     #$D6
+        lda     #$D6                    ; row 1 PPU addr low = $D6
         sta     $0781                   ; PPU addr low (row 1)
-        lda     #$26
+        lda     #$26                    ; row 2 PPU addr high = $26
         sta     $0784                   ; PPU addr high (row 2)
-        lda     #$16
+        lda     #$16                    ; row 2 PPU addr low = $16
         sta     $0785                   ; PPU addr low (row 2)
-        lda     #$00
+        lda     #$00                    ; zero for clear
         sta     $0782                   ; tile count = 0 (clear)
         sta     $0786
         sta     ent_timer               ; reset animation timer
 ; --- character walk + text reveal animation ---
 code_A181:  dec     $0361               ; decrement slot 1 X timer
-        bne     code_A18B
-        lda     #$00
+        bne     code_A18B               ; skip if timer not zero
+        lda     #$00                    ; zero = inactive
         sta     $0301                   ; deactivate slot 1
 code_A18B:  lda     ent_anim_id         ; slot 0 animation state
         cmp     #$07                    ; falling animation?
         beq     code_A1E8               ; yes: handle falling
         dec     ent_x_px                ; move character left 1px
-        lda     ent_x_px
+        lda     ent_x_px                ; read current X position
         and     #$07                    ; on 8-pixel boundary?
         bne     code_A1CA               ; no: skip text reveal
         lda     ent_x_px                ; check X position range
         cmp     #$B1                    ; past right boundary?
-        bcs     code_A1CA
+        bcs     code_A1CA               ; yes: skip text reveal
         cmp     #$50                    ; past left boundary?
-        bcc     code_A1CA
+        bcc     code_A1CA               ; yes: skip text reveal
 ; --- reveal "CAPCOM" letters one at a time ---
         dec     $0781                   ; shift nametable column left
-        dec     $0785
+        dec     $0785                   ; shift bottom row column left
         ldx     ent_var3                ; current letter index
         cpx     #$0C                    ; all 12 chars placed?
-        beq     code_A1CA
+        beq     code_A1CA               ; yes: skip letter placement
         lda     credits_presented_by_capcom_top,x ; top row tile for this letter
-        sta     $0783
+        sta     $0783                   ; write to top row buffer
         lda     credits_presented_by_capcom_bottom,x ; bottom row tile for this letter
-        sta     $0787
-        lda     #$FF
+        sta     $0787                   ; write to bottom row buffer
+        lda     #$FF                    ; terminator / dirty flag
         sta     $0788                   ; terminator
         sta     nametable_dirty         ; trigger NMI upload
         inc     ent_var3                ; advance to next letter
 ; --- trigger fall when character reaches X=$20 ---
-code_A1CA:  lda     ent_x_px
+code_A1CA:  lda     ent_x_px            ; check current X position
         cmp     #$20                    ; reached left target position?
-        bne     code_A1FF
+        bne     code_A1FF               ; not at target, skip fall
         lda     #$44                    ; set Y velocity sub-pixel
         sta     ent_yvel_sub
         lda     #$03                    ; set Y velocity (falling speed)
         sta     ent_yvel
         lda     #$07                    ; switch to falling animation
         sta     ent_anim_id
-        lda     #$00
+        lda     #$00                    ; zero for reset
         sta     ent_anim_state          ; reset animation state
-        sta     ent_anim_frame
+        sta     ent_anim_frame          ; reset animation frame
 ; --- handle falling animation ---
 code_A1E8:  lda     #$7C                ; ground level Y position
         cmp     ent_y_px                ; reached ground?

@@ -97,54 +97,54 @@ task_yield           := $FF21
 ; ===========================================================================
 
         lda     string_pointer_table_low,x ; load string pointer low byte
-        sta     $B6
+        sta     $B6                     ; store string ptr low byte
         lda     string_pointer_table_high,x ; load string pointer high byte
-        sta     $B7
-        lda     #$00
+        sta     $B7                     ; store string ptr high byte
+        lda     #$00                    ; A = 0
         sta     $B8                     ; reset stream offset to 0
-        ldy     #$00
+        ldy     #$00                    ; Y = 0 (initial read offset)
         lda     ($B6),y                 ; first byte = PPU address high
-        sta     $0780
-        iny
+        sta     $0780                   ; set PPU addr high in buffer
+        iny                             ; advance to next byte
         lda     ($B6),y                 ; second byte = PPU address low
-        sta     $0781
-        iny
+        sta     $0781                   ; set PPU addr low in buffer
+        iny                             ; advance past header bytes
         sty     $B8                     ; offset now at 2 (first tile data)
         bne     code_A029               ; always taken (Y=2)
 ; --- advance row: increment PPU address low byte by 1 ---
 code_A026:  inc     $0781               ; next nametable row
 ; --- resume streaming from current offset ---
-code_A029:  ldy     $B8
+code_A029:  ldy     $B8                 ; load current stream offset
         cpy     #$FF                    ; stream already finished?
         beq     code_A05E               ; yes — return immediately
         lda     ($B6),y                 ; read next byte from string data
         cmp     #$FF                    ; $FF = end-of-string marker
-        beq     code_A05A
+        beq     code_A05A               ; yes: mark stream finished
         cmp     #$FE                    ; $FE = set-new-PPU-address command
-        bne     code_A046
-        iny
+        bne     code_A046               ; not $FE: normal tile byte
+        iny                             ; skip past $FE command byte
         lda     ($B6),y                 ; new PPU address high byte
-        sta     $0780
-        iny
+        sta     $0780                   ; update PPU addr high
+        iny                             ; advance to low byte
         lda     ($B6),y                 ; new PPU address low byte
-        sta     $0781
-        iny
+        sta     $0781                   ; update PPU addr low
+        iny                             ; advance to tile data
 ; --- write one tile to the PPU buffer ---
 code_A046:  lda     ($B6),y             ; tile ID byte
         sta     $0783                   ; store in PPU buffer data area
-        iny
+        iny                             ; advance stream offset
         sty     $B8                     ; save updated offset
-        ldy     #$00
+        ldy     #$00                    ; Y = 0
         sty     $0782                   ; byte count = 0 (single tile write)
         dey                             ; Y = $FF
         sty     $0784                   ; terminator byte in buffer
         sty     nametable_dirty         ; signal NMI to flush PPU buffer
-        rts
+        rts                             ; return to caller
 
 ; --- end of string: mark stream as finished ---
-code_A05A:  lda     #$FF
+code_A05A:  lda     #$FF                ; end-of-string sentinel
         sta     $B8                     ; $FF = "stream complete" sentinel
-code_A05E:  rts
+code_A05E:  rts                         ; return (stream complete)
 
 ; ===========================================================================
 ; nametable_init_columns — clear 4 pairs of nametable columns
@@ -159,30 +159,30 @@ code_A05E:  rts
 ; ===========================================================================
 code_A05F:  ldx     #$00                ; column pair index (0, 2)
 code_A061:  lda     ppu_nametable_addr_high_col0_buf1,x ; PPU addr high for buffer 1
-        sta     $0780
+        sta     $0780                   ; set buffer 1 PPU addr high
         lda     ppu_nametable_addr_high_col0plus_buf2,x ; PPU addr high for buffer 2
-        sta     $07A3
+        sta     $07A3                   ; set buffer 2 PPU addr high
         lda     ppu_nametable_addr_low_col0_buf1,x ; PPU addr low for buffer 1
-        sta     $0781
+        sta     $0781                   ; set buffer 1 PPU addr low
         lda     ppu_nametable_addr_low_col0plus_buf2,x ; PPU addr low for buffer 2
-        sta     $07A4
+        sta     $07A4                   ; set buffer 2 PPU addr low
         ldy     #$1F                    ; 32 bytes per column
         sty     $0782                   ; buffer 1 byte count
         sty     $07A5                   ; buffer 2 byte count
         lda     #$00                    ; fill with blank tiles ($00)
 code_A083:  sta     $0783,y             ; clear buffer 1 tile data
         sta     $07A6,y                 ; clear buffer 2 tile data
-        dey
-        bpl     code_A083
-        lda     #$FF
+        dey                             ; next byte index
+        bpl     code_A083               ; loop until all 32 done
+        lda     #$FF                    ; terminator value
         sta     $07C6                   ; terminator after buffer 2 data
         sta     nametable_dirty         ; signal NMI to flush PPU buffer
         jsr     task_yield              ; task_yield — wait for NMI drain
-        inx
+        inx                             ; X += 2 (next pair)
         inx                             ; advance to next column pair
         cpx     #$04                    ; done all 4 pairs? (2 pairs x 2 cols)
-        bne     code_A061
-        rts
+        bne     code_A061               ; loop if pairs remain
+        rts                             ; all columns cleared
 
 ; ===========================================================================
 ; Nametable address tables for column initialization

@@ -1016,7 +1016,7 @@ select_PRG_banks           := $FF6B
 ; When scrolling right, spawns enemies on the right edge and tracks left.
 ; When scrolling left, spawns enemies on the left edge and tracks right.
 check_new_enemies:
-        clc
+        clc                             ; clear carry for add below
         lda     camera_x_lo             ; camera X left edge
         sta     $00                     ; -> $00
         adc     #$FF                    ; camera X + 255 -> $02
@@ -1025,7 +1025,7 @@ check_new_enemies:
         sta     $01                     ; -> $01
         adc     #$00                    ; camera screen right edge
         sta     $03                     ; -> $03
-        lda     $2E
+        lda     $2E                     ; scroll direction flags
         and     #$01                    ; if player moving right
         bne     check_spawn_right_loop  ; check right side, else left
 
@@ -1048,7 +1048,7 @@ spawn_left_found:  dey                  ; spawn,
 ; track stage enemy ID for right side but don't spawn
 ; anything on right while moving left
 track_right_no_spawn:  ldy     $9E
-        beq     track_right_done
+        beq     track_right_done        ; no right enemies to track
 track_right_loop:  lda     spawn_data_screen_boundary_left,y ; if camera screen right edge
         cmp     $03                     ; >= last right-spawned enemy screen,
         bcc     track_right_done        ; break loop
@@ -1108,7 +1108,7 @@ spawn_enemy:  tya                       ; first, loop through all sprites
         ldx     #$1F                    ; besides reserved 00-0F
 spawn_check_dup_loop:  cmp     ent_spawn_id,x ; if this ID is already here
         beq     spawn_check_return      ; don't spawn
-        dex
+        dex                             ; next slot down
         cpx     #$0F                    ; stop at $0F
         bne     spawn_check_dup_loop    ; indicating $00-$0F are "reserved"
 
@@ -1117,18 +1117,18 @@ spawn_check_dup_loop:  cmp     ent_spawn_id,x ; if this ID is already here
         bcs     spawn_check_return      ; don't spawn
         tya                             ; store new stage ID
         sta     ent_spawn_id,x
-        pha
+        pha                             ; save stage enemy ID
         and     #$07                    ; low 3 bits = bit position
         tay                             ; index into bit mask table
         lda     $DEC2,y                 ; bit mask (1,2,4,8,16,32,64,128)
         sta     $04
-        pla
+        pla                             ; restore stage enemy ID
         lsr     a                       ; stage ID >> 3
         lsr     a                       ; = byte index into
         lsr     a                       ; spawn tracking array
         tay
         lda     $0150,y                 ; if this enemy's bit is set, don't spawn
-        and     $04
+        and     $04                     ; test killed bitmask
         bne     spawn_check_return
 
 ; finally, actually spawn — read from 4 per-stage enemy placement tables:
@@ -1146,7 +1146,7 @@ spawn_check_dup_loop:  cmp     ent_spawn_id,x ; if this ID is already here
         lda     spawn_data_enemy_y_pos,y ; enemy Y pixel position
         sta     ent_y_px,x
         lda     spawn_data_enemy_type_id,y ; global enemy ID
-        pha
+        pha                             ; save global enemy ID
         stx     $05                     ; preserve X
         lda     #$00                    ; switch to bank $00
         sta     prg_bank                ; for global enemy data
@@ -1168,7 +1168,7 @@ spawn_check_dup_loop:  cmp     ent_spawn_id,x ; if this ID is already here
         lda     oam_tile_base_table,y   ; HP from $A400,y
         sta     ent_hp,x
         lda     oam_attr_base_table,y   ; Y = speed ID
-        tay
+        tay                             ; use speed ID as index
         lda     oam_xoffset_base_table,y ; X velocity subpixel
         sta     ent_xvel_sub,x
         lda     oam_yoffset_base_table,y ; X velocity pixel

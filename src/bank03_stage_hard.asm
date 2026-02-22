@@ -54,7 +54,7 @@ select_PRG_banks           := $FF6B
         jsr     submit_sound_ID_D9
         lda     #$80                    ; mark entity slot $10 active
         sta     $0310                   ; (used for scroll entity)
-        sta     $0590
+        sta     $0590                   ; ent_flags slot $10 = active
 
 ; Load stage parameters from lookup tables (indexed by Y = grid index).
 ; Each table has 18 entries: 9 Robot Master + 9 Doc Robot stages.
@@ -76,16 +76,16 @@ select_PRG_banks           := $FF6B
         sta     $0370
 
 ; Load intro sprite palettes (8 bytes → SP 0 and SP 1, both active + working copy).
-        ldx     #$07
+        ldx     #$07                    ; 8 bytes (indices 7..0)
 hard_stage_intro_palette_loop:  lda     hard_stage_intro_palette_data,x ; intro sprite palette data
         sta     $0610,x                 ; → active sprite palette buffer
         sta     $0630,x                 ; → working copy (for flash restore)
-        dex
-        bpl     hard_stage_intro_palette_loop
+        dex                             ; next palette byte
+        bpl     hard_stage_intro_palette_loop ; loop until all 8 copied
         lda     hard_stage_chr_bank_table,y ; select CHR bank for this stage
-        jsr     L938B
-        jsr     update_CHR_banks
-        lda     #$00
+        jsr     L938B                   ; set CHR bank config
+        jsr     update_CHR_banks        ; apply CHR bank selection
+        lda     #$00                    ; A = 0 for clearing below
         sta     $05F0                   ; clear entity slot $10 flags
         sta     $05B0                   ; clear entity slot $10 anim phase
         sta     ent_status              ; clear entity slot 0 type
@@ -99,48 +99,48 @@ hard_stage_intro_palette_loop:  lda     hard_stage_intro_palette_data,x ; intro 
 ; to the new nametable (boss intro band). Takes 64 frames (256/4).
 ; Simultaneously applies "$99" to entity $10 (Y movement).
 hard_stage_scroll_loop:  lda     camera_x_lo ; $FC += 4
-        clc
-        adc     #$04
-        sta     camera_x_lo
+        clc                             ; prepare for add
+        adc     #$04                    ; scroll 4 pixels per frame
+        sta     camera_x_lo             ; store new X scroll
         lda     camera_x_hi             ; $FD = carry into nametable select
-        adc     #$00
+        adc     #$00                    ; propagate carry
         and     #$01                    ; (wrap to 0-1)
-        sta     camera_x_hi
+        sta     camera_x_hi             ; store nametable select
         ldx     #$10                    ; apply Y movement to entity $10
         jsr     apply_y_speed           ; (scroll entity — creates vertical effect)
         lda     $0470                   ; scroll direction check
-        bpl     hard_stage_scroll_sub_pixel
+        bpl     hard_stage_scroll_sub_pixel ; skip clamp if positive
         lda     #$70                    ; clamp $03D0 to max $70
-        cmp     $03D0
-        bcs     hard_stage_scroll_sub_pixel
-        sta     $03D0
-        bne     hard_stage_scroll_frame_wait
+        cmp     $03D0                   ; compare against scroll pos
+        bcs     hard_stage_scroll_sub_pixel ; skip if within limit
+        sta     $03D0                   ; clamp scroll to $70
+        bne     hard_stage_scroll_frame_wait ; skip sub-pixel update
 hard_stage_scroll_sub_pixel:  lda     $0350 ; advance sub-pixel scroll
         clc                             ; $0350 += $0410
-        adc     $0410
-        sta     $0350
+        adc     $0410                   ; add sub-pixel speed
+        sta     $0350                   ; store sub-pixel result
         lda     $0370                   ; advance scroll position
         adc     $0430                   ; $0370 += $0430 + carry
-        sta     $0370
+        sta     $0370                   ; store new scroll position
 hard_stage_scroll_frame_wait:  jsr     boss_frame_yield ; process entities + wait for NMI
-        lda     #$00
+        lda     #$00                    ; A = 0
         sta     $05F0                   ; clear entity $10 flags
         lda     camera_x_lo             ; loop until $FC wraps to 0
         bne     hard_stage_scroll_loop  ; (64 frames)
 
 ; --- Post-scroll wait ---
         lda     #$7E                    ; update CHR bank
-        sta     $E9
-        jsr     update_CHR_banks
+        sta     $E9                     ; store new CHR bank number
+        jsr     update_CHR_banks        ; apply CHR bank swap
         lda     #$3C                    ; A = $3C (60 frames)
-hard_stage_post_scroll_wait_loop:  pha
+hard_stage_post_scroll_wait_loop:  pha  ; save frame counter
         jsr     boss_frame_yield        ; process entities + wait for NMI
-        lda     #$00
-        sta     $05F0
-        pla
-        sec
+        lda     #$00                    ; A = 0
+        sta     $05F0                   ; clear entity $10 flags
+        pla                             ; restore frame counter
+        sec                             ; prepare for subtract
         sbc     #$01                    ; countdown
-        bne     hard_stage_post_scroll_wait_loop
+        bne     hard_stage_post_scroll_wait_loop ; loop for 60 frames
 
 ; --- Wait for boss animation sync ---
 ; $A1C9,y = expected animation phase value for this stage.
@@ -149,11 +149,11 @@ hard_stage_wait_boss_anim_sync:  jsr     boss_frame_yield ; process entities + w
         ldy     stage_id                ; Y = stage number
         lda     hard_stage_anim_sync_phase_table,y ; expected anim phase
         cmp     $05B0                   ; current anim phase
-        bne     hard_stage_wait_boss_anim_sync
+        bne     hard_stage_wait_boss_anim_sync ; loop until anim synced
         lda     #$03                    ; re-select bank 03
         sta     prg_bank                ; (may have been swapped during
         jsr     select_PRG_banks        ; entity processing)
-        jmp     hard_stage_write_boss_name
+        jmp     hard_stage_write_boss_name ; proceed to name reveal
 
 ; ===========================================================================
 ; Write boss name to nametable — 1 tile per 4 frames
@@ -180,25 +180,25 @@ hard_stage_write_boss_name:  lda     stage_select_page ; if not Robot Master ($6
 ; Set up PPU write queue for 1-tile-at-a-time writes.
 ; High byte: $22 or $26 depending on current nametable.
         lda     camera_x_hi             ; nametable select → PPU high byte
-        and     #$01
+        and     #$01                    ; isolate nametable bit
         asl     a                       ; 0→$22 (NT0), 1→$26 (NT1)
-        asl     a
-        ora     #$22
-        sta     $0780
+        asl     a                       ; shift to bits 2-3
+        ora     #$22                    ; form $22 or $26
+        sta     $0780                   ; store PPU addr high byte
         lda     #$2B                    ; PPU low byte = $2B (column 11)
-        sta     $0781
+        sta     $0781                   ; store PPU addr low byte
         lda     #$00                    ; $0782 = 0 (single tile write mode)
-        sta     $0782
+        sta     $0782                   ; single-tile write mode
         sta     $95                     ; $95 = frame counter for 4-frame pacing
         lda     #$FF                    ; $0784 = terminator
-        sta     $0784
+        sta     $0784                   ; end-of-queue marker
 
 ; Compute name table offset: stage * 10 = stage * 2 + stage * 8
         lda     stage_id                ; $00 = stage * 2
-        asl     a
-        sta     $00
+        asl     a                       ; stage_id * 2
+        sta     $00                     ; save stage * 2 in $00
         asl     a                       ; A = stage * 8
-        asl     a
+        asl     a                       ; now stage * 8
         adc     $00                     ; A = stage * 10
         sta     $10                     ; $10 = offset into boss name table
 
@@ -213,28 +213,28 @@ hard_stage_name_tile_write_loop:  ldy     $10 ; Y = current name table offset
         jsr     task_yield              ; wait for NMI (tile gets uploaded)
         inc     nmi_skip                ; skip next NMI (pacing)
         inc     $95                     ; frame counter
-        lda     $95
+        lda     $95                     ; check frame counter
         and     #$03                    ; every 4 frames:
         bne     hard_stage_name_tile_write_loop ; re-write same tile (visual hold)
         inc     $10                     ; advance to next character
         inc     $0781                   ; advance PPU column
-        lda     $0781
+        lda     $0781                   ; check column position
         cmp     #$35                    ; stop at column $35 (10 tiles done)
-        bne     hard_stage_name_tile_write_loop
+        bne     hard_stage_name_tile_write_loop ; continue if tiles remain
 
 ; --- Final wait and return ---
 hard_stage_final_wait:  lda     #$00    ; A = 0
-hard_stage_final_wait_frame_loop:  pha
-        lda     #$00
+hard_stage_final_wait_frame_loop:  pha  ; save countdown counter
+        lda     #$00                    ; A = 0
         sta     nmi_skip                ; allow NMI
         jsr     task_yield              ; wait 1 frame
-        inc     nmi_skip
-        pla
-        sec
+        inc     nmi_skip                ; block NMI processing
+        pla                             ; restore countdown counter
+        sec                             ; prepare for subtract
         sbc     #$01                    ; countdown (wraps: 0→$FF→254 loops)
-        bne     hard_stage_final_wait_frame_loop
-        lda     #$00
-        sta     nmi_skip
+        bne     hard_stage_final_wait_frame_loop ; loop for 256 frames
+        lda     #$00                    ; A = 0
+        sta     nmi_skip                ; re-enable NMI
         rts                             ; → returns to bank18 robot_master_intro
 
 ; ===========================================================================
@@ -426,191 +426,191 @@ transition_sprite_palette:  .byte   $17,$0E,$0E,$0D,$15,$0E,$25,$16
 ; =============================================================================
 
 code_A593:  lda     #$00                ; clear all 48 password cells
-        sta     $11
-        ldy     #$2F
-code_A599:  sta     $0150,y
-        dey
-        bpl     code_A599
+        sta     $11                     ; clear row offset
+        ldy     #$2F                    ; Y = 47 (last cell index)
+code_A599:  sta     $0150,y             ; clear password cell
+        dey                             ; next cell
+        bpl     code_A599               ; loop until all 48 cleared
         lda     #$24                    ; start cursor at "END" option
-        sta     $10
+        sta     $10                     ; set cursor position
         ldy     #$14                    ; load cursor OAM sprites (6 tiles)
-code_A5A5:  lda     password_cursor_oam_template_y,y
-        sta     $0204,y
-        lda     password_cursor_oam_template_tile,y
-        sta     $0205,y
-        lda     password_cursor_oam_template_attr,y
-        sta     $0206,y
-        lda     password_cursor_oam_template_x,y
-        sta     $0207,y
+code_A5A5:  lda     password_cursor_oam_template_y,y ; load sprite Y from template
+        sta     $0204,y                 ; store to OAM Y
+        lda     password_cursor_oam_template_tile,y ; load sprite tile from template
+        sta     $0205,y                 ; store to OAM tile
+        lda     password_cursor_oam_template_attr,y ; load sprite attr from template
+        sta     $0206,y                 ; store to OAM attr
+        lda     password_cursor_oam_template_x,y ; load sprite X from template
+        sta     $0207,y                 ; store to OAM X
+        dey                             ; Y -= 4 (prev OAM entry)
         dey
         dey
         dey
-        dey
-        bpl     code_A5A5
+        bpl     code_A5A5               ; loop for all 6 sprites
 ; --- main input loop ---
 code_A5C3:  lda     joy1_press          ; A pressed? → confirm
-        and     #BTN_A
-        bne     code_A603
+        and     #BTN_A                  ; test A button
+        bne     code_A603               ; branch if A pressed
         lda     joy1_press              ; left/right pressed?
-        and     #$03
-        beq     code_A5E2
+        and     #$03                    ; mask left + right bits
+        beq     code_A5E2               ; skip if neither pressed
         lda     $10                     ; handle left/right on bottom row
         cmp     #$26                    ; if on special option, stay
-        beq     code_A5F2
-        lda     #$24
-        cmp     $10
-        bne     code_A5DD
+        beq     code_A5F2               ; skip if on special option
+        lda     #$24                    ; A = END option index
+        cmp     $10                     ; already on END?
+        bne     code_A5DD               ; if not on END, move to END
         lda     #$25                    ; toggle END↔NEXT
-code_A5DD:  sta     $10
-        jmp     code_A5F2
+code_A5DD:  sta     $10                 ; store new cursor position
+        jmp     code_A5F2               ; skip to cursor update
 
 code_A5E2:  lda     joy1_press          ; up/down pressed?
-        and     #$0C
-        beq     code_A5F2
+        and     #$0C                    ; mask up + down bits
+        beq     code_A5F2               ; skip if neither pressed
         lda     #$26                    ; toggle between grid and bottom row
-        cmp     $10
-        bne     code_A5F0
-        lda     #$24
-code_A5F0:  sta     $10
+        cmp     $10                     ; on special option?
+        bne     code_A5F0               ; if not, set to special
+        lda     #$24                    ; switch back to END
+code_A5F0:  sta     $10                 ; store cursor position
 code_A5F2:  jsr     code_A681           ; update cursor sprite positions
-        lda     #$00
-        sta     nmi_skip
-        jsr     task_yield
-        inc     nmi_skip
-        inc     $95
-        jmp     code_A5C3
+        lda     #$00                    ; enable NMI processing
+        sta     nmi_skip                ; allow NMI to run
+        jsr     task_yield              ; wait for next frame
+        inc     nmi_skip                ; disable NMI processing
+        inc     $95                     ; advance animation timer
+        jmp     code_A5C3               ; loop back to input poll
 
 ; --- A pressed: confirm selection ---
-code_A603:  lda     $10
+code_A603:  lda     $10                 ; get cursor position
         cmp     #$26                    ; on special option?
-        bne     code_A60C
+        bne     code_A60C               ; branch if not special
         jmp     stage_select_progression ; decode password and start game
 
 code_A60C:  lda     $10                 ; $13 = color (0=red, 1=blue)
-        and     #$01
-        sta     $13
+        and     #$01                    ; bit 0 = dot color
+        sta     $13                     ; store dot color
         lda     #$00                    ; reset cursor to cell (0,0)
-        sta     $10
-        lda     #$00
-        sta     $11
+        sta     $10                     ; column = 0
+        lda     #$00                    ; A = 0
+        sta     $11                     ; row offset = 0
         beq     code_A66D               ; enter grid editing mode
 
 ; --- grid editing mode: navigate cells and toggle dots ---
-code_A61C:  lda     joy1_press
+code_A61C:  lda     joy1_press          ; read input
         and     #BTN_B                  ; B → back to bottom row
-        beq     code_A62D
-        lda     #$24
-        sta     $10
-        lda     #$00
-        sta     $11
+        beq     code_A62D               ; skip if B not pressed
+        lda     #$24                    ; cursor = END option
+        sta     $10                     ; store cursor position
+        lda     #$00                    ; A = 0
+        sta     $11                     ; clear row offset
         jmp     code_A5C3               ; return to main input loop
 
 code_A62D:  lda     joy1_press          ; A → toggle dot at cursor
-        and     #BTN_A
-        beq     code_A66D
-        lda     $10
-        clc
-        adc     $11
-        tay
-        asl     a
-        asl     a
-        tax
-        lda     $0150,y
-        bpl     code_A64D
-        lda     #$F8
-        sta     $021C,x
-        lda     #$00
-        sta     $0150,y
-        beq     code_A66D
-code_A64D:  lda     #$F0
-        ora     $13
-        sta     $0150,y
-        lda     password_grid_y_positions_table,y
-        sta     $021C,x
-        lda     #$E4
-        clc
-        adc     $13
-        sta     $021D,x
-        lda     #$00
-        sta     $021E,x
-        lda     password_grid_x_positions_table,y
-        sta     $021F,x
-code_A66D:  jsr     code_A6AF
-        jsr     code_A681
-        lda     #$00
-        sta     nmi_skip
-        jsr     task_yield
-        inc     nmi_skip
-        inc     $95
-        jmp     code_A61C
+        and     #BTN_A                  ; test A button
+        beq     code_A66D               ; skip if A not pressed
+        lda     $10                     ; get column
+        clc                             ; add row offset to column
+        adc     $11                     ; Y = cell index in grid
+        tay                             ; save cell index in Y
+        asl     a                       ; cell index * 4
+        asl     a                       ; for OAM offset
+        tax                             ; X = OAM offset for dot sprite
+        lda     $0150,y                 ; read cell state
+        bpl     code_A64D               ; branch if cell empty (place dot)
+        lda     #$F8                    ; Y = $F8 (offscreen)
+        sta     $021C,x                 ; hide dot sprite
+        lda     #$00                    ; A = 0 (empty)
+        sta     $0150,y                 ; clear cell
+        beq     code_A66D               ; done (always branches)
+code_A64D:  lda     #$F0                ; A = $F0 (dot present flag)
+        ora     $13                     ; OR in color bit
+        sta     $0150,y                 ; mark cell as filled + color
+        lda     password_grid_y_positions_table,y ; get dot Y position
+        sta     $021C,x                 ; set dot sprite Y
+        lda     #$E4                    ; base tile = $E4 (red dot)
+        clc                             ; add color offset
+        adc     $13                     ; $E5 if blue dot
+        sta     $021D,x                 ; set dot sprite tile
+        lda     #$00                    ; attribute = 0
+        sta     $021E,x                 ; set dot sprite attr
+        lda     password_grid_x_positions_table,y ; get dot X position
+        sta     $021F,x                 ; set dot sprite X
+code_A66D:  jsr     code_A6AF           ; handle d-pad navigation
+        jsr     code_A681               ; update cursor sprites
+        lda     #$00                    ; enable NMI processing
+        sta     nmi_skip                ; allow NMI to run
+        jsr     task_yield              ; wait for next frame
+        inc     nmi_skip                ; disable NMI processing
+        inc     $95                     ; advance animation timer
+        jmp     code_A61C               ; loop back to grid input
 
 ; --- update cursor sprite positions from grid position ---
 code_A681:  lda     $10                 ; compute cell index = col + row_offset
-        clc
-        adc     $11
-        tay
+        clc                             ; col + row_offset
+        adc     $11                     ; = cell index
+        tay                             ; Y = cell index
         lda     password_grid_x_positions_table,y ; look up X position
-        sta     $00
+        sta     $00                     ; store X position in $00
         lda     password_grid_y_positions_table,y ; look up Y position
-        sta     $01
+        sta     $01                     ; store Y position in $01
         ldx     #$0C                    ; 4 cursor corner sprites
-        ldy     #$03
-code_A695:  lda     $00
-        clc
-        adc     password_cursor_x_offsets_table,y
-        sta     $0207,x
-        lda     $01
-        clc
-        adc     password_cursor_y_offsets_table,y
-        sta     $0204,x
+        ldy     #$03                    ; Y = 3 (last corner index)
+code_A695:  lda     $00                 ; load base X position
+        clc                             ; add corner X offset
+        adc     password_cursor_x_offsets_table,y ; for this corner
+        sta     $0207,x                 ; set cursor sprite X
+        lda     $01                     ; load base Y position
+        clc                             ; add corner Y offset
+        adc     password_cursor_y_offsets_table,y ; for this corner
+        sta     $0204,x                 ; set cursor sprite Y
+        dex                             ; X -= 4 (prev OAM entry)
         dex
         dex
         dex
-        dex
-        dey
-        bpl     code_A695
-        rts
+        dey                             ; next corner
+        bpl     code_A695               ; loop for all 4 corners
+        rts                             ; return
 
 ; --- handle d-pad navigation in grid ---
 code_A6AF:  lda     joy1_press          ; left/right?
-        and     #$03
-        beq     code_A6CF
+        and     #$03                    ; mask left + right bits
+        beq     code_A6CF               ; skip if neither pressed
         and     #$01                    ; right pressed
-        beq     code_A6C7
+        beq     code_A6C7               ; branch if left pressed
         inc     $10                     ; column++
-        lda     $10
+        lda     $10                     ; check new column
         cmp     #$06                    ; wrap at 6
-        bne     code_A6CF
-        lda     #$00
-        sta     $10
-        beq     code_A6CF
+        bne     code_A6CF               ; skip if not past end
+        lda     #$00                    ; wrap to column 0
+        sta     $10                     ; store column
+        beq     code_A6CF               ; always branches
 code_A6C7:  dec     $10                 ; column-- (left)
-        bpl     code_A6CF
+        bpl     code_A6CF               ; skip if still >= 0
         lda     #$05                    ; wrap to rightmost
-        sta     $10
+        sta     $10                     ; store column
 code_A6CF:  lda     joy1_press          ; up/down?
-        and     #$0C
-        beq     code_A6F6
+        and     #$0C                    ; mask up + down bits
+        beq     code_A6F6               ; skip if neither pressed
         and     #$04                    ; down pressed
-        bne     code_A6E7
+        bne     code_A6E7               ; branch if down pressed
         lda     $11                     ; up: row_offset -= 6
-        sec
-        sbc     #$06
-        sta     $11
-        bcs     code_A6E6
+        sec                             ; subtract 6 from row offset
+        sbc     #$06                    ; one row up
+        sta     $11                     ; store row offset
+        bcs     code_A6E6               ; skip if no underflow
         lda     #$1E                    ; wrap to bottom row
-        sta     $11
-code_A6E6:  rts
+        sta     $11                     ; store row offset
+code_A6E6:  rts                         ; return
 
 code_A6E7:  lda     $11                 ; down: row_offset += 6
-        clc
-        adc     #$06
-        sta     $11
+        clc                             ; add 6 to row offset
+        adc     #$06                    ; one row down
+        sta     $11                     ; store row offset
         cmp     #$1F                    ; wrap to top row
-        bcc     code_A6F6
-        lda     #$00
-        sta     $11
-code_A6F6:  rts
+        bcc     code_A6F6               ; skip if within bounds
+        lda     #$00                    ; wrap to row 0
+        sta     $11                     ; store row offset
+code_A6F6:  rts                         ; return
 
 password_cursor_y_offsets_table:  .byte   $FC,$FC,$04,$04 ; cursor corner Y offsets (-4,-4,+4,+4)
 password_cursor_x_offsets_table:  .byte   $FC,$04,$FC,$04 ; cursor corner X offsets (-4,+4,-4,+4)
@@ -643,187 +643,187 @@ password_grid_y_positions_table:  .byte   $27,$27,$27,$27,$27,$27,$37,$37
 ; -----------------------------------------------
 stage_select_progression:  lda     #$00 ; reset tier and defeat
         sta     stage_select_page       ; bitmask to start fresh
-        sta     bosses_beaten
-        sta     nmi_skip
-        ldy     #$0C
-code_A76F:  ldx     progression_initial_scan_slots_table,y
-        lda     $0150,x
-        bne     code_A77C
-        dey
-        bpl     code_A76F
-        bmi     code_A7A6
-code_A77C:  lda     camera_x_hi
+        sta     bosses_beaten           ; clear bosses_beaten
+        sta     nmi_skip                ; allow NMI
+        ldy     #$0C                    ; scan 13 slots (Y=$0C..$00)
+code_A76F:  ldx     progression_initial_scan_slots_table,y ; get slot index from table
+        lda     $0150,x                 ; read completion flag
+        bne     code_A77C               ; nonzero = invalid password
+        dey                             ; try next slot
+        bpl     code_A76F               ; loop until all checked
+        bmi     code_A7A6               ; all zero = valid password
+code_A77C:  lda     camera_x_hi         ; get nametable page
+        asl     a                       ; shift bit 1 to bit 2
         asl     a
-        asl     a
-        and     #$04
-        sta     $10
-        ldx     #$0F
-        jsr     write_ppu_data_from_table
-        ldx     #$B4
-        jsr     task_yield_x
-        ldx     #$00
-        jsr     write_ppu_data_from_table
-        ldy     #$04
-        lda     #$F8
-code_A797:  sta     $0200,y
+        and     #$04                    ; isolate nametable bit
+        sta     $10                     ; store PPU base offset
+        ldx     #$0F                    ; PPU data table index $0F
+        jsr     write_ppu_data_from_table ; write error message tiles
+        ldx     #$B4                    ; delay $B4 frames
+        jsr     task_yield_x            ; wait for delay
+        ldx     #$00                    ; PPU data table index $00
+        jsr     write_ppu_data_from_table ; clear error message tiles
+        ldy     #$04                    ; start at OAM byte 4
+        lda     #$F8                    ; $F8 = hide sprite (off-screen Y)
+code_A797:  sta     $0200,y             ; hide OAM sprite Y
+        iny                             ; advance 4 bytes per sprite
         iny
         iny
         iny
-        iny
-        bne     code_A797
-        jsr     task_yield
-        jmp     code_A593
+        bne     code_A797               ; loop until all 63 sprites hidden
+        jsr     task_yield              ; wait one frame
+        jmp     code_A593               ; restart password entry screen
 
-code_A7A6:  ldy     #$00
-code_A7A8:  ldx     progression_robot_master_cells_table,y
-        lda     $0150,x
-        beq     code_A804
-        and     #$01
-        beq     code_A7C4
-        ldx     progression_doc_robot_cells_table,y
-        lda     $0150,x
-        bne     code_A77C
-        lda     progression_robot_master_defeat_bits_table,y
-        ora     progression_doc_robot_defeat_bits_table,y
-        bne     code_A7CF
-code_A7C4:  ldx     progression_doc_robot_cells_table,y
-        lda     $0150,x
-        bne     code_A77C
-        lda     progression_robot_master_defeat_bits_table,y
+code_A7A6:  ldy     #$00                ; start with boss pair 0
+code_A7A8:  ldx     progression_robot_master_cells_table,y ; get Robot Master cell index
+        lda     $0150,x                 ; read completion flag
+        beq     code_A804               ; zero = not beaten, check Doc
+        and     #$01                    ; test bit 0 (both beaten)
+        beq     code_A7C4               ; bit 0 clear = only Robot beaten
+        ldx     progression_doc_robot_cells_table,y ; get Doc Robot cell index
+        lda     $0150,x                 ; read Doc Robot flag
+        bne     code_A77C               ; nonzero = invalid combination
+        lda     progression_robot_master_defeat_bits_table,y ; get Robot Master defeat bit
+        ora     progression_doc_robot_defeat_bits_table,y ; combine with Doc Robot bit
+        bne     code_A7CF               ; always branches (nonzero)
+code_A7C4:  ldx     progression_doc_robot_cells_table,y ; get Doc Robot cell index
+        lda     $0150,x                 ; read Doc Robot flag
+        bne     code_A77C               ; nonzero = invalid combination
+        lda     progression_robot_master_defeat_bits_table,y ; get Robot Master defeat bit
 code_A7CF:  ora     bosses_beaten       ; accumulate defeated bit
         sta     bosses_beaten           ; into boss-defeated bitmask
-code_A7D3:  iny
-        cpy     #$04
-        bcc     code_A7A8
-        cpy     #$06
-        beq     check_doc_robot_complete
+code_A7D3:  iny                         ; next boss pair
+        cpy     #$04                    ; first 4 pairs done?
+        bcc     code_A7A8               ; no, process next pair
+        cpy     #$06                    ; all 6 pairs done?
+        beq     check_doc_robot_complete ; yes, check Doc Robot tier
         lda     stage_select_page       ; if already in Doc Robot tier,
         bne     code_A7A8               ; skip Robot Master check
         lda     bosses_beaten           ; all 8 Robot Masters beaten?
         cmp     #$FF                    ; ($FF = bits 0-7 all set)
-        bne     code_A7F0
+        bne     code_A7F0               ; not all beaten yet
         lda     #$09                    ; advance to Doc Robot tier
         sta     stage_select_page       ; $60 = $09 (stage select offset)
         lda     #$3A                    ; $61 = $3A (pre-set defeated bits
         sta     bosses_beaten           ; for stages without Doc Robots)
-        bne     code_A7A8
-code_A7F0:  lda     $0157
-        ora     $0150
-        ora     $015B
-        ora     $0153
-        ora     $0168
-        beq     code_A833
-        jmp     code_A77C
+        bne     code_A7A8               ; continue scanning pairs 4-5
+code_A7F0:  lda     $0157               ; check Needle cell
+        ora     $0150                   ; OR with Magnet cell
+        ora     $015B                   ; OR with Shadow cell
+        ora     $0153                   ; OR with Hard cell
+        ora     $0168                   ; OR with Break Man cell
+        beq     code_A833               ; all zero = no stages started
+        jmp     code_A77C               ; any nonzero = invalid password
 
 code_A804:  ldx     progression_doc_robot_cells_table,y ; check Doc Robot completion
         lda     $0150,x                 ; for this stage pair
-        beq     code_A7D3
+        beq     code_A7D3               ; zero = skip, advance to next
         lda     bosses_beaten           ; mark Doc Robot stage defeated
         ora     progression_doc_robot_defeat_bits_table,y ; using Doc Robot bitmask table
-        sta     bosses_beaten
-        jmp     code_A7D3
+        sta     bosses_beaten           ; store updated bitmask
+        jmp     code_A7D3               ; continue to next pair
 
 check_doc_robot_complete:  lda     bosses_beaten ; all 4 Doc Robot stages beaten?
         cmp     #$FF                    ; ($FF = all bits set)
-        bne     code_A82B
+        bne     code_A82B               ; not all beaten
         lda     #$12                    ; advance to Wily tier
         sta     stage_select_page       ; $60 = $12
         lda     $0168                   ; if Break Man defeated too,
         beq     code_A833               ; done
         lda     #$FF                    ; $60 = $FF marks all stages
         sta     stage_select_page       ; complete (Wily fortress)
-        bne     code_A833
-code_A82B:  lda     $0168
-        beq     code_A833
-        jmp     code_A77C
+        bne     code_A833               ; always branches
+code_A82B:  lda     $0168               ; check Break Man cell
+        beq     code_A833               ; zero = no Break Man, done
+        jmp     code_A77C               ; Break Man set = invalid
 
-code_A833:  ldy     #$09
-        lda     #$01
-        sta     $00
-code_A839:  ldx     progression_etank_cells_table,y
-        lda     $0150,x
-        beq     code_A843
-        dec     $00
-code_A843:  dey
-        bpl     code_A839
-        lda     $00
-        beq     code_A84D
-        jmp     code_A77C
+code_A833:  ldy     #$09                ; scan 10 E-tank cells
+        lda     #$01                    ; init counter to 1
+        sta     $00                     ; store in temp
+code_A839:  ldx     progression_etank_cells_table,y ; get E-tank cell index
+        lda     $0150,x                 ; read E-tank cell flag
+        beq     code_A843               ; zero = no E-tank here
+        dec     $00                     ; decrement counter on match
+code_A843:  dey                         ; next E-tank slot
+        bpl     code_A839               ; loop all 10 slots
+        lda     $00                     ; check if exactly 1 found
+        beq     code_A84D               ; zero = valid (only 1 set)
+        jmp     code_A77C               ; more than 1 = invalid
 
-code_A84D:  ldy     #$09
-code_A84F:  ldx     progression_etank_cells_table,y
-        lda     $0150,x
-        bne     code_A85D
-        dey
-        bpl     code_A84F
-        jmp     code_A77C
+code_A84D:  ldy     #$09                ; scan E-tank cells again
+code_A84F:  ldx     progression_etank_cells_table,y ; get E-tank cell index
+        lda     $0150,x                 ; read E-tank cell flag
+        bne     code_A85D               ; nonzero = found the set cell
+        dey                             ; try previous slot
+        bpl     code_A84F               ; loop until found
+        jmp     code_A77C               ; none found = invalid
 
-code_A85D:  jsr     code_A88E
-        lda     progression_etank_count_table,y
-        sta     etanks
-        ldy     #$04
-        lda     #$F8
-code_A869:  sta     $0200,y
+code_A85D:  jsr     code_A88E           ; restore weapon energy
+        lda     progression_etank_count_table,y ; look up E-tank count
+        sta     etanks                  ; set E-tank inventory
+        ldy     #$04                    ; start at OAM byte 4
+        lda     #$F8                    ; $F8 = off-screen Y
+code_A869:  sta     $0200,y             ; hide OAM sprite Y
+        dey                             ; previous sprite (4 bytes)
         dey
         dey
         dey
-        dey
-        bne     code_A869
-        lda     stage_select_page
-        bmi     code_A879
-        jmp     stage_select_proto_man_oam
+        bne     code_A869               ; loop until sprite 0
+        lda     stage_select_page       ; check current tier
+        bmi     code_A879               ; bit 7 set = all complete
+        jmp     stage_select_proto_man_oam ; go to stage select screen
 
-code_A879:  pla
-        pla
-        lda     #$80
-        sta     $74
-        lda     #$00
+code_A879:  pla                         ; discard return address
+        pla                             ; (exit calling routine)
+        lda     #$80                    ; set bit 7
+        sta     $74                     ; store to $74 flag
+        lda     #$00                    ; clear $75
         sta     $75
-        ldy     #$1F
-code_A885:  sta     $0150,y
-        dey
-        bpl     code_A885
-        jmp     LCBCE
+        ldy     #$1F                    ; clear 32 bytes
+code_A885:  sta     $0150,y             ; zero out $0150+Y
+        dey                             ; next byte
+        bpl     code_A885               ; loop $1F down to $00
+        jmp     LCBCE                   ; jump to Wily fortress entry
 
 ; --- restore weapon energy from password data ---
 ; Reads completion flags from $0150 and restores weapon HP ($A2-$AD)
 ; for all weapons the player has obtained.
-code_A88E:  sty     $00
-        ldy     #$00
+code_A88E:  sty     $00                 ; save current Y index
+        ldy     #$00                    ; start at boss pair 0
 code_A892:  ldx     progression_robot_master_cells_table,y ; Robot Master slot
-        lda     $0150,x                 ; reset tier and defeat
+        lda     $0150,x                 ; read completion flag
         beq     code_A8A9               ; not beaten → check Doc Robot
-        pha
-        ldx     progression_weapon_energy_robot_master_table,y
-        lda     #$9C
-        sta     player_hp,x
-        pla
-        and     #$01
-        beq     code_A8B8
-        bne     code_A8B1
-code_A8A9:  ldx     progression_doc_robot_cells_table,y
-        lda     $0150,x
-        beq     code_A8B8
-code_A8B1:  ldx     progression_weapon_energy_doc_robot_table,y
-        lda     #$9C
-        sta     player_hp,x
-code_A8B8:  iny
-        cpy     #$04
-        bne     code_A892
-        lda     #$9C
-        sta     $A9
-        ldy     $0164
-        beq     code_A8C8
-        sta     $AD
-code_A8C8:  ldy     $0167
-        bne     code_A8D4
-        ldy     $0171
-        cpy     #$F1
-        bne     code_A8D6
-code_A8D4:  sta     $AB
-code_A8D6:  lda     #$02
-        sta     lives
-        ldy     $00
+        pha                             ; save completion flag
+        ldx     progression_weapon_energy_robot_master_table,y ; get weapon energy offset
+        lda     #$9C                    ; $9C = full weapon energy
+        sta     player_hp,x             ; fill Robot Master weapon
+        pla                             ; restore completion flag
+        and     #$01                    ; bit 0 = Doc Robot also beaten
+        beq     code_A8B8               ; no Doc Robot, skip
+        bne     code_A8B1               ; always branches to Doc fill
+code_A8A9:  ldx     progression_doc_robot_cells_table,y ; get Doc Robot cell index
+        lda     $0150,x                 ; read Doc Robot flag
+        beq     code_A8B8               ; not beaten, skip weapon fill
+code_A8B1:  ldx     progression_weapon_energy_doc_robot_table,y ; get Doc weapon energy offset
+        lda     #$9C                    ; $9C = full weapon energy
+        sta     player_hp,x             ; fill Doc Robot weapon
+code_A8B8:  iny                         ; next boss pair
+        cpy     #$04                    ; done with 4 pairs?
+        bne     code_A892               ; no, continue loop
+        lda     #$9C                    ; $9C = full energy
+        sta     $A9                     ; fill Rush Marine ammo ($A9)
+        ldy     $0164                   ; check Rush Jet cell
+        beq     code_A8C8               ; zero = not obtained
+        sta     $AD                     ; fill Rush Jet ammo ($AD)
+code_A8C8:  ldy     $0167               ; check Rush Coil cell
+        bne     code_A8D4               ; nonzero = have Rush Coil
+        ldy     $0171                   ; check alternate Rush cell
+        cpy     #$F1                    ; special value $F1
+        bne     code_A8D6               ; not $F1 = no Rush Coil
+code_A8D4:  sta     $AB                 ; fill Shadow Blade ammo ($AB)
+code_A8D6:  lda     #$02                ; start with 2 lives
+        sta     lives                   ; set lives count
+        ldy     $00                     ; restore original Y
         rts
 
 ; =============================================================================
@@ -834,108 +834,108 @@ code_A8D6:  lda     #$02
 ; determine which cells get red/blue dots for each boss pair.
 ; =============================================================================
 
-        lda     bosses_beaten
-        sta     $10
-        lda     stage_select_page
-        beq     code_A8E9
+        lda     bosses_beaten           ; copy bosses beaten to temp
+        sta     $10                     ; store in $10 work copy
+        lda     stage_select_page       ; check current tier
+        beq     code_A8E9               ; zero = Robot Master tier
         lda     #$FF                    ; if in Doc Robot or Wily tier, show all
-        sta     $10
-code_A8E9:  ldy     #$00
-code_A8EB:  lda     #$00
-        sta     $13
-        lda     $10
-        and     #$03
-        beq     code_A90B
-        cmp     #$03
-        beq     code_A906
-        and     #$01
-        bne     code_A908
-        lda     progression_doc_robot_cells_table,y
-        jsr     code_A988
-        jmp     code_A90B
+        sta     $10                     ; treat all RM as beaten
+code_A8E9:  ldy     #$00                ; start at boss pair 0
+code_A8EB:  lda     #$00                ; clear dot color flag
+        sta     $13                     ; $13=0 means red dot
+        lda     $10                     ; get current boss pair bits
+        and     #$03                    ; isolate low 2 bits
+        beq     code_A90B               ; 00 = neither beaten, skip
+        cmp     #$03                    ; both bits set?
+        beq     code_A906               ; 11 = both beaten
+        and     #$01                    ; test Robot Master bit
+        bne     code_A908               ; bit 0 = RM beaten only
+        lda     progression_doc_robot_cells_table,y ; get Doc Robot cell index
+        jsr     code_A988               ; place Doc Robot dot on grid
+        jmp     code_A90B               ; skip Robot Master dot
 
-code_A906:  inc     $13
-code_A908:  jsr     code_A985
-code_A90B:  lsr     $10
+code_A906:  inc     $13                 ; $13=1 means blue dot
+code_A908:  jsr     code_A985           ; place Robot Master dot
+code_A90B:  lsr     $10                 ; shift to next pair bits
         lsr     $10
-        iny
-        cpy     #$04
-        bne     code_A8EB
-        lda     bosses_beaten
-        sta     $10
-        lda     stage_select_page
-        beq     code_A975
-        cmp     #$12
-        bcc     code_A924
-        lda     #$FF
-        sta     $10
-code_A924:  lda     #$00
-        sta     $13
-        ldy     #$04
-        lda     $10
-        and     #$05
-        beq     code_A946
-        cmp     #$05
-        beq     code_A941
-        and     #$01
-        bne     code_A943
-        lda     progression_doc_robot_cells_table,y
-        jsr     code_A988
-        jmp     code_A946
+        iny                             ; next boss pair
+        cpy     #$04                    ; done with first 4 pairs?
+        bne     code_A8EB               ; no, loop
+        lda     bosses_beaten           ; reload bosses beaten
+        sta     $10                     ; store work copy
+        lda     stage_select_page       ; check current tier
+        beq     code_A975               ; zero = RM tier, skip Doc dots
+        cmp     #$12                    ; Wily tier ($12+)?
+        bcc     code_A924               ; below Wily, keep bitmask
+        lda     #$FF                    ; Wily tier = all beaten
+        sta     $10                     ; set all bits in work copy
+code_A924:  lda     #$00                ; clear dot color flag
+        sta     $13                     ; red dot default
+        ldy     #$04                    ; boss pair index 4
+        lda     $10                     ; get boss pair bits
+        and     #$05                    ; isolate bits 0 and 2
+        beq     code_A946               ; 00 = neither beaten, skip
+        cmp     #$05                    ; both bits set?
+        beq     code_A941               ; yes = both beaten
+        and     #$01                    ; test Robot Master bit
+        bne     code_A943               ; bit 0 = RM beaten only
+        lda     progression_doc_robot_cells_table,y ; get Doc Robot cell index
+        jsr     code_A988               ; place Doc Robot dot
+        jmp     code_A946               ; skip Robot Master dot
 
-code_A941:  inc     $13
-code_A943:  jsr     code_A985
-code_A946:  lda     #$00
-        sta     $13
-        ldy     #$05
-        lda     $10
-        and     #$C0
-        beq     code_A968
-        cmp     #$C0
-        beq     code_A963
-        and     #$40
-        bne     code_A965
-        lda     progression_doc_robot_cells_table,y
-        jsr     code_A988
-        jmp     code_A968
+code_A941:  inc     $13                 ; $13=1 means blue dot
+code_A943:  jsr     code_A985           ; place Robot Master dot
+code_A946:  lda     #$00                ; clear dot color flag
+        sta     $13                     ; red dot default
+        ldy     #$05                    ; boss pair index 5
+        lda     $10                     ; get boss pair bits
+        and     #$C0                    ; isolate bits 6-7
+        beq     code_A968               ; 00 = neither beaten, skip
+        cmp     #$C0                    ; both bits set?
+        beq     code_A963               ; yes = both beaten
+        and     #$40                    ; test bit 6 (Doc Robot)
+        bne     code_A965               ; bit 6 = Doc Robot only
+        lda     progression_doc_robot_cells_table,y ; get Doc Robot cell index
+        jsr     code_A988               ; place Doc Robot dot
+        jmp     code_A968               ; skip Robot Master dot
 
-code_A963:  inc     $13
-code_A965:  jsr     code_A985
-code_A968:  lda     stage_select_page
-        bpl     code_A975
-        lda     #$00
-        sta     $13
-        ldy     #$0C
-        jsr     code_A985
-code_A975:  lda     #$00
-        sta     $13
-        lda     etanks
-        cmp     #$09
-        bcc     code_A981
-        lda     #$09
-code_A981:  clc
-        adc     #$0D
-        tay
-code_A985:  lda     progression_robot_master_cells_table,y
-code_A988:  sty     $00
-        tay
+code_A963:  inc     $13                 ; $13=1 means blue dot
+code_A965:  jsr     code_A985           ; place Robot Master dot
+code_A968:  lda     stage_select_page   ; check current tier
+        bpl     code_A975               ; bit 7 clear = not all done
+        lda     #$00                    ; clear dot color flag
+        sta     $13                     ; red dot
+        ldy     #$0C                    ; Break Man cell index
+        jsr     code_A985               ; place Break Man dot
+code_A975:  lda     #$00                ; clear dot color flag
+        sta     $13                     ; red dot
+        lda     etanks                  ; get E-tank count
+        cmp     #$09                    ; cap at 9
+        bcc     code_A981               ; under 9, use as-is
+        lda     #$09                    ; clamp to max 9
+code_A981:  clc                         ; add $0D base offset
+        adc     #$0D                    ; = cell table index for E-tanks
+        tay                             ; transfer to Y index
+code_A985:  lda     progression_robot_master_cells_table,y ; get cell index from table
+code_A988:  sty     $00                 ; save Y, use cell as new Y
+        tay                             ; cell index to Y
+        asl     a                       ; multiply by 4 for OAM offset
         asl     a
-        asl     a
-        tax
-        lda     #$F0
-        ora     $13
-        sta     $0150,y
-        lda     password_grid_y_positions_table,y
-        sta     $021C,x
-        lda     #$E4
-        clc
-        adc     $13
-        sta     $021D,x
-        lda     #$00
-        sta     $021E,x
-        lda     password_grid_x_positions_table,y
-        sta     $021F,x
-        ldy     $00
+        tax                             ; OAM offset to X
+        lda     #$F0                    ; $F0 = base cell marker
+        ora     $13                     ; OR with dot color ($00/$01)
+        sta     $0150,y                 ; store in password cell
+        lda     password_grid_y_positions_table,y ; get grid Y position
+        sta     $021C,x                 ; set OAM sprite Y
+        lda     #$E4                    ; $E4 = red dot tile
+        clc                             ; add $13 for blue dot ($E5)
+        adc     $13                     ; = dot tile number
+        sta     $021D,x                 ; set OAM sprite tile
+        lda     #$00                    ; no flip/priority
+        sta     $021E,x                 ; set OAM sprite attribute
+        lda     password_grid_x_positions_table,y ; get grid X position
+        sta     $021F,x                 ; set OAM sprite X
+        ldy     $00                     ; restore saved Y index
         rts
 
 ; ===========================================================================
