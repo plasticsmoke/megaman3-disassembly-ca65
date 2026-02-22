@@ -31,6 +31,7 @@
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 ; --- Fixed bank subroutine imports ---
 prepare_oam_buffer           := $C5E9   ; prepare_oam_buffer

@@ -26,6 +26,7 @@ main_doc_bubble_j:
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 L0000           := $0000
 L8003           := $8003

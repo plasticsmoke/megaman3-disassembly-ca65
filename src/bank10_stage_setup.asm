@@ -57,6 +57,7 @@
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 ensure_stage_bank           := $C8A0    ; ensure_stage_bank
 submit_sound_ID           := $F89A      ; submit_sound_ID

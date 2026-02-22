@@ -63,6 +63,7 @@
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 task_yield           := $FF21
 

@@ -290,6 +290,7 @@
 
 .include "include/zeropage.inc"
 .include "include/constants.inc"
+.include "include/hardware.inc"
 
 
 .segment "FIXED"
@@ -321,12 +322,12 @@ nmi_preserve_regs:  pha                 ; push A (this addr = $C001 = MMC3 IRQ r
         pha
 
 ; --- NMI: disable rendering for safe PPU access during VBlank ---
-        lda     $2002                   ; reset PPU address latch
+        lda     PPUSTATUS               ; reset PPU address latch
         lda     ppu_ctrl_shadow         ; PPUCTRL: clear NMI enable (bit 7)
         and     #$7F                    ; to prevent re-entrant NMI
-        sta     $2000                   ; write PPUCTRL with NMI disabled
+        sta     PPUCTRL                 ; write PPUCTRL with NMI disabled
         lda     #$00                    ; PPUMASK = 0: rendering off
-        sta     $2001                   ; (safe to write PPU during VBlank)
+        sta     PPUMASK                 ; (safe to write PPU during VBlank)
 
 ; --- check if PPU updates are suppressed ---
         lda     nmi_skip                ; $EE = rendering disabled flag
@@ -347,9 +348,9 @@ nmi_preserve_regs:  pha                 ; push A (this addr = $C001 = MMC3 IRQ r
 
 ; --- OAM DMA: transfer sprite data from $0200-$02FF to PPU ---
 nmi_oam_dma_setup:  lda     #$00        ; OAMADDR = $00 (start of OAM)
-        sta     $2003                   ; write OAMADDR = 0
+        sta     OAMADDR                 ; write OAMADDR = 0
         lda     #$02                    ; OAMDMA: copy page $02 ($0200-$02FF)
-        sta     $4014                   ; to PPU OAM (256 bytes, 64 sprites)
+        sta     OAMDMA                  ; to PPU OAM (256 bytes, 64 sprites)
 
 ; --- drain primary PPU buffer ($19 flag) ---
         lda     nametable_dirty         ; $19 = PPU buffer pending flag
@@ -362,61 +363,61 @@ nmi_drain_secondary_buffer:  lda     nt_column_dirty ; $1A = secondary buffer fl
         lda     ppu_ctrl_shadow         ; PPUCTRL: set bit 2 (VRAM addr +32 per write)
         and     #$7F                    ; for vertical column writes to nametable
         ora     #$04
-        sta     $2000                   ; write PPUCTRL with +32 VRAM increment
+        sta     PPUCTRL                 ; write PPUCTRL with +32 VRAM increment
         ldx     #$00                    ; clear $1A flag
         stx     nt_column_dirty
         jsr     drain_ppu_buffer_continue ; write column data to PPU
         lda     ppu_ctrl_shadow         ; PPUCTRL: restore normal increment (+1)
         and     #$7F
-        sta     $2000                   ; write PPUCTRL with +1 VRAM increment
+        sta     PPUCTRL                 ; write PPUCTRL with +1 VRAM increment
 
 ; --- write palette data ($18 flag) ---
 nmi_palette_update:  lda     palette_dirty ; $18 = palette update flag
         beq     nmi_scroll_setup        ; no update → skip to scroll
         ldx     #$00                    ; clear $18 flag
         stx     palette_dirty
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     #$3F                    ; PPU addr = $3F00 (palette RAM start)
-        sta     $2006
-        stx     $2006
+        sta     PPUADDR
+        stx     PPUADDR
         ldy     #$20                    ; 32 bytes = all 8 palettes (4 BG + 4 sprite)
 nmi_palette_copy_loop:  lda     $0600,x ; copy palette from $0600-$061F to PPU
-        sta     $2007
+        sta     PPUDATA
         inx
         dey
         bne     nmi_palette_copy_loop
         lda     #$3F                    ; reset PPU address to $3F00 then $0000
-        sta     $2006                   ; (two dummy writes to clear PPU latch
-        sty     $2006                   ; and prevent palette corruption during
-        sty     $2006                   ; scroll register writes below)
-        sty     $2006
+        sta     PPUADDR                 ; (two dummy writes to clear PPU latch
+        sty     PPUADDR                 ; and prevent palette corruption during
+        sty     PPUADDR                 ; scroll register writes below)
+        sty     PPUADDR
 
 ; --- set scroll position for this frame ---
 nmi_scroll_setup:  lda     screen_mode  ; game mode $02 = stage select screen
         cmp     #$02                    ; (uses horizontal-only scroll from $5F)
         bne     nmi_scroll_mode_check   ; not stage select → use gameplay scroll
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     $5F                     ; PPUSCROLL X = $5F (stage select scroll)
-        sta     $2005
+        sta     PPUSCROLL
         lda     #$00                    ; PPUSCROLL Y = 0
-        sta     $2005
+        sta     PPUSCROLL
         beq     nmi_restore_rendering   ; → restore rendering
-nmi_scroll_mode_check:  lda     $2002   ; reset PPU latch
+nmi_scroll_mode_check:  lda     PPUSTATUS ; reset PPU latch
         lda     scroll_x_fine           ; PPUSCROLL X = $79 (gameplay scroll X)
-        sta     $2005
+        sta     PPUSCROLL
         lda     scroll_y                ; PPUSCROLL Y = $FA (vertical scroll offset)
-        sta     $2005
+        sta     PPUSCROLL
 
 ; --- restore rendering and CHR banks ---
 nmi_restore_rendering:  lda     ppu_mask_shadow ; PPUMASK = $FE (re-enable rendering)
-        sta     $2001
+        sta     PPUMASK
         lda     nt_select               ; PPUCTRL = $FF | ($7A & $03)
         and     #$03                    ; bits 0-1 from $7A = nametable select
         ora     ppu_ctrl_shadow         ; rest from $FF (NMI enable, sprite table, etc.)
-        sta     $2000
+        sta     PPUCTRL
         jsr     select_CHR_banks        ; set MMC3 CHR bank registers
         lda     mmc3_shadow             ; $8000 = MMC3 bank select register
-        sta     L8000                   ; (restore R6/R7 select state from $F0)
+        sta     MMC3_BANK_SELECT        ; (restore R6/R7 select state from $F0)
 
 ; --- NMI: set up MMC3 scanline IRQ for this frame ---
 ; $7B = scanline count for first IRQ. $9B = enable flag (0=off, 1=on).
@@ -544,32 +545,32 @@ IRQ:  php                               ; push processor status (IRQ entry)
 irq_gameplay_status_bar:  lda     screen_mode ; check game mode
         cmp     #$0B                    ; mode $0B (title)?
         beq     irq_gameplay_status_bar_branch ; → simplified scroll
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     $52                     ; $2006 = $52:$C0
-        sta     $2006                   ; (sets coarse Y, nametable, coarse X=0)
+        sta     PPUADDR                 ; (sets coarse Y, nametable, coarse X=0)
         lda     #$C0
-        sta     $2006
+        sta     PPUADDR
         lda     $52                     ; PPUCTRL: nametable from ($52 >> 2) & 3
         lsr     a                       ; merged with base $98 (NMI on, BG $1000)
         lsr     a
         and     #$03                    ; isolate nametable bits
         ora     #$98                    ; merge with NMI-on + BG pattern $1000
-        sta     $2000                   ; write PPUCTRL
+        sta     PPUCTRL                 ; write PPUCTRL
         lda     #$00                    ; fine X = 0, fine Y = 0
-        sta     $2005
-        sta     $2005
+        sta     PPUSCROLL
+        sta     PPUSCROLL
         jmp     irq_exit
 
-irq_gameplay_status_bar_branch:  lda     $2002 ; reset PPU latch
+irq_gameplay_status_bar_branch:  lda     PPUSTATUS ; reset PPU latch
         lda     #$20                    ; $2006 = $20:$00
-        sta     $2006                   ; (nametable 0, origin)
+        sta     PPUADDR                 ; (nametable 0, origin)
         lda     #$00
-        sta     $2006
+        sta     PPUADDR
         lda     #$98                    ; PPUCTRL = $98 (NT 0, NMI, BG $1000)
-        sta     $2000
+        sta     PPUCTRL
         lda     #$00                    ; X = 0, Y = 0
-        sta     $2005
-        sta     $2005
+        sta     PPUSCROLL
+        sta     PPUSCROLL
         jmp     irq_exit
 
 ; ===========================================================================
@@ -581,11 +582,11 @@ irq_gameplay_status_bar_branch:  lda     $2002 ; reset PPU latch
 ; ---------------------------------------------------------------------------
 irq_gameplay_hscroll:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     scroll_x_fine           ; X scroll = $79
-        sta     $2005
+        sta     PPUSCROLL
         lda     #$00                    ; Y scroll = 0
-        sta     $2005
+        sta     PPUSCROLL
         lda     scroll_lock             ; secondary split enabled?
         beq     irq_jmp_exit_disable    ; no → last split
         lda     $51                     ; counter = $51 - $9F
@@ -610,17 +611,17 @@ irq_jmp_exit_disable:  jmp     irq_exit_disable ; tail call to irq_exit_disable
 ; ---------------------------------------------------------------------------
 irq_gameplay_ntswap:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     #$28                    ; $2006 = $28:$00
-        sta     $2006                   ; (nametable 2 origin)
+        sta     PPUADDR                 ; (nametable 2 origin)
         lda     #$00
-        sta     $2006
+        sta     PPUADDR
         lda     ppu_ctrl_shadow         ; PPUCTRL: set nametable bit 1
         ora     #$02                    ; → nametable 2
-        sta     $2000
+        sta     PPUCTRL
         lda     #$00                    ; X = 0, Y = 0
-        sta     $2005
-        sta     $2005
+        sta     PPUSCROLL
+        sta     PPUSCROLL
         lda     #$B0                    ; counter = $B0 - $7B
         sec                             ; (scanlines to next split)
         sbc     irq_scanline
@@ -647,17 +648,17 @@ irq_gameplay_ntswap_chain:  lda     irq_vector_lo_gameplay_status,x ; chain to h
 ; ---------------------------------------------------------------------------
 irq_gameplay_vscroll:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     #$22                    ; $2006 = $22:$C0
-        sta     $2006                   ; (nametable 0, coarse Y ≈ 22)
+        sta     PPUADDR                 ; (nametable 0, coarse Y ≈ 22)
         lda     #$C0
-        sta     $2006
+        sta     PPUADDR
         lda     ppu_ctrl_shadow         ; PPUCTRL from base value
-        sta     $2000
+        sta     PPUCTRL
         lda     #$00                    ; X scroll = 0
-        sta     $2005
+        sta     PPUSCROLL
         lda     #$B0                    ; Y scroll = $B0 (176)
-        sta     $2005
+        sta     PPUSCROLL
         lda     scroll_lock             ; secondary split?
         beq     irq_jmp_exit_disable    ; no → exit disabled
         lda     $51                     ; counter = $51 - $B0
@@ -679,23 +680,23 @@ irq_gameplay_vscroll:
 ; ---------------------------------------------------------------------------
 irq_stagesel_first:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     #$20                    ; $2006 = $20:coarseX
-        sta     $2006                   ; (nametable 0, coarse Y=0)
+        sta     PPUADDR                 ; (nametable 0, coarse Y=0)
         lda     scroll_x_fine           ; load X scroll position
         lsr     a                       ; coarse X = $79 >> 3
         lsr     a
         lsr     a
         and     #$1F                    ; mask to 0-31
         ora     #$00                    ; coarse Y=0 (top)
-        sta     $2006                   ; write PPU address low byte
+        sta     PPUADDR                 ; write PPU address low byte
         lda     ppu_ctrl_shadow         ; PPUCTRL: nametable 0
         and     #$FC                    ; clear nametable bits
-        sta     $2000                   ; write PPUCTRL
+        sta     PPUCTRL                 ; write PPUCTRL
         lda     scroll_x_fine           ; fine X scroll = $79
-        sta     $2005
+        sta     PPUSCROLL
         lda     #$00                    ; Y scroll = 0
-        sta     $2005
+        sta     PPUSCROLL
         lda     #$C0                    ; counter = $C0 - $7B
         sec                             ; (scanlines to bottom split)
         sbc     irq_scanline
@@ -714,23 +715,23 @@ irq_stagesel_first:
 ; ---------------------------------------------------------------------------
 irq_stagesel_second:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     #$23                    ; $2006 = $23:coarseX
-        sta     $2006                   ; (nametable 0, high coarse Y)
+        sta     PPUADDR                 ; (nametable 0, high coarse Y)
         lda     scroll_x_fine           ; load X scroll position
         lsr     a                       ; coarse X = $79 >> 3
         lsr     a
         lsr     a
         and     #$1F                    ; mask to 0-31 tile columns
         ora     #$00                    ; coarse Y = 0 (no-op)
-        sta     $2006                   ; write PPU address low byte
+        sta     PPUADDR                 ; write PPU address low byte
         lda     ppu_ctrl_shadow         ; PPUCTRL: nametable 0
         and     #$FC                    ; (select nametable 0)
-        sta     $2000                   ; write PPUCTRL
+        sta     PPUCTRL                 ; write PPUCTRL
         lda     scroll_x_fine           ; fine X scroll = $79
-        sta     $2005
+        sta     PPUSCROLL
         lda     #$C0                    ; Y scroll = $C0 (192)
-        sta     $2005
+        sta     PPUSCROLL
         jmp     irq_exit_disable        ; last split
 
 ; ===========================================================================
@@ -749,7 +750,7 @@ irq_stagesel_second:
 ; ---------------------------------------------------------------------------
 irq_transition_first_split:
 
-        lda     $2002                   ; reset PPU address latch
+        lda     PPUSTATUS               ; reset PPU address latch
         lda     scroll_x_fine           ; negate $79/$7A (two's complement)
         eor     #$FF                    ; inverted_X = -$79
         clc
@@ -763,11 +764,11 @@ irq_transition_first_split:
         lda     ppu_ctrl_shadow         ; PPUCTRL: clear NT bits, set inverted NT
         and     #$FC                    ; clear nametable bits from base
         ora     $9D                     ; merge inverted nametable select
-        sta     $2000                   ; → middle strip uses opposite nametable
+        sta     PPUCTRL                 ; → middle strip uses opposite nametable
         lda     L009C                   ; set X scroll = negated value
-        sta     $2005                   ; (cancels horizontal movement)
+        sta     PPUSCROLL               ; (cancels horizontal movement)
         lda     #$58                    ; set Y scroll = $58 (88)
-        sta     $2005                   ; (top of middle band)
+        sta     PPUSCROLL               ; (top of middle band)
         lda     #$40                    ; set next IRQ at 64 scanlines later
         sta     NMI                     ; (scanline 88+64 = 152)
         lda     irq_vector_lo_transition_second ; chain to second split handler
@@ -789,28 +790,28 @@ irq_transition_first_split:
 ; ---------------------------------------------------------------------------
 irq_transition_second_split:
 
-        lda     $2002                   ; reset PPU address latch
+        lda     PPUSTATUS               ; reset PPU address latch
         lda     nt_select               ; compute PPU $2006 high byte:
         and     #$01                    ; nametable bit → bits 2-3
         asl     a                       ; ($7A & 1) << 2 | $22
         asl     a                       ; → $22 (NT 0) or $26 (NT 1)
         ora     #$22
-        sta     $2006                   ; write PPU address high byte
+        sta     PPUADDR                 ; write PPU address high byte
         lda     scroll_x_fine           ; compute PPU $2006 low byte:
         lsr     a                       ; ($79 >> 3) = coarse X scroll
         lsr     a                       ; $60 = coarse Y=12 (scanline 96)
         lsr     a
         and     #$1F
         ora     #$60
-        sta     $2006                   ; write PPU address low byte
+        sta     PPUADDR                 ; write PPU address low byte
         lda     nt_select               ; PPUCTRL: set nametable bits from $7A
         and     #$03                    ; isolate nametable bits from $7A
         ora     ppu_ctrl_shadow         ; merge with base PPUCTRL shadow
-        sta     $2000                   ; write PPUCTRL
+        sta     PPUCTRL                 ; write PPUCTRL
         lda     scroll_x_fine           ; fine X scroll = $79 (low 3 bits used)
-        sta     $2005                   ; write PPUSCROLL X
+        sta     PPUSCROLL               ; write PPUSCROLL X
         lda     #$98                    ; Y scroll = $98 (152) — bottom strip
-        sta     $2005                   ; write PPUSCROLL Y = 152
+        sta     PPUSCROLL               ; write PPUSCROLL Y = 152
         jmp     irq_exit_disable        ; last split — disable IRQ
 
 ; ===========================================================================
@@ -825,15 +826,15 @@ irq_transition_second_split:
 ; ---------------------------------------------------------------------------
 irq_wave_set_strip:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         ldy     $73                     ; Y = strip index (0-2)
         lda     $69                     ; X scroll = $69 EOR mask + offset
         eor     wave_eor_masks,y        ; masks: $FF/$00/$FF (negate strips 0,2)
         clc                             ; offsets: $01/$00/$01
         adc     wave_adc_offsets,y      ; → alternating wave scroll
-        sta     $2005
+        sta     PPUSCROLL
         lda     wave_y_scroll_set,y     ; Y scroll from table: $30/$60/$90
-        sta     $2005
+        sta     PPUSCROLL
         lda     #$0E                    ; next IRQ in 14 scanlines
         sta     NMI                     ; set MMC3 IRQ counter (14 scanlines)
         lda     irq_vector_lo_wave_advance ; chain to irq_wave_advance ($C32B)
@@ -851,12 +852,12 @@ irq_wave_set_strip:
 ; ---------------------------------------------------------------------------
 irq_wave_advance:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         ldy     $73                     ; Y = strip index
         lda     #$00                    ; X scroll = 0 (reset between strips)
-        sta     $2005
+        sta     PPUSCROLL
         lda     wave_y_scroll_advance,y ; Y scroll from table: $40/$70/$A0
-        sta     $2005
+        sta     PPUSCROLL
         inc     $73                     ; advance to next strip
         lda     $73
         cmp     #$03                    ; all 3 strips done?
@@ -894,17 +895,17 @@ irq_wave_last_split:  jmp     irq_exit_disable ; tail call to irq_exit_disable
 ; ---------------------------------------------------------------------------
 irq_title_first:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     #$21                    ; $2006 = $21:$40
-        sta     $2006                   ; (nametable 0, tile row 10)
+        sta     PPUADDR                 ; (nametable 0, tile row 10)
         lda     #$40
-        sta     $2006
+        sta     PPUADDR
         lda     ppu_ctrl_shadow         ; PPUCTRL: nametable 0
         and     #$FC                    ; (select nametable 0)
-        sta     $2000                   ; write PPUCTRL
+        sta     PPUCTRL                 ; write PPUCTRL
         lda     #$00                    ; X = 0, Y = 0
-        sta     $2005
-        sta     $2005
+        sta     PPUSCROLL
+        sta     PPUSCROLL
         lda     #$4C                    ; next IRQ in 76 scanlines
         sta     NMI                     ; set MMC3 IRQ counter (76 scanlines)
         lda     irq_vector_lo_title_cutscene ; chain to irq_title_second ($C3A3)
@@ -921,11 +922,11 @@ irq_title_first:
 ; ---------------------------------------------------------------------------
 irq_title_second:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     $6A                     ; X scroll = $6A
-        sta     $2005
+        sta     PPUSCROLL
         lda     #$00                    ; Y scroll = 0
-        sta     $2005
+        sta     PPUSCROLL
         lda     scroll_lock             ; secondary split?
         beq     irq_title_second_last_split ; no → last split
         lda     $51                     ; counter = $51 - $A0
@@ -949,25 +950,25 @@ irq_title_second_last_split:  jmp     irq_exit_disable ; tail call to irq_exit_d
 ; ---------------------------------------------------------------------------
 irq_cutscene_scroll:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     $6B                     ; $2006 high = ($6B << 2) | $20
         asl     a                       ; → $20 (NT 0) or $24 (NT 1)
         asl     a
         ora     #$20
-        sta     $2006                   ; write PPU address high byte
+        sta     PPUADDR                 ; write PPU address high byte
         lda     $6A                     ; $2006 low = ($6A >> 3) | $E0
         lsr     a                       ; coarse X from $6A, high coarse Y
         lsr     a
         lsr     a
         ora     #$E0
-        sta     $2006                   ; write PPU address low byte
+        sta     PPUADDR                 ; write PPU address low byte
         lda     $6A                     ; fine X scroll = $6A
-        sta     $2005                   ; write PPUSCROLL X
+        sta     PPUSCROLL               ; write PPUSCROLL X
         lda     irq_scanline            ; fine Y scroll = $7B
-        sta     $2005                   ; write PPUSCROLL Y
+        sta     PPUSCROLL               ; write PPUSCROLL Y
         lda     ppu_ctrl_shadow         ; PPUCTRL: base | nametable bits from $6B
         ora     $6B
-        sta     $2000                   ; write PPUCTRL
+        sta     PPUCTRL                 ; write PPUCTRL
         lda     #$AE                    ; counter = $AE - $7B
         sec                             ; (scanlines to secondary split)
         sbc     irq_scanline
@@ -996,17 +997,17 @@ irq_cutscene_secondary:
         bne     irq_cutscene_reset_scroll ; non-zero → need scroll reset
         jmp     irq_gameplay_status_bar ; zero → chain directly to status bar
 
-irq_cutscene_reset_scroll:  lda     $2002 ; reset PPU latch
+irq_cutscene_reset_scroll:  lda     PPUSTATUS ; reset PPU latch
         lda     #$22                    ; $2006 = $22:$C0
-        sta     $2006                   ; (nametable 0, bottom portion)
+        sta     PPUADDR                 ; (nametable 0, bottom portion)
         lda     #$C0
-        sta     $2006
+        sta     PPUADDR
         lda     ppu_ctrl_shadow         ; PPUCTRL: nametable 0
         and     #$FC                    ; clear nametable bits (select NT 0)
-        sta     $2000                   ; write PPUCTRL
+        sta     PPUCTRL                 ; write PPUCTRL
         lda     #$00                    ; X = 0, Y = 0
-        sta     $2005
-        sta     $2005
+        sta     PPUSCROLL
+        sta     PPUSCROLL
         lda     scroll_lock             ; secondary split?
         beq     irq_cutscene_last_split ; no → last split
         stx     NMI                     ; counter = X (from $51 - $B0 above)
@@ -1026,11 +1027,11 @@ irq_cutscene_last_split:  jmp     irq_exit_disable ; tail call to irq_exit_disab
 ; ---------------------------------------------------------------------------
 irq_chr_split_first:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     $69                     ; X scroll = $69
-        sta     $2005
+        sta     PPUSCROLL
         lda     #$00                    ; Y scroll = 0
-        sta     $2005
+        sta     PPUSCROLL
         lda     #$30                    ; next IRQ in 48 scanlines
         sta     NMI                     ; set MMC3 IRQ counter (48 scanlines)
         lda     irq_vector_lo_chr_swap  ; chain to irq_chr_split_swap ($C469)
@@ -1048,22 +1049,22 @@ irq_chr_split_first:
 ; ---------------------------------------------------------------------------
 irq_chr_split_swap:
 
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     $6A                     ; X scroll = $6A
-        sta     $2005
+        sta     PPUSCROLL
         lda     #$00                    ; Y scroll = 0
-        sta     $2005
+        sta     PPUSCROLL
         lda     ppu_ctrl_shadow         ; PPUCTRL: nametable from $6B
         and     #$FC                    ; clear nametable bits
         ora     $6B                     ; merge nametable from $6B
-        sta     $2000                   ; write PPUCTRL
+        sta     PPUCTRL                 ; write PPUCTRL
         lda     #$66                    ; swap BG CHR bank 0 → $66
         sta     $E8                     ; store to CHR bank 0 shadow
         lda     #$72                    ; swap BG CHR bank 1 → $72
         sta     $E9                     ; store to CHR bank 1 shadow
         jsr     task_yield_clear_flag   ; apply CHR bank swap via MMC3
         lda     mmc3_shadow             ; trigger MMC3 bank latch
-        sta     L8000                   ; write MMC3 bank select register
+        sta     MMC3_BANK_SELECT        ; write MMC3 bank select register
         lda     #$78                    ; set up next banks for NMI restore
         sta     $E8                     ; BG bank 0 → $78
         lda     #$7A
@@ -1090,7 +1091,7 @@ irq_chr_swap_only:
         sta     $E9                     ; store to CHR bank 1 shadow
         jsr     task_yield_clear_flag   ; apply CHR bank swap via MMC3
         lda     mmc3_shadow             ; trigger MMC3 bank latch
-        sta     L8000                   ; write MMC3 bank select register
+        sta     MMC3_BANK_SELECT        ; write MMC3 bank select register
         pla                             ; restore $E9
         sta     $E9
         pla                             ; restore $E8
@@ -1201,12 +1202,12 @@ drain_ppu_buffer:  ldx     #$00         ; start at buffer offset 0
         stx     nametable_dirty         ; clear scroll-dirty flag
 drain_ppu_buffer_continue:  lda     $0780,x ; read PPU addr high byte
         bmi     drain_ppu_exit          ; $FF terminator → exit
-        sta     $2006                   ; PPUADDR high
+        sta     PPUADDR                 ; PPUADDR high
         lda     $0781,x                 ; read PPU addr low byte
-        sta     $2006                   ; PPUADDR low
+        sta     PPUADDR                 ; PPUADDR low
         ldy     $0782,x                 ; Y = byte count
 drain_ppu_write_tile_loop:  lda     $0783,x ; write tile data
-        sta     $2007                   ; to PPUDATA
+        sta     PPUDATA                 ; to PPUDATA
         inx                             ; advance buffer index
         dey                             ; decrement byte count
         bpl     drain_ppu_write_tile_loop ; loop count+1 times
@@ -1228,7 +1229,7 @@ disable_nmi:
         lda     ppu_ctrl_shadow         ; load PPUCTRL shadow
         and     #$11                    ; keep bits 4,0 only
         sta     ppu_ctrl_shadow         ; update shadow
-        sta     $2000                   ; write PPUCTRL
+        sta     PPUCTRL                 ; write PPUCTRL
         rts
 
 ; ---------------------------------------------------------------------------
@@ -1239,7 +1240,7 @@ enable_nmi:
         lda     ppu_ctrl_shadow         ; load PPUCTRL shadow
         ora     #$80                    ; set bit 7 (NMI enable)
         sta     ppu_ctrl_shadow         ; update shadow
-        sta     $2000                   ; write PPUCTRL
+        sta     PPUCTRL                 ; write PPUCTRL
         rts
 
 ; ---------------------------------------------------------------------------
@@ -1254,7 +1255,7 @@ rendering_off:
         inc     nmi_skip                ; frame-lock counter++
         lda     #$00                    ; rendering disabled
         sta     ppu_mask_shadow         ; PPUMASK shadow = $00
-        sta     $2001                   ; all rendering off
+        sta     PPUMASK                 ; all rendering off
         rts
 
 ; ---------------------------------------------------------------------------
@@ -1268,7 +1269,7 @@ rendering_on:
         dec     nmi_skip                ; frame-lock counter--
         lda     #$18                    ; BG + sprites enabled
         sta     ppu_mask_shadow         ; PPUMASK shadow = $18
-        sta     $2001                   ; BG + sprites on
+        sta     PPUMASK                 ; BG + sprites on
         rts
 
 ; ===========================================================================
@@ -1289,16 +1290,16 @@ rendering_on:
 ; ---------------------------------------------------------------------------
 
 read_controllers:  ldx     #$01         ; strobe controllers
-        stx     $4016                   ; (write 1 then 0 to latch)
+        stx     JOY1                    ; (write 1 then 0 to latch)
         dex                             ; X = 0
-        stx     $4016                   ; (write 1 then 0 to latch)
+        stx     JOY1                    ; (write 1 then 0 to latch)
         ldx     #$08                    ; 8 bits per controller
-read_ctrl_bit_loop:  lda     $4016      ; player 1: bit 0 → $14
+read_ctrl_bit_loop:  lda     JOY1       ; player 1: bit 0 → $14
         lsr     a                       ; bit 1 → $00 (DPCM-safe)
         rol     joy1_press              ; shift bit into joy1_press
         lsr     a                       ; shift out bit 1
         rol     L0000                   ; shift bit into DPCM verify byte
-        lda     $4017                   ; player 2: bit 0 → $15
+        lda     JOY2                    ; player 2: bit 0 → $15
         lsr     a                       ; shift out bit 0
         rol     joy1_press_alt          ; shift bit into joy1_press_alt
         lsr     a                       ; shift out bit 1
@@ -1357,21 +1358,21 @@ read_ctrl_next_direction:  dex
 fill_nametable:  sta     L0000          ; save parameters
         stx     $01                     ; $00=addr_hi, $01=fill, $02=attr
         sty     $02                     ; $02 = attribute/page count
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     ppu_ctrl_shadow         ; load PPUCTRL shadow
         and     #$FE                    ; (horizontal increment mode)
-        sta     $2000                   ; write to PPUCTRL
+        sta     PPUCTRL                 ; write to PPUCTRL
         lda     L0000                   ; PPUADDR = addr_hi : $00
-        sta     $2006                   ; set PPUADDR high byte
+        sta     PPUADDR                 ; set PPUADDR high byte
         ldy     #$00                    ; Y = 0 for PPUADDR low byte
-        sty     $2006                   ; set PPUADDR low byte
+        sty     PPUADDR                 ; set PPUADDR low byte
         ldx     #$04                    ; nametable? 4 pages (1024 bytes)
         cmp     #$20                    ; addr >= $20 means nametable
         bcs     fill_nametable_page_setup ; branch if nametable range
         ldx     $02                     ; CHR? Y pages (from parameter)
 fill_nametable_page_setup:  ldy     #$00 ; 256 iterations per page
         lda     $01                     ; A = fill byte
-fill_nametable_write_loop:  sta     $2007 ; write fill byte
+fill_nametable_write_loop:  sta     PPUDATA ; write fill byte
         dey                             ; inner: 256 bytes
         bne     fill_nametable_write_loop ; loop 256 bytes per page
         dex                             ; outer: X pages
@@ -1381,11 +1382,11 @@ fill_nametable_write_loop:  sta     $2007 ; write fill byte
         cmp     #$20                    ; addr < $20 means pattern table
         bcc     fill_nametable_restore_x ; if addr < $20, skip attributes
         adc     #$02                    ; PPUADDR = (addr_hi+3):$C0
-        sta     $2006                   ; ($20→$23C0, $24→$27C0)
+        sta     PPUADDR                 ; ($20→$23C0, $24→$27C0)
         lda     #$C0                    ; (carry set from CMP above)
-        sta     $2006                   ; set PPUADDR low byte
+        sta     PPUADDR                 ; set PPUADDR low byte
         ldx     #$40                    ; 64 attribute bytes
-fill_nametable_attr_loop:  sty     $2007 ; write attribute byte
+fill_nametable_attr_loop:  sty     PPUDATA ; write attribute byte
         dex
         bne     fill_nametable_attr_loop ; write attribute byte
 fill_nametable_restore_x:  ldx     $01  ; restore X = fill byte
@@ -1903,7 +1904,7 @@ main_game_entry:
         ldx     #$BF                    ; reset stack pointer to $01BF
         txs
         lda     ppu_ctrl_shadow         ; sync PPUCTRL from shadow
-        sta     $2000
+        sta     PPUCTRL
         jsr     task_yield              ; yield 1 frame (let NMI run)
         lda     #$88                    ; CHR bank config byte
         sta     $E4
@@ -9437,31 +9438,31 @@ call_bank0E_A003:
         ora     screen_mode,x
         cld                             ; clear decimal mode
         lda     #$08                    ; PPUCTRL: sprite table = $1000
-        sta     $2000                   ; (NMI not yet enabled)
+        sta     PPUCTRL                 ; (NMI not yet enabled)
         lda     #$40                    ; APU frame counter: disable IRQ
-        sta     $4017
+        sta     APU_FRAME
         ldx     #$00
-        stx     $2001                   ; PPUMASK: rendering off
-        stx     $4010                   ; DMC: disable
-        stx     $4015                   ; APU status: silence all channels
+        stx     PPUMASK                 ; PPUMASK: rendering off
+        stx     DMC_FREQ                ; DMC: disable
+        stx     SND_CHN                 ; APU status: silence all channels
         dex                             ; stack pointer = $FF
         txs
 
 ; --- wait for PPU warm-up (4 VBlank cycles) ---
         ldx     #$04                    ; 4 iterations
-ppu_vblank_wait_set:  lda     $2002     ; wait for VBlank flag set
+ppu_vblank_wait_set:  lda     PPUSTATUS ; wait for VBlank flag set
         bpl     ppu_vblank_wait_set
-ppu_vblank_wait_clear:  lda     $2002   ; wait for VBlank flag clear
+ppu_vblank_wait_clear:  lda     PPUSTATUS ; wait for VBlank flag clear
         bmi     ppu_vblank_wait_clear
         dex                             ; repeat 4 times
         bne     ppu_vblank_wait_set
 
 ; --- exercise PPU address bus ---
-        lda     $2002                   ; reset PPU latch
+        lda     PPUSTATUS               ; reset PPU latch
         lda     #$10                    ; toggle PPUADDR between $1010
         tay                             ; and $0000, 16 times
-ppu_address_write:  sta     $2006       ; write high byte
-        sta     $2006                   ; write low byte
+ppu_address_write:  sta     PPUADDR     ; write high byte
+        sta     PPUADDR                 ; write low byte
         eor     #$10                    ; toggle $10 ↔ $00
         dey
         bne     ppu_address_write       ; loop 16 times
@@ -9690,9 +9691,9 @@ select_CHR_banks:  lda     $1B          ; test select CHR flag
         beq     task_yield_return       ; return if not on
 task_yield_clear_flag:  ldx     #$00    ; reset select CHR flag
         stx     $1B                     ; immediately, one-off usage
-task_yield_select_chr:  stx     L8000   ; MMC3 bank select register
+task_yield_select_chr:  stx     MMC3_BANK_SELECT ; MMC3 bank select register
         lda     $E8,x                   ; load CHR bank number from $E8+X
-        sta     $8001                   ; write to MMC3 bank data register
+        sta     MMC3_BANK_DATA          ; write to MMC3 bank data register
         inx                             ; next CHR bank slot
         cpx     #$06                    ; all 6 CHR banks done?
         bne     task_yield_select_chr   ; loop until done
@@ -9729,16 +9730,16 @@ process_frame_and_yield:  jsr     prepare_oam_buffer ; process entities (sprite 
 select_PRG_banks:  inc     $F6          ; flag on "selecting PRG bank"
         lda     #$06
         sta     mmc3_shadow             ; MMC3 cmd $06: select $8000 bank
-        sta     L8000                   ; select the bank in $F4
+        sta     MMC3_BANK_SELECT        ; select the bank in $F4
         lda     mmc3_select             ; as $8000-$9FFF
         sta     $F2                     ; also mirror in $F2
-        sta     $8001                   ; write to MMC3 bank data register
+        sta     MMC3_BANK_DATA          ; write to MMC3 bank data register
         lda     #$07
         sta     mmc3_shadow             ; MMC3 cmd $07: select $A000 bank
-        sta     L8000                   ; select the bank in $F5
+        sta     MMC3_BANK_SELECT        ; select the bank in $F5
         lda     prg_bank                ; as $A000-$BFFF
         sta     $F3                     ; also mirror in $F3
-        sta     $8001                   ; write to MMC3 bank data register
+        sta     MMC3_BANK_DATA          ; write to MMC3 bank data register
         dec     $F6                     ; flag selecting back off (done)
         lda     $F7                     ; if NMI and non-NMI race condition
         bne     play_sounds             ; we still need to play sounds
@@ -9750,13 +9751,13 @@ select_PRG_banks:  inc     $F6          ; flag on "selecting PRG bank"
 play_sounds:  lda     $F6               ; this means both NMI and non
         bne     process_frame_race_condition ; yes: flag race and return
         lda     #$06                    ; MMC3 cmd $06: select $8000 bank
-        sta     L8000
+        sta     MMC3_BANK_SELECT
         lda     #$16                    ; select bank 16 for $8000-$9FFF
-        sta     $8001                   ; and 17 for $A000-$BFFF
+        sta     MMC3_BANK_DATA          ; and 17 for $A000-$BFFF
         lda     #$07
-        sta     L8000
+        sta     MMC3_BANK_SELECT
         lda     #$17
-        sta     $8001
+        sta     MMC3_BANK_DATA
 process_frame_sound_check:  ldx     $DB ; is current sound slot in buffer
         lda     $DC,x                   ; == $88? this means
         cmp     #$88                    ; no sound, skip processing
