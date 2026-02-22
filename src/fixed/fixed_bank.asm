@@ -8608,12 +8608,32 @@ entity_distance_table_index:  tya       ; table index = quadrant * 4 + sub-angle
         asl     a
         clc
         adc     $02
-        .byte   $A8,$B9,$34,$F9,$60,$04,$05,$06
-        .byte   $04,$08,$07,$06,$04,$0C,$0B,$0A
-        .byte   $04,$08,$09,$0A,$04,$04,$03,$02
-        .byte   $04,$00,$01,$02,$04,$0C,$0D,$0E
-        .byte   $04,$00,$0F,$0E,$04,$20,$D9,$F8
-        .byte   $85,$00
+        tay                             ; index → Y
+        lda     direction_to_player_table,y ; look up 16-dir facing value
+        rts
+; ---------------------------------------------------------------------------
+; direction_to_player_table — 16-direction lookup by quadrant and sub-angle
+; ---------------------------------------------------------------------------
+; Index = quadrant * 4 + sub_angle. 8 quadrants × 4 entries (sub_angle 0-2
+; used, entry 3 unused). Returns direction 0-15 (0=right, 4=up, 8=left, 12=down).
+direction_to_player_table:
+        .byte   $04,$05,$06,$04         ; quadrant 0
+        .byte   $08,$07,$06,$04         ; quadrant 1
+        .byte   $0C,$0B,$0A,$04         ; quadrant 2
+        .byte   $08,$09,$0A,$04         ; quadrant 3
+        .byte   $04,$03,$02,$04         ; quadrant 4
+        .byte   $00,$01,$02,$04         ; quadrant 5
+        .byte   $0C,$0D,$0E,$04         ; quadrant 6
+        .byte   $00,$0F,$0E,$04         ; quadrant 7
+; ---------------------------------------------------------------------------
+; track_direction_to_player — rotate ent_facing 1 step toward player
+; ---------------------------------------------------------------------------
+; Called by entity AI (e.g. Chibee). Gets the 16-direction target toward the
+; player, then adjusts ent_facing,x by +1 or -1 each call.
+; Output: ent_facing,x updated, L0000 = target direction.
+track_direction_to_player:
+        jsr     calc_direction_to_player ; get 16-dir target → A
+        sta     L0000                   ; save target direction
         lda     ent_facing,x            ; signed circular difference:
         clc                             ; (current + 8 - target) & $0F - 8
         adc     #$08                    ; offset by 8 to center range
