@@ -94,7 +94,7 @@ chr/
 
 ## Annotation Progress
 
-The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. All auto-labels (`L_XXXX`) and internal branch targets (`code_XXXX`) have been replaced with descriptive names (~3,310 total). Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, music/SFX IDs, and NES hardware registers. Data-vs-code regions have been corrected across all files. An automated health check verifies comment accuracy across 18 categories.
+The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. All auto-labels (`L_XXXX`) and internal branch targets (`code_XXXX`) have been replaced with descriptive names (~3,310 total). Cross-bank imports have been named where possible (28 of 46 renamed, 17 orphaned artifacts removed). Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, music/SFX IDs, and NES hardware registers. Pure data banks have section boundary markers, record indices, and enemy name annotations. An automated health check verifies comment accuracy and header correctness across 19 categories.
 
 | Bank | File | Annotation |
 |------|------|------------|
@@ -119,8 +119,14 @@ The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files hav
 | $01 | bank01_stage_magnet.asm | ~69% — 4 labels, 184 comments |
 | $0D | bank0D_oam_sprites.asm | ~68% — 6 labels, 236 comments |
 | $00 | bank00_enemy_data.asm | Data — 8 labels, 364 comments |
-| $0A | bank0A_damage_tables.asm | Data — 9 labels, 539 comments |
-| Data | banks 08, 11, 13-15, 17, 19 | Section headers only |
+| $08 | bank08_stage_doc_needle.asm | Data — section markers, enemy names, column indices |
+| $0A | bank0A_damage_tables.asm | Data — 10 labels, 539 comments |
+| $11 | bank11_ending_data.asm | Data — section markers, enemy names, column indices |
+| $13 | bank13_ending_data2.asm | Data — section markers, enemy names, column indices |
+| $14 | bank14_sprite_offsets_alt.asm | Data — 61 sprite record boundaries |
+| $15 | bank15_weapon_anim.asm | Data — 13 animation sequence markers |
+| $17 | bank17_sound_data.asm | Data — 13 music track boundaries |
+| $19 | bank19_sprite_offsets.asm | Data — 91 sprite record boundaries |
 
 ## Technical Notes
 
