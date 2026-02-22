@@ -18,7 +18,7 @@
 ;   $B8 → tornado_vert_main          (Doc Air tornado — vertical movement)
 ;   $B9 → tornado_diag_main          (Doc Air tornado — diagonal bouncing)
 ;   $BA → unused_bounce_dispatch          (unused)
-;   $BB → code_A021          (stub RTS)
+;   $BB → $A021              (stub RTS)
 ; =============================================================================
 main_doc_bubble_j:
 
