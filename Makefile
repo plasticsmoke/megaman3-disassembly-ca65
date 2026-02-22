@@ -53,9 +53,11 @@ FIXED_SRCS = \
 ALL_SRCS = $(HEADER_SRC) $(BANK_SRCS) $(PAIR_SRCS) $(FIXED_SRCS) $(CHR_SRC)
 ALL_OBJS = $(ALL_SRCS:%.asm=build/%.o)
 
-.PHONY: all verify clean
+.PHONY: all verify nsfe clean
 
 all: verify
+
+nsfe: build/mm3.nsfe
 
 $(ROM_OUT): $(ALL_OBJS) $(CFG)
 	@mkdir -p $(dir $@)
@@ -69,5 +71,8 @@ build/%.o: %.asm
 verify: $(ROM_OUT)
 	@cmp $(ROM_OUT) $(ROM_REF) && echo "BUILD VERIFIED: byte-perfect match!" || (echo "BUILD FAILED: ROM mismatch"; exit 1)
 
+build/mm3.nsfe: $(ROM_OUT) tools/nsf_to_nsfe.py
+	python3 tools/nsf_to_nsfe.py
+
 clean:
-	rm -rf build/src build/mm3_built.nes
+	rm -rf build/src build/mm3_built.nes build/mm3.nsfe

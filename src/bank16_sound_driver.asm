@@ -1275,11 +1275,32 @@ frequency_period_table:  .byte   $31,$5C,$37,$9C,$36,$E7,$35,$3C
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00
 
-; sound pointers
-sound_id_max:  .byte   $39
-sound_data_high:  .byte   $8A
-sound_data_base:  .byte   $B5
-sound_data_low:  .byte   $8C
+; -----------------------------------------------
+; Sound pointer table — 57 entries ($00-$38)
+; -----------------------------------------------
+; Layout trick: play_sound_ID indexes with X = sound_id * 2.
+; It reads the lo byte from sound_pointer_table[X] ($8A44+X)
+; and the hi byte from sound_data_low[X] ($8A43+X).
+; Because sound_data_low is 1 byte before sound_pointer_table,
+; entry N's hi byte overlaps with entry N-1's lo byte:
+;   Entry 0: hi=$8C (sound_data_low), lo=$9D -> $8C9D (Title Screen)
+;   Entry 1: hi=$90 (= table byte 1),  lo=$DF -> $90DF (Needle Man)
+;   Entry 2: hi=$95 (= table byte 3),  lo=$9A -> $959A (Magnet Man)
+; This shifted access means a naive little-endian read of the table
+; (e.g. $909D for entry 0) gives WRONG addresses.
+;
+; First byte at each address determines type:
+;   $00 = music track (init_music_channels: reads 4 channel ptrs)
+;   $01-$7F = SFX (priority value, higher = override lower)
+;
+; sound_data_high/sound_data_base: used separately for instrument
+; pointer calculation (multiply_8x8 index * 8 + base), unrelated
+; to this table.
+; -----------------------------------------------
+sound_id_max:  .byte   $39             ; 57 sound IDs ($00-$38)
+sound_data_high:  .byte   $8A          ; instrument table base hi
+sound_data_base:  .byte   $B5          ; instrument table base lo
+sound_data_low:  .byte   $8C           ; entry 0 hi byte (shifted access)
 sound_pointer_table:  .byte   $9D,$90,$DF,$95,$9A,$9A,$06,$9C
         .byte   $D7,$A0,$BE,$A4,$14,$A7,$C1,$AA
         .byte   $C2,$AD,$E5,$B1,$23,$B2,$CB,$B4

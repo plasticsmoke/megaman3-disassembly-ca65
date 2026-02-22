@@ -4365,10 +4365,10 @@ cutscene_init:  lda     ent_var3,x      ; if phase already started,
         beq     proto_man_cutscene_init_return
         lda     #PSTATE_STUNNED         ; state → $0F (stunned)
         sta     player_state            ; freeze player for cutscene
-proto_man_cutscene_play_whistle:  lda     #$11
-        cmp     $D9
+proto_man_cutscene_play_whistle:  lda     #MUSIC_PROTO_WHISTLE
+        cmp     $D9                     ; already playing?
         beq     proto_man_cutscene_whistle_timer
-        jsr     submit_sound_ID_D9      ; submit_sound_ID_D9
+        jsr     submit_sound_ID_D9      ; play Proto Man whistle
         lda     #$B4
         sta     ent_timer,x
 proto_man_cutscene_whistle_timer:  dec     ent_timer,x

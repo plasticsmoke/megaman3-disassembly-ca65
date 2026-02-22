@@ -14,6 +14,14 @@ make
 
 Produces `build/mm3_built.nes` and verifies it matches the original ROM byte-for-byte.
 
+### NSFe Soundtrack
+
+```
+make nsfe
+```
+
+Builds `build/mm3.nsfe` — an NSFe soundtrack rip with per-track labels, composer credits, and timing. Extracts the sound engine (banks $16-$18) directly from the assembled ROM and patches it for non-bankswitched playback. Playable in foobar2000 (with foo_input_nsf), NSFPlay, or any NSFe-compatible player.
+
 ### Expected Checksums
 
 | Algorithm | Value |

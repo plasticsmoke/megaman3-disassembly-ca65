@@ -4,6 +4,8 @@ build/
 
 # ROM files (not distributable)
 mm3.nes
+*.nsf
+*.nsfe
 
 # CHR binary (extracted from ROM)
 chr/chr.bin

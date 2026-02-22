@@ -1916,7 +1916,7 @@ main_game_entry:
         cli                             ; enable IRQ
         lda     #$01                    ; $9B = 1 (game active flag)
         sta     irq_enable
-        lda     #MUSIC_SILENCE          ; silence all sound channels
+        lda     #MUSIC_TITLE            ; play title screen music
         jsr     submit_sound_ID_D9
         lda     #$40                    ; $99 = $40 (initial $99,
         sta     gravity                 ; set to $55 once gameplay starts)
