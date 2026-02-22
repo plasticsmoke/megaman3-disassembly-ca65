@@ -76,7 +76,7 @@ submit_sound_ID           := $F89A
 entity_y_dist_to_player           := $F8B3
 entity_x_dist_to_player           := $F8C2
 calc_direction_to_player           := $F8D9
-LF954           := $F954
+track_direction_to_player           := $F954
 check_player_collision           := $FAE2
 check_player_collision_hitbox           := $FAF6
 check_sprite_weapon_collision           := $FB7B
@@ -2403,7 +2403,7 @@ main_chibee:
 
         lda     ent_timer,x             ; movement timer (frames until recalc)
         bne     chibee_apply_movement   ; if > 0, skip direction recalculation
-        jsr     LF954                   ; sets ent_facing = base dir, ent_var2 = adjustment
+        jsr     track_direction_to_player                   ; sets ent_facing = base dir, ent_var2 = adjustment
         lda     ent_facing,x            ; base direction index
         clc
         adc     ent_var2,x              ; + fine adjustment → combined direction
