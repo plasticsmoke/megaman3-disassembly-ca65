@@ -1017,30 +1017,30 @@ select_PRG_banks           := $FF6B
 ; When scrolling left, spawns enemies on the left edge and tracks right.
 check_new_enemies:
         clc
-        lda     camera_x_lo                     ; camera X left edge
+        lda     camera_x_lo             ; camera X left edge
         sta     $00                     ; -> $00
         adc     #$FF                    ; camera X + 255 -> $02
         sta     $02                     ; (right edge)
-        lda     camera_screen                     ; camera screen left edge
+        lda     camera_screen           ; camera screen left edge
         sta     $01                     ; -> $01
         adc     #$00                    ; camera screen right edge
         sta     $03                     ; -> $03
         lda     $2E
         and     #$01                    ; if player moving right
-        bne     check_spawn_right_loop                   ; check right side, else left
+        bne     check_spawn_right_loop  ; check right side, else left
 
 ; check new enemies on left edge
 ; NOTE: everything is checked minus one
-check_spawn_left_loop:  ldy     $9F                     ; fetch last left-spawned
-        beq     track_right_no_spawn                   ; enemy screen #, if it's zero break
-        lda     spawn_data_screen_boundary_left,y                 ; if camera screen left edge >= this,
+check_spawn_left_loop:  ldy     $9F     ; fetch last left-spawned
+        beq     track_right_no_spawn    ; enemy screen #, if it's zero break
+        lda     spawn_data_screen_boundary_left,y ; if camera screen left edge >= this,
         cmp     $01                     ; break loop
-        bcc     track_right_no_spawn                   ; if < , spawn
-        bne     spawn_left_found                   ; if == , check camera X left edge
-        lda     spawn_data_x_boundary_left,y                 ; >= last left-spawned enemy X
+        bcc     track_right_no_spawn    ; if < , spawn
+        bne     spawn_left_found        ; if == , check camera X left edge
+        lda     spawn_data_x_boundary_left,y ; >= last left-spawned enemy X
         cmp     $00                     ; if < , spawn
         bcc     track_right_no_spawn
-spawn_left_found:  dey                             ; spawn,
+spawn_left_found:  dey                  ; spawn,
         jsr     spawn_enemy             ; set new last left-spawned enemy ID,
         dec     $9F                     ; and continue looking for more
         bne     check_spawn_left_loop
@@ -1049,45 +1049,45 @@ spawn_left_found:  dey                             ; spawn,
 ; anything on right while moving left
 track_right_no_spawn:  ldy     $9E
         beq     track_right_done
-track_right_loop:  lda     spawn_data_screen_boundary_left,y                 ; if camera screen right edge
+track_right_loop:  lda     spawn_data_screen_boundary_left,y ; if camera screen right edge
         cmp     $03                     ; >= last right-spawned enemy screen,
-        bcc     track_right_done                   ; break loop
-        bne     track_right_next                   ; if < , set new last right
-        lda     spawn_data_x_boundary_left,y                 ; if == , check camera X right edge
+        bcc     track_right_done        ; break loop
+        bne     track_right_next        ; if < , set new last right
+        lda     spawn_data_x_boundary_left,y ; if == , check camera X right edge
         cmp     $02                     ; >= last right-spawned enemy X
-        bcc     track_right_done                   ; if < , set new last right
-track_right_next:  dey                             ; track new "last right enemy"
-        bne     track_right_loop                   ; continue tracking more
-track_right_done:  sty     $9E                     ; set new right enemy ID
-        jmp     spawn_check_return                   ; return
+        bcc     track_right_done        ; if < , set new last right
+track_right_next:  dey                  ; track new "last right enemy"
+        bne     track_right_loop        ; continue tracking more
+track_right_done:  sty     $9E          ; set new right enemy ID
+        jmp     spawn_check_return      ; return
 
 ; check new enemies on right edge
 
-check_spawn_right_loop:  ldy     $9E                     ; fetch last right-spawned
+check_spawn_right_loop:  ldy     $9E    ; fetch last right-spawned
         lda     $03                     ; enemy screen #
-        cmp     spawn_data_enemy_screen,y                 ; if camera screen right edge < this,
-        bcc     track_left_no_spawn                   ; break loop
-        bne     spawn_right_found                   ; if > , spawn
+        cmp     spawn_data_enemy_screen,y ; if camera screen right edge < this,
+        bcc     track_left_no_spawn     ; break loop
+        bne     spawn_right_found       ; if > , spawn
         lda     $02                     ; if == , check camera X right edge
-        cmp     spawn_data_enemy_x_pos,y                 ; < last right-spawned enemy X
-        bcc     track_left_no_spawn                   ; if >=, spawn
-spawn_right_found:  jsr     spawn_enemy             ; spawn,
+        cmp     spawn_data_enemy_x_pos,y ; < last right-spawned enemy X
+        bcc     track_left_no_spawn     ; if >=, spawn
+spawn_right_found:  jsr     spawn_enemy ; spawn,
         inc     $9E                     ; set new last right-spawned enemy ID,
-        bne     check_spawn_right_loop                   ; and continue looking for more
+        bne     check_spawn_right_loop  ; and continue looking for more
 
 ; track stage enemy ID for left side but don't spawn
 ; anything on left while moving right
-track_left_no_spawn:  ldy     $9F                     ; last left-spawned enemy stage ID
-track_left_loop:  lda     $01                     ; if camera screen left edge
-        cmp     spawn_data_enemy_screen,y                 ; < last left-spawned enemy screen,
-        bcc     track_left_done                   ; break loop
-        bne     track_left_next                   ; if > , set new last left
+track_left_no_spawn:  ldy     $9F       ; last left-spawned enemy stage ID
+track_left_loop:  lda     $01           ; if camera screen left edge
+        cmp     spawn_data_enemy_screen,y ; < last left-spawned enemy screen,
+        bcc     track_left_done         ; break loop
+        bne     track_left_next         ; if > , set new last left
         lda     $00                     ; if == , check camera X left edge
-        cmp     spawn_data_enemy_x_pos,y                 ; < last left-spawned enemy X
-        bcc     track_left_done                   ; if >=, set new last left
-track_left_next:  iny                             ; track new "last left enemy"
-        bne     track_left_loop                   ; continue tracking more
-track_left_done:  sty     $9F                     ; set new last left enemy ID
+        cmp     spawn_data_enemy_x_pos,y ; < last left-spawned enemy X
+        bcc     track_left_done         ; if >=, set new last left
+track_left_next:  iny                   ; track new "last left enemy"
+        bne     track_left_loop         ; continue tracking more
+track_left_done:  sty     $9F           ; set new last left enemy ID
 spawn_check_return:  rts
 
 ; ===========================================================================
@@ -1106,15 +1106,15 @@ spawn_check_return:  rts
 ;   6. Initialize all entity state arrays for the new spawn
 spawn_enemy:  tya                       ; first, loop through all sprites
         ldx     #$1F                    ; besides reserved 00-0F
-spawn_check_dup_loop:  cmp     ent_spawn_id,x                 ; if this ID is already here
-        beq     spawn_check_return                   ; don't spawn
+spawn_check_dup_loop:  cmp     ent_spawn_id,x ; if this ID is already here
+        beq     spawn_check_return      ; don't spawn
         dex
         cpx     #$0F                    ; stop at $0F
-        bne     spawn_check_dup_loop                   ; indicating $00-$0F are "reserved"
+        bne     spawn_check_dup_loop    ; indicating $00-$0F are "reserved"
 
 ; ID not found, find a free slot
-        jsr     find_enemy_freeslot_x                   ; find a slot, if none found
-        bcs     spawn_check_return                   ; don't spawn
+        jsr     find_enemy_freeslot_x   ; find a slot, if none found
+        bcs     spawn_check_return      ; don't spawn
         tya                             ; store new stage ID
         sta     ent_spawn_id,x
         pha
@@ -1138,53 +1138,53 @@ spawn_check_dup_loop:  cmp     ent_spawn_id,x                 ; if this ID is al
 ;   $AE00,y = global enemy ID (indexes into bank $00 enemy data tables)
 ; then switch to bank $00 to read global enemy properties:
 ;   enemy_flags_g ($A000) / enemy_main_ID_g ($A100) / etc.
-        ldy     ent_spawn_id,x                 ; load stage enemy ID for data
-        lda     spawn_data_enemy_screen,y                 ; enemy screen number
+        ldy     ent_spawn_id,x          ; load stage enemy ID for data
+        lda     spawn_data_enemy_screen,y ; enemy screen number
         sta     ent_x_scr,x
-        lda     spawn_data_enemy_x_pos,y                 ; enemy X pixel position
+        lda     spawn_data_enemy_x_pos,y ; enemy X pixel position
         sta     ent_x_px,x
-        lda     spawn_data_enemy_y_pos,y                 ; enemy Y pixel position
+        lda     spawn_data_enemy_y_pos,y ; enemy Y pixel position
         sta     ent_y_px,x
-        lda     spawn_data_enemy_type_id,y                 ; global enemy ID
+        lda     spawn_data_enemy_type_id,y ; global enemy ID
         pha
         stx     $05                     ; preserve X
         lda     #$00                    ; switch to bank $00
-        sta     prg_bank                     ; for global enemy data
-        jsr     select_PRG_banks                   ; at $A000-$BFFF
+        sta     prg_bank                ; for global enemy data
+        jsr     select_PRG_banks        ; at $A000-$BFFF
         ldx     $05                     ; restore X
         pla                             ; Y = global enemy ID
         tay                             ; for initial data lookup
         lda     #$80                    ; mark entity active
         sta     ent_status,x
-        lda     anim_seq_ptr_lo_table,y                 ; sprite flags from $A000,y
+        lda     anim_seq_ptr_lo_table,y ; sprite flags from $A000,y
         sta     ent_flags,x
-        lda     anim_seq_ptr_hi_table,y                 ; AI routine ID from $A100,y
+        lda     anim_seq_ptr_hi_table,y ; AI routine ID from $A100,y
         sta     ent_routine,x
-        lda     oam_sprite_def_ptr_hi_table,y                 ; hitbox/shape from $A200,y
+        lda     oam_sprite_def_ptr_hi_table,y ; hitbox/shape from $A200,y
         sta     ent_hitbox,x
-        lda     anim_variable_records,y                 ; sprite graphic ID
+        lda     anim_variable_records,y ; sprite graphic ID
         jsr     reset_sprite_anim
-        jsr     face_player                   ; face toward player
-        lda     oam_tile_base_table,y                 ; HP from $A400,y
+        jsr     face_player             ; face toward player
+        lda     oam_tile_base_table,y   ; HP from $A400,y
         sta     ent_hp,x
-        lda     oam_attr_base_table,y                 ; Y = speed ID
+        lda     oam_attr_base_table,y   ; Y = speed ID
         tay
-        lda     oam_xoffset_base_table,y                 ; X velocity subpixel
+        lda     oam_xoffset_base_table,y ; X velocity subpixel
         sta     ent_xvel_sub,x
-        lda     oam_yoffset_base_table,y                 ; X velocity pixel
+        lda     oam_yoffset_base_table,y ; X velocity pixel
         sta     ent_xvel,x
-        jsr     reset_gravity                   ; Y velocity
+        jsr     reset_gravity           ; Y velocity
         lda     #$00
-        sta     ent_y_scr,x                 ; clear Y screen,
-        sta     ent_x_sub,x                 ; X subpixel,
-        sta     ent_y_sub,x                 ; Y subpixel,
+        sta     ent_y_scr,x             ; clear Y screen,
+        sta     ent_x_sub,x             ; X subpixel,
+        sta     ent_y_sub,x             ; Y subpixel,
         sta     ent_timer,x
-        sta     ent_var1,x                 ; and all 4 wildcards
+        sta     ent_var1,x              ; and all 4 wildcards
         sta     ent_var2,x
         sta     ent_var3,x
         lda     stage_id
-        sta     prg_bank                     ; switch $A000-$BFFF bank
-        jmp     select_PRG_banks                   ; back to stage's bank, return
+        sta     prg_bank                ; switch $A000-$BFFF bank
+        jmp     select_PRG_banks        ; back to stage's bank, return
 
 ; ===========================================================================
 ; Per-Stage Enemy Data — Bitmask and Placement Tables ($9D28+)
@@ -1913,77 +1913,77 @@ spawn_data_enemy_type_id:  .byte   $7D,$01,$00,$01,$49,$00,$4A,$00
         .byte   $A4,$43,$A5,$03,$A7,$03,$A6,$03
         .byte   $A8,$03,$05,$E7,$AB,$41,$AB,$01
         .byte   $A2,$03,$A3,$03,$A2,$03,$A3,$03
-        .byte   $0F,$B4,$F0,$03,$EF,$C3,$EF,$03 ; camera X left edge
-        .byte   $EF,$C3,$F0,$83,$ED,$C3,$ED,$03 ; -> $00
-        .byte   $EE,$03,$EF,$03,$EF,$03,$EE,$03 ; camera X + 255 -> $02
-        .byte   $F0,$83,$EE,$03,$ED,$43,$ED,$83 ; (right edge)
-        .byte   $EF,$83,$03,$2C,$FD,$02,$FD,$42 ; camera screen left edge
-        .byte   $FD,$82,$FE,$02,$03,$2C,$FF,$02 ; -> $01
-        .byte   $FF,$42,$FF,$82,$FF,$C2,$03,$2C ; camera screen right edge
-        .byte   $FA,$03,$FA,$43,$FB,$03,$FB,$43 ; -> $03
+        .byte   $0F,$B4,$F0,$03,$EF,$C3,$EF,$03
+        .byte   $EF,$C3,$F0,$83,$ED,$C3,$ED,$03
+        .byte   $EE,$03,$EF,$03,$EF,$03,$EE,$03
+        .byte   $F0,$83,$EE,$03,$ED,$43,$ED,$83
+        .byte   $EF,$83,$03,$2C,$FD,$02,$FD,$42
+        .byte   $FD,$82,$FE,$02,$03,$2C,$FF,$02
+        .byte   $FF,$42,$FF,$82,$FF,$C2,$03,$2C
+        .byte   $FA,$03,$FA,$43,$FB,$03,$FB,$43
         .byte   $89,$A3,$D2,$03,$D3,$03,$D4,$03
-        .byte   $D5,$03,$D6,$03,$D7,$03,$D8,$03 ; if player moving right
-        .byte   $D9,$03,$DA,$03,$E0,$02,$89,$A3 ; check right side, else left
+        .byte   $D5,$03,$D6,$03,$D7,$03,$D8,$03
+        .byte   $D9,$03,$DA,$03,$E0,$02,$89,$A3
         .byte   $D2,$03,$D3,$03,$D4,$03,$DB,$03
         .byte   $DC,$03,$DD,$03,$DE,$03,$DF,$03
         .byte   $DA,$03,$E0,$02,$89,$A3,$D2,$03
-        .byte   $D3,$03,$D4,$03,$D5,$03,$D6,$03 ; fetch last left-spawned
-        .byte   $D7,$03,$D8,$03,$D9,$03,$DA,$03 ; enemy screen #, if it's zero break
-        .byte   $E1,$02,$89,$7A,$D8,$83,$D9,$83 ; if camera screen left edge >= this,
-        .byte   $DA,$83,$D5,$83,$D6,$83,$D7,$83 ; break loop
-        .byte   $D2,$83,$D3,$83,$D4,$83,$E0,$82 ; if < , spawn
-        .byte   $89,$7A,$DE,$83,$DF,$83,$DA,$83 ; if == , check camera X left edge
-        .byte   $DB,$83,$DC,$83,$DD,$83,$D2,$83 ; >= last left-spawned enemy X
-        .byte   $D3,$83,$D4,$83,$E0,$82,$89,$7A ; if < , spawn
+        .byte   $D3,$03,$D4,$03,$D5,$03,$D6,$03
+        .byte   $D7,$03,$D8,$03,$D9,$03,$DA,$03
+        .byte   $E1,$02,$89,$7A,$D8,$83,$D9,$83
+        .byte   $DA,$83,$D5,$83,$D6,$83,$D7,$83
+        .byte   $D2,$83,$D3,$83,$D4,$83,$E0,$82
+        .byte   $89,$7A,$DE,$83,$DF,$83,$DA,$83
+        .byte   $DB,$83,$DC,$83,$DD,$83,$D2,$83
+        .byte   $D3,$83,$D4,$83,$E0,$82,$89,$7A
         .byte   $D8,$83,$D9,$83,$DA,$83,$D5,$83
-        .byte   $D6,$83,$D7,$83,$D2,$83,$D3,$83 ; spawn,
-        .byte   $D4,$83,$E1,$82,$89,$2E,$D0,$02 ; set new last left-spawned enemy ID,
-        .byte   $D1,$02,$D1,$42,$D0,$42,$D2,$02 ; and continue looking for more
+        .byte   $D6,$83,$D7,$83,$D2,$83,$D3,$83
+        .byte   $D4,$83,$E1,$82,$89,$2E,$D0,$02
+        .byte   $D1,$02,$D1,$42,$D0,$42,$D2,$02
         .byte   $D3,$02,$D3,$42,$D2,$42,$D4,$02
         .byte   $D4,$42,$89,$2E,$D5,$02,$D6,$02
         .byte   $D8,$02,$D7,$02,$C8,$02,$C9,$02
         .byte   $CA,$02,$CD,$02,$CB,$02,$CC,$02
         .byte   $89,$2E,$D7,$42,$D8,$42,$D6,$42
         .byte   $D5,$42,$CD,$42,$CA,$42,$C9,$42
-        .byte   $C8,$42,$CC,$42,$CB,$42,$87,$22 ; if camera screen right edge
-        .byte   $B9,$82,$B9,$C2,$BA,$81,$BB,$81 ; >= last right-spawned enemy screen,
-        .byte   $BA,$01,$BB,$01,$B9,$02,$B9,$42 ; break loop
-        .byte   $87,$22,$B9,$82,$B9,$C2,$BB,$C1 ; if < , set new last right
-        .byte   $BA,$C1,$BB,$41,$BA,$41,$B9,$02 ; if == , check camera X right edge
-        .byte   $B9,$42,$87,$22,$B9,$81,$B9,$C1 ; >= last right-spawned enemy X
-        .byte   $BA,$81,$BB,$81,$BA,$01,$BB,$01 ; if < , set new last right
-        .byte   $B9,$01,$B9,$41,$8F,$22,$B9,$82 ; track new "last right enemy"
-        .byte   $B9,$C2,$BA,$81,$BB,$81,$BA,$01 ; continue tracking more
-        .byte   $BB,$01,$B9,$02,$B9,$42,$BC,$01 ; set new right enemy ID
-        .byte   $BC,$01,$BC,$01,$BC,$01,$BC,$01 ; return
+        .byte   $C8,$42,$CC,$42,$CB,$42,$87,$22
+        .byte   $B9,$82,$B9,$C2,$BA,$81,$BB,$81
+        .byte   $BA,$01,$BB,$01,$B9,$02,$B9,$42
+        .byte   $87,$22,$B9,$82,$B9,$C2,$BB,$C1
+        .byte   $BA,$C1,$BB,$41,$BA,$41,$B9,$02
+        .byte   $B9,$42,$87,$22,$B9,$81,$B9,$C1
+        .byte   $BA,$81,$BB,$81,$BA,$01,$BB,$01
+        .byte   $B9,$01,$B9,$41,$8F,$22,$B9,$82
+        .byte   $B9,$C2,$BA,$81,$BB,$81,$BA,$01
+        .byte   $BB,$01,$B9,$02,$B9,$42,$BC,$01
+        .byte   $BC,$01,$BC,$01,$BC,$01,$BC,$01
         .byte   $BC,$01,$BC,$01,$BC,$01,$8F,$22
         .byte   $B9,$82,$B9,$C2,$BB,$C1,$BA,$C1
         .byte   $BB,$41,$BA,$41,$B9,$02,$B9,$42
-        .byte   $BE,$01,$BE,$01,$BE,$01,$BE,$01 ; fetch last right-spawned
-        .byte   $BE,$01,$BE,$01,$BE,$01,$BE,$01 ; enemy screen #
-        .byte   $87,$23,$B9,$82,$B9,$C2,$BA,$81 ; if camera screen right edge < this,
-        .byte   $BB,$81,$BA,$01,$BB,$01,$B9,$02 ; break loop
-        .byte   $B9,$42,$87,$23,$B9,$82,$B9,$C2 ; if > , spawn
-        .byte   $BB,$C1,$BA,$C1,$BB,$41,$BA,$41 ; if == , check camera X right edge
-        .byte   $B9,$02,$B9,$42,$87,$23,$B9,$81 ; < last right-spawned enemy X
-        .byte   $B9,$C1,$BA,$81,$BB,$81,$BA,$01 ; if >=, spawn
-        .byte   $BB,$01,$B9,$01,$B9,$41,$93,$23 ; spawn,
-        .byte   $B9,$82,$B9,$C2,$BA,$81,$BB,$81 ; set new last right-spawned enemy ID,
-        .byte   $BA,$01,$BB,$01,$B9,$02,$B9,$42 ; and continue looking for more
+        .byte   $BE,$01,$BE,$01,$BE,$01,$BE,$01
+        .byte   $BE,$01,$BE,$01,$BE,$01,$BE,$01
+        .byte   $87,$23,$B9,$82,$B9,$C2,$BA,$81
+        .byte   $BB,$81,$BA,$01,$BB,$01,$B9,$02
+        .byte   $B9,$42,$87,$23,$B9,$82,$B9,$C2
+        .byte   $BB,$C1,$BA,$C1,$BB,$41,$BA,$41
+        .byte   $B9,$02,$B9,$42,$87,$23,$B9,$81
+        .byte   $B9,$C1,$BA,$81,$BB,$81,$BA,$01
+        .byte   $BB,$01,$B9,$01,$B9,$41,$93,$23
+        .byte   $B9,$82,$B9,$C2,$BA,$81,$BB,$81
+        .byte   $BA,$01,$BB,$01,$B9,$02,$B9,$42
         .byte   $BC,$01,$BC,$01,$BC,$01,$BC,$01
         .byte   $BC,$01,$BC,$01,$BC,$01,$BC,$01
         .byte   $BC,$01,$BC,$01,$BC,$01,$BC,$01
-        .byte   $93,$23,$B9,$82,$B9,$C2,$BB,$C1 ; last left-spawned enemy stage ID
-        .byte   $BA,$C1,$BB,$41,$BA,$41,$B9,$02 ; if camera screen left edge
-        .byte   $B9,$42,$BE,$01,$BE,$01,$BE,$01 ; < last left-spawned enemy screen,
-        .byte   $BE,$01,$BE,$01,$BE,$01,$BE,$01 ; break loop
-        .byte   $BE,$01,$BE,$01,$BE,$01,$BE,$01 ; if > , set new last left
-        .byte   $BE,$01,$FF,$7F,$EF,$FF,$BF,$FF ; if == , check camera X left edge
-        .byte   $BE,$FF,$FA,$FF,$FF,$FF,$BB,$FF ; < last left-spawned enemy X
-        .byte   $EF,$FF,$7A,$FF,$AF,$FF,$EF,$FF ; if >=, set new last left
-        .byte   $AA,$BF,$FA,$EF,$EE,$FF,$BE,$FF ; track new "last left enemy"
-        .byte   $AB,$FF,$AA,$FF,$AF,$FF,$EA,$FF ; continue tracking more
-        .byte   $BF,$FF,$AB,$FF,$AF,$FF,$E8,$FF ; set new last left enemy ID
+        .byte   $93,$23,$B9,$82,$B9,$C2,$BB,$C1
+        .byte   $BA,$C1,$BB,$41,$BA,$41,$B9,$02
+        .byte   $B9,$42,$BE,$01,$BE,$01,$BE,$01
+        .byte   $BE,$01,$BE,$01,$BE,$01,$BE,$01
+        .byte   $BE,$01,$BE,$01,$BE,$01,$BE,$01
+        .byte   $BE,$01,$FF,$7F,$EF,$FF,$BF,$FF
+        .byte   $BE,$FF,$FA,$FF,$FF,$FF,$BB,$FF
+        .byte   $EF,$FF,$7A,$FF,$AF,$FF,$EF,$FF
+        .byte   $AA,$BF,$FA,$EF,$EE,$FF,$BE,$FF
+        .byte   $AB,$FF,$AA,$FF,$AF,$FF,$EA,$FF
+        .byte   $BF,$FF,$AB,$FF,$AF,$FF,$E8,$FF
         .byte   $AF,$FF,$AB,$FF,$FE,$FF,$AA,$FF
         .byte   $FF,$5F,$6F,$FD,$FF,$D5,$FF,$5F
         .byte   $FF,$D5,$FF,$BE,$FF,$F7,$F7,$79
@@ -2000,30 +2000,30 @@ spawn_data_enemy_type_id:  .byte   $7D,$01,$00,$01,$49,$00,$4A,$00
         .byte   $FF,$FF,$FF,$7F,$FF,$FF,$FF,$FF
         .byte   $FF,$FF,$FF,$F7,$FF,$FF,$FF,$7F
         .byte   $FF,$FD,$FF,$FD,$FF,$7F,$FF,$FF
-        .byte   $FF,$7F,$FF,$7D,$FF,$FF,$FF,$F7 ; first, loop through all sprites
-        .byte   $CB,$D7,$FF,$73,$7F,$7D,$FF,$DF ; besides reserved 00-0F
-        .byte   $FF,$5D,$FF,$15,$FF,$5F,$FF,$B7 ; if this ID is already here
-        .byte   $FF,$35,$FF,$75,$F7,$F5,$BF,$4D ; don't spawn
+        .byte   $FF,$7F,$FF,$7D,$FF,$FF,$FF,$F7
+        .byte   $CB,$D7,$FF,$73,$7F,$7D,$FF,$DF
+        .byte   $FF,$5D,$FF,$15,$FF,$5F,$FF,$B7
+        .byte   $FF,$35,$FF,$75,$F7,$F5,$BF,$4D
         .byte   $FF,$F7,$BF,$5D,$FF,$D6,$FF,$D7
-        .byte   $FF,$FF,$FF,$5F,$FE,$D7,$FF,$FF ; stop at $0F
-        .byte   $FF,$7D,$FF,$FF,$FF,$7D,$FE,$F5 ; indicating $00-$0F are "reserved"
+        .byte   $FF,$FF,$FF,$5F,$FE,$D7,$FF,$FF
+        .byte   $FF,$7D,$FF,$FF,$FF,$7D,$FE,$F5
         .byte   $FF,$F7,$FF,$FF,$FF,$FF,$FF,$FF
         .byte   $FF,$FD,$FF,$FF,$FF,$F7,$FF,$DF
-        .byte   $FF,$7F,$FF,$5F,$FF,$7F,$FF,$DF ; find a slot, if none found
-        .byte   $BF,$72,$C7,$DF,$EF,$F7,$FF,$F5 ; don't spawn
-        .byte   $FF,$FF,$FF,$D7,$FF,$DF,$FF,$DF ; store new stage ID
+        .byte   $FF,$7F,$FF,$5F,$FF,$7F,$FF,$DF
+        .byte   $BF,$72,$C7,$DF,$EF,$F7,$FF,$F5
+        .byte   $FF,$FF,$FF,$D7,$FF,$DF,$FF,$DF
         .byte   $FE,$F7,$FF,$7F,$FF,$DD,$FF,$F7
         .byte   $FF,$7F,$FF,$DD,$FF,$77,$FF,$FF
-        .byte   $FF,$FF,$FF,$F7,$FF,$DF,$FF,$DF ; stage ID & #$07
-        .byte   $FF,$75,$FF,$F7,$FF,$FD,$FF,$DF ; index into ??? bitmask
-        .byte   $FF,$FD,$FF,$FD,$EF,$F7,$FF,$F7 ; -> $04
+        .byte   $FF,$FF,$FF,$F7,$FF,$DF,$FF,$DF
+        .byte   $FF,$75,$FF,$F7,$FF,$FD,$FF,$DF
+        .byte   $FF,$FD,$FF,$FD,$EF,$F7,$FF,$F7
         .byte   $FF,$FD,$7F,$EE,$FE,$5F,$ED,$FC
         .byte   $77,$3F,$FF,$D7,$FF,$DF,$DF,$6F
-        .byte   $EF,$49,$AA,$D9,$FB,$7D,$FB,$F5 ; stage ID >> 3
-        .byte   $FF,$5F,$FF,$55,$FF,$FB,$AF,$77 ; index into ???
-        .byte   $FF,$F7,$FF,$FF,$FF,$FF,$F7,$F7 ; & $04 (bitmask)
+        .byte   $EF,$49,$AA,$D9,$FB,$7D,$FB,$F5
+        .byte   $FF,$5F,$FF,$55,$FF,$FB,$AF,$77
+        .byte   $FF,$F7,$FF,$FF,$FF,$FF,$F7,$F7
         .byte   $FF,$FF,$FF,$D5,$FF,$F5,$FF,$5F
-        .byte   $FF,$FF,$FF,$FF,$EF,$FD,$DF,$77 ; if this bit is on, don't spawn
+        .byte   $FF,$FF,$FF,$FF,$EF,$FD,$DF,$77
         .byte   $FF,$FF,$FF,$DF,$FF,$F5,$FF,$FF
         .byte   $FF,$D7,$FF,$D7,$FB,$77,$FF,$7D
         .byte   $FF,$7D,$FF,$FD,$DF,$77,$BF,$FB
@@ -2034,53 +2034,53 @@ spawn_data_enemy_type_id:  .byte   $7D,$01,$00,$01,$49,$00,$4A,$00
         .byte   $FF,$F5,$FF,$7F,$FF,$F7,$FF,$F7
         .byte   $FF,$7F,$FF,$FF,$FF,$5F,$FF,$FF
         .byte   $FF,$75,$DF,$76,$BF,$FF,$FF,$7B
-        .byte   $FF,$17,$FF,$5D,$FF,$DF,$FF,$FF ; load stage enemy ID for data
-        .byte   $FB,$FF,$FF,$FD,$F7,$DB,$FF,$DF ; enemy screen number
+        .byte   $FF,$17,$FF,$5D,$FF,$DF,$FF,$FF
+        .byte   $FB,$FF,$FF,$FD,$F7,$DB,$FF,$DF
         .byte   $FF,$65,$FD,$D7,$DF,$F7,$FB,$7D
-        .byte   $FF,$F7,$FF,$F7,$FF,$FF,$FF,$FF ; enemy X pixel position
+        .byte   $FF,$F7,$FF,$F7,$FF,$FF,$FF,$FF
         .byte   $FF,$FF,$FF,$F7,$FF,$FD,$FF,$7F
-        .byte   $FF,$55,$F7,$F7,$FF,$FF,$FF,$7D ; enemy Y pixel position
+        .byte   $FF,$55,$F7,$F7,$FF,$FF,$FF,$7D
         .byte   $FB,$D7,$FF,$FF,$FF,$F7,$FF,$FF
-        .byte   $F7,$FD,$BF,$DF,$FF,$EF,$FF,$76 ; global enemy ID
+        .byte   $F7,$FD,$BF,$DF,$FF,$EF,$FF,$76
         .byte   $FF,$FF,$FF,$FF,$FF,$FF,$FF,$DD
-        .byte   $FF,$DF,$FF,$DF,$FF,$3F,$FF,$75 ; preserve X
-        .byte   $FF,$DD,$FF,$FF,$FF,$F7,$FF,$F7 ; switch to bank $00
-        .byte   $FF,$7D,$FF,$FF,$FF,$FF,$FF,$DF ; for global enemy data
-        .byte   $FF,$FF,$FF,$DF,$FF,$7F,$FF,$FF ; at $A000-$BFFF
-        .byte   $FF,$5F,$FF,$D7,$FF,$F7,$FF,$FF ; restore X
-        .byte   $FF,$DF,$FF,$7F,$FF,$5F,$FF,$5F ; Y = global enemy ID
-        .byte   $AF,$7C,$FE,$F1,$FF,$C5,$FF,$77 ; for initial data lookup
-        .byte   $F7,$57,$FF,$D5,$EF,$E7,$FF,$71 ; mark entity active
+        .byte   $FF,$DF,$FF,$DF,$FF,$3F,$FF,$75
+        .byte   $FF,$DD,$FF,$FF,$FF,$F7,$FF,$F7
+        .byte   $FF,$7D,$FF,$FF,$FF,$FF,$FF,$DF
+        .byte   $FF,$FF,$FF,$DF,$FF,$7F,$FF,$FF
+        .byte   $FF,$5F,$FF,$D7,$FF,$F7,$FF,$FF
+        .byte   $FF,$DF,$FF,$7F,$FF,$5F,$FF,$5F
+        .byte   $AF,$7C,$FE,$F1,$FF,$C5,$FF,$77
+        .byte   $F7,$57,$FF,$D5,$EF,$E7,$FF,$71
         .byte   $FB,$7F,$F6,$7F,$7F,$C0,$3F,$D7
-        .byte   $FB,$4E,$DF,$DD,$B7,$F5,$F5,$57 ; sprite flags from $A000,y
+        .byte   $FB,$4E,$DF,$DD,$B7,$F5,$F5,$57
         .byte   $FF,$FF,$FF,$FD,$FF,$7F,$FF,$F7
-        .byte   $FF,$FF,$FF,$FF,$FF,$DD,$BF,$77 ; AI routine ID from $A100,y
+        .byte   $FF,$FF,$FF,$FF,$FF,$DD,$BF,$77
         .byte   $FF,$F7,$FF,$FF,$FF,$F7,$DF,$DF
-        .byte   $FF,$3F,$FF,$D5,$FF,$DF,$FF,$7D ; hitbox/shape from $A200,y
+        .byte   $FF,$3F,$FF,$D5,$FF,$DF,$FF,$7D
         .byte   $7F,$D7,$FF,$DF,$FF,$5F,$FF,$F7
-        .byte   $FF,$F5,$FF,$7F,$FB,$5D,$FF,$FD ; sprite graphic ID
+        .byte   $FF,$F5,$FF,$7F,$FB,$5D,$FF,$FD
         .byte   $FF,$DD,$FF,$FF,$FF,$FD,$FF,$DD
-        .byte   $FE,$5F,$FF,$D7,$FF,$DF,$FF,$D7 ; face toward player
-        .byte   $FF,$FF,$FF,$F7,$FF,$FF,$FF,$FD ; HP from $A400,y
+        .byte   $FE,$5F,$FF,$D7,$FF,$DF,$FF,$D7
+        .byte   $FF,$FF,$FF,$F7,$FF,$FF,$FF,$FD
         .byte   $DF,$FD,$FF,$FF,$FF,$FF,$FF,$FF
-        .byte   $FF,$FF,$FF,$DD,$FF,$7F,$FE,$F7 ; Y = speed ID
+        .byte   $FF,$FF,$FF,$DD,$FF,$7F,$FE,$F7
         .byte   $FF,$FD,$FF,$DF,$FF,$D7,$FF,$FD
-        .byte   $FF,$56,$FF,$DD,$CF,$EF,$FF,$B5 ; X velocity subpixel
+        .byte   $FF,$56,$FF,$DD,$CF,$EF,$FF,$B5
         .byte   $FF,$99,$FF,$FD,$FF,$D1,$FF,$FD
-        .byte   $BD,$F7,$FF,$F5,$7B,$7F,$FF,$7C ; X velocity pixel
+        .byte   $BD,$F7,$FF,$F5,$7B,$7F,$FF,$7C
         .byte   $FF,$F5,$FF,$DD,$DD,$F7,$FF,$7C
-        .byte   $FF,$F7,$FF,$FF,$FF,$7F,$FF,$FD ; Y velocity
+        .byte   $FF,$F7,$FF,$FF,$FF,$7F,$FF,$FD
         .byte   $FF,$FD,$FF,$DF,$FF,$FF,$FF,$D7
-        .byte   $FF,$D7,$FF,$FF,$FF,$D5,$FF,$FF ; clear Y screen,
-        .byte   $FF,$FF,$FF,$77,$FF,$7F,$FF,$F7 ; X subpixel,
-        .byte   $FB,$FF,$FF,$7D,$FF,$7F,$F6,$7D ; Y subpixel,
+        .byte   $FF,$D7,$FF,$FF,$FF,$D5,$FF,$FF
+        .byte   $FF,$FF,$FF,$77,$FF,$7F,$FF,$F7
+        .byte   $FB,$FF,$FF,$7D,$FF,$7F,$F6,$7D
         .byte   $FF,$FD,$FF,$FD,$FF,$FF,$FF,$F7
-        .byte   $FF,$F5,$FF,$FF,$FF,$DF,$FF,$FF ; and all 4 wildcards
+        .byte   $FF,$F5,$FF,$FF,$FF,$DF,$FF,$FF
         .byte   $FF,$F7,$FF,$7F,$FD,$F7,$FF,$F5
         .byte   $FF,$FF,$FF,$7F,$FF,$FF,$FF,$FF
         .byte   $FF,$FF,$FF,$F7,$FF,$FF,$FF,$D9
-        .byte   $FF,$F7,$FF,$D5,$FF,$FD,$FF,$F7 ; switch $A000-$BFFF bank
-        .byte   $FF,$77,$FF,$FF,$FF,$FD,$FF,$5F ; back to stage's bank, return
+        .byte   $FF,$F7,$FF,$D5,$FF,$FD,$FF,$F7
+        .byte   $FF,$77,$FF,$FF,$FF,$FD,$FF,$5F
         .byte   $FF,$FF,$FF,$5F,$FF,$55,$FF,$F5
         .byte   $FF,$D5,$FB,$75,$FF,$77,$F3,$5F
         .byte   $7F,$5F,$7F,$D7,$DF,$7C,$DC,$D7

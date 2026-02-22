@@ -24,8 +24,8 @@
 .include "include/constants.inc"
 
 ; --- fixed bank subroutines ---
-apply_y_speed           := $F797                ; apply_y_speed — apply Y velocity to entity
-process_frame_yield           := $FD80                ; process_frame_yield — render frame + yield to NMI
+apply_y_speed           := $F797        ; apply_y_speed — apply Y velocity to entity
+process_frame_yield           := $FD80  ; process_frame_yield — render frame + yield to NMI
 
 ; =============================================================================
 ; WILY 4 CREDITS — INITIALIZATION
@@ -64,7 +64,7 @@ credits_enemy_data_start:  ldy     #$85
 ; Uses $B8 as the text data index, scroll_y as the Y scroll position.
 ; The text data pointers are stored in credits_text_pointer_low_bytes (low) / credits_text_pointer_high_bytes (high).
 ; ===========================================================================
-code_A01B:  lda     ent_status              ; check if credits entity active
+code_A01B:  lda     ent_status          ; check if credits entity active
         bmi     code_A077               ; if active (bit 7 set), skip scroll
         lda     $95                     ; frame counter
         and     #$01                    ; only process on even frames
@@ -78,9 +78,9 @@ code_A01B:  lda     ent_status              ; check if credits entity active
         lsr     a
         sta     $02                     ; $02 = current tile row
         ldx     $B8                     ; text data index
-        lda     credits_text_pointer_low_bytes,x                 ; load text data pointer (low byte)
+        lda     credits_text_pointer_low_bytes,x ; load text data pointer (low byte)
         sta     $00
-        lda     credits_text_pointer_high_bytes,x                 ; load text data pointer (high byte)
+        lda     credits_text_pointer_high_bytes,x ; load text data pointer (high byte)
         sta     $01
         ldy     #$00
         sty     $03                     ; $03/$04 = PPU nametable address
@@ -177,17 +177,17 @@ code_A0D4:  lda     $95
 ; --- render star sprites for credits background ---
 ; Copies 12 OAM entries from credits_star_sprites_oam_y (6 per entity slot), with Y offset from ent_timer.
 ; Two sets of 6 sprites: first set uses slot 0 timer, second uses slot $20 (1).
-code_A0EF:  ldy     #$00                    ; OAM buffer index
+code_A0EF:  ldy     #$00                ; OAM buffer index
         ldx     #$00                    ; entity slot offset
-code_A0F3:  lda     credits_star_sprites_oam_y,y                 ; sprite Y position (base)
+code_A0F3:  lda     credits_star_sprites_oam_y,y ; sprite Y position (base)
         clc
         adc     ent_timer,x             ; add vertical scroll offset
         sta     $0200,y                 ; write to OAM Y
-        lda     credits_star_sprites_oam_tile,y                 ; tile ID
+        lda     credits_star_sprites_oam_tile,y ; tile ID
         sta     $0201,y                 ; write to OAM tile
-        lda     credits_star_sprites_oam_attr,y                 ; sprite attributes
+        lda     credits_star_sprites_oam_attr,y ; sprite attributes
         sta     $0202                   ; write to OAM attr
-        lda     credits_star_sprites_oam_x,y                 ; sprite X position
+        lda     credits_star_sprites_oam_x,y ; sprite X position
         sta     $0203,y                 ; write to OAM X
         iny
         iny
@@ -207,7 +207,7 @@ code_A0F3:  lda     credits_star_sprites_oam_y,y                 ; sprite Y posi
         clc
         adc     #$03                    ; move stars downward 3px/frame
         sta     ent_var1
-        jsr     process_frame_yield                   ; yield frame (process_frame_yield)
+        jsr     process_frame_yield     ; yield frame (process_frame_yield)
         jmp     code_A01B               ; loop back to credits main
 
 ; ===========================================================================
@@ -223,9 +223,9 @@ code_A137:  lda     ent_status
 code_A13E:  lda     #$80
         sta     ent_status,x            ; mark entity active
         sta     ent_flags,x             ; set active flag
-        lda     credits_character_anim_ids,x                 ; animation ID from table
+        lda     credits_character_anim_ids,x ; animation ID from table
         sta     ent_anim_id,x
-        lda     credits_character_y_positions,x                 ; initial Y position from table
+        lda     credits_character_y_positions,x ; initial Y position from table
         sta     ent_y_px,x
         lda     #$F8                    ; start off-screen right
         sta     ent_x_px,x
@@ -247,11 +247,11 @@ code_A13E:  lda     #$80
         sta     $0786
         sta     ent_timer               ; reset animation timer
 ; --- character walk + text reveal animation ---
-code_A181:  dec     $0361                   ; decrement slot 1 X timer
+code_A181:  dec     $0361               ; decrement slot 1 X timer
         bne     code_A18B
         lda     #$00
         sta     $0301                   ; deactivate slot 1
-code_A18B:  lda     ent_anim_id             ; slot 0 animation state
+code_A18B:  lda     ent_anim_id         ; slot 0 animation state
         cmp     #$07                    ; falling animation?
         beq     code_A1E8               ; yes: handle falling
         dec     ent_x_px                ; move character left 1px
@@ -269,9 +269,9 @@ code_A18B:  lda     ent_anim_id             ; slot 0 animation state
         ldx     ent_var3                ; current letter index
         cpx     #$0C                    ; all 12 chars placed?
         beq     code_A1CA
-        lda     credits_presented_by_capcom_top,x                 ; top row tile for this letter
+        lda     credits_presented_by_capcom_top,x ; top row tile for this letter
         sta     $0783
-        lda     credits_presented_by_capcom_bottom,x                 ; bottom row tile for this letter
+        lda     credits_presented_by_capcom_bottom,x ; bottom row tile for this letter
         sta     $0787
         lda     #$FF
         sta     $0788                   ; terminator
@@ -291,16 +291,16 @@ code_A1CA:  lda     ent_x_px
         sta     ent_anim_state          ; reset animation state
         sta     ent_anim_frame
 ; --- handle falling animation ---
-code_A1E8:  lda     #$7C                    ; ground level Y position
+code_A1E8:  lda     #$7C                ; ground level Y position
         cmp     ent_y_px                ; reached ground?
         bcs     code_A1F7               ; not yet: keep falling
         sta     ent_y_px                ; clamp to ground
         inc     ent_y_px                ; nudge below ground (trigger landing)
         bcc     code_A1FF               ; continue to sprite render
-code_A1F7:  ldx     #$00                    ; entity slot 0
-        jsr     apply_y_speed                   ; apply_y_speed (gravity)
-        inc     ent_x_px               ; drift right slightly while falling
-code_A1FF:  jmp     code_A0EF               ; back to star sprite render loop
+code_A1F7:  ldx     #$00                ; entity slot 0
+        jsr     apply_y_speed           ; apply_y_speed (gravity)
+        inc     ent_x_px                ; drift right slightly while falling
+code_A1FF:  jmp     code_A0EF           ; back to star sprite render loop
 
 ; ===========================================================================
 ; CREDITS STAR SPRITE DATA
@@ -318,9 +318,9 @@ credits_star_sprites_oam_x:  .byte   $28,$90,$F1,$02,$50,$D0,$F1,$02
         .byte   $68,$80,$F2,$02,$A0,$20,$F2,$02
         .byte   $D0,$D0,$F2,$02,$F0
 ; --- entity animation IDs for credits characters ---
-credits_character_anim_ids:  .byte   $01,$D7                 ; anim IDs for slots 0, 1
+credits_character_anim_ids:  .byte   $01,$D7 ; anim IDs for slots 0, 1
 ; --- initial Y positions for credits characters ---
-credits_character_y_positions:  .byte   $74,$82                 ; Y positions for slots 0, 1
+credits_character_y_positions:  .byte   $74,$82 ; Y positions for slots 0, 1
 ; --- "PRESENTED BY CAPCOM" letter tiles (top row) ---
 credits_presented_by_capcom_top:  .byte   $22,$0B,$24,$0D,$0E,$1D,$17,$0E
         .byte   $1C,$0E,$1B,$19

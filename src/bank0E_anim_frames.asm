@@ -96,9 +96,9 @@ task_yield           := $FF21
 ;   Other    = tile ID to write to nametable
 ; ===========================================================================
 
-        lda     string_pointer_table_low,x                 ; load string pointer low byte
+        lda     string_pointer_table_low,x ; load string pointer low byte
         sta     $B6
-        lda     string_pointer_table_high,x                 ; load string pointer high byte
+        lda     string_pointer_table_high,x ; load string pointer high byte
         sta     $B7
         lda     #$00
         sta     $B8                     ; reset stream offset to 0
@@ -116,7 +116,7 @@ code_A026:  inc     $0781               ; next nametable row
 ; --- resume streaming from current offset ---
 code_A029:  ldy     $B8
         cpy     #$FF                    ; stream already finished?
-        beq     code_A05E              ; yes — return immediately
+        beq     code_A05E               ; yes — return immediately
         lda     ($B6),y                 ; read next byte from string data
         cmp     #$FF                    ; $FF = end-of-string marker
         beq     code_A05A
@@ -158,13 +158,13 @@ code_A05E:  rts
 ; and ppu_nametable_addr_high_col0_buf1/ppu_nametable_addr_high_col0plus_buf2 for PPU address high bytes ($23 for all = nametable $2300).
 ; ===========================================================================
 code_A05F:  ldx     #$00                ; column pair index (0, 2)
-code_A061:  lda     ppu_nametable_addr_high_col0_buf1,x             ; PPU addr high for buffer 1
+code_A061:  lda     ppu_nametable_addr_high_col0_buf1,x ; PPU addr high for buffer 1
         sta     $0780
-        lda     ppu_nametable_addr_high_col0plus_buf2,x                 ; PPU addr high for buffer 2
+        lda     ppu_nametable_addr_high_col0plus_buf2,x ; PPU addr high for buffer 2
         sta     $07A3
-        lda     ppu_nametable_addr_low_col0_buf1,x                 ; PPU addr low for buffer 1
+        lda     ppu_nametable_addr_low_col0_buf1,x ; PPU addr low for buffer 1
         sta     $0781
-        lda     ppu_nametable_addr_low_col0plus_buf2,x                 ; PPU addr low for buffer 2
+        lda     ppu_nametable_addr_low_col0plus_buf2,x ; PPU addr low for buffer 2
         sta     $07A4
         ldy     #$1F                    ; 32 bytes per column
         sty     $0782                   ; buffer 1 byte count
@@ -177,7 +177,7 @@ code_A083:  sta     $0783,y             ; clear buffer 1 tile data
         lda     #$FF
         sta     $07C6                   ; terminator after buffer 2 data
         sta     nametable_dirty         ; signal NMI to flush PPU buffer
-        jsr     task_yield                   ; task_yield — wait for NMI drain
+        jsr     task_yield              ; task_yield — wait for NMI drain
         inx
         inx                             ; advance to next column pair
         cpx     #$04                    ; done all 4 pairs? (2 pairs x 2 cols)
@@ -188,11 +188,11 @@ code_A083:  sta     $0783,y             ; clear buffer 1 tile data
 ; Nametable address tables for column initialization
 ; ===========================================================================
 ; PPU address low bytes for column pairs (nametable column offsets)
-ppu_nametable_addr_low_col0_buf1:  .byte   $20                     ; col pair 0, buffer 1: $2320
-ppu_nametable_addr_low_col0plus_buf2:  .byte   $40,$60,$80             ; col pair 0 buf2, pair 1 buf1/buf2
+ppu_nametable_addr_low_col0_buf1:  .byte   $20 ; col pair 0, buffer 1: $2320
+ppu_nametable_addr_low_col0plus_buf2:  .byte   $40,$60,$80 ; col pair 0 buf2, pair 1 buf1/buf2
 ; PPU address high bytes for column pairs (all $23 = attribute area)
-ppu_nametable_addr_high_col0_buf1:  .byte   $23                     ; buffer 1 high byte
-ppu_nametable_addr_high_col0plus_buf2:  .byte   $23,$23,$23             ; buffer 2 / pairs 1-2
+ppu_nametable_addr_high_col0_buf1:  .byte   $23 ; buffer 1 high byte
+ppu_nametable_addr_high_col0plus_buf2:  .byte   $23,$23,$23 ; buffer 2 / pairs 1-2
 
 ; ===========================================================================
 ; String pointer table — low bytes and high bytes for 14 text strings
@@ -308,7 +308,7 @@ string_pointer_table_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $13,$1E,$00,$17,$1F,$1D,$1E,$FE
         .byte   $23,$46,$12,$0B,$20,$0F,$00,$0C
         .byte   $0F,$0F,$18,$00,$1A,$1C,$19,$1E
-        .byte   $19,$00,$17,$0B,$18,$28,$FF  ; end of last text string
+        .byte   $19,$00,$17,$0B,$18,$28,$FF ; end of last text string
 
 ; =============================================================================
 ; WILY 6 (STAGE $16) — STAGE DATA ($A32D-$BFFF)

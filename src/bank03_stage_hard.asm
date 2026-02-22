@@ -50,7 +50,7 @@ select_PRG_banks           := $FF6B
 
 .segment "BANK03"
 
-        lda     #MUSIC_STAGE_START                    ; play stage intro music
+        lda     #MUSIC_STAGE_START      ; play stage intro music
         jsr     submit_sound_ID_D9
         lda     #$80                    ; mark entity slot $10 active
         sta     $0310                   ; (used for scroll entity)
@@ -60,37 +60,37 @@ select_PRG_banks           := $FF6B
 ; Each table has 18 entries: 9 Robot Master + 9 Doc Robot stages.
 ; Grid: 0=Spark, 1=Snake, 2=Needle, 3=Hard, 4=Center, 5=Top,
 ;       6=Gemini, 7=Magnet, 8=Shadow
-        lda     hard_stage_config_table,y                 ; → $05D0 (stage config)
+        lda     hard_stage_config_table,y ; → $05D0 (stage config)
         sta     $05D0
-        lda     hard_stage_scroll_sub_pixel_speed_table,y                 ; → $0410 (tileset / scroll speed sub)
+        lda     hard_stage_scroll_sub_pixel_speed_table,y ; → $0410 (tileset / scroll speed sub)
         sta     $0410
-        lda     hard_stage_scroll_whole_pixel_speed_table,y                 ; → $0430 (enemy/level data)
+        lda     hard_stage_scroll_whole_pixel_speed_table,y ; → $0430 (enemy/level data)
         sta     $0430
-        lda     hard_stage_boss_sprite_y_table,y                 ; → $0450 (sprite data)
+        lda     hard_stage_boss_sprite_y_table,y ; → $0450 (sprite data)
         sta     $0450
-        lda     hard_stage_scroll_direction_table,y                 ; → $0470 (scroll direction flag)
+        lda     hard_stage_scroll_direction_table,y ; → $0470 (scroll direction flag)
         sta     $0470
-        lda     hard_stage_scroll_limit_table,y                 ; → $03D0 (scroll limit / position)
+        lda     hard_stage_scroll_limit_table,y ; → $03D0 (scroll limit / position)
         sta     $03D0
-        lda     hard_stage_bg_scroll_init_table,y                 ; → $0370 (BG scroll position)
+        lda     hard_stage_bg_scroll_init_table,y ; → $0370 (BG scroll position)
         sta     $0370
 
 ; Load intro sprite palettes (8 bytes → SP 0 and SP 1, both active + working copy).
         ldx     #$07
-hard_stage_intro_palette_loop:  lda     hard_stage_intro_palette_data,x                 ; intro sprite palette data
+hard_stage_intro_palette_loop:  lda     hard_stage_intro_palette_data,x ; intro sprite palette data
         sta     $0610,x                 ; → active sprite palette buffer
         sta     $0630,x                 ; → working copy (for flash restore)
         dex
         bpl     hard_stage_intro_palette_loop
-        lda     hard_stage_chr_bank_table,y                 ; select CHR bank for this stage
+        lda     hard_stage_chr_bank_table,y ; select CHR bank for this stage
         jsr     L938B
         jsr     update_CHR_banks
         lda     #$00
         sta     $05F0                   ; clear entity slot $10 flags
         sta     $05B0                   ; clear entity slot $10 anim phase
-        sta     ent_status                   ; clear entity slot 0 type
+        sta     ent_status              ; clear entity slot 0 type
         lda     #$40                    ; $99 = deceleration value for
-        sta     gravity                     ; scroll physics ($99)
+        sta     gravity                 ; scroll physics ($99)
 
 ; --- Horizontal scroll loop ---
 ; Scrolls X position by 4px/frame. $FC = X scroll low byte (0-255).
@@ -98,16 +98,16 @@ hard_stage_intro_palette_loop:  lda     hard_stage_intro_palette_data,x         
 ; This scrolls the display from the old nametable (stage select)
 ; to the new nametable (boss intro band). Takes 64 frames (256/4).
 ; Simultaneously applies "$99" to entity $10 (Y movement).
-hard_stage_scroll_loop:  lda     camera_x_lo                     ; $FC += 4
+hard_stage_scroll_loop:  lda     camera_x_lo ; $FC += 4
         clc
         adc     #$04
         sta     camera_x_lo
-        lda     camera_x_hi                     ; $FD = carry into nametable select
+        lda     camera_x_hi             ; $FD = carry into nametable select
         adc     #$00
         and     #$01                    ; (wrap to 0-1)
         sta     camera_x_hi
         ldx     #$10                    ; apply Y movement to entity $10
-        jsr     apply_y_speed                   ; (scroll entity — creates vertical effect)
+        jsr     apply_y_speed           ; (scroll entity — creates vertical effect)
         lda     $0470                   ; scroll direction check
         bpl     hard_stage_scroll_sub_pixel
         lda     #$70                    ; clamp $03D0 to max $70
@@ -115,18 +115,18 @@ hard_stage_scroll_loop:  lda     camera_x_lo                     ; $FC += 4
         bcs     hard_stage_scroll_sub_pixel
         sta     $03D0
         bne     hard_stage_scroll_frame_wait
-hard_stage_scroll_sub_pixel:  lda     $0350                   ; advance sub-pixel scroll
+hard_stage_scroll_sub_pixel:  lda     $0350 ; advance sub-pixel scroll
         clc                             ; $0350 += $0410
         adc     $0410
         sta     $0350
         lda     $0370                   ; advance scroll position
         adc     $0430                   ; $0370 += $0430 + carry
         sta     $0370
-hard_stage_scroll_frame_wait:  jsr     boss_frame_yield                   ; process entities + wait for NMI
+hard_stage_scroll_frame_wait:  jsr     boss_frame_yield ; process entities + wait for NMI
         lda     #$00
         sta     $05F0                   ; clear entity $10 flags
-        lda     camera_x_lo                     ; loop until $FC wraps to 0
-        bne     hard_stage_scroll_loop                   ; (64 frames)
+        lda     camera_x_lo             ; loop until $FC wraps to 0
+        bne     hard_stage_scroll_loop  ; (64 frames)
 
 ; --- Post-scroll wait ---
         lda     #$7E                    ; update CHR bank
@@ -134,7 +134,7 @@ hard_stage_scroll_frame_wait:  jsr     boss_frame_yield                   ; proc
         jsr     update_CHR_banks
         lda     #$3C                    ; A = $3C (60 frames)
 hard_stage_post_scroll_wait_loop:  pha
-        jsr     boss_frame_yield                   ; process entities + wait for NMI
+        jsr     boss_frame_yield        ; process entities + wait for NMI
         lda     #$00
         sta     $05F0
         pla
@@ -145,14 +145,14 @@ hard_stage_post_scroll_wait_loop:  pha
 ; --- Wait for boss animation sync ---
 ; $A1C9,y = expected animation phase value for this stage.
 ; Wait until entity $10's anim phase ($05B0) matches.
-hard_stage_wait_boss_anim_sync:  jsr     boss_frame_yield                   ; process entities + wait for NMI
-        ldy     stage_id                     ; Y = stage number
-        lda     hard_stage_anim_sync_phase_table,y                 ; expected anim phase
+hard_stage_wait_boss_anim_sync:  jsr     boss_frame_yield ; process entities + wait for NMI
+        ldy     stage_id                ; Y = stage number
+        lda     hard_stage_anim_sync_phase_table,y ; expected anim phase
         cmp     $05B0                   ; current anim phase
         bne     hard_stage_wait_boss_anim_sync
         lda     #$03                    ; re-select bank 03
-        sta     prg_bank                     ; (may have been swapped during
-        jsr     select_PRG_banks                   ; entity processing)
+        sta     prg_bank                ; (may have been swapped during
+        jsr     select_PRG_banks        ; entity processing)
         jmp     hard_stage_write_boss_name
 
 ; ===========================================================================
@@ -174,12 +174,12 @@ hard_stage_wait_boss_anim_sync:  jsr     boss_frame_yield                   ; pr
 ; Tile encoding: $0A=A, $0B=B, ... $23=Z, $25=space
 ; ---------------------------------------------------------------------------
 
-hard_stage_write_boss_name:  lda     stage_select_page                     ; if not Robot Master ($60 != 0),
-        bne     hard_stage_final_wait                   ; skip name writing
+hard_stage_write_boss_name:  lda     stage_select_page ; if not Robot Master ($60 != 0),
+        bne     hard_stage_final_wait   ; skip name writing
 
 ; Set up PPU write queue for 1-tile-at-a-time writes.
 ; High byte: $22 or $26 depending on current nametable.
-        lda     camera_x_hi                     ; nametable select → PPU high byte
+        lda     camera_x_hi             ; nametable select → PPU high byte
         and     #$01
         asl     a                       ; 0→$22 (NT0), 1→$26 (NT1)
         asl     a
@@ -194,7 +194,7 @@ hard_stage_write_boss_name:  lda     stage_select_page                     ; if 
         sta     $0784
 
 ; Compute name table offset: stage * 10 = stage * 2 + stage * 8
-        lda     stage_id                     ; $00 = stage * 2
+        lda     stage_id                ; $00 = stage * 2
         asl     a
         sta     $00
         asl     a                       ; A = stage * 8
@@ -204,18 +204,18 @@ hard_stage_write_boss_name:  lda     stage_select_page                     ; if 
 
 ; Write one tile per 4 frames, advancing across the nametable row.
 ; 10 columns ($2B to $34) × 4 frames = 40 frames total.
-hard_stage_name_tile_write_loop:  ldy     $10                     ; Y = current name table offset
+hard_stage_name_tile_write_loop:  ldy     $10 ; Y = current name table offset
         lda     transition_sprite_palette,y ; load tile ID (character)
         sta     $0783                   ; → PPU write queue tile data
-        inc     nametable_dirty                     ; flag PPU write pending
+        inc     nametable_dirty         ; flag PPU write pending
         lda     #$00                    ; allow NMI
         sta     nmi_skip
-        jsr     task_yield                   ; wait for NMI (tile gets uploaded)
-        inc     nmi_skip                     ; skip next NMI (pacing)
+        jsr     task_yield              ; wait for NMI (tile gets uploaded)
+        inc     nmi_skip                ; skip next NMI (pacing)
         inc     $95                     ; frame counter
         lda     $95
         and     #$03                    ; every 4 frames:
-        bne     hard_stage_name_tile_write_loop                   ; re-write same tile (visual hold)
+        bne     hard_stage_name_tile_write_loop ; re-write same tile (visual hold)
         inc     $10                     ; advance to next character
         inc     $0781                   ; advance PPU column
         lda     $0781
@@ -223,11 +223,11 @@ hard_stage_name_tile_write_loop:  ldy     $10                     ; Y = current 
         bne     hard_stage_name_tile_write_loop
 
 ; --- Final wait and return ---
-hard_stage_final_wait:  lda     #$00                    ; A = 0
+hard_stage_final_wait:  lda     #$00    ; A = 0
 hard_stage_final_wait_frame_loop:  pha
         lda     #$00
-        sta     nmi_skip                     ; allow NMI
-        jsr     task_yield                   ; wait 1 frame
+        sta     nmi_skip                ; allow NMI
+        jsr     task_yield              ; wait 1 frame
         inc     nmi_skip
         pla
         sec
@@ -247,40 +247,40 @@ hard_stage_final_wait_frame_loop:  pha
 ; ---------------------------------------------------------------------------
 
 ; Table 1: stage config byte → $05D0
-hard_stage_config_table:  .byte   $36,$22,$26,$2B,$00,$45,$32,$1F     ; Robot Master
-        .byte   $3F,$65,$00,$65,$00,$00,$00,$65     ; Doc Robot
+hard_stage_config_table:  .byte   $36,$22,$26,$2B,$00,$45,$32,$1F ; Robot Master
+        .byte   $3F,$65,$00,$65,$00,$00,$00,$65 ; Doc Robot
         .byte   $00,$65
 ; Table 2: scroll sub-pixel speed → $0410
-hard_stage_scroll_sub_pixel_speed_table:  .byte   $89,$00,$77,$3C,$00,$C4,$00,$00     ; Robot Master
-        .byte   $00,$89,$00,$77,$3C,$00,$C4,$00     ; Doc Robot
+hard_stage_scroll_sub_pixel_speed_table:  .byte   $89,$00,$77,$3C,$00,$C4,$00,$00 ; Robot Master
+        .byte   $00,$89,$00,$77,$3C,$00,$C4,$00 ; Doc Robot
         .byte   $00,$00
 ; Table 3: scroll whole-pixel speed (signed) → $0430
-hard_stage_scroll_whole_pixel_speed_table:  .byte   $03,$00,$FC,$02,$00,$FD,$03,$00     ; Robot Master
-        .byte   $FD,$03,$00,$FC,$02,$00,$FD,$03     ; Doc Robot
+hard_stage_scroll_whole_pixel_speed_table:  .byte   $03,$00,$FC,$02,$00,$FD,$03,$00 ; Robot Master
+        .byte   $FD,$03,$00,$FC,$02,$00,$FD,$03 ; Doc Robot
         .byte   $00,$FD
 ; Table 4: boss sprite Y position → $0450
-hard_stage_boss_sprite_y_table:  .byte   $C0,$D4,$C0,$79,$00,$79,$A8,$54     ; Robot Master
-        .byte   $A8,$C0,$D4,$C0,$79,$00,$79,$A8     ; Doc Robot
+hard_stage_boss_sprite_y_table:  .byte   $C0,$D4,$C0,$79,$00,$79,$A8,$54 ; Robot Master
+        .byte   $A8,$C0,$D4,$C0,$79,$00,$79,$A8 ; Doc Robot
         .byte   $54,$A8
 ; Table 5: scroll direction flag (bit 7 = special) → $0470
-hard_stage_scroll_direction_table:  .byte   $FF,$02,$FF,$04,$00,$04,$05,$06     ; Robot Master
-        .byte   $05,$FF,$02,$FF,$04,$00,$04,$05     ; Doc Robot
+hard_stage_scroll_direction_table:  .byte   $FF,$02,$FF,$04,$00,$04,$05,$06 ; Robot Master
+        .byte   $05,$FF,$02,$FF,$04,$00,$04,$05 ; Doc Robot
         .byte   $06,$05
 ; Table 6: scroll limit / Y position → $03D0
-hard_stage_scroll_limit_table:  .byte   $30,$30,$30,$70,$70,$70,$B0,$B0     ; Robot Master
-        .byte   $B0,$30,$30,$30,$70,$70,$70,$B0     ; Doc Robot
+hard_stage_scroll_limit_table:  .byte   $30,$30,$30,$70,$70,$70,$B0,$B0 ; Robot Master
+        .byte   $B0,$30,$30,$30,$70,$70,$70,$B0 ; Doc Robot
         .byte   $B0,$B0
 ; Table 7: BG scroll initial Y (3-phase: $30/$80/$D0) → $0370
-hard_stage_bg_scroll_init_table:  .byte   $30,$80,$D0,$30,$80,$D0,$30,$80     ; Robot Master
-        .byte   $D0,$30,$80,$D0,$30,$80,$D0,$30     ; Doc Robot
+hard_stage_bg_scroll_init_table:  .byte   $30,$80,$D0,$30,$80,$D0,$30,$80 ; Robot Master
+        .byte   $D0,$30,$80,$D0,$30,$80,$D0,$30 ; Doc Robot
         .byte   $80,$D0
 ; CHR bank number per stage (via $938B)
-hard_stage_chr_bank_table:  .byte   $28,$26,$25,$24,$00,$2A,$27,$23     ; RM: Spark,Snake,Needle,Hard,-,Top,Gemini,Magnet,Shadow
-        .byte   $29,$1E,$00,$1E,$00,$00,$00,$1E     ; Doc Robot
+hard_stage_chr_bank_table:  .byte   $28,$26,$25,$24,$00,$2A,$27,$23 ; RM: Spark,Snake,Needle,Hard,-,Top,Gemini,Magnet,Shadow
+        .byte   $29,$1E,$00,$1E,$00,$00,$00,$1E ; Doc Robot
         .byte   $00,$1E
 ; Anim sync phase per stage# (wait for entity $10 anim phase to match)
-hard_stage_anim_sync_phase_table:  .byte   $04,$03,$05,$06,$02,$02,$08,$03     ; Needle,Magnet,Gemini,Hard,Top,Snake,Spark,Shadow
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00     ; (unused padding)
+hard_stage_anim_sync_phase_table:  .byte   $04,$03,$05,$06,$02,$02,$08,$03 ; Needle,Magnet,Gemini,Hard,Top,Snake,Spark,Shadow
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; (unused padding)
 ; Intro sprite palette (8 bytes: SP 0 + SP 1)
 hard_stage_intro_palette_data:  .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
 
@@ -425,7 +425,7 @@ transition_sprite_palette:  .byte   $17,$0E,$0E,$0D,$15,$0E,$25,$16
 ; OAM sprites at $0204+ draw the cursor box (4 tiles from password_cursor_oam_template_y).
 ; =============================================================================
 
-code_A593:  lda     #$00                    ; clear all 48 password cells
+code_A593:  lda     #$00                ; clear all 48 password cells
         sta     $11
         ldy     #$2F
 code_A599:  sta     $0150,y
@@ -448,7 +448,7 @@ code_A5A5:  lda     password_cursor_oam_template_y,y
         dey
         bpl     code_A5A5
 ; --- main input loop ---
-code_A5C3:  lda     joy1_press              ; A pressed? → confirm
+code_A5C3:  lda     joy1_press          ; A pressed? → confirm
         and     #BTN_A
         bne     code_A603
         lda     joy1_press              ; left/right pressed?
@@ -464,7 +464,7 @@ code_A5C3:  lda     joy1_press              ; A pressed? → confirm
 code_A5DD:  sta     $10
         jmp     code_A5F2
 
-code_A5E2:  lda     joy1_press              ; up/down pressed?
+code_A5E2:  lda     joy1_press          ; up/down pressed?
         and     #$0C
         beq     code_A5F2
         lda     #$26                    ; toggle between grid and bottom row
@@ -472,7 +472,7 @@ code_A5E2:  lda     joy1_press              ; up/down pressed?
         bne     code_A5F0
         lda     #$24
 code_A5F0:  sta     $10
-code_A5F2:  jsr     code_A681               ; update cursor sprite positions
+code_A5F2:  jsr     code_A681           ; update cursor sprite positions
         lda     #$00
         sta     nmi_skip
         jsr     task_yield
@@ -486,7 +486,7 @@ code_A603:  lda     $10
         bne     code_A60C
         jmp     stage_select_progression ; decode password and start game
 
-code_A60C:  lda     $10                     ; $13 = color (0=red, 1=blue)
+code_A60C:  lda     $10                 ; $13 = color (0=red, 1=blue)
         and     #$01
         sta     $13
         lda     #$00                    ; reset cursor to cell (0,0)
@@ -505,7 +505,7 @@ code_A61C:  lda     joy1_press
         sta     $11
         jmp     code_A5C3               ; return to main input loop
 
-code_A62D:  lda     joy1_press              ; A → toggle dot at cursor
+code_A62D:  lda     joy1_press          ; A → toggle dot at cursor
         and     #BTN_A
         beq     code_A66D
         lda     $10
@@ -545,13 +545,13 @@ code_A66D:  jsr     code_A6AF
         jmp     code_A61C
 
 ; --- update cursor sprite positions from grid position ---
-code_A681:  lda     $10                     ; compute cell index = col + row_offset
+code_A681:  lda     $10                 ; compute cell index = col + row_offset
         clc
         adc     $11
         tay
-        lda     password_grid_x_positions_table,y                 ; look up X position
+        lda     password_grid_x_positions_table,y ; look up X position
         sta     $00
-        lda     password_grid_y_positions_table,y                 ; look up Y position
+        lda     password_grid_y_positions_table,y ; look up Y position
         sta     $01
         ldx     #$0C                    ; 4 cursor corner sprites
         ldy     #$03
@@ -572,7 +572,7 @@ code_A695:  lda     $00
         rts
 
 ; --- handle d-pad navigation in grid ---
-code_A6AF:  lda     joy1_press              ; left/right?
+code_A6AF:  lda     joy1_press          ; left/right?
         and     #$03
         beq     code_A6CF
         and     #$01                    ; right pressed
@@ -584,11 +584,11 @@ code_A6AF:  lda     joy1_press              ; left/right?
         lda     #$00
         sta     $10
         beq     code_A6CF
-code_A6C7:  dec     $10                     ; column-- (left)
+code_A6C7:  dec     $10                 ; column-- (left)
         bpl     code_A6CF
         lda     #$05                    ; wrap to rightmost
         sta     $10
-code_A6CF:  lda     joy1_press              ; up/down?
+code_A6CF:  lda     joy1_press          ; up/down?
         and     #$0C
         beq     code_A6F6
         and     #$04                    ; down pressed
@@ -602,7 +602,7 @@ code_A6CF:  lda     joy1_press              ; up/down?
         sta     $11
 code_A6E6:  rts
 
-code_A6E7:  lda     $11                     ; down: row_offset += 6
+code_A6E7:  lda     $11                 ; down: row_offset += 6
         clc
         adc     #$06
         sta     $11
@@ -612,8 +612,8 @@ code_A6E7:  lda     $11                     ; down: row_offset += 6
         sta     $11
 code_A6F6:  rts
 
-password_cursor_y_offsets_table:  .byte   $FC,$FC,$04,$04         ; cursor corner Y offsets (-4,-4,+4,+4)
-password_cursor_x_offsets_table:  .byte   $FC,$04,$FC,$04         ; cursor corner X offsets (-4,+4,-4,+4)
+password_cursor_y_offsets_table:  .byte   $FC,$FC,$04,$04 ; cursor corner Y offsets (-4,-4,+4,+4)
+password_cursor_x_offsets_table:  .byte   $FC,$04,$FC,$04 ; cursor corner X offsets (-4,+4,-4,+4)
 ; Cursor OAM sprite template (6 entries × 4 bytes: Y, tile, attr, X)
 password_cursor_oam_template_y:  .byte   $3B
 password_cursor_oam_template_tile:  .byte   $EE
@@ -642,7 +642,7 @@ password_grid_y_positions_table:  .byte   $27,$27,$27,$27,$27,$27,$37,$37
 ;   $61 = boss-defeated bitmask ($FF = all beaten in current tier)
 ; -----------------------------------------------
 stage_select_progression:  lda     #$00 ; reset tier and defeat
-        sta     stage_select_page                     ; bitmask to start fresh
+        sta     stage_select_page       ; bitmask to start fresh
         sta     bosses_beaten
         sta     nmi_skip
         ldy     #$0C
@@ -690,22 +690,22 @@ code_A7C4:  ldx     progression_doc_robot_cells_table,y
         lda     $0150,x
         bne     code_A77C
         lda     progression_robot_master_defeat_bits_table,y
-code_A7CF:  ora     bosses_beaten                 ; accumulate defeated bit
-        sta     bosses_beaten                     ; into boss-defeated bitmask
+code_A7CF:  ora     bosses_beaten       ; accumulate defeated bit
+        sta     bosses_beaten           ; into boss-defeated bitmask
 code_A7D3:  iny
         cpy     #$04
         bcc     code_A7A8
         cpy     #$06
         beq     check_doc_robot_complete
-        lda     stage_select_page                     ; if already in Doc Robot tier,
+        lda     stage_select_page       ; if already in Doc Robot tier,
         bne     code_A7A8               ; skip Robot Master check
-        lda     bosses_beaten                     ; all 8 Robot Masters beaten?
+        lda     bosses_beaten           ; all 8 Robot Masters beaten?
         cmp     #$FF                    ; ($FF = bits 0-7 all set)
         bne     code_A7F0
         lda     #$09                    ; advance to Doc Robot tier
-        sta     stage_select_page                     ; $60 = $09 (stage select offset)
+        sta     stage_select_page       ; $60 = $09 (stage select offset)
         lda     #$3A                    ; $61 = $3A (pre-set defeated bits
-        sta     bosses_beaten                     ; for stages without Doc Robots)
+        sta     bosses_beaten           ; for stages without Doc Robots)
         bne     code_A7A8
 code_A7F0:  lda     $0157
         ora     $0150
@@ -715,23 +715,23 @@ code_A7F0:  lda     $0157
         beq     code_A833
         jmp     code_A77C
 
-code_A804:  ldx     progression_doc_robot_cells_table,y             ; check Doc Robot completion
+code_A804:  ldx     progression_doc_robot_cells_table,y ; check Doc Robot completion
         lda     $0150,x                 ; for this stage pair
         beq     code_A7D3
-        lda     bosses_beaten                     ; mark Doc Robot stage defeated
-        ora     progression_doc_robot_defeat_bits_table,y                 ; using Doc Robot bitmask table
+        lda     bosses_beaten           ; mark Doc Robot stage defeated
+        ora     progression_doc_robot_defeat_bits_table,y ; using Doc Robot bitmask table
         sta     bosses_beaten
         jmp     code_A7D3
 
-check_doc_robot_complete:  lda     bosses_beaten  ; all 4 Doc Robot stages beaten?
+check_doc_robot_complete:  lda     bosses_beaten ; all 4 Doc Robot stages beaten?
         cmp     #$FF                    ; ($FF = all bits set)
         bne     code_A82B
         lda     #$12                    ; advance to Wily tier
-        sta     stage_select_page                     ; $60 = $12
+        sta     stage_select_page       ; $60 = $12
         lda     $0168                   ; if Break Man defeated too,
         beq     code_A833               ; done
         lda     #$FF                    ; $60 = $FF marks all stages
-        sta     stage_select_page                     ; complete (Wily fortress)
+        sta     stage_select_page       ; complete (Wily fortress)
         bne     code_A833
 code_A82B:  lda     $0168
         beq     code_A833
@@ -790,7 +790,7 @@ code_A885:  sta     $0150,y
 ; for all weapons the player has obtained.
 code_A88E:  sty     $00
         ldy     #$00
-code_A892:  ldx     progression_robot_master_cells_table,y                 ; Robot Master slot
+code_A892:  ldx     progression_robot_master_cells_table,y ; Robot Master slot
         lda     $0150,x                 ; reset tier and defeat
         beq     code_A8A9               ; not beaten → check Doc Robot
         pha
@@ -840,22 +840,22 @@ code_A8D6:  lda     #$02
         beq     code_A8E9
         lda     #$FF                    ; if in Doc Robot or Wily tier, show all
         sta     $10
-code_A8E9:  ldy     #$00                ; accumulate defeated bit
-code_A8EB:  lda     #$00                ; into boss-defeated bitmask
+code_A8E9:  ldy     #$00
+code_A8EB:  lda     #$00
         sta     $13
         lda     $10
         and     #$03
         beq     code_A90B
         cmp     #$03
-        beq     code_A906               ; if already in Doc Robot tier,
-        and     #$01                    ; skip Robot Master check
-        bne     code_A908               ; all 8 Robot Masters beaten?
-        lda     progression_doc_robot_cells_table,y ; ($FF = bits 0-7 all set)
+        beq     code_A906
+        and     #$01
+        bne     code_A908
+        lda     progression_doc_robot_cells_table,y
         jsr     code_A988
-        jmp     code_A90B               ; advance to Doc Robot tier
+        jmp     code_A90B
 
-code_A906:  inc     $13                 ; $61 = $3A (pre-set defeated bits
-code_A908:  jsr     code_A985           ; for stages without Doc Robots)
+code_A906:  inc     $13
+code_A908:  jsr     code_A985
 code_A90B:  lsr     $10
         lsr     $10
         iny
@@ -865,23 +865,23 @@ code_A90B:  lsr     $10
         sta     $10
         lda     stage_select_page
         beq     code_A975
-        cmp     #$12                    ; check Doc Robot completion
-        bcc     code_A924               ; for this stage pair
+        cmp     #$12
+        bcc     code_A924
         lda     #$FF
-        sta     $10                     ; mark Doc Robot stage defeated
-code_A924:  lda     #$00                ; using Doc Robot bitmask table
+        sta     $10
+code_A924:  lda     #$00
         sta     $13
         ldy     #$04
         lda     $10
-        and     #$05                    ; all 4 Doc Robot stages beaten?
-        beq     code_A946               ; ($FF = all bits set)
+        and     #$05
+        beq     code_A946
         cmp     #$05
-        beq     code_A941               ; advance to Wily tier
-        and     #$01                    ; $60 = $12
-        bne     code_A943               ; if Break Man defeated too,
-        lda     progression_doc_robot_cells_table,y ; done
-        jsr     code_A988               ; $60 = $FF marks all stages
-        jmp     code_A946               ; complete (Wily fortress)
+        beq     code_A941
+        and     #$01
+        bne     code_A943
+        lda     progression_doc_robot_cells_table,y
+        jsr     code_A988
+        jmp     code_A946
 
 code_A941:  inc     $13
 code_A943:  jsr     code_A985
