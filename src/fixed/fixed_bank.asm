@@ -43,8 +43,7 @@
 ; direct routine-index dispatch (vs page-based AI state machine),
 ; 16 weapon slots (vs 8), Top Spin mechanic, no 16-bit X coordinates.
 ;
-; Annotation: ~52% — 474/919 labels named, ~3970 inline comments transferred
-;   from xkas reference. 445 auto-labels remain (internal branch targets).
+; Annotation: all labels named, ~3970 inline comments.
 ;
 ; =============================================================================
 ; KEY MEMORY MAP
