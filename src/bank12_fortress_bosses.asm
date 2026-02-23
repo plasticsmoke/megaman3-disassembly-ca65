@@ -17,9 +17,9 @@ main_yellow_devil:
 .include "include/hardware.inc"
 
 ; --- External references (fixed bank + $8000 entry points, bank $1C) ---
-L8003           := $8003                ; entity AI dispatch
-L8006           := $8006                ; entity AI dispatch (alt)
-L8009           := $8009                ; check player hit
+entity_ai_dispatch := $8003             ; entity AI dispatch (bank $1C)
+entity_ai_defeat := $8006               ; entity AI defeat handler (bank $1C)
+entity_check_player_hit := $8009        ; check player hit (bank $1C)
 move_right_collide           := $F580
 move_left_collide           := $F5C4
 move_down_collide           := $F606
@@ -237,7 +237,7 @@ yellow_devil_body_attack:  lda     ent_hitbox,x ; save current hitbox
         pha                             ; push to stack
         and     #$FB                    ; clear bit 2 (invisible)
         sta     ent_flags,x             ; make body visible
-        jsr     L8009                   ; check player collision
+        jsr     entity_check_player_hit ; check player collision
         pla                             ; restore flags
         sta     ent_flags,x             ; restore flags
         pla                             ; restore Y position
@@ -301,7 +301,7 @@ yellow_devil_piece_update:  dec     ent_timer,x ; count down timer
         lda     ent_anim_state,x        ; check anim state
         bne     yellow_devil_piece_collision ; nonzero = run collision
         sta     ent_anim_frame,x        ; keep frame at 0
-yellow_devil_piece_collision:  jsr     L8003 ; process collision + anim
+yellow_devil_piece_collision:  jsr     entity_ai_dispatch ; process collision + anim
         lda     ent_hp,x                ; check if boss HP = 0
         bne     yellow_devil_death_end  ; HP > 0 → still alive
         lda     #$0F                    ; white palette value
@@ -1210,7 +1210,7 @@ wily_machine_a_palette_end:  lda     #$00 ; clear anim frames
         pha
         and     #$F0                    ; keep upper nibble only
         sta     $059F                   ; clear flip/offscreen bits
-        jsr     L8009                   ; check player hit on turret
+        jsr     entity_check_player_hit ; check player hit on turret
         pla                             ; restore flags slot $1F
         sta     $059F                   ; put back flags
         pla                             ; restore turret Y pos
@@ -1220,7 +1220,7 @@ wily_machine_a_death_palette:  lda     $059F ; flags slot $1F
         bne     wily_machine_a_death_end ; yes — skip collision
         lda     #$02                    ; hitbox = 2 (small)
         sta     $049F                   ; set body hitbox
-        jsr     L8003                   ; run AI dispatch + collision
+        jsr     entity_ai_dispatch      ; run AI dispatch + collision
         lda     ent_hp,x                ; check HP remaining
         bne     wily_machine_a_death_end ; still alive — done
         lda     #$6D                    ; death explosion anim ID
@@ -1244,7 +1244,7 @@ wily_machine_b_dispatch:  lda     $B3   ; boss active/HP flag
         beq     wily_machine_a_death_end ; yes, wait for intro
         lda     ent_hp,x                ; check boss HP
         beq     wily_machine_b_fire_delay ; HP=0, do HP bar fill
-        jsr     L8003                   ; run collision + animation AI
+        jsr     entity_ai_dispatch      ; run collision + animation AI
         lda     ent_hp,x                ; re-check HP after collision
         ora     #$80                    ; set display flag (bit 7)
         sta     boss_hp_display         ; update HP bar display
@@ -1762,7 +1762,7 @@ gamma_f_scroll_alt:  lda     $69        ; scroll sub-pixel
         lda     #$02                    ; var2 = 2 → scroll phase done
         sta     ent_var2,x
 gamma_f_var1_dec:  dec     ent_var1,x   ; count down pause timer
-gamma_f_collision_update:  jsr     L8003 ; run collision + animation
+gamma_f_collision_update:  jsr     entity_ai_dispatch ; run collision + animation
         lda     ent_hp,x                ; check if Gamma F defeated
         bne     gamma_f_return          ; HP > 0 → still alive
         sta     $6A                     ; clear scroll pixel
@@ -2154,7 +2154,7 @@ kamegoro_maker_init:  lda     ent_hitbox,x ; save hitbox
         pha                             ; preserve on stack
         lda     #$00                    ; disable hitbox temporarily
         sta     ent_hitbox,x            ; clear contact damage
-        jsr     L8003                   ; run collision + animation
+        jsr     entity_ai_dispatch      ; run collision + animation
         pla                             ; restore original hitbox
         sta     ent_hitbox,x            ; put hitbox back
         bcs     kamegoro_maker_mode_check ; if still alive, skip init
@@ -2440,7 +2440,7 @@ kamegoro_current_death_next:  dey
         sta     boss_hp_display         ; update HP display
         and     #$1F                    ; isolate HP value bits
         bne     kamegoro_current_death_anim ; HP = 0 means boss dead
-        jmp     L8006                   ; trigger boss defeat
+        jmp     entity_ai_defeat        ; trigger boss defeat
 
 kamegoro_current_death_anim:  lda     #$31 ; closed-shell animation
         jsr     reset_sprite_anim       ; return to closed pose

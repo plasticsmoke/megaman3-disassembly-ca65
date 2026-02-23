@@ -590,7 +590,7 @@ chr_bank_sprite_upper:  .byte   $09,$0A,$19,$0C,$0D,$0C,$0E,$0F ; (cont'd: Needl
         .byte   $5C,$36,$36,$25,$16,$36,$36,$25 ; Tama seg, Mechakkero, Mechakkero, Walking Bomb, Bikky(B), Mechakkero, Mechakkero, Walking Bomb
         .byte   $16,$36,$51,$51,$51,$51,$25,$16 ; Bikky(B), Mechakkero, RM intro, RM intro, RM intro, RM intro, Walking Bomb, Bikky(B)
         .byte   $25,$16,$3D,$31,$53,$53,$52,$50 ; Walking Bomb, Bikky(B), Proto Man(G), Chibee, RM intro, RM intro, RM intro, RM intro
-        .byte   $02,$5C,$48,$FF,$00,$02,$00,$00 ; Dada, Tama seg, Doc Robot
+        .byte   $02,$5C,$48,$FF,$00,$02,$00,$00 ; New Shotman, Tama seg, Doc Robot
         .byte   $00,$02,$00,$00,$40,$00,$00,$00
         .byte   $00,$00,$40,$10,$00,$02,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$10,$10

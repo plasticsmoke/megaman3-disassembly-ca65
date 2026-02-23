@@ -59,36 +59,35 @@
 ; ===========================================================================
 ; enemy_flags_g ($A000) — entity initialization flags
 ; ===========================================================================
-; Written to ent_flags on spawn. Bit meanings:
-;   bit 7 ($80): entity active
-;   bit 4 ($10): entity is a "large" sprite (32x32 or larger)
-;   bit 2 ($04): invincible / cannot be damaged
-;   bit 1 ($02): does not interact with terrain
-;   bit 0 ($01): affected by gravity
+; Written to ent_flags on spawn. Bit meanings (from rendering engine):
+;   bit 7 ($80): entity active / drawn
+;   bit 6 ($40): horizontal flip
+;   bit 5 ($20): on-ladder (behind-background OAM priority)
+;   bit 4 ($10): uses world coordinates (subtract camera for screen pos)
+;   bit 3 ($08): wide offscreen margin (keep alive within 72px of edge)
+;   bit 2 ($04): invisible (skip OAM rendering)
+;   bit 1 ($02): unknown (set by spawn table, no known consumer)
+;   bit 0 ($01): unknown (set by spawn table, no known consumer)
 ;
-; --- enemy ID index (known names from bank1C_1D AI dispatch): ---
-;   $00=Met            $01=Peterchy        $02=Dada            $03=Potton
-;   $04=Hammer Joe     $05=New Shotman     $06=Bubukan         $07=(projectile)
-;   $08=Bomb Flier     $09=Jamacy          $0A=Yambow          $0B=Electric Gabyoall
-;   $0C=Cannon         $0D=Cannon          $0E=Needle Press    $0F=Mag Fly
-;   $10=Mag Fly        $11=Junk Golem      $12=Met (variant)   $13=Gyoraibo
-;   $14=Petit Snakey   $15=Cloud Platform  $16=unknown         $17=Bikky
-;   $18=Pickelman Bull $19=unknown         $1A=Hologran        $1B=Bolton & Nutton
-;   $1C=Nitron         $1D=unknown         $1E=Hari Harry      $1F=Giant Springer
-;   $20=Penpen Maker   $21=Proto Man       $22=Metall DX       $23=Junk Block
-;   $24=Junk Block     $25=Walking Bomb    $26=Magnet Missile  $27=Search Snake
-;   $28=Hard Knuckle   $29=Penpen (sub)    $2A=Spark Shock     $2B=Shadow Blade
-;   $2C=Buster shot    $2D=Proto Shield    $2E=Elecn
-;   $30=Returning Monking   $31=Chibee     $32=Top Man Platform
-;   $33=Top Man Platform    $34=Wanaan     $35=(unused)
-;   $36=Mechakkero     $37=Gemini Laser    $38=Bomb Flier(B)
-;   $39-$3C=Penpen variants $3D=Proto (G)  $3E=Beehive
-;   $3F=Have Su Bee    $40-$46=Doc Robot screens
-;   $47=Needle Press(B) $48=Doc Robot      $49=Doc Robot
-;   $4A=Doc Robot      $4B=Doc Robot
-;   $50-$56=Robot Master intros
-;   $57=Komasaburo     $58-$5E=Tama parts
-;   $60-$66=Surprise Box / item pickups
+; --- enemy ID index (confirmed via Mesen breakpoints + wiki cross-reference): ---
+;   $00=Dada            $01=Potton          $02=New Shotman     $03=Hammer Joe
+;   $04=Bubukan         $05=Jamacy          $06=Bomb Flier      $07=(projectile)
+;   $08=Yambow          $09=Metall DX       $0A=Cannon          $0B=(unknown)
+;   $0C=(unknown)       $0D=(unknown)       $0E=(unknown)       $0F=Mag Fly
+;   $10=(unknown)       $11=Junk Golem      $12=Pickelman Bull  $13=Bikky
+;   $14=(unknown)       $15=(unknown)       $16=Mag Force       $17=(unknown)
+;   $18=Nitron          $19=Pole            $1A=Gyoraibo        $1B=Hari Harry
+;   $1C=Penpen Maker    $1D=Returning Monking $1E=(unknown)     $1F=Have 'Su' Bee
+;   $20=Bolton & Nutton $21=Wanaan           $22=(unknown)       $23=Needle Press
+;   $24=Elec'n          $25=Magnet Pull      $26=Mechakkero      $27=Top Man Platform
+;   $28-$2B=(unknown)   $2C=Penpen          $2D=Electric Gabyoall
+;   $2E-$36=(unknown)   $36=Peterchy        $37=Walking Bomb    $38=Parasyu
+;   $39=(unknown)       $3A=Hologran        $3B=Bomber Pepe     $3C=Metall DX (walk)
+;   $3D=Magnet Push     $3E=Proto Man        $3F=(unknown)
+;   $40-$4B=Doc Robot entries               $5C=Giant Springer
+;   $50-$56=Robot Master intros             $62=Komasaburo
+;   $58-$5E=Tama parts
+;   $60-$66=Surprise Box / item pickups (except $62)
 ;   $68-$6F=Robot Masters (Needle/Magnet/Gemini/Hard/Top/Snake/Spark/Shadow)
 ;   $70-$77=Boss projectiles / special entities
 ;   $78=Proto Man (Gemini cutscene)
@@ -137,19 +136,19 @@ enemy_flags_g:
 ; $00 = no-op/return, $FF entries are unused.
 ; ===========================================================================
 enemy_main_ID_g:
-        .byte   $02,$03,$05,$06,$08,$15,$0A,$00 ; $00-$07: Met/Peterchy/Dada/Potton/HammerJoe/NewShotman/Bubukan/(proj)
-        .byte   $0D,$0E,$12,$14,$17,$18,$1E,$1A ; $08-$0F: BombFlier/Jamacy/Yambow/ElecGabyoall/Cannon/Cannon/NeedlePress/MagFly
-        .byte   $1B,$1F,$20,$21,$22,$16,$23,$24 ; $10-$17: MagFly/JunkGolem/Met(var)/Gyoraibo/PetitSnakey/CloudPlatform/?/Bikky
-        .byte   $25,$27,$28,$2A,$2B,$2C,$2D,$2E ; $18-$1F: PickelmanBull/?/Hologran/Bolton+Nutton/Nitron/?/HariHarry/GiantSpringer
-        .byte   $30,$32,$33,$33,$35,$00,$37,$38 ; $20-$27: PenpenMaker/ProtoMan/MetallDX/MetallDX/WalkingBomb/?/MagnetMissile/SearchSnake
-        .byte   $39,$3A,$3B,$3C,$3D,$3E,$3F,$40 ; $28-$2F: HardKnuckle/Penpen(sub)/SparkShock/ShadowBlade/Buster/ProtoShield/Elecn/Mechakkero (verify in Mesen)
-        .byte   $41,$00,$43,$F5,$33,$48,$07,$34 ; $30-$37: RetMonking/?/Chibee/HaveSuBee/TopManPlatform/Beehive/Peterchy(B)/Wanaan
-        .byte   $49,$4A,$4B,$4C,$4D,$23,$52,$00 ; $38-$3F: BombFlier(B)/Penpen(var)/Penpen(var)/Penpen(var)/?/JunkBlock(B)/SparkFallPlat/?
+        .byte   $02,$03,$05,$06,$08,$15,$0A,$00 ; $00-$07: Dada/Potton/NewShotman/HammerJoe/Bubukan/Jamacy/BombFlier/(proj)
+        .byte   $0D,$0E,$12,$14,$17,$18,$1E,$1A ; $08-$0F: Yambow/MetallDX/Cannon/(unk)/(unk)/(unk)/(unk)/MagFly
+        .byte   $1B,$1F,$20,$21,$22,$16,$23,$24 ; $10-$17: (unk)/JunkGolem/PickelmanBull/Bikky/(unk)/(unk)/MagForce/(unk)
+        .byte   $25,$27,$28,$2A,$2B,$2C,$2D,$2E ; $18-$1F: Nitron/Pole/Gyoraibo/HariHarry/PenpenMaker/RetMonking/(unk)/HaveSuBee
+        .byte   $30,$32,$33,$33,$35,$00,$37,$38 ; $20-$27: Bolton+Nutton/Wanaan/(unk)/NeedlePress/Elecn/MagnetPull/Mechakkero/TopManPlat
+        .byte   $39,$3A,$3B,$3C,$3D,$3E,$3F,$40 ; $28-$2F: (unk)/(unk)/(unk)/(unk)/Penpen/ElecGabyoall/(unk)/(unk)
+        .byte   $41,$00,$43,$F5,$33,$48,$07,$34 ; $30-$37: (unk)/(unk)/(unk)/(unk)/(unk)/(unk)/Peterchy/WalkingBomb
+        .byte   $49,$4A,$4B,$4C,$4D,$23,$52,$00 ; $38-$3F: Parasyu/Hologran/BomberPepe/(unk)/MetallDX(walk)/MagnetPush/ProtoMan/(unk)
         .byte   $00,$00,$00,$00,$00,$00,$00,$58 ; $40-$47: Doc Robot screens (AI $00=noop) / NeedlePress(B)
         .byte   $59,$5A,$5B,$5C,$5D,$5E,$5F,$00 ; $48-$4F: Doc Robot AI entries
-        .byte   $64,$65,$66,$67,$68,$69,$6A,$FC ; $50-$57: Robot Master intros / Komasaburo
+        .byte   $64,$65,$66,$67,$68,$69,$6A,$FC ; $50-$57: Robot Master intros ($50-$56) / $57=(unk)
         .byte   $6E,$6E,$70,$72,$73,$74,$F0,$F3 ; $58-$5F: Tama segments
-        .byte   $4E,$4E,$47,$6C,$78,$79,$00,$00 ; $60-$67: item pickup / surprise box
+        .byte   $4E,$4E,$47,$6C,$78,$79,$00,$00 ; $60-$67: item pickup ($60-$61) / $62=Komasaburo / surprise box
         .byte   $90,$91,$92,$93,$94,$95,$96,$97 ; $68-$6F: Robot Masters (bank06/07 dispatch)
         .byte   $00,$89,$00,$8A,$00,$00,$8C,$4F ; $70-$77: boss projectiles
         .byte   $71,$00,$E7,$00,$00,$00,$EA,$EA ; $78-$7F: Proto Man (Gemini) / fortress
@@ -263,14 +262,14 @@ enemy_OAM_ID_g:
 ;   $00 = instant death / not a real entity
 ; ===========================================================================
 enemy_health_g:
-        .byte   $01,$01,$03,$08,$04,$01,$03,$03 ; $00-$07: Met=1, Peterchy=1, Dada=3, Potton=8, HammerJoe=4
+        .byte   $01,$01,$03,$08,$04,$01,$03,$03 ; $00-$07: Dada=1, Potton=1, NewShotman=3, HammerJoe=8, Bubukan=4
         .byte   $03,$01,$03,$FF,$01,$01,$02,$01 ; $08-$0F: Gabyoall=$FF(invincible)
         .byte   $02,$06,$03,$06,$FF,$01,$FF,$06 ; $10-$17: PetitSnakey=$FF, CloudPlatform=$FF
-        .byte   $01,$01,$02,$06,$0A,$08,$01,$03 ; $18-$1F: Bolton&Nutton=6, Nitron=10
-        .byte   $01,$FF,$FF,$FF,$01,$FF,$01,$FF ; $20-$27: ProtoMan=$FF, MetallDX=$FF
+        .byte   $01,$01,$02,$06,$0A,$08,$01,$03 ; $18-$1F: HariHarry=6, PenpenMaker=10
+        .byte   $01,$FF,$FF,$FF,$01,$FF,$01,$FF ; $20-$27: Wanaan=$FF, NeedlePress=$FF, TopManPlat=$FF
         .byte   $01,$01,$01,$01,$01,$FF,$01,$06 ; $28-$2F: buster=1, ProtoShield=$FF
         .byte   $01,$FF,$FF,$1C,$FF,$FF,$03,$01 ; $30-$37: Chibee=$FF, HaveSuBee=$1C(28)
-        .byte   $03,$03,$03,$06,$01,$FF,$1C,$FF ; $38-$3F: SparkFallPlat=$1C
+        .byte   $03,$03,$03,$06,$01,$FF,$1C,$FF ; $38-$3F: MagnetPush=$FF, ProtoMan=$1C(28)
         .byte   $03,$03,$03,$03,$03,$03,$03,$1C ; $40-$47: Doc Robot screens, NeedlePress(B)=$1C
         .byte   $1C,$1C,$1C,$1C,$1C,$1C,$1C,$FF ; $48-$4F: Doc Robot=$1C(28)
         .byte   $FF,$FF,$1C,$1C,$FF,$FF,$FF,$0A ; $50-$57: Komasaburo=10

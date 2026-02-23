@@ -28,9 +28,10 @@
 .include "include/hardware.inc"
 
 ; --- External references (fixed bank + swappable bank $0E) ---
-LA000           := $A000                ; init music driver (bank $0E)
-LA003           := $A003                ; continue music playback (bank $0E)
-LA006           := $A006                ; start music track X (bank $0E)
+music_driver_init := $A000              ; init music driver (bank $0E)
+banked_A000     := $A000                ; generic $A000 entry point (various banks)
+music_driver_tick := $A003              ; continue music playback (bank $0E)
+music_start_track := $A006              ; start music track X (bank $0E)
 rendering_off           := $C531        ; disable PPU rendering
 rendering_on           := $C53B         ; enable PPU rendering
 fill_nametable           := $C59D       ; fill entire nametable from metatile data
@@ -240,10 +241,10 @@ music_playback_phase:  lda     ent_var1            ; check inter-track delay
         bne     start_rm_music_track               ; not first — skip jingle
         lda     #MUSIC_GAME_OVER
         jsr     submit_sound_ID_D9      ; submit sound $12 (game over jingle)
-start_rm_music_track:  jsr     LA006               ; start playing RM music track
+start_rm_music_track:  jsr     music_start_track ; start playing RM music track
         jmp     game_over_frame_update               ; skip to per-frame update
 ; --- tick music playback ---
-tick_music_engine:  jsr     LA003               ; tick music engine
+tick_music_engine:  jsr     music_driver_tick ; tick music engine
         lda     $B8                     ; check music playback state
         cmp     #$FF                    ; music finished? ($FF = done)
         bne     game_over_frame_update               ; no — keep ticking
@@ -258,7 +259,7 @@ inter_track_delay:  lda     #$00
         bne     game_over_frame_update               ; not zero — keep waiting
         sta     $B8                     ; reset music state
         sta     nmi_skip                ; re-enable NMI
-        jsr     LA000                   ; reinit music engine
+        jsr     music_driver_init       ; reinit music engine
         jmp     game_over_frame_update               ; skip to per-frame update
 ; --- walking phase (all music done, walk right) ---
 walk_right_phase:  inc     ent_x_px            ; move Mega Man right 1 pixel
@@ -314,8 +315,8 @@ results_screen_init:  lda     #$00                ; A = 0
         jsr     prepare_oam_buffer      ; prepare OAM buffer (clear sprites)
         jsr     clear_entity_table      ; clear entity table
         jsr     task_yield              ; yield one frame
-        lda     #$00                    ; A = 0
-        sta     LA000                   ; clear music init flag
+        lda     #$00                    ; set V-mirroring
+        sta     MMC3_MIRRORING
 ; --- load results screen palette ---
         ldy     #$0F                    ; copy 16 bytes
 load_results_palette_loop:  lda     results_screen_palette_table,y ; 16-byte palette for results screen
@@ -461,7 +462,7 @@ music_section_timing:  lda     ent_timer
         lda     #$0D                    ; bank $0D
         sta     prg_bank                ; set PRG bank
         jsr     select_PRG_banks        ; switch to bank $0D
-        jsr     LA000                   ; reinit music
+        jsr     music_driver_init       ; reinit music
         lda     #$00                    ; clear column counter
         sta     ent_var1                ; clear column counter
         lda     #$04                    ; nametable $2400
@@ -538,8 +539,8 @@ screen_wipe_loop:  inc     $5E                 ; increment to create screen spli
 ; downward on screen.
 ; ===========================================================================
 
-credits_nametable_setup:  lda     #$01                ; mark music as initialized
-        sta     LA000                   ; flag music initialized
+credits_nametable_setup:  lda     #$01                ; set H-mirroring
+        sta     MMC3_MIRRORING
         lda     #$00                    ; A = 0
         sta     nmi_skip                ; enable NMI
         sta     game_mode               ; reset game mode
@@ -655,8 +656,8 @@ continue_screen_init:  ldx     #$F0                ; hold for $F0 frames
         jsr     prepare_oam_buffer      ; clear OAM buffer
         jsr     clear_entity_table      ; clear entity table
         jsr     task_yield              ; wait one frame
-        lda     #$00                    ; A = 0
-        sta     LA000                   ; clear music init
+        lda     #$00                    ; set V-mirroring
+        sta     MMC3_MIRRORING
         sta     ent_status              ; deactivate player entity
 ; --- play password screen music ---
         lda     #MUSIC_CONTINUE
@@ -753,7 +754,7 @@ weapon_showcase_loop:  lda     #$00                ; clear nametable flags
         sta     $05F0                   ; ent_anim_frame[$10] = 0
         sta     $05B0                   ; ent_anim_state[$10] = 0
         lda     weapon_showcase_music_init_param_table,x ; RM music/init parameter
-        jsr     LA000                   ; init portrait (via bank $01 routine)
+        jsr     banked_A000             ; init portrait (via bank $01 routine)
         jsr     update_CHR_banks        ; apply CHR banks
         lda     #$80
         sta     $0310                   ; show portrait entity
@@ -770,10 +771,10 @@ wait_portrait_anim_loop:  jsr     process_frame_yield_full ; process frame yield
         sta     prg_bank                ; bank $0E = music engine
         jsr     select_PRG_banks
         ldx     ent_timer               ; RM index
-        jsr     LA006                   ; start RM music
+        jsr     music_start_track       ; start RM music
         jsr     task_yield              ; wait one frame
 ; --- tick music until complete ---
-tick_rm_music_loop:  jsr     LA003               ; tick music engine
+tick_rm_music_loop:  jsr     music_driver_tick ; tick music engine
         lda     $B8                     ; check music status byte
         cmp     #$FF                    ; music finished?
         beq     advance_to_next_rm
@@ -820,7 +821,7 @@ load_continue_chr_banks_loop:  lda     continue_screen_chr_bank_table,y ; CHR ba
         lda     #$0F                    ; bank $0F
         sta     prg_bank                ; bank $0F = password/continue logic
         jsr     select_PRG_banks        ; apply bank switch
-        jmp     LA000                   ; jump to password handler (does not return)
+        jmp     banked_A000             ; jump to password handler (does not return)
 
 ; ===========================================================================
 ; SCROLL COLUMN UPDATE HELPER ($85BD)

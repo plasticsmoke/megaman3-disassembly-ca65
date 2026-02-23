@@ -28,7 +28,7 @@ main_doc_bubble_j:
 .include "include/constants.inc"
 .include "include/hardware.inc"
 
-L8003           := $8003
+entity_ai_dispatch           := $8003
 move_right_collide           := $F580
 move_right_collide_no_face           := $F588
 move_left_collide           := $F5C4
@@ -95,7 +95,7 @@ doc_heat_phase_ptr_hi_table:  .byte   $A0,$A0 ; phase handler pointers (high byt
 ; --- phase 0: init / idle ---
         jsr     face_player             ; face player
         jsr     set_sprite_hflip        ; set sprite H-flip from facing
-        jsr     L8003                   ; check if intro done (bank $8000 call)
+        jsr     entity_ai_dispatch      ; check if intro done (bank $8000 call)
         bcs     heat_attack_sequence               ; intro done — go to attack logic
         lda     ent_hp,x                ; if HP is zero, return
         beq     heat_idle_rts

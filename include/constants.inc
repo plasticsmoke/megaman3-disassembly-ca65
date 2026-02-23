@@ -31,7 +31,7 @@ ent_timer       = $0500  ; AI timer / general counter
 ent_var1        = $0520  ; general purpose field 1
 ent_var2        = $0540  ; general purpose field 2
 ent_var3        = $0560  ; general purpose field 3
-ent_flags       = $0580  ; bit 7=active, bit 6=H-flip, bit 4=child
+ent_flags       = $0580  ; bit 7=active, bit 6=H-flip, bit 4=world coords
 ent_anim_state  = $05A0  ; animation state (0=reset)
 ent_anim_id     = $05C0  ; current animation / OAM ID
 ent_anim_frame  = $05E0  ; animation frame counter
