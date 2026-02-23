@@ -3434,8 +3434,8 @@ slide_collision_wall_solid:  lda     $10 ; hit a wall?
         lda     $33                     ; timer expired?
         beq     slide_end_ground_check  ; yes → end slide
         dec     $33                     ; decrement timer
-        lda     $33                     ; timer >= $0C (first 8 frames)?
-        cmp     #$0C                    ; first 8 frames threshold
+        lda     $33                     ; check slide timer phase
+        cmp     #$0C                    ; >= $0C? (uncancellable phase)
         bcs     slide_continue_moving   ; yes → uncancellable, keep sliding
         lda     joy1_press              ; A button pressed? (cancellable phase)
         and     #BTN_A                  ; check A button
