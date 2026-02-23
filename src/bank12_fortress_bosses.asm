@@ -48,75 +48,75 @@ update_CHR_banks           := $FF3C
 
 .segment "BANK12"
 
-        jmp     yellow_devil_dispatch
-
-        jmp     yellow_devil_piece_left_update
-
-        jmp     yellow_devil_piece_falling
+        jmp     yellow_devil_dispatch   ; $E0 cmd 0: Yellow Devil AI
+                                        ; $E0 cmd 1:
+        jmp     yellow_devil_piece_left_update ; piece horizontal update
+                                        ; $E1 cmd 0:
+        jmp     yellow_devil_piece_falling ; falling piece update
 main_wily_machine_A:
-
-        jmp     wily_machine_a_dispatch
-
-        jmp     wily_machine_b_move_dir
+                                        ; $E2 cmd 0:
+        jmp     wily_machine_a_dispatch ; Wily Machine phase A AI
+                                        ; $E2 cmd 1:
+        jmp     wily_machine_b_move_dir ; Wily Machine B movement
 main_wily_machine_B:
-
-        jmp     wily_machine_b_dispatch
-
-        jmp     wily_machine_b_attack_vert
+                                        ; $E3 cmd 0:
+        jmp     wily_machine_b_dispatch ; Wily Machine phase B AI
+                                        ; $E3 cmd 1:
+        jmp     wily_machine_b_attack_vert ; vertical attack movement
 main_gamma_B:
-
-        jmp     gamma_b_init
-
-        jmp     gamma_b_main_update
-
-        jmp     gamma_f_main
+                                        ; $E4 cmd 0:
+        jmp     gamma_b_init            ; Gamma phase B init
+                                        ; $E4 cmd 1:
+        jmp     gamma_b_main_update     ; Gamma phase B main loop
+                                        ; $E4 cmd 2:
+        jmp     gamma_f_main            ; Gamma fist main AI
 main_gamma_F:
-
-        jmp     gamma_f_collision_check
+                                        ; $E5 cmd 0:
+        jmp     gamma_f_collision_check ; Gamma fist collision
 main_teleporter:
-
-        jmp     teleporter_collision
-
-        jmp     teleporter_pos_check_y
+                                        ; $E6 cmd 0:
+        jmp     teleporter_collision    ; teleporter collision check
+                                        ; $E6 cmd 1:
+        jmp     teleporter_pos_check_y  ; teleporter Y position check
 main_wily_machine_C:
-
-        nop
-        nop
-        rts
-
-        jmp     teleporter_activate_check
-
-        jmp     teleporter_fall
+                                        ; $E7 cmd 0:
+        nop                             ; Wily Machine C stub (unused)
+        nop                             ; padding
+        rts                             ; return immediately
+                                        ; $E7 cmd 1:
+        jmp     teleporter_activate_check ; teleporter activation
+                                        ; $E7 cmd 2:
+        jmp     teleporter_fall         ; teleporter fall handler
 main_kamegoro_maker:
-
-        jmp     kamegoro_current_init
-
-        jmp     kamegoro_current_phase_init
-
-        jmp     holograph_block_init
+                                        ; $E8 cmd 0:
+        jmp     kamegoro_current_init   ; Kamegoro Maker init
+                                        ; $E8 cmd 1:
+        jmp     kamegoro_current_phase_init ; Kamegoro current phase init
+                                        ; $E8 cmd 2:
+        jmp     holograph_block_init    ; holograph block init
 main_kamegoro_current:
-
-        jmp     holograph_main_init
-
-        jmp     holograph_current_dir_init
+                                        ; $E9 cmd 0:
+        jmp     holograph_main_init     ; holograph main init
+                                        ; $E9 cmd 1:
+        jmp     holograph_current_dir_init ; holograph direction init
 main_holograph:
-
-        jmp     holograph_boss_init
-
-        jmp     yellow_devil_noop
-
-        jmp     yellow_devil_noop
-
-        jmp     yellow_devil_noop
-
-        jmp     teleporter_fall_rts
-
-        jmp     wily_machine_c_block_fall
-
-        jmp     wily_machine_c_block_y_update
+                                        ; $EA cmd 0:
+        jmp     holograph_boss_init     ; holograph boss init
+                                        ; $EA cmd 1:
+        jmp     yellow_devil_noop       ; unused (noop)
+                                        ; $EA cmd 2:
+        jmp     yellow_devil_noop       ; unused (noop)
+                                        ; $EA cmd 3:
+        jmp     yellow_devil_noop       ; unused (noop)
+                                        ; $EA cmd 4:
+        jmp     teleporter_fall_rts     ; teleporter fall return
+                                        ; $EA cmd 5:
+        jmp     wily_machine_c_block_fall ; falling block AI
+                                        ; $EA cmd 6:
+        jmp     wily_machine_c_block_y_update ; block Y position update
 main_giant_met:
-
-        jmp     kamegoro_maker_init
+                                        ; $EB cmd 0:
+        jmp     kamegoro_maker_init     ; Giant Met / Kamegoro init
 
 yellow_devil_noop:  rts
 
@@ -200,7 +200,7 @@ yellow_devil_spawn_common:  lda     #$80 ; active entity
         and     #$01                    ; test direction bit
         bne     yellow_devil_load_timer ; odd = spawning from left
         txa                             ; piece index to A
-        clc
+        clc                             ; prepare for addition
         adc     #$18                    ; offset +24 for left table
         tax                             ; index into left timers
 yellow_devil_load_timer:  lda     yellow_devil_timer_table,x ; delay before next piece
@@ -230,7 +230,7 @@ yellow_devil_body_attack:  lda     ent_hitbox,x ; save current hitbox
         sta     ent_hitbox,x            ; set body hitbox
         lda     ent_y_px,x              ; save Y position
         pha                             ; push to stack
-        clc
+        clc                             ; prepare for addition
         adc     #$20                    ; offset to body center
         sta     ent_y_px,x              ; set adjusted Y pos
         lda     ent_flags,x             ; save flags
@@ -295,7 +295,7 @@ yellow_devil_body_attack:  lda     ent_hitbox,x ; save current hitbox
         sta     ent_var1,x              ; reset piece counter
         sta     ent_anim_frame,x        ; reset anim frame
         sta     ent_anim_state,x        ; reset anim state
-        rts
+        rts                             ; done, begin reassembly next frame
 
 yellow_devil_piece_update:  dec     ent_timer,x ; count down timer
         lda     ent_anim_state,x        ; check anim state
@@ -308,7 +308,7 @@ yellow_devil_piece_collision:  jsr     entity_ai_dispatch ; process collision + 
         ldy     #$03                    ; 4 palette entries
 yellow_devil_death_palette_loop:  sta     $0608,y ; flash BG palette row 2
         sta     $0628,y                 ; flash BG palette row 3
-        dey
+        dey                             ; next palette entry
         bpl     yellow_devil_death_palette_loop ; loop all 4 entries
         sty     palette_dirty           ; flag palette for update
 yellow_devil_death_end:  rts
@@ -376,7 +376,7 @@ yellow_devil_piece_flatten:  lda     ent_flags,x ; get flags
         lda     #$00                    ; zero
 yellow_devil_palette_clear_loop:  sta     $0783,x ; clear NT cmd 1 attrs
         sta     $0790,x                 ; clear NT cmd 2 attrs
-        dex
+        dex                             ; next attr byte index
         bpl     yellow_devil_palette_clear_loop ; loop all attr bytes
         stx     $079A                   ; end sentinel ($FF)
         stx     nt_column_dirty         ; flag column for update
@@ -413,7 +413,7 @@ yellow_devil_body_spawn_loop:  jsr     find_enemy_freeslot_y ; find free entity 
         sta     ent_x_px,y              ; set piece X pos
         lda     $01                     ; column Y position
         sta     ent_y_px,y              ; set piece Y pos
-        sec
+        sec                             ; prepare for subtraction
         sbc     #$10                    ; move up 16 px (1 tile)
         sta     $01                     ; update Y cursor
         cmp     #$88                    ; reached eye row ($88)?
@@ -465,7 +465,7 @@ yellow_devil_piece_right_update:  lda     ent_facing,x ; facing direction
         and     #FACING_LEFT            ; isolate left-facing bit
         tay                             ; Y = 0 or 2 (facing offset)
         lda     yellow_devil_facing_offset,y ; base table offset for direction
-        clc
+        clc                             ; prepare for addition
         adc     ent_timer,x             ; add piece index to offset
         tay                             ; Y = table index for this piece
         lda     ent_status,x            ; entity status
@@ -475,7 +475,7 @@ yellow_devil_piece_right_update:  lda     ent_facing,x ; facing direction
         and     #FACING_RIGHT           ; check right-facing bit
         beq     yellow_devil_piece_right_left ; not right-facing: move left
         jsr     move_sprite_right       ; move piece rightward
-        jmp     yellow_devil_piece_right_cont
+        jmp     yellow_devil_piece_right_cont ; skip left branch
 
 yellow_devil_piece_right_left:  jsr     move_sprite_left ; move piece leftward
 yellow_devil_piece_right_cont:  lda     yellow_devil_x_pos_left_table,y ; target X for this piece
@@ -503,7 +503,7 @@ yellow_devil_piece_right_anim:  lda     ent_anim_state,x ; check animation progr
         sta     $0787                   ; 2nd row: tile count
         lda     yellow_devil_chr_index_table,y ; CHR tile index for this piece
         asl     a                       ; multiply by 4 (attr stride)
-        asl     a
+        asl     a                       ; *4 complete (4 bytes per entry)
         tay                             ; Y = attr table offset
         lda     yellow_devil_chr_attr_80,y ; top-left tile
         sta     $0783                   ; NT buffer: tile data
@@ -556,7 +556,7 @@ yellow_devil_piece_fall_delay:  lda     #$3C ; 60-frame delay for parent
         ldy     ent_timer,x             ; piece index
         lda     yellow_devil_timer_seq_table,y ; NT tile sequence entry
         bmi     yellow_devil_piece_fall_death ; $FF = last piece: done
-        pha
+        pha                             ; save tile index for later
         lda     yellow_devil_nt_even_table,y ; PPU addr high byte (even)
         sta     $0780                   ; NT buffer: addr high
         sta     $0785                   ; 2nd row: same high byte
@@ -569,7 +569,7 @@ yellow_devil_piece_fall_delay:  lda     #$3C ; 60-frame delay for parent
         sta     $0787                   ; 2nd row: tile count
         pla                             ; restore NT tile index
         asl     a                       ; multiply by 4 (attr stride)
-        asl     a
+        asl     a                       ; *4 complete (4 bytes per entry)
         tay                             ; Y = attr table offset
         lda     yellow_devil_chr_attr_80,y ; top-left tile
         sta     $0783                   ; NT buffer: tile data
@@ -594,11 +594,11 @@ yellow_devil_piece_fall_delay:  lda     #$3C ; 60-frame delay for parent
         sta     $05DF                   ; set slot $1F OAM anim
 yellow_devil_piece_fall_death:  lda     #$00 ; deactivate piece entity
         sta     ent_status,x            ; clear status
-        rts
+        rts                             ; piece removed
 
 yellow_devil_piece_fall_anim:  lda     #$00 ; hold current anim frame
         sta     ent_anim_frame,x        ; prevent anim auto-advance
-        rts
+        rts                             ; wait for NT update to finish
 
 yellow_devil_piece_fall_descent:  lda     ent_timer,x ; piece timer (movement phase)
         beq     yellow_devil_piece_fall_var1_zero ; zero: use var1 path
@@ -626,7 +626,7 @@ yellow_devil_piece_fall_split:  dec     ent_var3,x ; decrement bounce counter
         sta     ent_xvel_sub,x          ; set X velocity sub-pixel
         lda     #$01                    ; X velocity = 1 pixel/frame
         sta     ent_xvel,x              ; set X velocity
-        rts
+        rts                             ; low-speed bounce initialized
 
 yellow_devil_piece_fall_hi_vel:  lda     #$87 ; Y vel sub = $87 (faster)
         sta     ent_yvel_sub,x          ; set Y velocity sub-pixel
@@ -636,7 +636,7 @@ yellow_devil_piece_fall_hi_vel:  lda     #$87 ; Y vel sub = $87 (faster)
         sta     ent_xvel_sub,x          ; set X velocity sub-pixel
         lda     #$02                    ; X velocity = 2 pixels/frame
         sta     ent_xvel,x              ; set X velocity
-        rts
+        rts                             ; high-speed bounce initialized
 
 yellow_devil_piece_fall_phase2:  lda     ent_status,x ; entity status
         and     #$0F                    ; isolate low nibble (sub-phase)
@@ -654,9 +654,9 @@ yellow_devil_piece_fall_right:  jsr     move_sprite_right ; move piece rightward
         sta     ent_x_px,x              ; clamp X to target
         sbc     #$9F                    ; subtract $A0 (left edge)
         lsr     a                       ; divide by 16
-        lsr     a
-        lsr     a
-        lsr     a
+        lsr     a                       ; /4
+        lsr     a                       ; /8
+        lsr     a                       ; /16 = column index
         tay                             ; Y = column index (0-4)
         lda     yellow_devil_var3_timer_table,y ; delay before fall for column
         sta     ent_var3,x              ; set as var3 timer
@@ -783,9 +783,9 @@ wily_machine_a_dispatch:  lda     #$AB  ; push return addr hi ($AB)
         and     #$0F                    ; isolate low nibble
         tay                             ; use as table index
         lda     wily_machine_b_addr_a,y ; load jump target lo
-        sta     temp_00
+        sta     temp_00                 ; store in indirect ptr low
         lda     wily_machine_b_addr_b,y ; load jump target hi
-        sta     $01
+        sta     $01                     ; store in indirect ptr high
         jmp     (temp_00)               ; dispatch to phase handler
 
         lda     #$09                    ; PSTATE_BOSS_WAIT
@@ -797,12 +797,12 @@ wily_machine_a_dispatch:  lda     #$AB  ; push return addr hi ($AB)
         sta     boss_active             ; set boss active flag
         lda     #$8E                    ; HP fill target = 28 HP
         sta     $B3                     ; store boss HP fill target
-        lda     #MUSIC_BOSS
+        lda     #MUSIC_BOSS             ; boss intro music ID
         jsr     submit_sound_ID_D9      ; play boss music
         lda     #$00                    ; clear machine state vars
-        sta     $69
-        sta     $6B
-        sta     $6A
+        sta     $69                     ; clear scroll sub-pixel
+        sta     $6B                     ; clear scroll page
+        sta     $6A                     ; clear scroll pixel
         ldy     #$08                    ; 9 sprite slots ($17-$1F)
 wily_machine_a_oam_loop:  lda     $0377,y ; copy X positions to var3
         sta     $0577,y                 ; save initial X for flipping
@@ -826,16 +826,16 @@ wily_machine_a_return:  rts
 
         ldy     ent_timer,x             ; get movement subroutine idx
         lda     wily_machine_b_routine_ptr,y ; load sub-handler addr lo
-        sta     temp_00
+        sta     temp_00                 ; store in indirect ptr low
         lda     wily_machine_b_addr_c,y ; load sub-handler addr hi
-        sta     $01
+        sta     $01                     ; store in indirect ptr high
         jmp     (temp_00)               ; dispatch to move routine
 
         lda     $5E                     ; current machine Y pos
         cmp     #$5A                    ; reached top position?
         beq     wily_machine_a_move_up_end ; yes — skip sprite movement
         lda     $5E                     ; reload Y position
-        clc
+        clc                             ; prepare for addition
         adc     #$02                    ; move up by 2 pixels
         sta     $5E                     ; store new Y position
         cmp     #$5A                    ; reached top ($5A)?
@@ -843,12 +843,12 @@ wily_machine_a_return:  rts
         lda     #$1E                    ; pause at top = 30 frames
         sta     ent_var1,x              ; set pause timer
 wily_machine_a_sprite_move:  lda     $03DA ; save slot $1A Y pos
-        pha
+        pha                             ; preserve for restore after loop
         lda     $03DB                   ; save slot $1B Y pos
-        pha
+        pha                             ; preserve for restore after loop
         ldy     #$08                    ; 9 sprite slots
 wily_machine_a_move_up_loop:  lda     $03D7,y ; get sprite Y position
-        clc
+        clc                             ; prepare for addition
         adc     #$02                    ; move sprite down 2px (screen)
         sta     $03D7,y                 ; update sprite Y
         dey                             ; next sprite
@@ -863,12 +863,12 @@ wily_machine_a_move_up_end:  dec     ent_var1,x ; decrement move timer
 wily_machine_a_move_continue:  jmp     wily_machine_a_bullet_fire ; check bullet firing
 
         lda     $03DA                   ; save slot $1A Y pos
-        pha
+        pha                             ; preserve for restore after loop
         lda     $03DB                   ; save slot $1B Y pos
-        pha
+        pha                             ; preserve for restore after loop
         ldy     #$08                    ; 9 sprite slots
 wily_machine_a_move_down_loop:  lda     $03D7,y ; get sprite Y position
-        sec
+        sec                             ; prepare for subtraction
         sbc     #$02                    ; move sprite up 2px (screen)
         sta     $03D7,y                 ; update sprite Y
         dey                             ; next sprite
@@ -878,7 +878,7 @@ wily_machine_a_move_down_loop:  lda     $03D7,y ; get sprite Y position
         pla                             ; restore slot $1A Y pos
         sta     $03DA                   ; keep $1A stationary
         lda     $5E                     ; current machine Y pos
-        sec
+        sec                             ; prepare for subtraction
         sbc     #$02                    ; move platform down 2px
         sta     $5E                     ; store new Y position
         cmp     #$3A                    ; reached bottom ($3A)?
@@ -907,7 +907,7 @@ wily_machine_a_move_return:  jmp     wily_machine_a_move_timer_dec
         and     #$01                    ; odd frame?
         bne     wily_machine_a_inc_y    ; yes — skip sub-sprites
         lda     $6A                     ; X offset lo
-        clc
+        clc                             ; prepare for 16-bit add
         adc     #$01                    ; increment X offset
         sta     $6A                     ; store X offset lo
         lda     $6B                     ; X offset hi
@@ -964,7 +964,7 @@ wily_machine_a_dec_x_alt:  dec     $03DA ; X pos slot $1A -= 1
         and     #$01                    ; odd frame?
         bne     wily_machine_a_inc_x    ; yes — skip sub-sprites
         lda     $6A                     ; X offset lo
-        sec
+        sec                             ; prepare for 16-bit subtract
         sbc     #$01                    ; decrement X offset
         sta     $6A                     ; store X offset lo
         lda     $6B                     ; X offset hi
@@ -997,7 +997,7 @@ wily_machine_a_inc_y_alt:  dec     $03DB ; Y pos slot $1B -= 1
         bne     wily_machine_a_move_timer_dec ; no — skip anim update
         dec     $05BD                   ; anim_state slot $1D -= 1
         dec     $05B9                   ; anim_state slot $19 -= 1
-        jmp     wily_machine_a_move_timer_dec
+        jmp     wily_machine_a_move_timer_dec ; dec timer + check bullets
 
         inc     $03DB                   ; Y pos slot $1B += 1
 wily_machine_a_move_timer_dec:  dec     ent_var1,x ; decrement movement timer
@@ -1012,9 +1012,9 @@ wily_machine_a_move_timer_dec:  dec     ent_var1,x ; decrement movement timer
         cmp     #$04                    ; dir 4?
         bne     wily_machine_a_bullet_fire ; no — go fire bullets
         lda     $6A                     ; X offset lo
-        sec
-        sbc     #$40                    ; compare to $140
-        sta     temp_00
+        sec                             ; prepare for 16-bit subtract
+        sbc     #$40                    ; subtract lo byte of $0140
+        sta     temp_00                 ; store difference lo
         lda     $6B                     ; X offset hi
         sbc     #$01                    ; subtract hi byte
         ora     temp_00                 ; check if exactly $140
@@ -1023,9 +1023,9 @@ wily_machine_a_move_timer_dec:  dec     ent_var1,x ; decrement movement timer
         sta     ent_timer,x             ; reset to direction 0
         beq     wily_machine_a_input_check ; always branches
 wily_machine_a_check_dir:  lda     $6A  ; X offset lo
-        sec
-        sbc     #$C0                    ; compare to $C0
-        sta     temp_00
+        sec                             ; prepare for 16-bit subtract
+        sbc     #$C0                    ; subtract lo byte of $00C0
+        sta     temp_00                 ; store difference lo
         lda     $6B                     ; X offset hi
         sbc     #$00                    ; subtract hi byte
         ora     temp_00                 ; check if exactly $C0
@@ -1108,7 +1108,7 @@ wily_machine_a_bullet_init:  lda     #$58 ; entity ID $58 = falling bullet
         lda     #$80                    ; contact damage enabled
         sta     ent_hitbox,y            ; set hitbox
         lda     ent_y_px,x              ; parent Y position
-        clc
+        clc                             ; prepare for addition
         adc     #$0C                    ; offset down 12px
         sta     ent_y_px,y              ; set bullet Y position
         lda     camera_screen           ; copy screen page
@@ -1118,7 +1118,7 @@ wily_machine_a_bullet_init:  lda     #$58 ; entity ID $58 = falling bullet
         lda     wily_machine_b_param_table,y ; get fire delay for pattern
         sta     ent_var2,x              ; set next fire cooldown
         lda     wily_machine_b_bullet_param,y ; get X offset for pattern
-        clc
+        clc                             ; prepare for addition
         adc     ent_x_px,x              ; add to parent X pos
         ldy     $0F                     ; restore bullet slot
         sta     ent_x_px,y              ; set bullet X position
@@ -1151,9 +1151,9 @@ wily_machine_a_flip_loop:  lda     $0597,y ; get sprite flags
         ora     #$04                    ; set offscreen bit
         sta     $0597,y                 ; assume offscreen
         lda     $0577,y                 ; saved initial X pos
-        sec
+        sec                             ; prepare for 16-bit subtract
         sbc     $6A                     ; subtract X offset lo
-        sta     temp_00
+        sta     temp_00                 ; store screen X result lo
         lda     #$01                    ; X base = $100
         sbc     $6B                     ; subtract X offset hi
         bne     wily_machine_a_dey_loop ; hi != 0 — offscreen
@@ -1194,20 +1194,20 @@ wily_machine_a_palette_end:  lda     #$00 ; clear anim frames
         sta     $05F9                   ; anim_frame slot $19 = 0
         sta     $05F8                   ; anim_frame slot $18 = 0
         lda     $057F                   ; var3 slot $1F
-        sec
+        sec                             ; prepare for 16-bit subtract
         sbc     $6A                     ; subtract X offset
         lda     #$01                    ; X base = $100
         sbc     $6B                     ; subtract X offset hi
         bne     wily_machine_a_death_palette ; turret offscreen — skip
         lda     $03DF                   ; turret Y pos (slot $1F)
         pha                             ; save original Y
-        clc
+        clc                             ; prepare for addition
         adc     #$18                    ; offset down 24px
         sta     $03DF                   ; temp hitbox Y position
         lda     #$18                    ; hitbox height = 24
         sta     $049F                   ; set hitbox for slot $1F
         lda     $059F                   ; save flags slot $1F
-        pha
+        pha                             ; preserve for restore after hit check
         and     #$F0                    ; keep upper nibble only
         sta     $059F                   ; clear flip/offscreen bits
         jsr     entity_check_player_hit ; check player hit on turret
@@ -1262,8 +1262,8 @@ wily_machine_b_nt_loop:  lda     wily_machine_b_nt_data,y ; load NT tile data by
         sta     $0780,y                 ; store to NT update buffer
         cmp     #$FF                    ; check for $FF terminator
         beq     wily_machine_b_nt_end   ; end of NT data
-        iny
-        bne     wily_machine_b_nt_loop
+        iny                             ; next data byte index
+        bne     wily_machine_b_nt_loop  ; loop (always, Y won't wrap to 0)
 wily_machine_b_nt_end:  sta     nametable_dirty ; request nametable update
         jmp     wily_machine_b_spawn_pellet ; spawn debris pellets
 
@@ -1310,11 +1310,11 @@ wily_machine_b_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         stx     $0F                     ; save parent slot index
         ldx     $01                     ; use counter as table index
         lda     $02                     ; parent X position
-        clc
+        clc                             ; prepare for addition
         adc     wily_machine_b_param2,x ; add X offset for pellet
         sta     ent_x_px,y              ; set pellet X position
         lda     $03                     ; parent Y position
-        clc
+        clc                             ; prepare for addition
         adc     wily_machine_b_param3,x ; add Y offset for pellet
         sta     ent_y_px,y              ; set pellet Y position
         ldx     $0F                     ; restore parent slot
@@ -1325,15 +1325,15 @@ wily_machine_b_spawn_end:  rts
 wily_machine_b_move_dir:  lda     ent_facing,x ; check H-move direction
         and     #FACING_RIGHT           ; bit 0 = right
         beq     wily_machine_b_move_left ; not right, move left
-        jsr     move_sprite_right
-        jmp     wily_machine_b_move_vert
+        jsr     move_sprite_right       ; move entity right 1px
+        jmp     wily_machine_b_move_vert ; skip left branch
 
 wily_machine_b_move_left:  jsr     move_sprite_left
 wily_machine_b_move_vert:  lda     ent_facing,x ; check V-move direction
         and     #$08                    ; bit 3 = up
         beq     wily_machine_b_move_down ; not up, move down
-        jsr     move_sprite_up
-        jmp     wily_machine_b_calc_vel
+        jsr     move_sprite_up          ; move entity up 1px
+        jmp     wily_machine_b_calc_vel ; skip down branch
 
 wily_machine_b_move_down:  jsr     move_sprite_down
 wily_machine_b_calc_vel:  ldy     ent_timer,x ; velocity table index
@@ -1344,7 +1344,7 @@ wily_machine_b_calc_vel:  ldy     ent_timer,x ; velocity table index
         bpl     wily_machine_b_vel_apply ; positive, no sign extend
         dec     temp_00                 ; negative, sign extend $FF
 wily_machine_b_vel_apply:  lda     ent_y_sub,x ; add Y sub-pixel velocity
-        clc
+        clc                             ; prepare for 16-bit add
         adc     wily_machine_b_yvel_table,y ; add Y sub-pixel component
         sta     ent_y_sub,x             ; update Y sub-pixel
         lda     ent_y_px,x              ; add Y pixel velocity
@@ -1355,13 +1355,13 @@ wily_machine_b_vel_apply:  lda     ent_y_sub,x ; add Y sub-pixel velocity
         beq     wily_machine_b_x_vel_apply ; still on screen 0, OK
         lda     #$00                    ; off-screen, despawn
         sta     ent_status,x            ; deactivate entity
-        rts
+        rts                             ; entity left screen
 
 wily_machine_b_x_vel_apply:  lda     wily_machine_b_xvel_sign_table,y ; X velocity sign byte
         bpl     wily_machine_b_x_sub_vel ; positive, no sign extend
         dec     $01                     ; negative, sign extend $FF
 wily_machine_b_x_sub_vel:  lda     ent_x_sub,x ; add X sub-pixel velocity
-        clc
+        clc                             ; prepare for 16-bit add
         adc     wily_machine_b_xvel_table,y ; add X sub-pixel component
         sta     ent_x_sub,x             ; update X sub-pixel
         lda     ent_x_px,x              ; add X pixel velocity
@@ -1386,7 +1386,7 @@ wily_machine_b_attack_vert:  jsr     apply_y_speed ; apply gravity + Y velocity
         lda     ent_facing,x            ; check facing direction
         and     #FACING_RIGHT           ; bit 0 = right
         beq     wily_machine_b_move_left_atk ; not right, move left
-        jmp     move_sprite_right
+        jmp     move_sprite_right       ; move right and return
 
 wily_machine_b_move_left_atk:  jmp     move_sprite_left
 
@@ -1453,27 +1453,27 @@ gamma_b_phase_handler:  lda     ent_timer,x ; check fade timer
         bne     gamma_b_setup_hp        ; nonzero = skip palette fade
         ldy     #$0B                    ; 12 palette entries (0-11)
 gamma_b_pal_fill_hi_loop:  lda     gamma_b_pal_hi_table,y ; target palette value
-        sec
+        sec                             ; prepare for subtraction
         sbc     ent_timer,x             ; subtract fade progress
         bcs     gamma_b_pal_hi_store    ; no underflow, use result
         lda     #$0F                    ; underflow = black ($0F)
 gamma_b_pal_hi_store:  sta     $0604,y  ; write to sprite palette buf
         sta     $0624,y                 ; write to BG palette buf
-        dey
-        bpl     gamma_b_pal_fill_hi_loop
+        dey                             ; next palette entry
+        bpl     gamma_b_pal_fill_hi_loop ; loop all 12 entries
         ldy     #$07                    ; 8 palette entries (0-7)
 gamma_b_pal_fill_lo_loop:  lda     gamma_b_pal_lo_table,y ; target palette value
-        sec
+        sec                             ; prepare for subtraction
         sbc     ent_timer,x             ; subtract fade progress
         bcs     gamma_b_pal_lo_store    ; no underflow, use result
         lda     #$0F                    ; underflow = black ($0F)
 gamma_b_pal_lo_store:  sta     $0618,y  ; write to sprite palette buf
         sta     $0638,y                 ; write to BG palette buf
-        dey
-        bpl     gamma_b_pal_fill_lo_loop
+        dey                             ; next palette entry
+        bpl     gamma_b_pal_fill_lo_loop ; loop all 8 entries
         sty     palette_dirty           ; Y=$FF, flag palette dirty
         lda     ent_timer,x             ; current fade timer
-        sec
+        sec                             ; prepare for subtraction
         sbc     #$10                    ; step fade by $10
         sta     ent_timer,x             ; update fade timer
 gamma_b_setup_hp:  lda     #$80         ; reset HP display flag
@@ -1494,7 +1494,7 @@ gamma_b_hp_bar_check:  lda     boss_hp_display ; HP bar position
         sta     ent_hp,x                ; set boss HP
 gamma_b_init_end:  lda     #$00         ; clear anim frame counter
         sta     ent_anim_frame,x        ; reset animation
-        rts
+        rts                             ; init/fill frame complete
 
 gamma_b_pal_hi_table:  .byte   $0F,$30,$16,$04,$0F,$30,$11,$01
         .byte   $0F,$30,$36,$26
@@ -1533,7 +1533,7 @@ gamma_b_var1_dec:  dec     ent_var1,x   ; tick spawn delay
 gamma_b_hp_check:  lda     ent_hp,x     ; check boss HP
         cmp     #$0F                    ; below 15 HP?
         bcc     gamma_b_spawn_mine      ; yes, trigger mine phase
-        rts
+        rts                             ; HP >= 15, continue normal AI
 
 gamma_b_spawn_mine:  ldy     #$17       ; start at slot $17
 gamma_b_spawn_loop:  cpy     #$10       ; slot $10+?
@@ -1601,7 +1601,7 @@ gamma_b_spawn_homing_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         and     #FACING_LEFT            ; bit 1 = facing left
         tay                             ; use as table index (0/2)
         lda     ent_x_px,x              ; parent X pixel
-        clc
+        clc                             ; prepare for addition
         adc     gamma_b_param_table,y   ; add facing-based X offset
         pha                             ; save low byte
         lda     ent_x_scr,x             ; parent X screen
@@ -1650,7 +1650,7 @@ gamma_b_spawn_bullet:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     ent_x_scr,x             ; copy parent X screen
         sta     ent_x_scr,y             ; set bullet X screen
         lda     ent_y_px,x              ; parent Y position
-        sec
+        sec                             ; prepare for subtraction
         sbc     #$10                    ; offset 16px up (mouth)
         sta     ent_y_px,y              ; set bullet Y pixel
         lda     ent_y_scr,x             ; copy parent Y screen
@@ -1662,7 +1662,7 @@ gamma_b_spawn_bullet:  jsr     find_enemy_freeslot_y ; find free enemy slot
         ldx     #$03                    ; start at highest speed
 gamma_b_vel_select_loop:  cmp     gamma_b_vel_threshold_table,x ; dist < threshold?
         bcc     gamma_b_vel_apply       ; yes, use this speed
-        dex
+        dex                             ; try slower speed index
         bne     gamma_b_vel_select_loop ; try next threshold
 gamma_b_vel_apply:  lda     gamma_b_xvel_sub_table,x ; X vel sub for distance
         sta     ent_xvel_sub,y          ; set bullet X vel sub
@@ -1685,19 +1685,19 @@ gamma_f_main:  lda     ent_timer,x      ; spawn cooldown active?
         lda     ent_x_scr,x             ; copy parent X screen
         sta     ent_x_scr,y             ; to child entity
         lda     ent_y_px,x              ; parent Y position
-        clc
+        clc                             ; prepare for addition
         adc     #$38                    ; offset +$38 px downward
         sta     ent_y_px,y              ; set child Y position
         lda     #$80                    ; hitbox $80 = contact damage
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; set fist hitbox
         lda     #$50                    ; AI routine $50
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set fist AI routine
         lda     #$00                    ; zero X velocity sub-pixel
-        sta     ent_xvel_sub,y
-        sta     $02
+        sta     ent_xvel_sub,y          ; clear fist X vel sub
+        sta     $02                     ; store sub-pixel for homing calc
         lda     #$04                    ; base speed = 4 px/frame
-        sta     ent_xvel,y
-        sta     $03
+        sta     ent_xvel,y              ; set fist X velocity
+        sta     $03                     ; store pixel vel for homing calc
         sty     $0F                     ; save child slot in $0F
         stx     $0E                     ; save parent slot in $0E
         ldx     $0F                     ; X = child slot for homing calc
@@ -1707,7 +1707,7 @@ gamma_f_main:  lda     ent_timer,x      ; spawn cooldown active?
         lda     $0C                     ; homing result = facing dir
         sta     ent_facing,y            ; set child facing direction
         lda     #$B5                    ; spawn cooldown = $B5 frames
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set fist respawn timer
 gamma_f_timer_dec:  dec     ent_timer,x ; count down spawn timer
 gamma_f_var1_check:  lda     ent_var1,x ; pause timer (scroll done)
         bne     gamma_f_var1_dec        ; nonzero → count down
@@ -1715,52 +1715,52 @@ gamma_f_var1_check:  lda     ent_var1,x ; pause timer (scroll done)
         and     #$01                    ; bit 0: 0=scroll right, 1=left
         bne     gamma_f_scroll_alt      ; odd → scroll left
         lda     $69                     ; scroll position sub-pixel
-        clc
+        clc                             ; prepare for addition
         adc     ent_xvel_sub,x          ; add velocity to scroll pos
-        sta     $69
+        sta     $69                     ; update scroll sub-pixel
         lda     $6A                     ; scroll position pixel
         adc     ent_xvel,x              ; add velocity to scroll pos
-        sta     $6A
+        sta     $6A                     ; update scroll pixel position
         cmp     #$A0                    ; reached right limit $A0?
         bcs     gamma_f_set_scroll      ; yes → clamp and reverse
         lda     ent_xvel_sub,x          ; accelerate scroll speed
-        clc
+        clc                             ; prepare for acceleration add
         adc     #$10                    ; add $10 to sub-pixel velocity
-        sta     ent_xvel_sub,x
+        sta     ent_xvel_sub,x          ; store updated sub-pixel vel
         lda     ent_xvel,x              ; carry into pixel velocity
-        adc     #$00
-        sta     ent_xvel,x
+        adc     #$00                    ; carry into pixel velocity
+        sta     ent_xvel,x              ; store updated pixel velocity
         cmp     #$03                    ; speed capped at 3 px/frame?
         bne     gamma_f_collision_update ; not yet → continue
         lda     #$00                    ; clamp sub-pixel to 0
-        sta     ent_xvel_sub,x
+        sta     ent_xvel_sub,x          ; cap sub-pixel at zero
         beq     gamma_f_collision_update ; always branch (A=0)
 gamma_f_set_scroll:  lda     #$A0       ; clamp scroll to $A0
-        sta     $6A
+        sta     $6A                     ; set scroll pixel to limit
         lda     #$80                    ; deceleration sub-pixel
-        sta     ent_xvel_sub,x
+        sta     ent_xvel_sub,x          ; set deceleration sub-pixel
         lda     #$01                    ; deceleration = 1 px/frame
-        sta     ent_xvel,x
+        sta     ent_xvel,x              ; set deceleration pixel velocity
         lda     #$01                    ; switch to scroll-left mode
-        sta     ent_var2,x
+        sta     ent_var2,x              ; switch scroll to leftward
         bne     gamma_f_collision_update ; always branch
 gamma_f_scroll_alt:  lda     $69        ; scroll sub-pixel
-        sec
+        sec                             ; prepare for subtraction
         sbc     ent_xvel_sub,x          ; subtract velocity from scroll
-        sta     $69
+        sta     $69                     ; update scroll sub-pixel
         lda     $6A                     ; scroll pixel
         sbc     ent_xvel,x              ; subtract velocity from scroll
-        sta     $6A
+        sta     $6A                     ; update scroll pixel position
         bcs     gamma_f_collision_update ; no underflow → continue
         lda     #$00                    ; clamp scroll to 0
-        sta     $69
-        sta     $6A
-        sta     ent_xvel_sub,x
-        sta     ent_xvel,x
+        sta     $69                     ; clamp scroll sub to zero
+        sta     $6A                     ; clamp scroll pixel to zero
+        sta     ent_xvel_sub,x          ; stop scroll sub-pixel
+        sta     ent_xvel,x              ; stop scroll pixel velocity
         lda     #$F1                    ; pause timer = $F1 frames
-        sta     ent_var1,x
+        sta     ent_var1,x              ; set pause duration
         lda     #$02                    ; var2 = 2 → scroll phase done
-        sta     ent_var2,x
+        sta     ent_var2,x              ; store completed scroll phase
 gamma_f_var1_dec:  dec     ent_var1,x   ; count down pause timer
 gamma_f_collision_update:  jsr     entity_ai_dispatch ; run collision + animation
         lda     ent_hp,x                ; check if Gamma F defeated
@@ -1771,36 +1771,36 @@ gamma_f_collision_update:  jsr     entity_ai_dispatch ; run collision + animatio
         lda     #$0F                    ; white ($0F) for death flash
 gamma_f_death_pal_loop:  sta     $0604,y ; write BG palette 1
         sta     $0624,y                 ; write BG palette 2
-        dey
-        bpl     gamma_f_death_pal_loop
+        dey                             ; next palette entry
+        bpl     gamma_f_death_pal_loop  ; loop all 12 entries
         sty     palette_dirty           ; Y=$FF → trigger palette DMA
         ldy     #$00                    ; index for NT data copy
 gamma_f_death_nt_loop:  lda     gamma_f_nt_data,y ; load nametable patch data
         sta     $0780,y                 ; write to NT update buffer
         cmp     #$FF                    ; $FF = end-of-data sentinel
         beq     gamma_f_death_end       ; done → exit loop
-        iny
-        bne     gamma_f_death_nt_loop
+        iny                             ; advance NT data index
+        bne     gamma_f_death_nt_loop   ; loop until 256 or sentinel
 gamma_f_death_end:  sta     nametable_dirty ; trigger nametable update
         lda     #$80                    ; set up death explosion entity
         sta     $0310                   ; ent_status slot $10 = active
         lda     #$90                    ; ent_flags slot $10
-        sta     $0590
+        sta     $0590                   ; set explosion entity flags
         lda     #$6D                    ; anim ID $6D = explosion
-        sta     $05D0
+        sta     $05D0                   ; set explosion anim ID
         lda     #$00                    ; clear anim frame
-        sta     $05F0
+        sta     $05F0                   ; clear explosion anim frame
         sta     $05B0                   ; clear anim state
         sta     $0490                   ; clear hitbox (no damage)
         lda     #$EF                    ; AI routine $EF
-        sta     $0330
+        sta     $0330                   ; set explosion AI routine
         lda     #$A3                    ; Y velocity sub = $A3
-        sta     $0450
+        sta     $0450                   ; set explosion Y vel sub
         lda     #$04                    ; Y velocity = 4 (falling)
-        sta     $0470
+        sta     $0470                   ; set explosion Y velocity
         lda     #$00                    ; clear scroll position
-        sta     $6A
-        sta     $6B
+        sta     $6A                     ; zero scroll pixel
+        sta     $6B                     ; zero scroll high byte
 gamma_f_return:  rts
 
 gamma_f_nt_data:  .byte   $23,$C0,$0F,$55,$55,$55,$55,$55
@@ -1810,28 +1810,28 @@ gamma_f_collision_check:  lda     ent_flags,x ; check bit 2 of entity flags
         and     #$04                    ; bit 2 = offscreen flag
         bne     gamma_f_collision_flag  ; offscreen → skip collision
         lda     player_state            ; current player state
-        cmp     #PSTATE_DAMAGE
+        cmp     #PSTATE_DAMAGE          ; player taking damage?
         beq     gamma_f_collision_flag  ; taking damage → skip
-        cmp     #PSTATE_DEATH
+        cmp     #PSTATE_DEATH           ; player dead?
         beq     gamma_f_collision_flag  ; dead → skip
         lda     ent_y_px                ; save player Y pixel
-        pha
+        pha                             ; save original Y on stack
         inc     ent_y_px                ; nudge player Y down 1 px
         jsr     check_player_collision  ; test overlap with nudged Y
         bcs     gamma_f_player_collision ; no overlap → check platform
         lda     $041F                   ; copy weapon X velocity sub
-        sta     $37
+        sta     $37                     ; store as push sub-pixel
         lda     $043F                   ; copy weapon X velocity
-        sta     $38
+        sta     $38                     ; store as push velocity
         lda     $055F                   ; copy weapon facing
-        sta     $36
+        sta     $36                     ; store as push direction
 gamma_f_player_collision:  pla          ; restore player Y pixel
-        sta     ent_y_px
+        sta     ent_y_px                ; write back player Y pixel
 
 ; Gamma/fortress hazard — instant kill on contact
         lda     ent_spawn_id,x          ; entity sub-type
         cmp     #$0D                    ; sub-type $0D = Gamma fist (skip instant kill)
-        beq     gamma_f_collision_flag
+        beq     gamma_f_collision_flag  ; fist uses normal damage instead
         lda     invincibility_timer     ; i-frames active?
         bne     gamma_f_collision_flag  ; skip
         jsr     check_player_collision  ; AABB collision test
@@ -1843,13 +1843,13 @@ gamma_f_collision_flag:  lda     ent_flags,x ; read current flags
 gamma_f_collision_byte:  .byte   $04
         sta     ent_flags,x             ; store updated flags
         lda     gamma_f_collision_byte,x ; indexed read from $04 table
-        sec
+        sec                             ; prepare for subtraction
         sbc     $6A                     ; subtract scroll offset
         bcs     gamma_f_collision_end   ; no underflow → done
         sta     ent_x_px,x              ; update X pixel from scroll
         lda     ent_flags,x             ; clear bit 2 (now onscreen)
-        and     #$FB
-        sta     ent_flags,x
+        and     #$FB                    ; clear bit 2 (now onscreen)
+        sta     ent_flags,x             ; update entity flags
 gamma_f_collision_end:  rts
 
         .byte   $80,$40,$10
@@ -1866,17 +1866,17 @@ teleporter_collision:  jsr     check_player_collision ; is player touching telep
         cmp     #$02                    ; close enough to center?
         bcs     teleporter_return       ; no → return
         lda     ent_x_px,x              ; snap player X to teleporter X
-        sta     ent_x_px
+        sta     ent_x_px                ; align player X to teleporter
         lda     ent_spawn_id,x          ; entity sub-type - $0E =
         sbc     #$0E                    ; destination index
-        cmp     #$01
+        cmp     #$01                    ; check for invalid destination
         beq     teleporter_return       ; destination 1 = invalid? skip
         sta     warp_dest               ; set warp destination
         lda     #PSTATE_WARP_INIT       ; state → $11 (warp_init)
         sta     player_state            ; begin teleporter sequence
         lda     #$13                    ; player OAM $13 = teleport beam
-        sta     ent_anim_id
-        lda     #$00
+        sta     ent_anim_id             ; set teleport beam animation
+        lda     #$00                    ; zero for clearing anim state
         sta     ent_anim_frame          ; reset animation counter
         sta     ent_anim_state          ; reset animation frame
         sta     ent_status,x            ; despawn teleporter entity
@@ -1893,26 +1893,26 @@ teleporter_pos_check_x:  dec     ent_x_px,x ; move left toward center
         lda     #FACING_LEFT            ; facing left
 teleporter_set_facing:  sta     ent_facing,x ; store facing direction
         lda     ent_y_px,x              ; save Y position
-        pha
+        pha                             ; save Y on stack
         dec     ent_y_px,x              ; nudge Y up 1 px for overlap
         jsr     check_player_collision  ; test player collision
         pla                             ; restore original Y
-        sta     ent_y_px,x
+        sta     ent_y_px,x              ; restore original Y position
         bcs     teleporter_door_return  ; no collision → return
         lda     ent_facing,x            ; push direction to player
-        sta     $36
+        sta     $36                     ; store facing as push direction
         lda     #$00                    ; clear push sub-pixel
-        sta     $37
+        sta     $37                     ; clear push sub-pixel
         lda     #$01                    ; push speed = 1 px
-        sta     $38
+        sta     $38                     ; set push pixel velocity
 teleporter_door_return:  rts
 
 teleporter_activate_check:  lda     ent_y_px,x ; current Y position
         cmp     #$A8                    ; target Y = $A8 (ground)
         beq     teleporter_anim_check   ; at ground → check anim
-        clc
+        clc                             ; prepare for addition
         adc     #$04                    ; move down 4 px/frame
-        sta     ent_y_px,x
+        sta     ent_y_px,x              ; update Y position
         cmp     #$A8                    ; reached ground level?
         bne     teleporter_anim_end     ; not yet → done
         lda     #$6C                    ; anim $6C = closed teleporter
@@ -1920,7 +1920,7 @@ teleporter_activate_check:  lda     ent_y_px,x ; current Y position
         beq     teleporter_anim_check   ; yes → skip to timer check
         jsr     reset_sprite_anim       ; set closed teleporter anim
         lda     #$10                    ; delay timer = 16 frames
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set open delay timer
 teleporter_anim_check:  lda     ent_anim_id,x ; current animation ID
         cmp     #$6E                    ; anim $6E = fully open
         bne     teleporter_anim_end     ; not fully open → done
@@ -1928,14 +1928,14 @@ teleporter_anim_check:  lda     ent_anim_id,x ; current animation ID
         beq     teleporter_anim_end     ; expired → done
         dec     ent_timer,x             ; count down delay
         lda     #$00                    ; hold animation at frame 0
-        sta     ent_anim_frame,x
+        sta     ent_anim_frame,x        ; freeze animation at frame 0
 teleporter_anim_end:  rts
 
 teleporter_fall:  ldy     #$08          ; gravity strength = 8
         jsr     move_vertical_gravity   ; apply gravity + floor check
         bcs     teleporter_fall_check   ; landed → check anim state
         inc     ent_x_px,x              ; still falling → nudge right
-        rts
+        rts                             ; return while still airborne
 
 teleporter_fall_check:  lda     #$6C    ; anim $6C = closed teleporter
         cmp     ent_anim_id,x           ; already set?
@@ -1953,7 +1953,7 @@ teleporter_fall_rts:  jsr     apply_y_speed ; apply vertical velocity
         beq     wily_machine_c_clear_reg ; timer 2 → clear $0310
         bcs     wily_machine_c_set_flags ; timer > 2 → set flags
         lda     #$00                    ; timer < 2 → despawn block
-        sta     ent_status,x
+        sta     ent_status,x            ; despawn expired block
 wily_machine_c_var1_init:  lda     #$03 ; loop counter = 3 (4 blocks)
         sta     temp_00                 ; store in temp $00
 wily_machine_c_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
@@ -1961,16 +1961,16 @@ wily_machine_c_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     #$78                    ; child ID $78 = falling block
         jsr     init_child_entity       ; spawn block entity
         lda     #$FA                    ; AI routine $FA
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set block AI routine
         lda     #$00                    ; no hitbox
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; blocks have no collision
         lda     ent_x_scr,x             ; copy parent X screen
-        sta     ent_x_scr,y
-        sta     ent_xvel_sub,y
+        sta     ent_x_scr,y             ; set child X screen
+        sta     ent_xvel_sub,y          ; X vel sub = screen (0)
         lda     #$44                    ; Y velocity sub = $44
-        sta     ent_yvel_sub,y
+        sta     ent_yvel_sub,y          ; set block Y vel sub-pixel
         lda     #$03                    ; Y velocity = 3 (falling)
-        sta     ent_yvel,y
+        sta     ent_yvel,y              ; set block fall speed
         stx     $01                     ; save parent slot
         lda     ent_x_px,x              ; parent X position
         sta     $02                     ; save in temp $02
@@ -1978,25 +1978,25 @@ wily_machine_c_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     wily_machine_c_y_pos_table,x ; Y offset for this block
         sta     ent_y_px,y              ; set block Y position
         lda     $02                     ; parent X position
-        clc
+        clc                             ; prepare for X offset add
         adc     wily_machine_c_xvel_table,x ; add X offset for this block
         sta     ent_x_px,y              ; set block X position
         lda     wily_machine_c_facing_table,x ; block facing direction
-        sta     ent_facing,y
+        sta     ent_facing,y            ; set block scatter direction
         lda     wily_machine_c_flags_table,x ; block movement flags
-        sta     ent_xvel,y
+        sta     ent_xvel,y              ; set block lateral speed
         ldx     $01                     ; restore parent slot
         dec     temp_00                 ; next block index
         bpl     wily_machine_c_spawn_loop ; loop until all 4 spawned
-        rts
+        rts                             ; all blocks spawned
 
 wily_machine_c_clear_reg:  lda     #$00 ; clear entity status $10
-        sta     $0310
-        rts
+        sta     $0310                   ; deactivate slot $10 entity
+        rts                             ; return after clearing
 
 wily_machine_c_set_flags:  lda     ent_flags ; player entity flags
         ora     #$04                    ; set bit 2 (freeze player)
-        sta     ent_flags
+        sta     ent_flags               ; freeze player movement
         lda     ent_var1,x              ; frame counter
         cmp     #$3C                    ; reached 60 frames ($3C)?
         bne     wily_machine_c_main     ; not yet → increment
@@ -2004,9 +2004,9 @@ wily_machine_c_set_flags:  lda     ent_flags ; player entity flags
         jsr     reset_sprite_anim       ; set reveal animation
         stx     ent_var3                ; save parent slot for cleanup
         lda     #$00                    ; deactivate AI routine
-        sta     ent_routine,x
+        sta     ent_routine,x           ; disable Wily Machine AI
         lda     #$B4                    ; Y = $B4 (floor level)
-        sta     ent_y_px,x
+        sta     ent_y_px,x              ; place at floor level
         jmp     wily_machine_c_var1_init ; spawn 4 new blocks
 
 wily_machine_c_main:  inc     ent_var1,x ; increment frame counter
@@ -2015,29 +2015,29 @@ wily_machine_c_main:  inc     ent_var1,x ; increment frame counter
         bcs     wily_machine_c_return   ; none free → skip
         lda     #$7D                    ; child ID $7D = falling block
         jsr     init_child_entity       ; spawn falling block
-        lda     #$00
+        lda     #$00                    ; block starts at Y = 0
         sta     ent_y_px,y              ; start at top of screen
         lda     ent_x_px,x              ; match parent X position
-        sta     ent_x_px,y
+        sta     ent_x_px,y              ; set block X pixel
         lda     ent_x_scr,x             ; match parent X screen
-        sta     ent_x_scr,y
+        sta     ent_x_scr,y             ; set block X screen
         sta     ent_timer,y             ; timer = X screen (0)
         lda     #$00                    ; clear hitbox
-        sta     ent_hitbox,y
-        sta     ent_yvel_sub,y
-        sta     ent_yvel,y
-        sta     ent_xvel_sub,y
-        sta     ent_xvel,y
+        sta     ent_hitbox,y            ; no collision for block
+        sta     ent_yvel_sub,y          ; clear Y vel sub-pixel
+        sta     ent_yvel,y              ; clear Y velocity
+        sta     ent_xvel_sub,y          ; clear X vel sub-pixel
+        sta     ent_xvel,y              ; clear X velocity
         lda     #$FB                    ; AI routine $FB
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set block Y-update AI
         lda     #FACING_RIGHT           ; facing right
-        sta     ent_facing,y
+        sta     ent_facing,y            ; block scatters rightward
         ldy     #$07                    ; 8 palette entries
 wily_machine_c_pal_loop:  lda     wily_machine_c_pal_table,y ; load palette data
         sta     $0610,y                 ; write sprite palette 1
         sta     $0630,y                 ; write sprite palette 2
-        dey
-        bpl     wily_machine_c_pal_loop
+        dey                             ; next palette entry
+        bpl     wily_machine_c_pal_loop ; loop all 8 entries
         sty     palette_dirty           ; Y=$FF → trigger palette DMA
 wily_machine_c_return:  rts
 
@@ -2050,8 +2050,8 @@ wily_machine_c_block_fall:  jsr     apply_y_speed ; apply vertical velocity
         cmp     #$B8                    ; below floor ($B8)?
         bcc     wily_machine_c_block_move ; above → continue moving
         lda     #$00                    ; despawn block
-        sta     ent_status,x
-        rts
+        sta     ent_status,x            ; remove block entity
+        rts                             ; return after despawn
 
 wily_machine_c_block_move:  lda     ent_facing,x ; check facing direction
         and     #FACING_RIGHT           ; bit 0: 1=right, 0=left
@@ -2068,9 +2068,9 @@ wily_machine_c_block_y_update:  jsr     apply_y_speed ; apply vertical velocity
         cmp     ent_y_px,x              ; past limit?
         bcs     wily_machine_c_block_facing ; above → continue lateral move
         lda     #$00                    ; despawn this block
-        sta     ent_status,x
+        sta     ent_status,x            ; despawn this scatter block
         lda     #$81                    ; reactivate player entity
-        sta     ent_status
+        sta     ent_status              ; reactivate player entity
         lda     #$00                    ; despawn Wily Machine parent
         ldy     ent_var3                ; var3 = saved parent slot
         sta     ent_status,y            ; despawn parent entity
@@ -2079,8 +2079,8 @@ wily_machine_c_block_y_update:  jsr     apply_y_speed ; apply vertical velocity
         sta     player_state            ; player teleports away (end stage)
         lda     ent_flags               ; player flags
         and     #$FB                    ; clear bit 2 (unfreeze)
-        sta     ent_flags
-        rts
+        sta     ent_flags               ; unfreeze player movement
+        rts                             ; return after stage end
 
 wily_machine_c_block_y_check:  lda     #$94 ; Y limit = $94
         cmp     ent_y_px,x              ; past limit?
@@ -2093,23 +2093,23 @@ wily_machine_c_block_y_check:  lda     #$94 ; Y limit = $94
         bne     wily_machine_c_block_anim ; other → set idle anim
         lda     #$7A                    ; set to idle anim $7A
         jsr     reset_sprite_anim       ; reset animation
-        lda     #$00
+        lda     #$00                    ; clear flash state
         sta     $B8                     ; clear palette flash flag
 wily_machine_c_block_anim:  lda     ent_anim_state,x ; check anim state
         cmp     #$04                    ; state 4 = last frame?
         bne     wily_machine_c_block_end ; not last → continue
         lda     #$7B                    ; set breaking anim $7B
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; set breaking animation
         lda     #$A3                    ; Y velocity sub = $A3
-        sta     ent_yvel_sub,x
+        sta     ent_yvel_sub,x          ; set launch Y vel sub
         lda     #$04                    ; Y velocity = 4 (launch up)
-        sta     ent_yvel,x
+        sta     ent_yvel,x              ; set upward launch speed
         lda     #$9B                    ; X velocity sub = $9B
-        sta     ent_xvel_sub,x
+        sta     ent_xvel_sub,x          ; set lateral X vel sub
         lda     #$02                    ; X velocity = 2
-        sta     ent_xvel,x
+        sta     ent_xvel,x              ; set lateral scatter speed
 wily_machine_c_block_anim_end:  lda     #$00 ; freeze at frame 0
-        sta     ent_anim_frame,x
+        sta     ent_anim_frame,x        ; hold animation at first frame
 wily_machine_c_block_facing:  lda     ent_facing,x ; check lateral direction
         and     #FACING_RIGHT           ; bit 0: 1=right, 0=left
         beq     wily_machine_c_block_left_move ; even → move left
@@ -2125,11 +2125,11 @@ wily_machine_c_block_timer:  inc     ent_timer,x ; increment idle timer
         bne     wily_machine_c_block_pal ; nonzero → run pal effect
         dec     ent_timer,x             ; hold timer at $3B
         lda     #$11                    ; game mode $11 = ending
-        sta     game_mode
+        sta     game_mode               ; trigger ending sequence
         lda     #$D0                    ; set ending timer = $D0
-        sta     $5E
+        sta     $5E                     ; set ending countdown timer
         lda     #$0A                    ; palette flash count = $0A
-        sta     $B8
+        sta     $B8                     ; init palette flash counter
         jmp     call_bank0E_A006        ; start palette flash effect
 
 wily_machine_c_block_pal:  jsr     call_bank0E_A003 ; advance palette flash
@@ -2137,12 +2137,12 @@ wily_machine_c_block_pal:  jsr     call_bank0E_A003 ; advance palette flash
         cmp     #$FF                    ; $FF = flash complete
         beq     wily_machine_c_block_jump ; done → launch blocks
         dec     ent_timer,x             ; hold timer (keep flashing)
-        rts
+        rts                             ; return while flash continues
 
 wily_machine_c_block_jump:  lda     #$A3 ; Y velocity sub = $A3
-        sta     ent_yvel_sub,x
+        sta     ent_yvel_sub,x          ; set launch Y vel sub
         lda     #$04                    ; Y velocity = 4 (launch up)
-        sta     ent_yvel,x
+        sta     ent_yvel,x              ; launch block upward
         lda     #$7B                    ; breaking anim $7B
         jsr     reset_sprite_anim       ; set breaking animation
         lda     #FACING_LEFT            ; facing left (scatter dir)
@@ -2182,11 +2182,11 @@ kamegoro_maker_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         stx     $0F                     ; save parent slot
         ldx     $01                     ; use counter as index
         lda     $02                     ; base X position
-        clc
+        clc                             ; prepare for X offset add
         adc     kamegoro_maker_param_e,x ; add X offset from table
         sta     ent_x_px,y              ; set child X position
         lda     $03                     ; base Y position
-        clc
+        clc                             ; prepare for Y offset add
         adc     kamegoro_maker_param_f,x ; add Y offset from table
         sta     ent_y_px,y              ; set child Y position
         ldx     $0F                     ; restore parent slot
@@ -2238,7 +2238,7 @@ kamegoro_maker_timer_start:  lda     ent_timer,x ; check movement timer
         adc     $E5                     ; advance RNG state
         sta     $E5                     ; store new RNG value
         and     #$03                    ; random 0-3
-        tay
+        tay                             ; use random value as index
         lda     kamegoro_maker_timer_table,y ; look up timer duration
         sta     ent_timer,x             ; set new movement timer
         lda     #$00                    ; reset camera X
@@ -2270,18 +2270,18 @@ kamegoro_maker_timer_dec:  dec     ent_timer,x ; count down timer
         and     #$01                    ; random 0 or 1
         beq     kamegoro_maker_var2_init ; 0 = spawn Kamegoro turtle
         jsr     kamegoro_maker_spawn_pellet ; 1 = spawn pellet spread
-        jmp     kamegoro_maker_gravity
+        jmp     kamegoro_maker_gravity  ; skip turtle spawn path
 
 kamegoro_maker_var2_init:  lda     #$03 ; 3 burst spawns
         sta     ent_var2,x              ; set burst counter
         jsr     kamegoro_maker_spawn_main ; spawn first Kamegoro
 kamegoro_maker_gravity:  lda     ent_y_px,x ; get Y position
         sec                             ; subtract $D0 offset
-        sbc     #$D0
+        sbc     #$D0                    ; subtract screen base offset
         clc                             ; adjust for screen bounds
-        adc     #$AF
+        adc     #$AF                    ; map to offscreen threshold
         sta     $5E                     ; store offscreen check result
-        rts
+        rts                             ; return after gravity update
 
 kamegoro_maker_spawn_pellet:  lda     #$02 ; spawn 3 pellets
         sta     $01                     ; loop counter (0-2)
@@ -2300,7 +2300,7 @@ kamegoro_maker_pellet_loop:  jsr     find_enemy_freeslot_y ; find free enemy slo
         lda     ent_x_scr,x             ; copy parent X screen
         sta     ent_x_scr,y             ; to pellet X screen
         lda     ent_y_px,x              ; parent Y position
-        clc
+        clc                             ; prepare for Y offset add
         adc     #$30                    ; offset down by 48 px
         sta     ent_y_px,y              ; set pellet Y position
         lda     #FACING_LEFT            ; face left
@@ -2333,7 +2333,7 @@ kamegoro_maker_spawn_main:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     ent_x_scr,x             ; copy parent X screen
         sta     ent_x_scr,y             ; to turtle X screen
         lda     ent_y_px,x              ; parent Y position
-        clc
+        clc                             ; prepare for Y offset add
         adc     #$30                    ; offset 48 px below maker
         sta     ent_y_px,y              ; set turtle Y position
         lda     #$AB                    ; Y vel sub = $AB (upward)
@@ -2346,7 +2346,7 @@ kamegoro_maker_spawn_main:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sta     ent_xvel,y              ; launched rightward
         lda     #$01                    ; 1 HP
         sta     ent_hp,y                ; turtle takes 1 hit
-        rts
+        rts                             ; return after Kamegoro spawn
 
 kamegoro_maker_timer_table:  .byte   $1E,$3C,$3C,$5A
 kamegoro_maker_param_a:  .byte   $B5,$00,$B5
@@ -2404,7 +2404,7 @@ kamegoro_current_movement:  lda     ent_facing,x ; check horizontal direction
         beq     kamegoro_current_move_left_col ; 0 = facing left
         ldy     #$20                    ; right collision box $20
         jsr     move_right_collide      ; move right with collision
-        jmp     kamegoro_current_move_check
+        jmp     kamegoro_current_move_check ; check for wall collision
 
 kamegoro_current_move_left_col:  ldy     #$21 ; left collision box $21
         jsr     move_left_collide       ; move left with collision
@@ -2413,7 +2413,7 @@ kamegoro_current_move_check:  bcc     kamegoro_current_timer_dec ; no collision,
         eor     #$03                    ; toggle left/right bits
         sta     ent_facing,x            ; reverse horizontal facing
 kamegoro_current_timer_dec:  dec     ent_timer,x ; count down move timer
-        rts
+        rts                             ; return after timer tick
 
 kamegoro_current_status_inc:  inc     ent_status,x ; max spawns, advance phase
 kamegoro_current_return:  rts
@@ -2433,9 +2433,9 @@ kamegoro_current_death_next:  dey
         lda     #$00                    ; all children defeated
         sta     ent_var1,x              ; clear death flag
         lda     ent_var2,x              ; get total spawn count
-        tay
+        tay                             ; use spawn count as index
         lda     boss_hp_display         ; current HP bar value
-        sec
+        sec                             ; prepare for HP subtraction
         sbc     kamegoro_current_timer_table,y ; subtract HP for this wave
         sta     boss_hp_display         ; update HP display
         and     #$1F                    ; isolate HP value bits
@@ -2445,24 +2445,24 @@ kamegoro_current_death_next:  dey
 kamegoro_current_death_anim:  lda     #$31 ; closed-shell animation
         jsr     reset_sprite_anim       ; return to closed pose
         jsr     kamegoro_current_death_counter ; re-randomize next timer
-        rts
+        rts                             ; return after shell reset
 
 kamegoro_current_death_filter:  lda     $01 ; get spawn ID to match
         cmp     ent_spawn_id,y          ; is this a Kamegoro child?
         bne     kamegoro_current_death_next ; no match, skip slot
         inc     temp_00                 ; count this live child
-        jmp     kamegoro_current_death_next
+        jmp     kamegoro_current_death_next ; continue scanning slots
 
 kamegoro_current_death_counter:  lda     $E4 ; RNG seed
         adc     $E5                     ; advance RNG
         sta     $E5                     ; store updated RNG
         and     #$03                    ; random 0-3
-        tay
+        tay                             ; use random value as index
         lda     kamegoro_current_pos_table,y ; look up move timer value
         sta     ent_timer,x             ; set movement timer
         lda     kamegoro_current_spawn_table,y ; look up facing direction
         sta     ent_facing,x            ; set move direction
-        rts
+        rts                             ; return after timer/facing set
 
 kamegoro_current_pos_table:  .byte   $40,$A0,$70,$D0
 kamegoro_current_spawn_table:  .byte   $01,$02,$01,$02
@@ -2475,7 +2475,7 @@ kamegoro_current_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy 
         lda     ent_x_scr,x             ; copy parent X screen
         sta     ent_x_scr,y             ; to child X screen
         lda     ent_y_px,x              ; parent Y position
-        clc
+        clc                             ; prepare for Y offset add
         adc     #$18                    ; offset 24 px below shell
         sta     ent_y_px,y              ; set child Y position
         lda     #$C2                    ; hitbox $C2 (dmg + shape)
@@ -2549,7 +2549,7 @@ kamegoro_current_move_dir:  lda     ent_facing,x ; check facing direction
         beq     kamegoro_current_move_left ; 0 = facing left
         ldy     #$0C                    ; collision box $0C
         jsr     move_right_collide      ; move right with collision
-        jmp     kamegoro_current_collision
+        jmp     kamegoro_current_collision ; check wall collision
 
 kamegoro_current_move_left:  ldy     #$0D ; collision box $0D
         jsr     move_left_collide       ; move left with collision
@@ -2562,7 +2562,7 @@ kamegoro_current_collision:  bcc     kamegoro_current_vert_check ; no wall hit, 
         lda     ent_facing,x            ; no vert direction yet
         ora     #$08                    ; set upward bit
         sta     ent_facing,x            ; add climb after wall hit
-        rts
+        rts                             ; done after wall reversal
 
 kamegoro_current_vert_check:  lda     ent_facing,x ; check vertical direction
         and     #$0C                    ; isolate vert bits (up/down)
@@ -2578,7 +2578,7 @@ kamegoro_current_anim_type2:  lda     #$62 ; continuous crawl-down anim
 kamegoro_current_anim_set:  sta     ent_anim_id,x ; set animation ID
         ldy     #$0E                    ; collision box $0E (down)
         jsr     move_down_collide       ; move down with collision
-        jmp     kamegoro_current_col_return
+        jmp     kamegoro_current_col_return ; check floor collision
 
 kamegoro_current_facing_check:  lda     ent_facing,x ; check facing for sprite flip
         and     #FACING_RIGHT           ; test right-facing bit
@@ -2608,7 +2608,7 @@ kamegoro_current_return_end:  rts
 kamegoro_current_launched:  lda     ent_var3,x ; check if velocity set
         bne     kamegoro_current_gravity ; already initialized
         lda     ent_var2,x              ; get wave index
-        tay
+        tay                             ; use as table index
         lda     kamegoro_current_spawn_id_table,y ; look up Y vel sub
         sta     ent_yvel_sub,x          ; set launch Y vel sub
         lda     kamegoro_current_spawn_type,y ; look up Y velocity
@@ -2633,7 +2633,7 @@ kamegoro_current_move_dir_2:  lda     ent_facing,x ; check facing direction
         lda     ent_flags,x             ; clear H-flip for right
         and     #$BF                    ; clear bit 6
         sta     ent_flags,x             ; update flags
-        jmp     kamegoro_current_col_end
+        jmp     kamegoro_current_col_end ; check for wall collision
 
 kamegoro_current_move_left_2:  ldy     #$0D ; collision box $0D
         jsr     move_left_collide       ; move left with collision
@@ -2649,14 +2649,14 @@ kamegoro_current_status_dec:  dec     ent_status,x ; wall/floor hit, end launch
         eor     #$0C                    ; toggle vertical bits
         sta     ent_facing,x            ; reverse vert direction
         lda     ent_var2,x              ; get wave index
-        tay
+        tay                             ; use as table index
         lda     kamegoro_current_spawn_facing,y ; look up walk vel sub
         sta     ent_yvel_sub,x          ; restore Y vel sub
         sta     ent_xvel_sub,x          ; restore X vel sub
         lda     kamegoro_current_spawn_timer_b,y ; look up walk velocity
         sta     ent_yvel,x              ; restore Y velocity
         sta     ent_xvel,x              ; restore X velocity
-        rts
+        rts                             ; return to walking mode
 
 kamegoro_current_vel_check:  lda     ent_yvel,x ; check Y velocity sign
         bpl     kamegoro_current_return_final ; moving down, done
@@ -2676,7 +2676,7 @@ kamegoro_current_var1_spawn:  lda     ent_var1,x ; check spawn trigger flag
         bcc     kamegoro_current_spawn_ret_a ; not deep enough yet
         jsr     kamegoro_current_effect_spawn ; spawn water splash effect
         lda     ent_var2,x              ; get wave index
-        tay
+        tay                             ; use as table index
         lda     kamegoro_current_spawn_facing,y ; look up vel sub for wave
         sta     ent_yvel_sub,x          ; set Y vel sub (slow down)
         sta     ent_xvel_sub,x          ; same for X vel sub
@@ -2694,14 +2694,14 @@ kamegoro_current_y_check:  lda     ent_y_px,x ; get Y position
         sta     ent_var1,x              ; reset spawn trigger
         sta     ent_var3,x              ; clear launch init flag
         inc     ent_status,x            ; advance to launched phase
-        rts
+        rts                             ; done, will launch next frame
 
 kamegoro_current_face_dir:  lda     ent_facing,x ; get facing direction
         and     #$0C                    ; isolate vert bits
         beq     kamegoro_current_horiz_check ; no vert, check horizontal
         lda     #$62                    ; vertical crawl-down anim
         sta     ent_anim_id,x           ; set animation ID
-        rts
+        rts                             ; return with vert anim set
 
 kamegoro_current_horiz_check:  lda     ent_facing,x ; get facing direction
         and     #FACING_RIGHT           ; test right-facing bit
@@ -2715,7 +2715,7 @@ kamegoro_current_facing_right:  lda     ent_flags,x ; facing left, set H-flip
         sta     ent_flags,x             ; update flags
 kamegoro_current_anim_id_set:  lda     #$64 ; horizontal crawl-up anim
         sta     ent_anim_id,x           ; set animation ID
-        rts
+        rts                             ; return with horiz anim set
 
 kamegoro_current_effect_spawn:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     kamegoro_current_effect_return ; no slot, return
@@ -2727,7 +2727,7 @@ kamegoro_current_effect_spawn:  jsr     find_enemy_freeslot_y ; find free enemy 
         lda     ent_y_px,x              ; parent Y position
         sta     ent_y_px,y              ; copy to child Y
         lda     ent_y_px,x              ; parent Y position again
-        sec
+        sec                             ; prepare for subtraction
         sbc     #$0C                    ; offset 12 px upward
         sta     ent_y_px,y              ; effect above turtle
         lda     #$00                    ; no AI routine
@@ -2772,19 +2772,19 @@ holograph_block_init:  lda     ent_status,x ; check sub-state
         sta     ent_yvel,x              ; clear Y velocity
         sta     ent_var2,x              ; clear var2 (phase flag)
         lda     #$80                    ; half-pixel Y sub-velocity
-        sta     ent_yvel_sub,x
+        sta     ent_yvel_sub,x          ; set Y sub-velocity
         lda     #$32                    ; 50 frames initial rise time
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set initial rise timer
         lda     #$F0                    ; 240 frame lifetime
-        sta     ent_var1,x
+        sta     ent_var1,x              ; set block lifetime
         inc     ent_status,x            ; advance to active state
 holograph_block_collision:  jsr     check_sprite_weapon_collision ; check if weapon hit block
         bcs     holograph_block_damage  ; no hit — take damage path
         lda     #SFX_ENEMY_HIT          ; play enemy hit sound
-        jsr     submit_sound_ID
+        jsr     submit_sound_ID         ; queue the sound effect
         ldy     $10                     ; Y = weapon slot that hit
         lda     #$00                    ; deactivate the weapon
-        sta     ent_status,y
+        sta     ent_status,y            ; destroy the weapon entity
         jmp     holograph_block_death   ; block destroyed by weapon
 
 holograph_block_damage:  lda     ent_status,x ; check sub-state bits
@@ -2794,7 +2794,7 @@ holograph_block_damage:  lda     ent_status,x ; check sub-state bits
         dec     ent_timer,x             ; count down rise timer
         bne     holograph_block_return  ; still rising?
         lda     #$02                    ; 2 frames per oscillation
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set oscillation timer
         inc     ent_status,x            ; enter oscillation phase
 holograph_block_return:  rts
 
@@ -2802,27 +2802,27 @@ holograph_block_facing:  lda     ent_facing,x ; check oscillation direction
         and     #$01                    ; bit 0 = down direction
         bne     holograph_block_move_down ; moving down?
         jsr     move_sprite_up          ; still moving up
-        jmp     holograph_block_timer_dec
+        jmp     holograph_block_timer_dec ; skip to timer decrement
 
 holograph_block_move_down:  jsr     move_sprite_down ; move block downward
 holograph_block_timer_dec:  dec     ent_timer,x ; count down oscillation
         bne     holograph_block_var1_dec ; timer not expired?
         lda     ent_facing,x            ; get current direction
         eor     #$03                    ; toggle bits 0+1 (reverse)
-        sta     ent_facing,x
+        sta     ent_facing,x            ; flip oscillation direction
         lda     #$04                    ; 4 frames per direction
-        sta     ent_timer,x
+        sta     ent_timer,x             ; reset oscillation timer
 holograph_block_var1_dec:  dec     ent_var1,x ; count down lifetime
         bne     holograph_block_var2_check ; still alive?
         lda     #$90                    ; set active + child flags
-        sta     ent_flags,x
+        sta     ent_flags,x             ; prepare for death anim
 holograph_block_death:  lda     #$59    ; explosion anim ID
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play explosion animation
         lda     #$00                    ; clear timer
-        sta     ent_timer,x
+        sta     ent_timer,x             ; reset timer for death
         lda     #$19                    ; death/explosion routine
-        sta     ent_routine,x
-        rts
+        sta     ent_routine,x           ; switch to death handler
+        rts                             ; done, block is destroyed
 
 holograph_block_var2_check:  lda     ent_var2,x ; check phase flag
         bne     holograph_block_var1_check ; not in flicker phase yet?
@@ -2830,7 +2830,7 @@ holograph_block_var2_check:  lda     ent_var2,x ; check phase flag
         cmp     #$02                    ; less than 2 frames left?
         bcs     holograph_block_repeat_return ; still has time remaining
         lda     #$F2                    ; reset lifetime to 242
-        sta     ent_var1,x
+        sta     ent_var1,x              ; extend lifetime for flicker
         inc     ent_var2,x              ; enter flicker phase
 holograph_block_repeat_return:  rts
 
@@ -2839,15 +2839,15 @@ holograph_block_var1_check:  lda     ent_var1,x ; check remaining lifetime
         bcs     holograph_block_repeat_return ; not flickering yet
         lda     ent_flags,x             ; get entity flags
         eor     #$04                    ; toggle visibility bit
-        sta     ent_flags,x
-        rts
+        sta     ent_flags,x             ; update visibility state
+        rts                             ; done, flicker applied
 
 holograph_main_init:  lda     ent_status,x ; check sub-state
         and     #$0F                    ; mask low nibble
         bne     holograph_phase_check   ; already initialized?
         jsr     holograph_timer_init    ; set spawn timer + position
         lda     #$3C                    ; 60 frame initial delay
-        sta     ent_var3,x
+        sta     ent_var3,x              ; set initial wait timer
         inc     ent_status,x            ; advance to waiting state
 holograph_phase_check:  lda     ent_status,x ; check sub-state
         and     #$02                    ; bit 1 = spawning active
@@ -2860,9 +2860,9 @@ holograph_timer_dec:  dec     ent_timer,x ; count down spawn timer
         jsr     holograph_spawn_entity  ; spawn a block/current
         jsr     holograph_timer_init    ; reset timer + position
         lda     #$94                    ; active + child + visible
-        sta     ent_flags,x
+        sta     ent_flags,x             ; update spawner visibility
         dec     ent_var1,x              ; one fewer to spawn
-        rts
+        rts                             ; done, spawned one entity
 
 holograph_var1_check:  lda     ent_var1,x ; check spawn count
         bne     holograph_return        ; all spawned?
@@ -2870,44 +2870,44 @@ holograph_var1_check:  lda     ent_var1,x ; check spawn count
         cmp     #$3C                    ; less than 60 frames left?
         bcs     holograph_return        ; still plenty of time
         lda     #$90                    ; active + child flags
-        sta     ent_flags,x
+        sta     ent_flags,x             ; hide spawner (done spawning)
         inc     ent_var1,x              ; prevent re-entry
 holograph_return:  rts
 
 holograph_timer_init:  lda     #$78     ; 120 frame spawn interval
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set spawn interval timer
         lda     $E4                     ; PRNG seed low
         adc     $E5                     ; add to high byte
-        sta     $E5
+        sta     $E5                     ; store updated PRNG high
         and     #$03                    ; mask to 0-3
         cmp     #$02                    ; value >= 2?
         bcs     holograph_death_y_reset ; use vertical spawn path
-        tay
+        tay                             ; use as table index
         lda     holograph_spawn_param,y ; look up X offset
         sta     ent_x_px,x              ; set spawn X position
         lda     holograph_spawn_type,y  ; look up spawn direction
         sta     ent_facing,x            ; 1=right, 2=left
         lda     $E4                     ; advance PRNG
-        adc     $E5
-        sta     $E4
+        adc     $E5                     ; add PRNG high byte
+        sta     $E4                     ; store updated PRNG low
         and     #$0F                    ; mask to 0-15
-        tay
+        tay                             ; use as Y position index
         lda     holograph_y_pos_table,y ; look up Y position
         sta     ent_y_px,x              ; set spawn Y position
-        rts
+        rts                             ; done, horizontal spawn set
 
 holograph_death_y_reset:  lda     #$CC  ; Y = $CC (bottom of screen)
-        sta     ent_y_px,x
+        sta     ent_y_px,x              ; set Y to bottom of screen
         lda     $E4                     ; advance PRNG
-        adc     $E5
-        sta     $E5
+        adc     $E5                     ; add PRNG high byte
+        sta     $E5                     ; store updated PRNG high
         and     #$0F                    ; mask to 0-15
-        tay
+        tay                             ; use as X position index
         lda     holograph_y_pos_alt_table,y ; look up X position
         sta     ent_x_px,x              ; set spawn X position
         lda     #$08                    ; facing = $08 (upward)
-        sta     ent_facing,x
-        rts
+        sta     ent_facing,x            ; set upward movement
+        rts                             ; done, vertical spawn set
 
 holograph_spawn_param:  .byte   $14,$EC
 holograph_spawn_type:  .byte   $01,$02
@@ -2919,48 +2919,48 @@ holograph_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     holograph_spawn_return  ; no free slot?
         sty     temp_00                 ; save child slot index
         lda     ent_x_scr,x             ; copy parent screen
-        sta     ent_x_scr,y
+        sta     ent_x_scr,y             ; set child screen position
         lda     #$00                    ; clear HP (invincible)
-        sta     ent_hp,y
-        sta     ent_xvel_sub,y
-        sta     ent_yvel_sub,y
+        sta     ent_hp,y                ; child has no HP
+        sta     ent_xvel_sub,y          ; clear X sub-velocity
+        sta     ent_yvel_sub,y          ; clear Y sub-velocity
         lda     #$20                    ; small hitbox
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; set child hitbox size
         lda     ent_facing,x            ; check facing for type
         and     #$08                    ; bit 3 = vertical spawn
         bne     holograph_spawn_facing  ; vertical current?
         lda     #$5D                    ; horiz block entity ID $5D
         jsr     init_child_entity       ; init as child entity
         lda     ent_facing,x            ; inherit parent facing
-        sta     ent_facing,y
+        sta     ent_facing,y            ; set child facing direction
         and     #FACING_RIGHT           ; bit 0 = right side
-        tay
+        tay                             ; use as offset index (0 or 1)
         lda     ent_x_px,x              ; parent X position
-        clc
+        clc                             ; prepare for addition
         adc     holograph_spawn_param_2,y ; add directional offset
         ldy     temp_00                 ; restore child slot
         sta     ent_x_px,y              ; set child X position
         lda     ent_y_px,x              ; copy parent Y to child
-        sta     ent_y_px,y
-        jmp     holograph_spawn_routine
+        sta     ent_y_px,y              ; set child Y position
+        jmp     holograph_spawn_routine ; finish spawn setup
 
 holograph_spawn_facing:  lda     ent_facing,x ; copy facing to child
-        sta     ent_facing,y
+        sta     ent_facing,y            ; set child facing direction
         lda     #$5C                    ; vert current entity ID $5C
         jsr     init_child_entity       ; init as child entity
         lda     ent_x_px,x              ; copy parent X to child
-        sta     ent_x_px,y
+        sta     ent_x_px,y              ; set child X position
         lda     ent_y_px,x              ; parent Y position
         sec                             ; offset 24px upward
-        sbc     #$18
+        sbc     #$18                    ; subtract 24px offset
         sta     ent_y_px,y              ; set child Y position
 holograph_spawn_routine:  lda     #$F4  ; current AI routine
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set child AI routine
         lda     ent_flags,y             ; get child flags
         ora     #$02                    ; set invincibility bit
-        sta     ent_flags,y
+        sta     ent_flags,y             ; make child invincible
         lda     #$02                    ; 2px/frame X speed
-        sta     ent_xvel,y
+        sta     ent_xvel,y              ; set child X velocity
         sta     ent_yvel,y              ; 2px/frame Y speed
 holograph_spawn_return:  rts
 
@@ -2973,14 +2973,14 @@ holograph_current_dir_init:  lda     ent_facing,x ; check direction bits
         lda     ent_y_px,x              ; check Y position
         cmp     #$48                    ; above screen top?
         bcs     holograph_current_dist_check ; still on screen
-        jmp     holograph_current_hit_check
+        jmp     holograph_current_hit_check ; off screen, despawn
 
 holograph_current_horiz:  lda     ent_facing,x ; check horizontal dir
         and     #FACING_RIGHT           ; bit 0 = rightward
         beq     holograph_current_move_left ; moving left?
         ldy     #$08                    ; Y = 8 (speed param)
         jsr     move_right_collide      ; move current right
-        jmp     holograph_current_collision
+        jmp     holograph_current_collision ; check for wall collision
 
 holograph_current_move_left:  ldy     #$09 ; Y = 9 (speed param)
         jsr     move_left_collide       ; move current left
@@ -2989,10 +2989,10 @@ holograph_current_hit_check:  lda     ent_facing,x ; check direction type
         and     #$08                    ; bit 3 = vertical
         beq     holograph_current_status_clear ; horizontal — despawn
 holograph_current_status_clear:  lda     #$00 ; deactivate entity
-        sta     ent_status,x
+        sta     ent_status,x            ; clear entity status
         lda     #$FF                    ; mark spawn slot free
-        sta     ent_spawn_id,x
-        rts
+        sta     ent_spawn_id,x          ; free spawn slot
+        rts                             ; done, entity removed
 
 holograph_current_dist_check:  jsr     entity_x_dist_to_player ; get X distance to player
         cmp     #$18                    ; within 24px X?
@@ -3003,7 +3003,7 @@ holograph_current_dist_check:  jsr     entity_x_dist_to_player ; get X distance 
         lda     ent_facing,x            ; check direction type
         and     #$08                    ; bit 3 = vertical
         beq     holograph_current_facing_dir ; horizontal — apply damage
-        rts
+        rts                             ; vertical current, no push
 
 holograph_current_facing_dir:  lda     ent_facing,x ; check horizontal facing
         and     #FACING_LEFT            ; bit 1 = left facing
@@ -3013,9 +3013,9 @@ holograph_current_facing_dir:  lda     ent_facing,x ; check horizontal facing
 holograph_current_facing_right:  lda     #FACING_LEFT ; push player left
 holograph_current_dir_set:  sta     $36 ; set push direction
         lda     #$00                    ; no Y push
-        sta     $37
+        sta     $37                     ; store Y push component
         lda     #$02                    ; 2px damage push speed
-        sta     $38
+        sta     $38                     ; store push speed
 holograph_current_dir_check:  lda     ent_facing,x ; check direction type
         and     #$08                    ; bit 3 = vertical
         beq     holograph_current_return ; horizontal — done
@@ -3029,27 +3029,27 @@ holograph_boss_init:  lda     ent_status,x ; check sub-state
         beq     holograph_boss_hp_check ; skip if already set
         sta     player_state            ; freeze player for intro
         lda     #$80                    ; start HP bar fill
-        sta     boss_hp_display
+        sta     boss_hp_display         ; init HP bar display
         lda     #$8E                    ; boss HP bar palette
-        sta     $B3
+        sta     $B3                     ; set palette for HP bar
         lda     #MUSIC_BOSS             ; play boss music
-        jsr     submit_sound_ID_D9
+        jsr     submit_sound_ID_D9      ; start boss music
 holograph_boss_hp_check:  lda     boss_hp_display ; check HP bar fill
         cmp     #HEALTH_FULL            ; bar fully filled
         bne     holograph_boss_return   ; still filling?
         lda     ent_status,x            ; set invincibility bit
-        ora     #$40
-        sta     ent_status,x
+        ora     #$40                    ; set invincible flag
+        sta     ent_status,x            ; update boss status
         lda     #$00                    ; clear temp counters
-        sta     $01
-        sta     $02
+        sta     $01                     ; clear tentacle index
+        sta     $02                     ; clear loop counter
         jsr     holograph_tentacle_spawn ; spawn initial tentacles
         lda     #$3C                    ; 60 frame initial delay
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set initial move timer
         lda     #$36                    ; 54px movement distance
-        sta     ent_var1,x
+        sta     ent_var1,x              ; set initial move distance
         lda     #FACING_RIGHT           ; start facing right
-        sta     ent_facing,x
+        sta     ent_facing,x            ; start moving right
         inc     ent_status,x            ; advance to movement phase
 holograph_boss_phase_check:  lda     ent_status,x ; check sub-state
         and     #$0F                    ; mask low nibble
@@ -3057,7 +3057,7 @@ holograph_boss_phase_check:  lda     ent_status,x ; check sub-state
         beq     holograph_boss_facing_check ; in movement phase?
         cmp     #$03                    ; state 3 = attack
         bne     holograph_boss_flag_check ; not in known state?
-        jmp     holograph_boss_attack_pattern
+        jmp     holograph_boss_attack_pattern ; handle attack phase
 
 holograph_boss_flag_check:  lda     ent_flags,x ; check flags
         and     #$04                    ; bit 2 = wait flag
@@ -3066,14 +3066,14 @@ holograph_boss_flag_check:  lda     ent_flags,x ; check flags
         bne     holograph_boss_return   ; still waiting?
         lda     ent_flags,x             ; clear wait flag
         eor     #$04                    ; toggle bit 2
-        sta     ent_flags,x
+        sta     ent_flags,x             ; update flag state
 holograph_boss_anim_check:  lda     ent_anim_state,x ; check animation progress
         cmp     #$04                    ; state 4 = anim complete
         bne     holograph_boss_return   ; not done yet?
         lda     #$04                    ; set idle animation
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; switch to idle anim
         lda     #$3C                    ; 60 frame pre-move timer
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set pre-movement timer
         inc     ent_status,x            ; advance to movement phase
 holograph_boss_return:  rts
 
@@ -3082,21 +3082,21 @@ holograph_boss_facing_check:  lda     ent_facing,x ; check facing direction
         beq     holograph_boss_flag_left ; facing right?
         lda     ent_flags,x             ; set H-flip flag
         ora     #ENT_FLAG_HFLIP         ; bit 6 = horizontal flip
-        sta     ent_flags,x
+        sta     ent_flags,x             ; update H-flip for right
         jsr     move_sprite_right       ; move boss rightward
-        jmp     holograph_boss_var1_dec
+        jmp     holograph_boss_var1_dec ; continue to distance check
 
 holograph_boss_flag_left:  lda     ent_flags,x ; clear H-flip flag
         and     #$BF                    ; mask off bit 6
-        sta     ent_flags,x
+        sta     ent_flags,x             ; update H-flip for left
         jsr     move_sprite_left        ; move boss leftward
 holograph_boss_var1_dec:  dec     ent_var1,x ; count down move distance
         bne     holograph_boss_var2_check ; reached edge?
         lda     ent_facing,x            ; get current facing
         eor     #$03                    ; reverse direction
-        sta     ent_facing,x
+        sta     ent_facing,x            ; update facing direction
         lda     #$6C                    ; 108px full sweep distance
-        sta     ent_var1,x
+        sta     ent_var1,x              ; set full sweep distance
         inc     ent_var2,x              ; count direction changes
 holograph_boss_var2_check:  lda     ent_var2,x ; check reversal count
         cmp     #$02                    ; done 2 sweeps?
@@ -3106,22 +3106,22 @@ holograph_boss_var2_check:  lda     ent_var2,x ; check reversal count
         bcs     holograph_boss_timer_dec ; not at center yet
         inc     ent_status,x            ; advance to attack phase
         lda     #$1E                    ; 30 frame attack delay
-        sta     ent_var3,x
+        sta     ent_var3,x              ; set attack delay timer
         lda     #$A1                    ; contact damage + hitbox
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; enable boss contact damage
         lda     #$01                    ; set attack animation
-        jmp     reset_sprite_anim
+        jmp     reset_sprite_anim       ; set anim and return
 
 holograph_boss_timer_dec:  dec     ent_timer,x ; count down tentacle timer
         bne     holograph_boss_anim_alt ; time to spawn?
         lda     #$05                    ; set tentacle anim
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play tentacle launch anim
         jsr     holograph_tentacle_entity ; spawn tentacle projectile
         lda     $E4                     ; PRNG advance
-        adc     $E5
-        sta     $E4
+        adc     $E5                     ; add PRNG high byte
+        sta     $E4                     ; store updated PRNG low
         and     #$03                    ; mask to 0-3
-        tay
+        tay                             ; use as timer table index
         lda     holograph_boss_timer_table,y ; look up random timer
         sta     ent_timer,x             ; set next spawn delay
 holograph_boss_anim_alt:  lda     ent_anim_id,x ; check current anim
@@ -3132,7 +3132,7 @@ holograph_boss_anim_alt:  lda     ent_anim_id,x ; check current anim
         cmp     #$03                    ; state 3 = anim ending
         bne     holograph_boss_return_a ; not at end frame?
         lda     #$04                    ; return to idle anim
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; switch back to idle anim
 holograph_boss_return_a:  rts
 
 holograph_boss_attack_pattern:  lda     ent_anim_id,x ; check current anim ID
@@ -3141,9 +3141,9 @@ holograph_boss_attack_pattern:  lda     ent_anim_id,x ; check current anim ID
         dec     ent_var3,x              ; count down attack timer
         bne     holograph_boss_pattern_return ; timer expired?
         lda     #$13                    ; set attack animation
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play attack animation
         lda     #$3C                    ; 60 frame attack duration
-        sta     ent_var3,x
+        sta     ent_var3,x              ; set attack duration timer
 holograph_boss_pattern_return:  rts
 
 holograph_boss_flag_xor:  lda     ent_flags,x ; check flags
@@ -3155,66 +3155,66 @@ holograph_boss_flag_xor:  lda     ent_flags,x ; check flags
         jsr     holograph_tentacle_id_check ; spawn new tentacles
         lda     ent_flags,x             ; get current flags
         eor     #$04                    ; toggle attack-fired bit
-        sta     ent_flags,x
+        sta     ent_flags,x             ; mark attack as fired
 holograph_boss_var3_dec:  dec     ent_var3,x ; count down post-attack
         bne     holograph_boss_pattern_return ; timer expired?
         lda     #$06                    ; 6 frame wait timer
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set post-attack wait timer
         lda     #$36                    ; 54px movement distance
-        sta     ent_var1,x
+        sta     ent_var1,x              ; reset movement distance
         lda     #$00                    ; reset sweep counter
-        sta     ent_var2,x
-        sta     ent_var3,x
+        sta     ent_var2,x              ; clear reversal counter
+        sta     ent_var3,x              ; clear attack timer
         lda     #$13                    ; set attack pose anim
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play return animation
         lda     #$94                    ; active + child + visible
-        sta     ent_flags,x
+        sta     ent_flags,x             ; update boss flags
         lda     #$80                    ; X = $80 (center screen)
-        sta     ent_x_px,x
+        sta     ent_x_px,x              ; recenter boss horizontally
         lda     #$C1                    ; active + invincible + state 1
-        sta     ent_status,x
-        rts
+        sta     ent_status,x            ; reset to intro/wait state
+        rts                             ; done, boss returns to intro
 
 holograph_boss_timer_table:  .byte   $1E,$3C,$1E,$3C
 holograph_tentacle_spawn:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     holograph_tentacle_return ; no free slot?
         sty     temp_00                 ; save child slot index
         lda     ent_x_scr,x             ; copy parent screen
-        sta     ent_x_scr,y
+        sta     ent_x_scr,y             ; set child screen position
         ldy     $01                     ; get tentacle index
         lda     holograph_tentacle_facing,y ; look up facing direction
         ldy     temp_00                 ; restore child slot
         sta     ent_facing,y            ; set tentacle facing
         lda     #$80                    ; X = center screen
-        sta     ent_x_px,y
+        sta     ent_x_px,y              ; set tentacle X position
         ldy     $01                     ; get tentacle index
         lda     holograph_tentacle_chr_table,y ; look up Y position
         ldy     temp_00                 ; restore child slot
         sta     ent_y_px,y              ; set tentacle Y position
         lda     #$01                    ; 1px/frame move speed
-        sta     ent_xvel,y
+        sta     ent_xvel,y              ; set tentacle X velocity
         lda     #$13                    ; tentacle OAM anim ID
         jsr     init_child_entity       ; init as child entity
         lda     #$00                    ; clear var2/var3
-        sta     ent_var2,y
-        sta     ent_var3,y
-        sta     ent_xvel_sub,y
+        sta     ent_var2,y              ; clear tentacle phase flag
+        sta     ent_var3,y              ; clear tentacle launch flag
+        sta     ent_xvel_sub,y          ; clear X sub-velocity
         lda     #$F5                    ; tentacle AI routine $F5
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set tentacle AI handler
         sta     ent_hp,y                ; HP = $F5 (very high)
         sta     ent_spawn_id,y          ; mark spawn slot used
         lda     #$81                    ; active state 1
-        sta     ent_status,y
+        sta     ent_status,y            ; activate tentacle entity
         lda     #$3C                    ; 60 frame initial timer
-        sta     ent_timer,y
+        sta     ent_timer,y             ; set tentacle move timer
         lda     #$36                    ; 54px move distance
-        sta     ent_var1,y
+        sta     ent_var1,y              ; set tentacle move distance
         lda     #$94                    ; active + child + visible
-        sta     ent_flags,y
+        sta     ent_flags,y             ; set tentacle display flags
         lda     #$81                    ; contact damage + small box
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; set tentacle hitbox
         inc     $01                     ; next tentacle index
-        inc     $02
+        inc     $02                     ; increment spawn loop counter
         lda     $02                     ; check spawn count
         cmp     #$02                    ; spawned 2 tentacles?
         bcc     holograph_tentacle_spawn ; spawn next tentacle
@@ -3228,26 +3228,26 @@ holograph_tentacle_id_check:  lda     ent_spawn_id,x ; check entity spawn ID
         cmp     #$2C                    ; $2C = holograph boss ID
         bne     holograph_tentacle_clear ; not holograph boss?
         lda     $E4                     ; PRNG advance
-        adc     $E5
-        sta     $E4
+        adc     $E5                     ; add PRNG high byte
+        sta     $E4                     ; store updated PRNG low
         and     #$07                    ; mask to 0-7
-        tay
+        tay                             ; use as pattern index
         lda     holograph_tentacle_chr_alt,y ; look up Y position
         sta     ent_y_px,x              ; set new Y position
         lda     holograph_tentacle_facing_alt,y ; look up facing
         sta     ent_facing,x            ; set new facing
         lda     #$C1                    ; contact + large hitbox
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; update boss hitbox
         lda     holograph_tentacle_pos_offset,y ; look up table offset
         sta     $01                     ; save as spawn index
         lda     #$00                    ; reset loop counter
-        sta     $02
+        sta     $02                     ; reset loop counter
         jsr     holograph_tentacle_spawn ; spawn new tentacle pair
-        rts
+        rts                             ; done, new tentacles spawned
 
 holograph_tentacle_clear:  lda     #$00 ; deactivate entity
-        sta     ent_status,x
-        rts
+        sta     ent_status,x            ; clear entity status
+        rts                             ; done, entity removed
 
 holograph_tentacle_chr_alt:  .byte   $24,$C4,$74,$74,$24,$C4,$74,$74
 holograph_tentacle_facing_alt:  .byte   $01,$01,$02,$02,$01,$01,$02,$02
@@ -3256,25 +3256,25 @@ holograph_tentacle_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     holograph_tentacle_spawn_end ; no free slot?
         sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; inherit parent facing
-        sta     ent_facing,y
+        sta     ent_facing,y            ; set child facing direction
         and     #FACING_RIGHT           ; bit 0 = right direction
-        tay
+        tay                             ; use as offset index (0 or 1)
         lda     ent_x_px,x              ; parent X position
-        clc
+        clc                             ; prepare for addition
         adc     holograph_tentacle_init_table,y ; add directional offset
         ldy     temp_00                 ; restore child slot
         sta     ent_x_px,y              ; set child X position
         lda     ent_x_scr,x             ; copy parent screen
-        sta     ent_x_scr,y
+        sta     ent_x_scr,y             ; set child screen position
         lda     ent_y_px,x              ; copy parent Y to child
-        sta     ent_y_px,y
+        sta     ent_y_px,y              ; set child Y position
         lda     #$00                    ; clear HP (projectile)
-        sta     ent_hp,y
+        sta     ent_hp,y                ; projectile has no HP
         lda     #$19                    ; X sub-velocity $19
-        sta     ent_xvel_sub,y
+        sta     ent_xvel_sub,y          ; set X sub-velocity
         sta     $02                     ; save for homing calc
         lda     #$04                    ; 4px/frame speed
-        sta     ent_xvel,y
+        sta     ent_xvel,y              ; set projectile X velocity
         sta     $03                     ; save for homing calc
         sty     $0F                     ; save child slot
         stx     $0E                     ; save parent slot
@@ -3287,9 +3287,9 @@ holograph_tentacle_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         lda     #$73                    ; tentacle proj anim ID
         jsr     init_child_entity       ; init as child entity
         lda     #$8F                    ; projectile AI routine
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set projectile AI handler
         lda     #$8B                    ; contact damage + hitbox
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; set projectile hitbox
 holograph_tentacle_spawn_end:  rts
 
 holograph_tentacle_init_table:  .byte   $EE,$12,$00,$00,$00,$20,$00,$00
