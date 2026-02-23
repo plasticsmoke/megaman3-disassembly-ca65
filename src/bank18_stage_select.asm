@@ -881,7 +881,7 @@ scroll_fill_offscreen_loop:  lda     $10 ; save NT select on stack
         lda     $70                     ; check fill progress
         bne     scroll_fill_offscreen_loop ; loop until complete
 ; --- Write defeated portraits and PPU data ---
-        jsr     draw_defeated_portraits ; blank_defeated_portraits
+        jsr     draw_defeated_portraits
         ldx     #$03                    ; PPU data table $03
         jsr     write_ppu_data_from_table ; write_ppu_data_from_bank03
         jsr     task_yield              ; wait for NMI upload
@@ -919,8 +919,8 @@ palette_buffer_copy_loop:  lda     $9C33,y ; BG palette color
 
 ; --- Password screen mode (negative scroll speed) ---
 ; Shows "Game Start / Stage Select" cursor, waits for Start.
-password_menu_setup:  jsr     password_cursor_oam_setup ; init_password_cursor
-password_menu_loop:  jsr     proto_man_sprite_control ; update_password_cursor
+password_menu_setup:  jsr     password_cursor_oam_setup
+password_menu_loop:  jsr     proto_man_sprite_control
         lda     #$00                    ; allow NMI
         sta     nmi_skip                ; clear NMI skip flag
         jsr     task_yield              ; wait for next frame
@@ -1166,10 +1166,10 @@ select_loop_next_frame:  lda     #$00   ; allow NMI
         bne     stage_select_check_beaten_boss
         jmp     wily_gate_entry         ; → Wily fortress entrance
 
-stage_select_check_beaten_boss:  lda     bosses_beaten ; $61 = boss-defeated bitmask
+stage_select_check_beaten_boss:  lda     bosses_beaten ; boss-defeated bitmask
         and     $9DED,y                 ; check if this boss already beaten
         bne     select_loop_next_frame  ; already beaten → back to select loop
-        lda     stage_select_page       ; $60 = game progression page
+        lda     stage_select_page       ; game progression page
         cmp     #$0A                    ; >= $0A = invalid state
         bcs     select_loop_next_frame  ; → back to select loop
         tya                             ; Y = grid index (0-8)
@@ -1184,7 +1184,7 @@ stage_select_check_beaten_boss:  lda     bosses_beaten ; $61 = boss-defeated bit
 ;   Grid:  TL    TM    TR    ML    CTR   MR    BL    BM    BR
         lda     $9CE1,y                 ; look up stage number
         bmi     select_loop_next_frame  ; $FF = center (not selectable)
-        sta     stage_id                ; $22 = current stage number
+        sta     stage_id                ; set current stage
         sty     $0F                     ; $0F = save adjusted grid index
 
 ; --- Set up PRG/CHR banks for the boss intro layout ---
@@ -1219,7 +1219,7 @@ stage_select_check_beaten_boss:  lda     bosses_beaten ; $61 = boss-defeated bit
         jsr     metatile_column_ptr_by_id ; ($20/$21) → $AFC0 in bank $13
         lda     #$00                    ; $70 = nametable fill progress (0-63)
         sta     $70                     ; starts at 0
-        sta     nmi_skip                ; $EE = NMI skip flag (0=allow NMI)
+        sta     nmi_skip                ; 0 = allow NMI
 
 ; Fill the offscreen nametable progressively.
 ; fill_nametable_progressive writes 4 tile rows per call.
@@ -1243,7 +1243,7 @@ transition_palette_load_loop:  lda     $9C53,y ; copy 16 bytes from $9C53
         sta     $0620,y                 ; and working copy
         dey                             ; loop 15→0
         bpl     transition_palette_load_loop
-        sty     palette_dirty           ; $18 = $FF → flag palette upload
+        sty     palette_dirty           ; Y=$FF → flag palette upload
 
 ; Jump to bank03 entry point.
 ; Y = adjusted grid index (used by bank03 to index stage parameter tables).
@@ -1316,7 +1316,7 @@ ppu_write_queue_tile_loop:  lda     ($02),y ; tile data byte
         dec     temp_00
         bpl     ppu_write_queue_tile_loop
         bmi     ppu_write_queue_read_addr ; next PPU entry (always branches)
-ppu_write_queue_done:  sta     nametable_dirty ; $19 = $FF → flag PPU write pending
+ppu_write_queue_done:  sta     nametable_dirty ; $FF → flag PPU write pending
         pla                             ; restore original PRG bank
         sta     prg_bank
         jsr     select_PRG_banks
@@ -1378,7 +1378,7 @@ password_cursor_done:  rts
 ; ---------------------------------------------------------------------------
 
         ldy     #$0B                    ; refill weapon energy
-weapon_energy_refill_loop:  lda     player_hp,y ; $A2-$AD = weapon ammo
+weapon_energy_refill_loop:  lda     player_hp,y ; player_hp+Y = weapon ammo
         bpl     weapon_energy_refill_continue ; positive → weapon OK, skip refill
         lda     #$9C                    ; $9C = full energy (28 units)
         sta     player_hp,y             ; store full energy for weapon Y

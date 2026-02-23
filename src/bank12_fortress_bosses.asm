@@ -1871,7 +1871,7 @@ teleporter_collision:  jsr     check_player_collision ; is player touching telep
         sbc     #$0E                    ; destination index
         cmp     #$01
         beq     teleporter_return       ; destination 1 = invalid? skip
-        sta     warp_dest               ; $6C = warp destination
+        sta     warp_dest               ; set warp destination
         lda     #PSTATE_WARP_INIT       ; state → $11 (warp_init)
         sta     player_state            ; begin teleporter sequence
         lda     #$13                    ; player OAM $13 = teleport beam
