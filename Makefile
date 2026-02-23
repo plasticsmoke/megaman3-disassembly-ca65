@@ -71,8 +71,36 @@ build/%.o: %.asm
 verify: $(ROM_OUT)
 	@cmp $(ROM_OUT) $(ROM_REF) && echo "BUILD VERIFIED: byte-perfect match!" || (echo "BUILD FAILED: ROM mismatch"; exit 1)
 
-build/mm3.nsfe: $(ROM_OUT) tools/nsf_to_nsfe.py
-	python3 tools/nsf_to_nsfe.py
+# NSFe build: two-pass ca65/ld65 pipeline (no Python, no ROM extraction)
+# Pass 1: assemble sound banks $16/$17/$18 with -D NSF_BUILD → raw PRG binary
+# Pass 2: assemble NSFe wrapper (incbins the PRG) → final .nsfe container
+
+NSFE_SOUND_SRCS = src/bank16_sound_driver.asm src/bank17_sound_data.asm src/bank18_stage_select.asm
+NSFE_SOUND_OBJS = build/nsfe/bank16.o build/nsfe/bank17.o build/nsfe/bank18.o
+
+build/nsfe/bank16.o: src/bank16_sound_driver.asm
+	@mkdir -p $(dir $@)
+	$(CA65) -D NSF_BUILD -o $@ $<
+
+build/nsfe/bank17.o: src/bank17_sound_data.asm
+	@mkdir -p $(dir $@)
+	$(CA65) -o $@ $<
+
+build/nsfe/bank18.o: src/bank18_stage_select.asm
+	@mkdir -p $(dir $@)
+	$(CA65) -o $@ $<
+
+build/nsfe_prg.bin: $(NSFE_SOUND_OBJS) cfg/nsfe_prg.cfg
+	@mkdir -p $(dir $@)
+	$(LD65) -C cfg/nsfe_prg.cfg -o $@ $(NSFE_SOUND_OBJS)
+
+build/nsfe/nsfe.o: src/nsfe.asm build/nsfe_prg.bin
+	@mkdir -p $(dir $@)
+	$(CA65) -o $@ $<
+
+build/mm3.nsfe: build/nsfe/nsfe.o cfg/nsfe.cfg
+	@mkdir -p $(dir $@)
+	$(LD65) -C cfg/nsfe.cfg -o $@ $<
 
 clean:
-	rm -rf build/src build/mm3_built.nes build/mm3.nsfe
+	rm -rf build/src build/nsfe build/mm3_built.nes build/mm3.nsfe build/nsfe_prg.bin

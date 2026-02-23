@@ -78,8 +78,15 @@ jump_local_ptr:  asl     a              ; A = index * 2
 
 read_ptr:  sty     snd_ptr_lo           ; store low byte -> $C1
         ldy     #$00                    ; 0 index for indirect read
+.ifdef NSF_BUILD
+        nop                             ; NSF: linear address space
+        nop                             ; (no mapper bank switching,
+        nop                             ;  bank $18 data follows at
+        nop                             ;  $C000+ directly)
+.else
         cmp     #$C0                    ; if high byte >= $C0
         bcs     read_ptr_bank18_check   ; this is a bank $18 read
+.endif
         sta     snd_ptr_hi              ; store high byte of address
         lda     (snd_ptr_lo),y          ; else return read of address
         rts                             ; at snd_ptr, bank $16~$17

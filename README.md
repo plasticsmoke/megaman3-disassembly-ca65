@@ -8,7 +8,7 @@ Anyone familiar with Mega Man 3's internals, NES development, or MMC3 mapper con
 
 ## Building
 
-Requires ca65/ld65 (from [cc65](https://cc65.github.io/)), Python 3, and GNU Make.
+Requires ca65/ld65 (from [cc65](https://cc65.github.io/)) and GNU Make.
 
 ```
 make
@@ -16,7 +16,7 @@ make
 
 Produces:
 - `build/mm3_built.nes` — byte-perfect ROM, verified against the original
-- `build/mm3.nsfe` — NSFe soundtrack with per-track labels, composer credits, and timing (extracted from the assembled ROM)
+- `build/mm3.nsfe` — NSFe soundtrack (built from source — see below)
 
 ### Expected Checksums
 
@@ -26,6 +26,12 @@ Produces:
 | MD5 | `75b924155cafee335c9ea7a01bfc8efb` |
 | SHA-1 | `53197445e137e47a73fd4876b87e288ed0fed5c6` |
 | SHA-256 | `eddbe571cf0a201ba9d090fbace9843c9c9dd4053051649f2575b088752f4675` |
+
+## NSFe Soundtrack
+
+The NSFe file is built entirely from source — no ROM extraction, no external scripts. A two-pass ca65/ld65 pipeline assembles the sound engine banks ($16/$17/$18) with `-D NSF_BUILD`, which NOPs out a mapper bank-switch check that isn't needed in the linear NSF address space. The result is linked into a raw PRG binary, then wrapped by `src/nsfe.asm` into a complete NSFe container with chunk headers, track metadata, and the PRG payload via `.incbin`.
+
+All metadata lives in `src/nsfe.asm` as assembly directives: track names, per-track durations, fade times, and composer credits (Yasuaki Fujita and Harumi Fujita). Chunk sizes auto-calculate via label math. To change a track title or timing, edit the file and rebuild.
 
 ## ROM Layout
 
@@ -85,6 +91,7 @@ src/
   fixed/
     fixed_bank.asm              Fixed bank — main game loop, player states, movement,
                                 collision, camera, rendering ($C000-$FFFF)
+  nsfe.asm                      NSFe container (metadata + .incbin PRG payload)
   chr.asm                       CHR ROM (128 KB pattern tables)
 include/
   zeropage.inc                  Zero-page variable definitions (~80 vars)
@@ -92,7 +99,9 @@ include/
                                 button masks, tile types, music/SFX IDs)
   hardware.inc                  NES hardware registers (PPU, APU, controller, MMC3)
 cfg/
-  nes.cfg                       ld65 linker configuration
+  nes.cfg                       ld65 linker configuration (ROM)
+  nsfe_prg.cfg                  ld65 linker configuration (NSFe sound banks)
+  nsfe.cfg                      ld65 linker configuration (NSFe container)
 chr/
   chr.bin                       Raw CHR data (128 KB)
 ```
