@@ -15,9 +15,9 @@
 ; is mapped to $A000-$BFFF. Stage layout data occupies $8660-$9FFF.
 ;
 ; Key zero-page vars:
-;   $22 = stage ID        $55-$57 = Gemini platform state
-;   $64-$67 = stage clear state   $68 = item drop state
-;   $F8 = scroll mode     $F9 = current screen
+;   stage_id ($22)        $55-$57 = Gemini platform state
+;   $64-$67 = stage clear state   proto_man_flag ($68)
+;   game_mode ($F8)       camera_screen ($F9)
 ;
 ; Annotation: annotated — labels named, per-frame subsystem logic documented
 ; =============================================================================

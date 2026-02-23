@@ -1858,7 +1858,7 @@ gamma_f_collision_end:  rts
 ; Teleporter tube — player steps in, warps to boss refight room
 ; Sets state $11 (warp_init), which transitions to $12 (warp_anim),
 ; then back to $00 (on_ground) in the destination room.
-; $6C = destination index (from entity sub-type).
+; warp_dest = destination index (from entity sub-type).
 ; ---------------------------------------------------------------------------
 teleporter_collision:  jsr     check_player_collision ; is player touching teleporter?
         bcs     teleporter_return       ; no → return

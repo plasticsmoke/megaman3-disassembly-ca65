@@ -748,7 +748,7 @@ title_wait_yield:  jsr     task_yield
 ;   $0600-$060F = BG palette buffer (4 sub-palettes × 4 colors)
 ;   $0610-$061F = Sprite palette buffer (4 sub-palettes × 4 colors)
 ;   $0620-$062F = BG palette working copy
-;   $18 = palette update flag (nonzero → NMI uploads $0600-$061F to PPU $3F00-$3F1F)
+;   palette_dirty = update flag (nonzero → NMI uploads $0600-$061F to PPU $3F00-$3F1F)
 ;
 ; Fresh start ($0F=0): BG palettes from $9C33, sprite palettes from $9C23
 ;   BG 0: $0F $20 $21 $11 — frame borders: black, white, lt blue, dk blue

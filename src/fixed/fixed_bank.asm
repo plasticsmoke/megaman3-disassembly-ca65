@@ -12,7 +12,7 @@
 ; Contains:
 ;   - NMI / interrupt handling
 ;   - Player state machine (22 states via player_state_ptr_lo/hi)
-;   - Player movement physics (walk, jump, $99, slide, ladder)
+;   - Player movement physics (walk, jump, gravity, slide, ladder)
 ;   - Weapon firing and initialization
 ;   - Entity movement routines (shared by player and enemies)
 ;   - Sprite animation control
@@ -49,75 +49,52 @@
 ; KEY MEMORY MAP
 ; =============================================================================
 ;
-; Zero Page:
-;   $12     = stage select cursor column (0-2) / player tile X (in-game)
-;   $13     = stage select cursor row offset (0/3/6)
-;   $14     = controller 1 buttons (new presses this frame)
-;   $15     = controller 1 buttons (new presses, alternate read)
-;   $16     = controller 1 buttons (held / continuous)
-;             Button bits: $80=A $40=B $20=Select $10=Start
-;                          $08=Up $04=Down $02=Left $01=Right
-;   $18     = palette update request flag
-;   $19     = nametable update request flag
-;   $1A     = nametable column update flag
-;   $22     = current stage index (see STAGE MAPPING below)
-;   $30     = player state (index into player_state_ptr tables, 22 states)
-;   $31     = player facing direction (1=right, 2=left)
-;   $32     = walking flag / sub-state (nonzero = walking or sub-state active)
-;   $34     = entity_ride slot (entity slot index being ridden, state $05)
-;   $35     = facing sub-state / Mag Fly direction inherit
-;   $39     = invincibility/i-frames timer (nonzero = immune to damage)
-;   $3A     = jump/rush counter
-;   $3D     = pending hazard state ($06=damage, $0E=death from tile collision)
-;   $41     = max tile type at feet (highest priority hazard)
-;   $43-$44 = tile types at player feet (for ground/ladder detection)
-;   $50     = scroll lock flag
-;   $5A     = boss active flag (bit 7 = boss fight in progress)
-;   $5B-$5C = spark freeze slots (entity X indices frozen by Spark Shock)
-;   $5D     = sub-state / item interaction flag
-;   $5E-$5F = scroll position values
-;   $60     = stage select page offset (0=Robot Master, nonzero=Doc Robot/Wily)
-;   $61     = boss-defeated bitmask (bit N = stage $0N boss beaten, $FF=all 8)
-;   $68     = cutscene-complete flag (Proto Man encounter)
-;   $69-$6A = scroll position (used during Gamma screen_scroll)
-;   $6C     = warp destination index (teleporter tube target)
-;   $78     = screen mode
-;   $99     = $99 sub-pixel increment ($55 during gameplay = 0.332/frame,
-;             set at start of process_sprites each frame; $40 at stage select)
-;   $9E-$9F = enemy spawn tracking counters (left/right)
+; Zero Page (see include/zeropage.inc for full list):
+;   joy1_press ($14)       = new button presses this frame
+;   joy1_held ($16)        = buttons held / continuous
+;   palette_dirty ($18)    = palette update request flag
+;   nametable_dirty ($19)  = nametable update request flag
+;   nt_column_dirty ($1A)  = nametable column update flag
+;   stage_id ($22)         = current stage index (see STAGE MAPPING below)
+;   player_state ($30)     = player state (index into player_state_ptr, 22 states)
+;   player_facing ($31)    = facing direction (1=right, 2=left)
+;   walk_flag ($32)        = walking / sub-state (nonzero = active)
+;   entity_ride_slot ($34) = entity slot being ridden (state $05)
+;   facing_sub ($35)       = facing sub-state / Mag Fly direction inherit
+;   invincibility_timer ($39) = i-frames timer (nonzero = immune)
+;   jump_counter ($3A)     = jump/rush counter
+;   hazard_pending ($3D)   = pending hazard ($06=damage, $0E=death)
+;   tile_at_feet_max ($41) = max tile type at feet (highest priority hazard)
+;   scroll_lock ($50)      = scroll lock flag
+;   boss_active ($5A)      = boss active (bit 7 = fight in progress)
+;   stage_select_page ($60) = select page (0=RM, nonzero=Doc Robot/Wily)
+;   bosses_beaten ($61)    = boss-defeated bitmask (bit N = stage N beaten)
+;   proto_man_flag ($68)   = cutscene-complete flag (Proto Man encounter)
+;   warp_dest ($6C)        = warp destination index (teleporter target)
+;   screen_mode ($78)      = screen mode
+;   gravity ($99)          = sub-pixel increment ($55 gameplay, $40 stage select)
 ;
 ; Weapon / Inventory Block ($A0-$AF):
-;   $A0     = current weapon ID (see WEAPON IDS below)
-;   $A1     = weapon menu cursor position (remembers last pause screen selection)
-;   $A2     = player HP        (full=$9C, empty=$80, AND #$1F for value, 28 max)
-;   $A3     = Gemini Laser ammo (full=$9C, empty=$80, address = $A2 + weapon ID)
-;   $A4     = Needle Cannon ammo
-;   $A5     = Hard Knuckle ammo
-;   $A6     = Magnet Missile ammo
-;   $A7     = Top Spin ammo
-;   $A8     = Search Snake ammo
-;   $A9     = Rush Coil ammo
-;   $AA     = Spark Shock ammo
-;   $AB     = Rush Marine ammo
-;   $AC     = Shadow Blade ammo
-;   $AD     = Rush Jet ammo
-;   $AE     = $AE
-;   $AF     = E-Tanks
+;   current_weapon ($A0)   = weapon ID (see constants.inc WPN_*)
+;   weapon_cursor ($A1)    = pause screen cursor position
+;   player_hp ($A2)        = player HP (full=$9C, empty=$80, 28 max)
+;   player_hp+1..+$0B      = weapon ammo ($A3-$AD, indexed by weapon ID)
+;   lives ($AE)            = extra lives (BCD)
+;   etanks ($AF)           = E-Tank count
 ;
-;   $B0     = boss HP display position (starts $80, fills to $9C = 28 HP)
-;   $B3     = boss HP fill target ($8E = 28 HP)
-;   $EE     = NMI skip flag
-;   $EF     = current sprite slot counter (loop variable in process_sprites)
-;   $F0     = MMC3 bank select register shadow
-;   $F5     = current $A000-$BFFF PRG bank number
-;   $F8     = game mode / screen state
-;   $F9     = camera/scroll page
-;   $FA     = vertical scroll
-;   $FC-$FD = camera X position (low, high)
-;   $FE     = PPU mask ($2001) shadow
-;   $FF     = PPU control ($2000) shadow
+;   boss_hp_display ($B0)  = boss HP bar position (starts $80, fills to $9C)
+;   nmi_skip ($EE)         = NMI skip flag
+;   sprite_slot ($EF)      = current sprite slot (process_sprites loop var)
+;   mmc3_shadow ($F0)      = MMC3 bank select register shadow
+;   prg_bank ($F5)         = current $A000-$BFFF PRG bank number
+;   game_mode ($F8)        = game mode / screen state
+;   camera_screen ($F9)    = camera/scroll page
+;   scroll_y ($FA)         = vertical scroll
+;   camera_x_lo/hi ($FC-$FD) = camera X position
+;   ppu_mask_shadow ($FE)  = PPUMASK ($2001) shadow
+;   ppu_ctrl_shadow ($FF)  = PPUCTRL ($2000) shadow
 ;
-; WEAPON IDS ($A0 values):
+; WEAPON IDS (see constants.inc WPN_*):
 ;   $00 = Mega Buster    $04 = Magnet Missile  $08 = Spark Shock
 ;   $01 = Gemini Laser   $05 = Top Spin        $09 = Rush Marine
 ;   $02 = Needle Cannon  $06 = Search Snake    $0A = Shadow Blade
@@ -425,9 +402,9 @@ nmi_restore_rendering:  lda     ppu_mask_shadow ; PPUMASK = $FE (re-enable rende
         sta     MMC3_BANK_SELECT        ; (restore R6/R7 select state from $F0)
 
 ; --- NMI: set up MMC3 scanline IRQ for this frame ---
-; $7B = scanline count for first IRQ. $9B = enable flag (0=off, 1=on).
-; $78 = game mode, used to index irq_vector_table for the handler address.
-; $50/$51 = secondary split: if $50 != 0 and $7B >= $51, use gameplay handler.
+; irq_scanline = scanline count for first IRQ. irq_enable = flag (0=off, 1=on).
+; screen_mode = game mode, used to index irq_vector_table for handler address.
+; scroll_lock/$51 = secondary split: if scroll_lock != 0, use gameplay handler.
         lda     irq_scanline            ; scanline count for first split
         sta     NMI                     ; set MMC3 IRQ counter value
         sta     nmi_preserve_regs       ; latch counter (reload)
@@ -1253,7 +1230,7 @@ enable_nmi:
 ; ---------------------------------------------------------------------------
 ; Sets PPUMASK ($2001) to $00 (all rendering off).
 ; $EE++ prevents task_yield from resuming entity processing.
-; $FE = PPUMASK shadow.
+; ppu_mask_shadow = PPUMASK shadow.
 ; ---------------------------------------------------------------------------
 rendering_off:
 
@@ -1285,9 +1262,9 @@ rendering_on:
 ; compensate for DPCM channel interference on bit 0.
 ;
 ; After return:
-;   $14 = player 1 new presses (edges only, not held)
-;   $15 = player 2 new presses
-;   $16 = player 1 held (raw state this frame)
+;   joy1_press ($14) = player 1 new presses (edges only, not held)
+;   joy1_press_alt ($15) = player 2 new presses
+;   joy1_held ($16) = player 1 held (raw state this frame)
 ;   $17 = player 2 held
 ;
 ; Simultaneous Up+Down or Left+Right are cancelled (D-pad bits cleared).
@@ -1405,14 +1382,14 @@ fill_nametable_restore_x:  ldx     $01  ; restore X = fill byte
 ; (off-screen). Then dispatches to overlay sprite routines based on flags:
 ;   $71 != 0 → load_overlay_sprites: copy sprite data from ROM, start scroll
 ;   $72 != 0 → scroll_overlay_sprites: slide overlay sprites leftward
-;   $F8 == 2 → draw_scroll_sprites: draw camera-tracking sprites
+;   game_mode == 2 → draw_scroll_sprites: draw camera-tracking sprites
 ;
 ; OAM layout:
 ;   $0200-$022F (sprites 0-11) — reserved for overlays when $72 is active
-;   $0230+ (sprites 12+) — entity sprites, starting at $97
+;   $0230+ (sprites 12+) — entity sprites, starting at oam_ptr
 ;
-; $97 = OAM write index: $04 = with player, $0C = skip player, $30 = skip overlays
-; $50 = pause flag (nonzero = skip overlay dispatch)
+; oam_ptr = OAM write index: $04 = with player, $0C = skip player, $30 = skip overlays
+; scroll_lock = pause flag (nonzero = skip overlay dispatch)
 ; $71 = overlay init trigger (set by palette_fade_tick when fade-in completes)
 ; $72 = overlay scroll active (nonzero = overlays visible, preserve OAM 0-11)
 ; 22 callers across banks $02, $0B, $0C, $18, $1E, $1F.
@@ -5339,16 +5316,17 @@ auto_walk_2_x_table:  .byte   $E0,$30,$B0,$68
 ;   $2C = screen count for current room (lower 5 bits of $AA40,y)
 ;   $2D = scroll progress within room (counts 0→$2C as camera advances)
 ;   $2E = scroll direction this frame (1=right, 2=left)
-;   $F9 = camera screen position (absolute, increments each 256-pixel boundary)
-;   $FC = camera fine X (sub-screen pixel offset, 0-255)
-;   $25 = previous $FC (for column rendering delta)
+;   camera_screen ($F9) = screen position (increments each 256-pixel boundary)
+;   camera_x_lo ($FC) = fine X (sub-screen pixel offset, 0-255)
+;   $25 = previous camera_x_lo (for column rendering delta)
 ;   $27 = previous player X (for direction detection)
 ;   ent_x_px = player X pixel position (slot 0)
 ;
 ; Camera tracking:
-;   $00 = player screen X (= ent_x_px - $FC)
+;   $00 = player screen X (= ent_x_px - camera_x_lo)
 ;   $01 = scroll speed (= |player screen X - $80|, clamped to max 8)
 ;   $02 = player movement delta (= |ent_x_px - $27|)
+
 ;   When player is right of center ($00 > $80): scroll right
 ;   When player is left of center ($00 < $80): scroll left
 ;   Scroll speed adapts — faster when player is far from center,
@@ -5790,8 +5768,8 @@ room_link_no_valid:  clc                ; C=0 → no valid link
 ; (first call renders primary, then mirrors to secondary nametable offset).
 ; Otherwise: renders single column only.
 ;
-; $25 = previous $FC value, $FC = current fine scroll position
-; $1A = flag to trigger NMI buffer drain
+; $25 = previous camera_x_lo, camera_x_lo = current fine scroll position
+; nt_column_dirty = flag to trigger NMI buffer drain
 ; ---------------------------------------------------------------------------
 
 render_scroll_column:  lda     game_mode ; if game_mode == 2: dual nametable mode
@@ -5829,7 +5807,7 @@ scroll_column_attr_copy:  lda     $07B5,y ; copy secondary attribute section
         rts
 
 ; --- single_column: compute if a column crossed an 8-pixel boundary ---
-; $03 = |$FC - $25| = absolute scroll delta since last frame
+; $03 = |camera_x_lo - $25| = absolute scroll delta since last frame
 ; If delta + fine position crosses an 8-pixel tile boundary, we need
 ; to render a new column. $24 = nametable column pointer, $29 = metatile
 ; column. Direction tables at $E5C3/$E5CD/$E5CF configure left vs right.
@@ -6112,7 +6090,7 @@ vert_scroll_reselect_bank:  lda     stage_id ; re-select stage bank
 ; row boundary was crossed (|$FA - $26| + fine position), and if so,
 ; builds the PPU update buffer for the new row of metatiles.
 ;
-; $FA = current vertical fine scroll, $26 = previous $FA
+; scroll_y = current vertical fine scroll, $26 = previous scroll_y
 ; $23 bit 2: direction (set=down, clear=up)
 ; $24 = nametable row pointer
 ; ---------------------------------------------------------------------------
@@ -6480,7 +6458,7 @@ metatile_column_ptr_by_id:  pha         ; multiply column ID by 64:
 ;   $EC12,y = X pixel offsets (signed, relative to entity X)
 ; results:
 ;   $42-$44 = tile type at each check point
-;   $41     = max (highest priority) tile type encountered
+;   tile_at_feet_max = max (highest priority) tile type encountered
 ;   $10     = OR of all tile types (AND #$10 tests solid)
 ; -----------------------------------------------
 
@@ -6639,7 +6617,7 @@ metatile_cleanup_return:  jmp     tile_check_cleanup ; restore bank and return
 ;   $ED09,y = Y pixel offsets (signed, relative to entity Y)
 ; results:
 ;   $42-$44 = tile type at each check point
-;   $41     = max (highest priority) tile type encountered
+;   tile_at_feet_max = max (highest priority) tile type encountered
 ;   $10     = OR of all tile types (AND #$10 tests solid)
 ; -----------------------------------------------
 
@@ -7202,7 +7180,7 @@ metatile_final_return:  rts
 ;
 ; $28 = metatile index (low 3 bits = column, upper bits = row)
 ; $10 = nametable select (bit 2: 0=$2000, 4=$2400)
-; $68 = cutscene-complete flag (selects alternate tile lookup path)
+; proto_man_flag = cutscene-complete flag (selects alternate tile lookup path)
 ; Y  = metatile ID (when $68=0, passed to metatile_column_ptr_by_id)
 ;
 ; Buffer layout: 4 row entries (7 bytes each) + 1 attribute entry + $FF end
@@ -7471,7 +7449,7 @@ ppu_column_offsets:  .byte   $03
 ; on even frames: draws HUD first, then slots 0→31
 ; on odd frames: slots 31→0, then draws HUD
 ; $95 = global frame counter, $96 = current slot index
-; $97 = OAM buffer write index (used by sprite assembly routines)
+; oam_ptr = OAM buffer write index (used by sprite assembly routines)
 update_entity_sprites:  inc     $95     ; advance global frame counter
         inc     $4F                     ; advance secondary counter
         lda     $95                     ; load frame counter
@@ -7710,7 +7688,7 @@ sprite_render_skip_draw:  rts            ; return without drawing
 ;   $11 = flip table offset (0=normal, 1=flipped)
 ;   $12 = entity screen Y position
 ;   $13 = entity screen X position
-;   $97 = OAM buffer write pointer
+;   oam_ptr = OAM buffer write pointer
 ; Sprite definition format:
 ;   byte 0 = sprite count (bit 7: use CHR bank $14 instead of $19)
 ;   byte 1 = position offset table index (for Y/X offsets)
@@ -8212,7 +8190,7 @@ gravity_airborne_exit:  clc             ; C=0: airborne
 ; update_collision_flags — update entity collision flags from tile check
 ; -----------------------------------------------
 ; $10 = tile collision result from check_tile_collision
-; $41 = tile type from last collision (upper nibble of $BF00)
+; tile_at_feet_max = tile type from last collision (upper nibble of $BF00)
 ; Updates ent_flags bit 5 (on-ladder) based on tile type $60 (ladder).
 
 update_collision_flags:  lda     $10    ; bit 4 = solid tile hit?
@@ -9586,7 +9564,7 @@ sound_buffer_clear_loop:  sta     $DC,x ; X=7..0 → $E3..$DC
 ; NMI decrements sleeping tasks' countdowns and sets state $04 when done.
 ; Task slot 0 gets controller input read on resume (read_controllers).
 ;
-; $90 = NMI-occurred flag (set $FF by NMI, forces rescan)
+; nmi_occurred = NMI flag (set $FF by NMI, forces rescan)
 ; $91 = current task slot index (0-3)
 ; ---------------------------------------------------------------------------
 task_scheduler:  ldx     #$FF           ; reset stack to top
@@ -9741,12 +9719,12 @@ task_yield_return:  rts
 ; clears $EE (signals "ready for NMI to render"), yields one frame, then
 ; sets $EE (signals "NMI done, safe to modify state").
 ;
-; process_frame_yield_with_player: sets $97=$04 (include player sprites)
-; process_frame_and_yield: uses caller's $97 value
+; process_frame_yield_with_player: sets oam_ptr=$04 (include player sprites)
+; process_frame_and_yield: uses caller's oam_ptr value
 ;
-; $97 = OAM write index start (controls which sprite slots to fill):
+; oam_ptr = OAM write index start (controls which sprite slots to fill):
 ;   $04 = start after sprite 0 (include player), $0C = skip player sprites
-; $EE = rendering phase flag (0=NMI pending, nonzero=NMI completed)
+; nmi_skip = rendering phase flag (0=NMI pending, nonzero=NMI completed)
 ; ---------------------------------------------------------------------------
 
 process_frame_yield_with_player:  lda     #$04 ; $97 = $04: start OAM after sprite 0
