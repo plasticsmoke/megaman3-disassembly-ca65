@@ -74,9 +74,9 @@ main_needle_man:  lda     ent_status,x  ; load status
         tay                             ; load Needle Man's
         lda     needle_man_state_ptr_lo,y ; AI pointer based on state
         sta     temp_00                 ; jump to it
-        lda     needle_man_state_ptr_hi,y
-        sta     $01
-        jmp     (temp_00)
+        lda     needle_man_state_ptr_hi,y ; state handler address hi
+        sta     $01                     ; store hi byte
+        jmp     (temp_00)               ; dispatch to state handler
 
 ; Needle Man state pointer table (lo/hi bytes)
 ; state $00: init  state $01: wait for B  state $02: throw needles
@@ -91,7 +91,7 @@ needle_man_init:
         jsr     needle_man_setup_throw  ; set random jump Y velocity
         lda     ent_status,x            ; reload status
         ora     #$40                    ; set boss flag
-        sta     ent_status,x
+        sta     ent_status,x            ; store with boss flag set
         inc     ent_status,x            ; next state
         rts                             ; done init
 
@@ -229,23 +229,23 @@ needle_man_headbutt:
         and     #$08                    ; bit 3 set = hold long enough
         beq     needle_man_headbutt_check_extend               ; not yet? check extend
         lda     #$C0                    ; reset routine to main entry
-        sta     ent_routine,x
+        sta     ent_routine,x           ; restore default AI routine
         lda     #$29                    ; jumping anim
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play jump animation
         lda     #$C3                    ; go to jump-toward-player state
-        sta     ent_status,x
+        sta     ent_status,x            ; set status to state $03
         jsr     needle_man_setup_jump   ; setup jump Y/X velocity
 needle_man_set_normal_hitbox:  lda     #$CA                ; normal hitbox
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; restore standard hitbox
         rts                             ; done
 
 needle_man_headbutt_check_extend:  lda     ent_anim_state,x    ; check anim state
         cmp     #$02                    ; headbutt extended?
         bne     needle_man_set_normal_hitbox               ; not extended? normal hitbox
         lda     #$D2                    ; headbutt hitbox (larger)
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; set extended spike hitbox
         lda     #$C7                    ; switch routine to headbutt collision
-        sta     ent_routine,x
+        sta     ent_routine,x           ; use headbutt collision handler
         rts                             ; done
 
 needle_man_setup_throw:  lda     $E4    ; read RNG seed
@@ -268,7 +268,7 @@ needle_man_throw_vel_y_sub:  .byte   $88,$3C
 needle_man_throw_vel_y:  .byte   $06,$09
 needle_man_setup_jump:  lda     #$88    ; Y vel sub = $88
         sta     ent_yvel_sub,x          ; Y velocity = $0688
-        lda     #$06
+        lda     #$06                    ; Y vel = 6 pixels upward
         sta     ent_yvel,x              ; Y velocity = $0688
         lda     $E4                     ; read RNG seed
         adc     $E5                     ; grab RNG value
@@ -296,7 +296,7 @@ spawn_needle:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     spawn_needle_done               ; bail if none available
         sty     temp_00                 ; save slot index
         lda     ent_facing,x            ; copy facing to projectile
-        sta     ent_facing,y
+        sta     ent_facing,y            ; needle inherits facing
         and     #FACING_LEFT            ; isolate left/right bit
         tay                             ; use as offset (0 or 2)
         lda     ent_anim_state,x        ; check throw pose
@@ -520,7 +520,7 @@ magnet_man_pull_set_left:  lda     #$02                ; pull direction = left
 magnet_man_pull_store_dir:  sta     $36                 ; set scroll pull direction
         lda     #$00                    ; A = 0
         sta     $37                     ; pull sub-speed
-        lda     #$01
+        lda     #$01                    ; pull speed = 1
         sta     $38                     ; pull speed = 1 px/frame
         lda     ent_anim_state,x        ; check animation state
         cmp     #$04                    ; advance animation cycle
@@ -542,11 +542,11 @@ magnet_man_pull_end:  lda     #$C3                ; end pull -> state $03 (fall/
         lda     #$CA                    ; restore normal hitbox
         sta     ent_hitbox,x            ; set normal hitbox
         sta     ent_timer,x             ; set timer = $CA
-        rts
+        rts                             ; return to fall state
 
 magnet_man_pull_set_hitbox:  lda     #$AA                ; magnet pull hitbox (contact damage)
         sta     ent_hitbox,x            ; set contact damage hitbox
-        rts
+        rts                             ; done pulling this frame
 
 ; --- face player and update sprite flip flag --------------------------------
 magnet_man_face_player_flip:  jsr     face_player         ; face toward player
@@ -656,13 +656,13 @@ top_man_state_ptr_lo_table:  .byte   $CE,$E2,$3A,$75
 top_man_state_ptr_hi_table:  .byte   $A4,$A4,$A5,$A5
 ; state $00: init
         lda     #$3C                    ; timer = 60 frames
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set spin delay timer
         sta     ent_var1,x              ; walk timer = 60 frames
         lda     ent_status,x            ; load current status
         ora     #$40                    ; set boss invincibility flag
         sta     ent_status,x            ; store with invincibility set
         inc     ent_status,x            ; advance to spin attack
-        rts
+        rts                             ; done init
 
 ; state $01: spin attack — invulnerable, spawns Top Spin projectiles
         lda     #$CA                    ; normal hitbox
@@ -697,13 +697,13 @@ top_man_recall_top:  lda     #$C5                ; set top to recall routine
         bne     top_man_scan_tops_loop               ; always branches
 top_man_spin_check_complete:  lda     ent_anim_state,x    ; check if spin complete
         cmp     #$05                    ; spin complete?
-        bne     top_man_return
+        bne     top_man_return          ; spin not done yet
         lda     ent_anim_frame,x        ; check frame counter
         beq     top_man_return               ; skip if frame 0
         inc     ent_status,x            ; -> state $02: walk
         lda     #$44                    ; walking animation
-        jsr     reset_sprite_anim
-top_man_return:  rts
+        jsr     reset_sprite_anim       ; start walking anim
+top_man_return:  rts                     ; return
 
 ; state $02: walk across room (vulnerable to attacks)
         lda     ent_anim_id,x           ; check current anim
@@ -714,29 +714,29 @@ top_man_return:  rts
         dec     ent_timer,x             ; wait before spinning walk
         bne     top_man_return               ; wait until timer expires
         lda     #$47                    ; start spinning walk anim
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play spinning walk anim
         lda     #$AA                    ; spinning hitbox (contact damage)
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; invulnerable during spin
 top_man_walk_check_spin_cycle:  lda     ent_anim_state,x    ; check spin cycle state
         cmp     #$02                    ; spin cycle complete?
         bne     top_man_walk_timer_dec               ; skip if cycle not done
         lda     #$48                    ; next spin cycle anim
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play next spin cycle
         dec     ent_var2,x              ; count spin cycles
 top_man_walk_timer_dec:  dec     ent_var1,x          ; walk duration countdown
         bne     top_man_return               ; keep walking until 0
         inc     ent_status,x            ; -> state $03: turn around
         lda     #$78                    ; timer = 120 frames
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set spin delay timer
         sta     ent_var1,x              ; walk timer = 120 frames
-        rts
+        rts                             ; done advancing state
 
 ; state $03: walk in direction, reverse at screen edge, restart spin
         lda     ent_var3,x              ; direction flag
         and     #$01                    ; check low bit
         beq     top_man_walk_move_left               ; 0 = move left
         jsr     move_sprite_right       ; move right
-        lda     ent_x_px,x
+        lda     ent_x_px,x             ; check current X position
         cmp     #$D0                    ; past right boundary?
         bcs     top_man_walk_reverse_dir               ; yes -> reverse
         jmp     top_man_walk_done               ; skip to return
@@ -755,7 +755,7 @@ top_man_walk_reverse_dir:  lda     ent_var3,x          ; toggle walk direction
         eor     #ENT_FLAG_HFLIP         ; toggle H-flip bit
         sta     ent_flags,x             ; store flipped flags
         lda     #$49                    ; turn-around animation
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play turn-around anim
         dec     ent_status,x            ; back to state $01 (spin attack)
         dec     ent_status,x            ; dec twice: $03 -> $01
         lda     #$00                    ; clear var2
@@ -779,7 +779,7 @@ spawn_top_spin_projectile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sec                             ; prepare subtract
         sbc     #$0E                    ; Y = Top Man Y - 14 px (above head)
         sta     ent_y_px,y              ; set child Y position
-        lda     #$00
+        lda     #$00                    ; zero
         sta     ent_hp,y                ; clear child HP
         sta     ent_routine,y           ; clear child routine
         sta     ent_xvel_sub,y          ; clear X sub-velocity
@@ -821,12 +821,12 @@ top_spin_projectile_ai:  lda     ent_status,x        ; get phase from status
         and     #FACING_RIGHT           ; check direction bit
         beq     top_spin_phase0_move_left               ; 0 = move left
         jsr     move_sprite_right       ; move right
-        jmp     top_spin_phase0_move_up
+        jmp     top_spin_phase0_move_up ; continue to vertical move
 
 top_spin_phase0_move_left:  jsr     move_sprite_left    ; move left
 top_spin_phase0_move_up:  jsr     move_sprite_up      ; move up
         dec     ent_timer,x             ; launch delay countdown
-        bne     top_spin_phase_done
+        bne     top_spin_phase_done     ; still waiting to launch
         lda     #$00                    ; clear timer
         sta     ent_timer,x             ; store cleared timer
         inc     ent_status,x            ; -> phase 1: orbit
@@ -836,25 +836,25 @@ top_spin_check_phase2:  lda     ent_status,x        ; phase 1: orbit duration
         and     #$02                    ; test bit 1 (phase 2)
         bne     top_spin_homing_phase               ; branch if phase 2
         dec     ent_var1,x              ; orbit timer countdown
-        bne     top_spin_phase_done
+        bne     top_spin_phase_done     ; still orbiting
         inc     ent_status,x            ; -> phase 2: home toward player
-        rts
+        rts                             ; begin homing next frame
 
 top_spin_homing_phase:  lda     ent_timer,x         ; phase 2: homing
         bne     top_spin_homing_apply_move               ; skip init if already done
         lda     #$33                    ; calculate homing velocity
         sta     $02                     ; max speed
-        lda     #$05
+        lda     #$05                    ; acceleration factor
         sta     $03                     ; acceleration
         jsr     calc_homing_velocity    ; calc homing direction
         lda     $0C                     ; resulting facing bits
-        sta     ent_facing,x
+        sta     ent_facing,x            ; set homing direction
         inc     ent_timer,x             ; mark as initialized
 top_spin_homing_apply_move:  lda     ent_facing,x        ; apply homing movement
         and     #$08                    ; test vertical bit
         beq     top_spin_homing_move_down               ; 0 = move down
         jsr     move_sprite_up          ; move up
-        jmp     top_spin_homing_check_horiz
+        jmp     top_spin_homing_check_horiz ; apply horizontal move
 
 top_spin_homing_move_down:  jsr     move_sprite_down    ; move down
 top_spin_homing_check_horiz:  lda     ent_facing,x        ; check horizontal direction
@@ -900,7 +900,7 @@ shadow_man_state_ptr_hi_table:  .byte   $A6,$A6,$A7,$A7,$A7
         ora     #$40                    ; set boss invincibility flag
         sta     ent_status,x            ; store with invincibility
         inc     ent_status,x            ; -> state $01
-        rts
+        rts                             ; done init
 
 ; state $01: jump toward player + throw Shadow Blades on landing
         lda     ent_var1,x              ; landing pause active?
@@ -909,33 +909,33 @@ shadow_man_state_ptr_hi_table:  .byte   $A6,$A6,$A7,$A7,$A7
         and     #FACING_RIGHT           ; test direction bit
         beq     shadow_man_jump_move_left               ; 0 = facing left
         ldy     #$24                    ; move right with collision
-        jsr     move_right_collide
-        jmp     shadow_man_jump_apply_gravity
+        jsr     move_right_collide      ; move right
+        jmp     shadow_man_jump_apply_gravity ; skip to gravity
 
 shadow_man_jump_move_left:  ldy     #$25                ; move left with collision
-        jsr     move_left_collide
+        jsr     move_left_collide       ; move left
 shadow_man_jump_apply_gravity:  ldy     #$22                ; gravity table index
         jsr     move_vertical_gravity   ; apply gravity, check floor
         bcc     shadow_man_jump_airborne_anim               ; still airborne
         lda     #$40                    ; landing animation
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play landing anim
         lda     #$04                    ; 4-frame landing pause
-        sta     ent_var1,x
+        sta     ent_var1,x              ; set landing pause timer
         jsr     shadow_man_random_jump_setup               ; random jump velocity setup
         jsr     test_facing_change      ; face player on landing
         inc     ent_timer,x             ; count landings
-        lda     ent_timer,x
+        lda     ent_timer,x             ; check landing count
         cmp     #$03                    ; done with 3 jumps?
         bcc     shadow_man_jump_return               ; not done, keep jumping
         inc     ent_status,x            ; -> state $02: decision
-        rts
+        rts                             ; done landing
 
 shadow_man_jump_airborne_anim:  lda     #$40                ; airborne: reset anim
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play jump anim
         lda     #$00                    ; freeze on frame 0
         sta     ent_anim_frame,x        ; hold frame 0
         sta     ent_anim_state,x        ; hold state 0
-        rts
+        rts                             ; done (still airborne)
 
 shadow_man_jump_landing_pause:  lda     #$01                ; landing pause: show standing frame
         sta     ent_anim_state,x        ; set to standing frame
@@ -949,21 +949,21 @@ shadow_man_jump_return:  rts
         bne     shadow_man_goto_slide               ; nonzero = slide attack
         inc     ent_status,x            ; -> state $03: throw blades
         lda     #$41                    ; blade throw animation
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play blade throw anim
         lda     #$00                    ; clear spawn flag
         sta     ent_var1,x              ; reset blade spawn state
-        rts
+        rts                             ; ready to throw blades
 
 shadow_man_goto_slide:  inc     ent_status,x        ; -> state $04: slide attack
         inc     ent_status,x            ; skip state $03
         lda     #$08                    ; slide timer = 8
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set post-pass countdown
         lda     #$00                    ; clear passed-player flag
         sta     ent_var1,x              ; reset passed-player flag
         lda     #$3E                    ; slide animation
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play slide anim
         lda     #$C8                    ; slide collision routine
-        sta     ent_routine,x
+        sta     ent_routine,x           ; use slide collision handler
         lda     ent_x_px,x              ; spawn shadow decoy at current pos
         sta     $0370                   ; decoy X pixel (slot $10)
         lda     ent_x_scr,x             ; get current X screen
@@ -978,11 +978,11 @@ shadow_man_goto_slide:  inc     ent_status,x        ; -> state $04: slide attack
         lda     #$5A                    ; shadow decoy sprite
         jsr     init_child_entity       ; init child entity
         lda     #$C3                    ; slide hitbox
-        sta     ent_hitbox,x
-        lda     #$00
-        sta     ent_xvel_sub,x
+        sta     ent_hitbox,x            ; set slide contact hitbox
+        lda     #$00                    ; zero sub-pixel velocity
+        sta     ent_xvel_sub,x          ; clear X sub-velocity
         lda     #$04                    ; slide speed = 4 px/frame
-        sta     ent_xvel,x
+        sta     ent_xvel,x              ; set slide X velocity
         jmp     face_player             ; face player
 
 ; state $03: throw Shadow Blades (spawns 2 blades, then plays throw anim)
@@ -996,27 +996,27 @@ shadow_man_goto_slide:  inc     ent_status,x        ; -> state $04: slide attack
         sta     $01                     ; store blade counter
         jsr     spawn_shadow_blade               ; spawn 2 Shadow Blades
         lda     #$14                    ; 20-frame delay before throw anim
-        sta     ent_timer,x
-        lda     #$FF
+        sta     ent_timer,x             ; set pre-throw delay
+        lda     #$FF                    ; nonzero = blades spawned
         sta     ent_var1,x              ; mark as spawned
-        rts
+        rts                             ; wait for throw anim
 
 shadow_man_throw_anim_seq:  lda     ent_anim_state,x    ; throw animation sequence
         bne     shadow_man_throw_advance_anim               ; branch if past state 0
         dec     ent_timer,x             ; pre-throw delay
         bne     shadow_man_throw_hold_pose               ; still waiting
         lda     #SFX_SHADOW_FIRE        ; blade throw SFX
-        jsr     submit_sound_ID
+        jsr     submit_sound_ID         ; play throw sound
         lda     #$01                    ; advance to throw frame
-        sta     ent_anim_state,x
+        sta     ent_anim_state,x        ; set throw anim state
         lda     #$00                    ; reset frame counter
         sta     ent_anim_frame,x        ; start from frame 0
-        rts
+        rts                             ; throw triggered
 
 shadow_man_throw_hold_pose:  lda     #$00                ; hold pre-throw pose
-        sta     ent_anim_state,x
-        sta     ent_anim_frame,x
-        rts
+        sta     ent_anim_state,x        ; freeze on pre-throw state
+        sta     ent_anim_frame,x        ; freeze on frame 0
+        rts                             ; waiting for delay
 
 shadow_man_throw_advance_anim:  lda     ent_anim_frame,x    ; advance throw animation
         and     #$08                    ; test bit 3 (8-frame gate)
@@ -1026,7 +1026,7 @@ shadow_man_throw_check_complete:  lda     ent_anim_state,x    ; check current st
         cmp     #$06                    ; throw anim complete?
         bne     shadow_man_throw_done               ; skip if not done
         lda     #$C0                    ; restart from state $00
-        sta     ent_status,x
+        sta     ent_status,x            ; reset to init state
 shadow_man_throw_done:  rts
 
 ; state $04: slide attack — move toward player, stop on contact/wall/timer
@@ -1038,11 +1038,11 @@ shadow_man_slide_move:  lda     ent_facing,x        ; slide in facing direction
         and     #FACING_RIGHT           ; test direction bit
         beq     shadow_man_slide_move_left               ; 0 = slide left
         ldy     #$24                    ; move right with collision
-        jsr     move_right_collide
-        jmp     shadow_man_slide_check_wall
+        jsr     move_right_collide      ; slide right
+        jmp     shadow_man_slide_check_wall ; check for wall
 
 shadow_man_slide_move_left:  ldy     #$25                ; move left with collision
-        jsr     move_left_collide
+        jsr     move_left_collide       ; slide left
 shadow_man_slide_check_wall:  bcs     shadow_man_slide_stop           ; hit wall -> stop
         lda     ent_var1,x              ; already passed player?
         bne     shadow_man_slide_done               ; yes, keep sliding
@@ -1050,17 +1050,17 @@ shadow_man_slide_check_wall:  bcs     shadow_man_slide_stop           ; hit wall
         cmp     #$08                    ; within 8 px?
         bcs     shadow_man_slide_done               ; no -> keep sliding
         inc     ent_var1,x              ; mark as passed player
-        rts
+        rts                             ; continue sliding
 
 shadow_man_slide_stop:  lda     #$3D                ; slide end animation
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play slide stop anim
         lda     #$C0                    ; restart from state $00
-        sta     ent_status,x
+        sta     ent_status,x            ; reset to init state
         lda     #$CA                    ; restore normal hitbox
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; set standard hitbox
         jsr     test_facing_change      ; face player
         lda     #$C3                    ; restore normal routine
-        sta     ent_routine,x
+        sta     ent_routine,x           ; back to default AI routine
 shadow_man_slide_done:  rts
 
 test_facing_change:  lda     ent_facing,x ; save old facing
@@ -1086,7 +1086,7 @@ shadow_man_random_jump_setup:  lda     $E4                 ; load RNG seed A
         sta     ent_yvel,x              ; set jump Y velocity
         lda     shadow_man_jump_var2_table,y ; var2: decides slide vs blade throw
         sta     ent_var2,x              ; set attack type flag
-        rts
+        rts                             ; jump setup complete
 
 ; Shadow Man jump velocity table (4 entries)
 ; Y vel sub, Y vel (jump height), var2 (0=blade throw, 1=slide)
@@ -1151,7 +1151,7 @@ shadow_blade_ai:  lda     ent_anim_id,x       ; check current anim ID
         cmp     #$06                    ; anim sequence done?
         bne     shadow_blade_done               ; skip if not done
         lda     #$43                    ; switch to spinning blade anim
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; play spinning blade anim
         lda     ent_y_px,x              ; adjust Y for new sprite frame
         clc                             ; prepare add
         adc     #$0E                    ; shift down 14 px
@@ -1174,7 +1174,7 @@ shadow_blade_update_y_pos:  lda     ent_y_sub,x         ; load Y sub-pixel
         jmp     top_spin_homing_check_horiz               ; apply horizontal movement
 
 shadow_blade_despawn:  lda     #$00                ; despawn blade
-        sta     ent_status,x
+        sta     ent_status,x            ; deactivate entity
 shadow_blade_done:  rts
 
 ; =============================================================================

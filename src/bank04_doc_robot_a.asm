@@ -65,7 +65,7 @@ stub_rts:  rts
 
         .byte   $F3,$AA,$B5,$89,$5D,$BA,$F8,$AA
         .byte   $37,$28,$DF,$8A,$3D,$A2
-        jmp     metal_blade_init
+        jmp     metal_blade_init        ; orphaned trampoline (unreferenced)
 
 ; =============================================================================
 ; DOC FLASH MAN AI ($A0)
@@ -111,7 +111,7 @@ flash_check_grounded:  lda     $0F                 ; load collision result
         lda     #$06                    ; Time Stopper anim ID
         jsr     reset_sprite_anim       ; start Time Stopper anim
         inc     ent_status,x            ; advance to phase 2
-        rts
+        rts                             ; done with walk phase
 
 flash_check_ceiling_hit:  lda     $10                 ; load vertical collision flags
         and     #$10                    ; test hit-ceiling bit
@@ -143,7 +143,7 @@ flash_time_stopper:  lda     ent_anim_id,x
         jsr     reset_sprite_anim       ; set standing anim
         jsr     face_player             ; turn toward player
         jsr     set_sprite_hflip        ; flip sprite to match facing
-        rts
+        rts                             ; done with Time Stopper intro
 
 flash_spawn_interval_tick:  dec     ent_var1,x          ; count down spawn interval
         bne     flash_phase2_done               ; interval not elapsed yet
@@ -154,7 +154,7 @@ flash_spawn_interval_tick:  dec     ent_var1,x          ; count down spawn inter
         lda     ent_timer,x             ; check projectile count
         cmp     #$06                    ; spawned all 6?
         bcs     flash_end_attack               ; all 6 spawned, end attack
-        rts
+        rts                             ; more projectiles to spawn
 
 flash_end_attack:  lda     #$05                ; done — revert to walk anim
         jsr     reset_sprite_anim       ; set walking anim
@@ -266,10 +266,10 @@ flash_explosion_oam_loop:  lda     doc_flash_explosion_oam_data_y,y ; load sprit
         sta     $0202,y                 ; write to OAM buffer attr
         lda     doc_flash_explosion_oam_data_palette,y ; load sprite X coordinate
         sta     $0203,y                 ; write to OAM buffer X
-        dey
-        dey
-        dey
-        dey
+        dey                             ; prev OAM entry (-4 bytes)
+        dey                             ; -2
+        dey                             ; -3
+        dey                             ; -4 (one complete OAM entry)
         bpl     flash_explosion_oam_loop               ; loop until all sprites copied
 
 ; This is the ONLY trigger for state $07 (special_death) in the entire game.
@@ -278,11 +278,11 @@ flash_explosion_oam_loop:  lda     doc_flash_explosion_oam_data_y,y ; load sprit
 ; [confirmed via Mesen]
         lda     player_state            ; if player already dead ($0E),
         cmp     #PSTATE_DEATH           ; don't overwrite with special_death
-        beq     flash_special_death_done
+        beq     flash_special_death_done ; already dead → skip
         lda     #PSTATE_SPECIAL_DEATH   ; state → $07 (special_death)
         sta     player_state            ; palette cycling kill effect
         lda     #$1E                    ; timer = 30 frames
-        sta     ent_timer
+        sta     ent_timer               ; set death effect duration
 flash_special_death_done:  rts
 
 doc_flash_explosion_oam_data_y:  .byte   $20
@@ -320,7 +320,7 @@ wood_state_dispatch:  lda     ent_status,x        ; dispatch to state handler
         lda     doc_wood_state_handler_low_table,y ; load handler address low byte
         sta     temp_00                 ; store in jump pointer
         lda     doc_wood_state_handler_high_table,y ; load handler address high byte
-        sta     $01
+        sta     $01                     ; store high byte in pointer
         jmp     (temp_00)               ; jump to state handler
 
 doc_wood_state_handler_low_table:  .byte   $6F,$92,$B5,$CA,$FD,$46 ; state handler pointers (low)
@@ -328,79 +328,79 @@ doc_wood_state_handler_high_table:  .byte   $A2,$A2,$A2,$A2,$A2,$A3 ; state hand
         lda     #$9E                    ; --- state 0: init ---
         sta     ent_yvel_sub,x          ; set upward Y velocity (sub)
         lda     #$04                    ; Y velocity = 4 px/frame (jump)
-        sta     ent_yvel,x
+        sta     ent_yvel,x              ; set jump velocity
         lda     ent_status,x            ; set bit 6 = shielded/invuln
-        ora     #$40
-        sta     ent_status,x
+        ora     #$40                    ; enable invincibility flag
+        sta     ent_status,x            ; store with invuln bit set
         inc     ent_status,x            ; advance to state 1
         lda     #$12                    ; leaf throw interval = 18 frames
-        sta     ent_timer,x
+        sta     ent_timer,x             ; set throw countdown
         lda     #$60                    ; overall cycle timer = 96 frames
-        sta     ent_var3,x
+        sta     ent_var3,x              ; set cycle duration
         jsr     wood_spawn_leaf_shield               ; spawn leaf shield entity
-        rts
+        rts                             ; done with init
 
         dec     ent_timer,x             ; --- state 1: throw leaves ---
         bne     wood_tick_anim               ; timer not expired, keep waiting
         lda     #$12                    ; reload 18-frame interval
-        sta     ent_timer,x
+        sta     ent_timer,x             ; reset throw countdown
         jsr     wood_spawn_thrown_leaf               ; spawn a thrown leaf
         inc     ent_var1,x              ; count throws
-        lda     ent_var1,x
+        lda     ent_var1,x              ; check throw count
         cmp     #$04                    ; thrown 4 leaves yet?
         bcc     wood_tick_anim               ; no, keep throwing
         lda     #$2E                    ; set wait timer = 46 frames
-        sta     ent_var1,x
+        sta     ent_var1,x              ; store countdown for state 2
         inc     ent_status,x            ; advance to state 2
 wood_tick_anim:  jsr     wood_force_anim_tick           ; force anim to tick one frame
-        rts
+        rts                             ; return to AI dispatcher
 
         dec     ent_var1,x              ; --- state 2: countdown + crash ---
         bne     wood_tick_anim               ; still counting down
         lda     #$00                    ; crash block spawn index = 0
-        sta     temp_00
+        sta     temp_00                 ; init spawn counter
         jsr     wood_spawn_crash_blocks               ; spawn 4 falling crash blocks
         inc     ent_status,x            ; advance to state 3
         lda     #$24                    ; shield attack delay = 36 frames
-        sta     ent_var2,x
-        rts
+        sta     ent_var2,x              ; set shield release countdown
+        rts                             ; done with crash block spawn
 
         jsr     wood_force_anim_tick               ; --- state 3: release shield ---
         dec     ent_var2,x              ; count down shield delay
         bne     wood_state_done               ; not zero, wait
         lda     #$0F                    ; pre-fall delay = 15 frames
-        sta     ent_var2,x
+        sta     ent_var2,x              ; set pre-walk delay
         inc     ent_status,x            ; advance to state 4 (fall)
         lda     #$80                    ; leaf shield spawn ID = $80
-        sta     temp_00
+        sta     temp_00                 ; store target spawn ID
         ldy     #$1F                    ; search slots $1F down to $10
 wood_search_shield_loop:  lda     ent_status,y        ; is slot active?
         bmi     wood_check_shield_match               ; yes, check if it's the shield
 wood_search_shield_next:  dey                         ; not active, try next slot
         cpy     #$0F                    ; searched all enemy slots?
         bne     wood_search_shield_loop               ; no, keep searching
-        rts
+        rts                             ; shield not found
 
 wood_check_shield_match:  lda     temp_00 ; check spawn ID
         cmp     ent_spawn_id,y          ; match spawn ID $80 = shield
         bne     wood_search_shield_next               ; not the shield, try next
         lda     #$3C                    ; set shield to attack routine
-        sta     ent_routine,y
+        sta     ent_routine,y           ; switch shield AI to attack mode
         lda     #$8D                    ; enable contact damage on shield
-        sta     ent_hitbox,y
-wood_state_done:  rts
+        sta     ent_hitbox,y            ; set shield hitbox + damage
+wood_state_done:  rts                         ; done with state 3
 
         lda     ent_var2,x              ; --- state 4: falling ---
         beq     wood_fall_walk               ; pre-walk delay active?
         dec     ent_var2,x              ; decrement pre-walk delay
-        rts
+        rts                             ; wait for delay to expire
 
 wood_fall_walk:  lda     ent_facing,x        ; check facing direction
         and     #FACING_RIGHT           ; bit 0 set = facing right
         beq     wood_fall_walk_left               ; facing left, branch
         ldy     #$20                    ; walk speed parameter
         jsr     move_right_collide      ; move right with collision
-        jmp     wood_fall_gravity
+        jmp     wood_fall_gravity       ; skip left movement
 
 wood_fall_walk_left:  ldy     #$21                ; walk speed parameter
         jsr     move_left_collide       ; move left with collision
@@ -408,9 +408,9 @@ wood_fall_gravity:  ldy     #$1E                ; gravity strength parameter
         jsr     move_vertical_gravity   ; apply gravity, check landing
         bcc     wood_fall_check_anim               ; not landed → skip jump setup
         lda     #$9E                    ; set upward Y velocity (sub)
-        sta     ent_yvel_sub,x
+        sta     ent_yvel_sub,x          ; store sub-pixel for next jump
         lda     #$04                    ; Y velocity = 4 (next jump)
-        sta     ent_yvel,x
+        sta     ent_yvel,x              ; store jump speed
         inc     ent_status,x            ; advance to state 5 (land)
         lda     #$1D                    ; landing anim ID = $1D
         bne     wood_set_anim_and_return               ; always branches (A != 0)
@@ -427,17 +427,17 @@ wood_set_anim_and_return:  jmp     reset_sprite_anim   ; set anim and return
         cmp     #$01                    ; check if anim tick complete
         bne     wood_land_cycle_tick               ; not ready yet
         lda     #$01                    ; reset anim state to 1
-        sta     ent_anim_state,x
+        sta     ent_anim_state,x        ; keep anim looping
         lda     #$00                    ; reset anim frame to 0
-        sta     ent_anim_frame,x
+        sta     ent_anim_frame,x        ; restart from first frame
 wood_land_cycle_tick:  dec     ent_var3,x          ; decrement cycle timer
         bne     wood_land_done               ; cycle not done, keep going
         dec     ent_status,x            ; dec status 4x: state 5 -> 1
-        dec     ent_status,x
-        dec     ent_status,x
-        dec     ent_status,x
+        dec     ent_status,x            ; -2
+        dec     ent_status,x            ; -3
+        dec     ent_status,x            ; -4 (back to state 1)
         lda     #$60                    ; reset cycle timer = 96
-        sta     ent_var3,x
+        sta     ent_var3,x              ; restart full attack cycle
         jsr     face_player             ; turn toward player
         jsr     set_sprite_hflip        ; update sprite H-flip
         jsr     wood_spawn_leaf_shield               ; spawn new leaf shield
@@ -445,94 +445,94 @@ wood_land_done:  rts
 
 ; --- utility: force animation to advance one frame ---
 wood_force_anim_tick:  lda     #$01                ; trigger anim advance
-        sta     ent_anim_state,x
+        sta     ent_anim_state,x        ; set anim state to tick
         lda     #$00                    ; reset frame counter
-        sta     ent_anim_frame,x
-        rts
+        sta     ent_anim_frame,x        ; clear current frame
+        rts                             ; return to caller
 
 ; --- spawn leaf shield entity (orbits Doc Wood Man) ---
 wood_spawn_leaf_shield:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     wood_spawn_done               ; no free slot, abort
         lda     ent_facing,x            ; copy parent facing
-        sta     ent_facing,y
+        sta     ent_facing,y            ; to shield entity
         lda     ent_x_px,x              ; copy parent X position
-        sta     ent_x_px,y
+        sta     ent_x_px,y              ; to shield entity
         lda     ent_x_scr,x             ; copy parent X screen
-        sta     ent_x_scr,y
+        sta     ent_x_scr,y             ; to shield entity
         lda     ent_y_px,x              ; copy parent Y position
-        sta     ent_y_px,y
+        sta     ent_y_px,y              ; to shield entity
         lda     #$00                    ; shield has 0 HP (invincible)
-        sta     ent_hp,y
+        sta     ent_hp,y                ; set shield HP
         sta     ent_xvel_sub,y          ; clear X velocity sub
         lda     #$A9                    ; shield AI routine = $A9
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set shield AI routine
         lda     #$1B                    ; OAM ID $1B = leaf shield
         jsr     init_child_entity       ; init as child entity
         lda     #$AD                    ; hitbox $AD = shield shape
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; set shield hitbox
         lda     #$80                    ; spawn ID $80 = shield marker
-        sta     ent_spawn_id,y
+        sta     ent_spawn_id,y          ; tag for shield search
         lda     #$04                    ; orbit speed = 4 px/frame
-        sta     ent_xvel,y
-        rts
+        sta     ent_xvel,y              ; set orbit movement speed
+        rts                             ; shield spawned
 
 ; --- spawn leaf projectile (thrown at player) ---
 wood_spawn_thrown_leaf:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     wood_spawn_done               ; no free slot, abort
         lda     ent_facing,x            ; copy parent facing
-        sta     ent_facing,y
+        sta     ent_facing,y            ; to leaf entity
         lda     ent_x_px,x              ; copy parent X position
-        sta     ent_x_px,y
+        sta     ent_x_px,y              ; to leaf entity
         lda     ent_x_scr,x             ; copy parent X screen
-        sta     ent_x_scr,y
+        sta     ent_x_scr,y             ; to leaf entity
         lda     ent_y_px,x              ; copy parent Y position
-        sta     ent_y_px,y
+        sta     ent_y_px,y              ; to leaf entity
         lda     #$00                    ; leaf has 0 HP
-        sta     ent_hp,y
+        sta     ent_hp,y                ; set leaf HP
         sta     ent_yvel_sub,y          ; clear Y velocity sub
         lda     #$12                    ; OAM ID $12 = thrown leaf
         jsr     init_child_entity       ; init as child entity
         lda     #$8B                    ; hitbox $8B = small + damage
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; set leaf hitbox
         lda     #$04                    ; fall speed = 4 px/frame
-        sta     ent_yvel,y
+        sta     ent_yvel,y              ; set upward movement speed
         lda     #$A5                    ; leaf AI routine = $A5
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set leaf fall AI
 wood_spawn_done:  rts
 
 ; --- spawn 4 falling crash blocks (called recursively) ---
 wood_spawn_crash_blocks:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     wood_spawn_done               ; no free slot, abort
         lda     #FACING_LEFT            ; face left
-        sta     ent_facing,y
+        sta     ent_facing,y            ; set block facing
         lda     ent_x_scr,x             ; same screen as parent
-        sta     ent_x_scr,y
+        sta     ent_x_scr,y             ; copy screen page
         lda     #$20                    ; spawn near top of screen
-        sta     ent_y_px,y
+        sta     ent_y_px,y              ; set Y spawn position
         lda     #$00                    ; block has 0 HP
-        sta     ent_hp,y
+        sta     ent_hp,y                ; set block HP
         lda     #$12                    ; OAM ID $12 = crash block
         jsr     init_child_entity       ; init as child entity
         lda     #$8B                    ; hitbox $8B = small + damage
-        sta     ent_hitbox,y
+        sta     ent_hitbox,y            ; set block hitbox
         lda     #$62                    ; diagonal velocity (sub)
-        sta     ent_xvel_sub,y          ; same sub for Y axis
-        sta     ent_yvel_sub,y
+        sta     ent_xvel_sub,y          ; X sub-pixel velocity
+        sta     ent_yvel_sub,y          ; Y sub-pixel velocity (same)
         lda     #$01                    ; X + Y speed = 1 px/frame
-        sta     ent_xvel,y              ; diagonal fall
-        sta     ent_yvel,y
+        sta     ent_xvel,y              ; set X speed for diagonal
+        sta     ent_yvel,y              ; set Y speed for diagonal
         lda     #$A6                    ; crash block AI routine = $A6
-        sta     ent_routine,y
+        sta     ent_routine,y           ; set bounce AI routine
         stx     $01                     ; save parent entity index
         ldx     temp_00                 ; load spawn counter
         lda     doc_wood_crash_block_x_positions_table,x ; get X position from table
-        sta     ent_x_px,y
+        sta     ent_x_px,y              ; set block X position
         ldx     $01                     ; restore parent entity index
         inc     temp_00                 ; next crash block index
-        lda     temp_00
+        lda     temp_00                 ; check spawn count
         cmp     #$04                    ; spawned all 4 blocks?
         bcc     wood_spawn_crash_blocks               ; no, spawn next block
-        rts
+        rts                             ; all 4 blocks spawned
 
 doc_wood_crash_block_x_positions_table:  .byte   $40,$70,$A0,$D0 ; X positions for 4 crash blocks
 
@@ -643,14 +643,14 @@ crash_countdown_tick:  dec     ent_var1,x          ; decrement jump countdown
         jsr     crash_set_random_jump_vel               ; set random jump velocity
         lda     #$96                    ; reset to 150 frames
         sta     ent_var1,x              ; store jump countdown
-        rts
+        rts                             ; now airborne
 
 crash_check_b_press:  lda     joy1_press          ; check B button mid-walk
         and     #BTN_B                  ; B pressed?
         beq     crash_walk_done               ; no — stay walking
         inc     ent_status,x            ; advance to airborne phase
         jsr     crash_set_random_jump_vel               ; set random jump velocity
-        rts
+        rts                             ; now airborne
 
 crash_airborne_move:  lda     ent_facing,x        ; --- phase 2: airborne ---
         and     #FACING_RIGHT           ; facing right?
@@ -698,7 +698,7 @@ crash_airborne_anim:  lda     ent_anim_id,x       ; --- still airborne ---
 crash_spawn_bomb_at_apex:  jsr     crash_spawn_bomb           ; spawn crash bomb
         lda     ent_var2,x              ; restore movement direction
         sta     ent_facing,x            ; keep original walk dir
-        rts
+        rts                             ; bomb spawned at apex
 
 crash_set_fall_anim:  lda     #$03                ; --- descending ---
         jsr     reset_sprite_anim       ; anim 3 = falling
@@ -718,7 +718,7 @@ crash_set_random_jump_vel:  lda     #$88                ; Y velocity = $07.88 (u
         sta     ent_xvel_sub,x          ; set X velocity sub-pixel
         lda     doc_crash_jump_x_velocity_table,y ; load random X vel pixel
         sta     ent_xvel,x              ; set X velocity pixel
-        rts
+        rts                             ; jump velocity configured
 
 doc_crash_jump_x_velocity_sub_table:  .byte   $00,$80,$00,$00 ; X velocity sub table
 doc_crash_jump_x_velocity_table:  .byte   $01,$01,$01,$02 ; X velocity table
@@ -736,7 +736,7 @@ crash_face_player_sprite:  lda     ent_facing,x        ; save movement direction
         sta     ent_flags,x             ; store updated flags
 crash_restore_facing:  lda     ent_var2,x          ; restore original facing
         sta     ent_facing,x            ; keep original walk dir
-        rts
+        rts                             ; sprite flipped, facing preserved
 
 ; --- spawn Crash Bomb projectile (checks for existing one first) ---
 crash_spawn_bomb:  ldy     #$1F                ; scan enemy slots $10-$1F
@@ -839,7 +839,7 @@ crash_bomb_check_wall_h:  bcc     crash_bomb_done           ; no wall hit — co
 crash_bomb_explode_start:  lda     #$0C                ; --- wall hit: explode ---
         jsr     reset_sprite_anim       ; anim $0C = explosion start
         inc     ent_status,x            ; advance to explode phase
-        rts
+        rts                             ; start explosion next frame
 
 crash_bomb_explode_anim:  lda     ent_anim_id,x       ; --- explosion phase ---
         cmp     #$0C                    ; still in first explosion?
@@ -876,9 +876,9 @@ doc_crash_bomb_x_offset_table:  .byte   $18,$E8 ; X offset: right=+24, left=-24
 metal_init_and_dispatch:  lda     ent_status,x        ; --- init ---
         and     #$0F                    ; extract state from low nibble
         bne     metal_state_dispatch               ; skip init if already running
-        lda     #$B4
+        lda     #$B4                    ; 180 frames patrol duration
         sta     ent_timer,x             ; patrol timer = 180 frames
-        lda     #$07
+        lda     #$07                    ; throw anim hold = 7 frames
         sta     ent_var3,x              ; throw delay after anim
         jsr     metal_set_random_jump_vel               ; set random jump velocity
         inc     ent_status,x            ; advance to state 1 (ground)
@@ -905,7 +905,7 @@ metal_patrol_countdown:  dec     ent_timer,x         ; count down patrol timer
         lda     #$B4                    ; reload timer = 180 frames
         sta     ent_timer,x             ; restart patrol timer
         inc     ent_status,x            ; advance to state 2 (jump)
-        rts
+        rts                             ; timer expired → jump next frame
 
 metal_check_b_press:  lda     joy1_press          ; check player input
         and     #BTN_B                  ; player pressed B (shoot)?
@@ -925,7 +925,7 @@ metal_jump_gravity:  ldy     #$1E                ; gravity collision box
         lda     #$1D                    ; standing anim ID
         jsr     reset_sprite_anim       ; set standing animation
         dec     ent_status,x            ; back to state 1 (ground)
-        rts
+        rts                             ; landed — resume patrol
 
 metal_jump_anim_throw:  lda     #$03                ; jumping anim ID
         jsr     reset_sprite_anim       ; set jumping animation
@@ -981,7 +981,7 @@ metal_bounce_reverse_dir:  lda     ent_facing,x        ; reverse facing directio
         jsr     metal_set_random_jump_vel               ; pick new random jump velocity
         lda     #$07                    ; throw anim hold = 7 frames
         sta     ent_var3,x              ; set throw anim delay
-        rts
+        rts                             ; bounced — back to patrol
 
 metal_bounce_midair_throw:  lda     ent_yvel,x          ; --- midair throw (bounce) ---
         bpl     metal_bounce_throw_done               ; falling — skip throw
@@ -1022,7 +1022,7 @@ metal_set_random_jump_vel:  lda     $E4                 ; RNG: advance LFSR
         lda     doc_metal_jump_throw_interval_table,y ; load throw interval
         sta     ent_var1,x              ; throw interval
         sta     ent_var2,x              ; throw interval reload
-        rts
+        rts                             ; random velocity set
 
 doc_metal_jump_y_velocity_sub_table:  .byte   $88,$00,$9E,$88 ; Y velocity sub table
 doc_metal_jump_y_velocity_table:  .byte   $06,$08,$04,$06 ; Y velocity table

@@ -83,7 +83,7 @@ menu_handle_dpad:  jsr     handle_cursor_dpad           ; handle D-pad cursor mo
 ; --- Process button press ---
 menu_process_button:  and     #$40                ; B button?
         bne     menu_slide_out_loop               ; yes → close menu (no selection)
-        lda     weapon_cursor
+        lda     weapon_cursor           ; check current cursor position
         bpl     select_weapon               ; cursor on weapon slot → select weapon
         cmp     #$FF                    ; cursor on E-Tank marker?
         beq     use_etank               ; yes → use E-Tank
@@ -267,22 +267,22 @@ copy_weapon_palette_loop:  lda     weapon_palette_color_table,y ; copy 3 palette
 ; frames until full (HEALTH_FULL = 28 bars). Then slides menu out.
 
 refill_weapon_entry:  lda     $EA                 ; save coroutine state
-        pha
+        pha                             ; push $EA on stack
         lda     $EB                     ; save $EB
-        pha
+        pha                             ; push $EB on stack
         lda     $EC                     ; save $EC
-        pha
+        pha                             ; push $EC on stack
         lda     $ED                     ; save $ED
-        pha
+        pha                             ; push $ED on stack
         jsr     build_menu_screen               ; build menu screen
         lda     #$00                    ; clear local frame counter
         sta     $95                     ; reset frame counter
 ; --- Ammo refill loop ---
-refill_ammo_loop:  lda     $95
+refill_ammo_loop:  lda     $95                 ; load frame counter
         and     #$03                    ; every 4th frame:
         bne     refill_ammo_wait               ; skip refill on non-4th frames
         lda     weapon_cursor           ; get cursor position
-        clc
+        clc                             ; prepare addition
         adc     $B4                     ; absolute weapon index
         tax                             ; X = weapon slot index
         lda     player_hp,x             ; weapon ammo (player_hp+N)
@@ -307,16 +307,16 @@ refill_ammo_done:  jmp     weapon_slide_out_loop           ; slide menu out
 build_menu_screen:  lda     #$1A                ; pause menu open SFX
         jsr     submit_sound_ID         ; play pause SFX
         lda     scroll_lock             ; save current phase
-        pha
+        pha                             ; push phase on stack
         inc     scroll_lock             ; advance build phase
-        lda     #$04
+        lda     #$04                    ; OAM pointer start offset
         sta     oam_ptr                 ; reset OAM write pointer
         jsr     prepare_oam_buffer      ; prepare OAM buffer
-        pla
+        pla                             ; pull saved phase
         sta     scroll_lock             ; restore phase counter
-        lda     game_mode
+        lda     game_mode               ; check current game mode
         bne     menu_build_phase_loop               ; skip if already nonzero
-        lda     #$01
+        lda     #$01                    ; game mode = paused
         sta     game_mode               ; set game mode to "paused"
 ; --- Upload nametable rows phase by phase ---
 menu_build_phase_loop:  ldy     scroll_lock
@@ -330,17 +330,17 @@ decode_nametable_row:  lda     $52                 ; nametable base address
         ora     nametable_ppu_high_compressed,x ; merge PPU control byte
         sta     $0780,y                 ; PPU address high byte
         bmi     menu_phase_post_process               ; $FF terminator → done
-        lda     nametable_ppu_low_compressed,x
+        lda     nametable_ppu_low_compressed,x ; load PPU address low
         sta     $0781,y                 ; PPU address low byte
-        lda     nametable_tile_count_compressed,x
+        lda     nametable_tile_count_compressed,x ; load tile count for row
         sta     $0782,y                 ; tile count
         sta     $00                     ; tiles remaining in row
-decode_tile_run:  lda     #$00
+decode_tile_run:  lda     #$00                ; clear RLE counter
         sta     $01                     ; RLE repeat counter
-        lda     nametable_tile_data_compressed,x
+        lda     nametable_tile_data_compressed,x ; load next tile/RLE byte
         bpl     write_tile_repeat               ; not RLE → single tile
         and     #$7F                    ; extract repeat count
-        sta     $01
+        sta     $01                     ; store repeat count
         inx                             ; next compressed data byte
         lda     nametable_tile_data_compressed,x ; tile to repeat
 write_tile_repeat:  sta     $0783,y             ; store tile
@@ -352,11 +352,11 @@ write_tile_repeat:  sta     $0783,y             ; store tile
         lda     $00                     ; check tiles remaining
         bpl     decode_tile_run               ; more tiles in this row
         inx                             ; skip 3 bytes (next row header)
-        inx
-        inx
-        iny
-        iny
-        iny
+        inx                             ; skip PPU low byte
+        inx                             ; skip tile count byte
+        iny                             ; advance buffer past PPU high
+        iny                             ; advance buffer past PPU low
+        iny                             ; advance buffer past tile count
         bne     decode_nametable_row               ; next nametable row
 ; --- Post-processing for this phase ---
 menu_phase_post_process:  jsr     draw_weapon_bars           ; draw weapon bars / lives / etanks
@@ -366,39 +366,39 @@ menu_phase_post_process:  jsr     draw_weapon_bars           ; draw weapon bars 
         lda     #$20                    ; adjust PPU base for password screen
         sta     $0780                   ; set PPU high byte to $20xx
         lda     $0781                   ; adjust PPU low byte
-        sec
-        sbc     #$C0
-        sta     $0781
-        lda     #$FF
+        sec                             ; prepare subtraction
+        sbc     #$C0                    ; remap $2Cxx → $20xx range
+        sta     $0781                   ; store adjusted low byte
+        lda     #$FF                    ; end-of-buffer marker
         sta     $07A3                   ; terminate buffer early
 menu_phase_advance:  inc     nametable_dirty     ; mark for NMI upload
         inc     scroll_lock             ; advance to next phase
 ; --- Load menu palette and CHR banks ---
 menu_load_chr_palette:  lda     #$74
         cmp     $EA                     ; already set up?
-        beq     menu_slide_in_loop
+        beq     menu_slide_in_loop      ; already configured → skip
         sta     $EA                     ; set CHR bank config
         lda     #$0B                    ; CHR bank $0B
-        sta     $EB
+        sta     $EB                     ; store CHR bank slot 1
         lda     #$12                    ; CHR bank $12
-        sta     $EC
+        sta     $EC                     ; store CHR bank slot 2
         lda     #$1C                    ; CHR bank $1C
-        sta     $ED
+        sta     $ED                     ; store CHR bank slot 3
         ldx     #$0F                    ; copy 16 palette entries
 copy_menu_palette_loop:  lda     menu_palette_table,x ; load menu palette
         sta     $0610,x                 ; write to palette buffer
-        dex
+        dex                             ; next palette entry
         bne     copy_menu_palette_loop               ; loop until all copied
-        lda     #$FF
+        lda     #$FF                    ; palette dirty flag
         sta     palette_dirty           ; flag for NMI upload
         jsr     update_CHR_banks        ; update CHR banks
 ; --- Slide menu into view ---
 menu_slide_in_loop:  jsr     menu_wait_frame           ; wait one frame
         lda     $51                     ; check menu Y position
         cmp     #$B0                    ; target Y position reached?
-        beq     menu_slide_in_done
-        lda     $51
-        sec
+        beq     menu_slide_in_done      ; yes → menu fully visible
+        lda     $51                     ; reload menu Y position
+        sec                             ; prepare subtraction
         sbc     #$04                    ; scroll down 4px/frame
         sta     $51                     ; update menu Y position
         jmp     menu_build_phase_loop               ; continue building + sliding
@@ -414,12 +414,12 @@ menu_slide_in_done:  rts
 ; Also writes lives count (phase 2) and E-Tank count (phase 5).
 
 draw_weapon_bars:  lda     scroll_lock         ; get current build phase
-        cmp     #$06
+        cmp     #$06                    ; phase 6 or later?
         bcs     draw_counter_display               ; phases 6-7 → skip bars
-        and     #$01
+        and     #$01                    ; test odd/even phase
         beq     draw_counter_display               ; even phases → skip (row data only)
         lda     scroll_lock             ; reread phase number
-        clc
+        clc                             ; prepare addition
         adc     $B4                     ; offset by current page
         and     #$FE                    ; round to even = weapon pair index
         sta     $00                     ; store weapon pair base
@@ -431,18 +431,18 @@ draw_one_bar:  lda     #$07                ; 7 tile segments per bar
         lda     player_hp,y             ; weapon HP/ammo (bit 7 = owned)
         bpl     draw_second_bar_check               ; not owned → skip
         and     #$7F                    ; extract ammo value (0-28)
-        sta     $02
+        sta     $02                     ; store ammo for bar fill
         lda     weapon_name_ppu_high_table,y ; PPU address high for this bar
-        sta     $0780,x
+        sta     $0780,x                 ; write PPU addr high to buffer
         lda     weapon_name_ppu_low_table,y ; PPU address low for this bar
-        sta     $0781,x
+        sta     $0781,x                 ; write PPU addr low to buffer
         inx                             ; skip past PPU addr bytes
-        inx
+        inx                             ; advance to tile data area
 ; --- Fill bar segments (each segment = 4 ammo units) ---
 bar_segment_loop:  ldy     #$04                ; full segment
         lda     $02                     ; remaining ammo to draw
-        sec
-        sbc     #$04
+        sec                             ; prepare subtraction
+        sbc     #$04                    ; subtract one segment (4 units)
         bcs     bar_segment_store               ; enough for full segment
         ldy     $02                     ; partial segment
         lda     #$00                    ; clear remaining ammo
@@ -454,7 +454,7 @@ bar_segment_store:  sta     $02                 ; update remaining ammo
         bne     bar_segment_loop               ; loop for all 7 segments
 ; --- Second weapon in pair ---
 draw_second_bar_check:  lda     $00                 ; check weapon pair parity
-        and     #$01
+        and     #$01                    ; odd = second weapon done
         bne     draw_counter_display               ; already did second → done
         ldx     #$13                    ; second bar buffer offset
         inc     $00                     ; next weapon index
@@ -470,9 +470,9 @@ draw_counter_display:  lda     scroll_lock         ; check phase for counter
         sta     $07A1                   ; store ones digit tile
         lda     lives                   ; reload lives count
         lsr     a                       ; tens digit
-        lsr     a
-        lsr     a
-        lsr     a
+        lsr     a                       ; shift high nibble down
+        lsr     a                       ; continue shift
+        lsr     a                       ; high nibble now in low nibble
         sta     $07A0                   ; store tens digit tile
 check_etank_display:  lda     scroll_lock         ; check for E-Tank phase
         cmp     #$05                    ; phase 5 → E-Tank count
@@ -481,14 +481,14 @@ check_etank_display:  lda     scroll_lock         ; check for E-Tank phase
         bne     blank_counter_digits               ; page 2 → blank
         lda     etanks                  ; BCD E-Tank count
         and     #$0F                    ; ones digit
-        sta     $07A1
+        sta     $07A1                   ; store ones digit tile
         lda     etanks                  ; reload E-Tank count
         lsr     a                       ; tens digit
-        lsr     a
-        lsr     a
-        lsr     a
+        lsr     a                       ; shift high nibble down
+        lsr     a                       ; continue shift
+        lsr     a                       ; high nibble now in low nibble
         sta     $07A0                   ; store tens digit tile
-        rts
+        rts                             ; done with E-Tank display
 
 ; --- Blank the counter digits (page 2 has no lives/etank display) ---
 blank_counter_digits:  lda     #$25                ; blank tile
@@ -513,12 +513,12 @@ use_menu_scanline:  lda     $51                 ; menu scroll Y position
 set_irq_and_draw:  sta     irq_scanline        ; set IRQ scanline
         jsr     prepare_oam_buffer      ; prepare OAM buffer
         jsr     draw_menu_sprites               ; draw menu sprites
-        lda     #$00
+        lda     #$00                    ; clear NMI skip flag
         sta     nmi_skip                ; allow NMI processing
         jsr     task_yield              ; yield (wait for NMI)
         inc     nmi_skip                ; block NMI again
         inc     $95                     ; increment frame counter
-        rts
+        rts                             ; return to caller
 
 ; ===========================================================================
 ; Draw menu OAM sprites (draw_menu_sprites)
@@ -532,30 +532,30 @@ draw_menu_sprites:  lda     $B4                 ; check menu page
         bne     draw_weapon_icon               ; page 2 → skip portrait
         ; --- Draw Mega Man portrait (8 sprites) ---
         ldx     #$1C                    ; start at OAM slot 7 (descending)
-        lda     weapon_cursor
+        lda     weapon_cursor           ; check cursor position
         cmp     #$FF                    ; E-Tank cursor?
-        bne     portrait_sprite_loop
+        bne     portrait_sprite_loop    ; no → draw all portrait sprites
         lda     $95                     ; get frame counter
         and     #$08                    ; blink every 8 frames
-        beq     portrait_sprite_loop
+        beq     portrait_sprite_loop    ; not in blink phase → full draw
         ldx     #$0C                    ; show fewer sprites when blinking
 portrait_sprite_loop:  lda     megaman_portrait_y_offset,x ; Y offset (relative to menu)
-        clc
+        clc                             ; prepare addition
         adc     $51                     ; add menu scroll position
         bcs     portrait_next_slot               ; off-screen → skip
-        cmp     #$F0
+        cmp     #$F0                    ; past bottom of visible area?
         bcs     portrait_next_slot               ; below visible area → skip
         sta     $0200,x                 ; OAM Y
-        lda     megaman_portrait_tile_index,x
+        lda     megaman_portrait_tile_index,x ; load portrait tile ID
         sta     $0201,x                 ; OAM tile
-        lda     megaman_portrait_attributes,x
+        lda     megaman_portrait_attributes,x ; load sprite attributes
         sta     $0202,x                 ; OAM attributes
-        lda     megaman_portrait_x_position,x
+        lda     megaman_portrait_x_position,x ; load sprite X position
         sta     $0203,x                 ; OAM X
 portrait_next_slot:  dex                         ; prev OAM slot (-4 bytes)
-        dex
-        dex
-        dex
+        dex                             ; decrement by 4 total
+        dex                             ; (one OAM entry = 4 bytes)
+        dex                             ; finish -4 offset
         bpl     portrait_sprite_loop               ; loop through all slots
 ; --- Draw selected weapon icon ---
 draw_weapon_icon:  lda     weapon_cursor       ; get selected weapon slot
@@ -572,39 +572,39 @@ calc_weapon_icon_index:  clc
         beq     load_icon_sprite_ptr               ; use first frame set
         inx                             ; alternate sprite frame
 load_icon_sprite_ptr:  lda     weapon_icon_sprite_pointer_low,x ; sprite data pointer low
-        sta     $00
+        sta     $00                     ; store pointer low byte
         lda     weapon_icon_sprite_pointer_high,x ; sprite data pointer high
-        sta     $01
+        sta     $01                     ; store pointer high byte
         ldx     #$20                    ; OAM slot 8 onwards
         ldy     #$00                    ; sprite data read offset
 ; --- Copy weapon icon sprite data to OAM ---
 copy_icon_sprite_loop:  lda     ($00),y             ; Y position
         bmi     icon_sprites_done               ; $80+ terminator → done
-        clc
+        clc                             ; prepare addition
         adc     $51                     ; offset by menu position
         bcs     icon_skip_sprite               ; off-screen → skip sprite
         cmp     #$F0                    ; below scanline 240?
         bcs     icon_skip_sprite               ; yes → skip sprite
         sta     $0200,x                 ; OAM Y
-        iny
-        lda     ($00),y
+        iny                             ; advance to tile byte
+        lda     ($00),y                 ; load tile index
         sta     $0201,x                 ; OAM tile
-        iny
-        lda     ($00),y
+        iny                             ; advance to attribute byte
+        lda     ($00),y                 ; load sprite attributes
         sta     $0202,x                 ; OAM attributes
-        iny
-        lda     ($00),y
+        iny                             ; advance to X byte
+        lda     ($00),y                 ; load X position
         sta     $0203,x                 ; OAM X
-        iny
+        iny                             ; advance to next sprite entry
 icon_next_oam_slot:  inx                         ; next OAM slot (+4)
-        inx
-        inx
-        inx
+        inx                             ; +2
+        inx                             ; +3
+        inx                             ; +4 (complete OAM entry)
         bne     copy_icon_sprite_loop               ; loop for next sprite
 icon_skip_sprite:  iny                         ; skip this sprite's remaining bytes
-        iny
-        iny
-        iny
+        iny                             ; skip tile byte
+        iny                             ; skip attribute byte
+        iny                             ; skip X byte
         bne     icon_next_oam_slot               ; continue to next sprite
 icon_sprites_done:  rts
 
@@ -637,7 +637,7 @@ cursor_auto_repeat:  lda     $1F                 ; load auto-repeat timer
         bne     cursor_skip_to_finalize               ; not ready yet → skip
 ; --- Check Right ---
         lda     joy1_held               ; read held buttons
-        and     #BTN_RIGHT
+        and     #BTN_RIGHT              ; right pressed?
         beq     cursor_check_left               ; not right → check left
 ; --- Move Right ---
 cursor_move_right:  lda     weapon_cursor       ; load cursor position
@@ -670,13 +670,13 @@ cursor_right_validate:  lda     weapon_cursor       ; validate: weapon must be o
 
 ; --- Check Left ---
 cursor_check_left:  lda     joy1_held           ; read held buttons
-        and     #BTN_LEFT
+        and     #BTN_LEFT               ; left pressed?
         beq     cursor_check_vertical               ; not left → check up/down
 ; --- Move Left ---
 cursor_move_left:  lda     weapon_cursor       ; load cursor position
         bpl     cursor_decrement_left               ; positive = weapon slot
         cmp     #$80                    ; at $80 (E-Tank left)? can't go left
-        beq     cursor_skip_to_finalize
+        beq     cursor_skip_to_finalize ; already at left edge → no move
         lda     #$01                    ; from $FF → slot 1
         sta     weapon_cursor           ; set cursor to slot 1
         bne     cursor_left_validate               ; always taken (A=1)
@@ -700,7 +700,7 @@ cursor_left_validate:  lda     weapon_cursor       ; validate: weapon must be ow
 cursor_check_vertical:  lda     weapon_cursor       ; load cursor position
         bmi     cursor_finalize               ; E-Tank cursor → no up/down
         lda     joy1_held               ; read held buttons
-        and     #BTN_UP
+        and     #BTN_UP                 ; up pressed?
         beq     cursor_check_down               ; not up → check down
 ; --- Move Up (subtract 2 slots, wrap at edges) ---
 cursor_move_up:  lda     weapon_cursor       ; load cursor slot
@@ -714,7 +714,7 @@ cursor_up_check_slot1:  cmp     #$01                ; check for slot 1
         sta     weapon_cursor           ; store wrapped slot
         bne     cursor_up_validate               ; always taken → validate
 cursor_up_subtract2:  dec     weapon_cursor       ; move up 2 slots
-        dec     weapon_cursor
+        dec     weapon_cursor           ; second decrement (-2 total)
 cursor_up_validate:  lda     weapon_cursor       ; validate
         clc                             ; prepare for add
         adc     $B4                     ; add page offset
@@ -724,7 +724,7 @@ cursor_up_validate:  lda     weapon_cursor       ; validate
         bmi     cursor_finalize               ; owned → go to finalize
 ; --- Check Down ---
 cursor_check_down:  lda     joy1_held           ; read held buttons
-        and     #BTN_DOWN
+        and     #BTN_DOWN               ; down pressed?
         beq     cursor_finalize               ; not down → finalize
 ; --- Move Down (add 2 slots, wrap at edges) ---
 cursor_move_down:  lda     weapon_cursor       ; load cursor slot
@@ -789,14 +789,14 @@ weapon_label_slot_loop:  lda     player_hp,x         ; weapon owned? (bit 7)
         sta     $0781,y                 ; write name tile 2 to buffer
 weapon_label_next_slot:  inx                         ; next weapon index
         tya                             ; copy buffer offset to A
-        clc
+        clc                             ; prepare addition
         adc     #$05                    ; next slot (+5 bytes in buffer)
         tay                             ; update buffer offset in Y
         dec     $00                     ; decrement slot counter
-        bpl     weapon_label_slot_loop
+        bpl     weapon_label_slot_loop  ; more slots → continue
 ; --- Blink selected cursor (blank name tiles every 8 frames) ---
         lda     $95                     ; load frame counter
-        and     #$08
+        and     #$08                    ; toggle every 8 frames
         beq     password_screen_remap               ; not in blink phase → skip
         ldx     weapon_cursor           ; load cursor position
         bpl     blink_weapon_slot               ; on weapon slot → blank that slot
@@ -811,7 +811,7 @@ weapon_label_next_slot:  inx                         ; next weapon index
 blink_weapon_slot:  ldy     cursor_blink_buffer_offset_table,x ; get buffer offset for this slot
         lda     #$25                    ; blank tile
         sta     $0780,y                 ; blank the name tiles (blink)
-        sta     $0781,y
+        sta     $0781,y                 ; blank second name tile
 ; --- Password screen adjustment ---
 password_screen_remap:  lda     game_mode           ; load current game mode
         cmp     #$0B                    ; password screen?
@@ -877,12 +877,12 @@ energy_bar_segment_store:  sta     $00                 ; store updated remaining
         sta     $0780                   ; set PPU addr high to $20
         lda     $0781                   ; load PPU addr low byte
         sec                             ; prepare for subtract
-        sbc     #$C0
+        sbc     #$C0                    ; remap $2Cxx → $20xx range
         sta     $0781                   ; store adjusted PPU addr low
 energy_bar_terminate:  lda     #$FF                ; terminate buffer
         sta     $078A                   ; store end-of-buffer marker
         sta     nametable_dirty         ; signal NMI to process PPU queue
-        rts
+        rts                             ; return to caller
 ; =============================================================================
 ; PAUSE MENU DATA TABLES
 ; =============================================================================

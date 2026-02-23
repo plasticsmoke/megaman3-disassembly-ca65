@@ -63,25 +63,25 @@ select_PRG_banks           := $FF6B     ; select PRG banks
 ; graphics for the falling animation.
 ; ===========================================================================
 
-        lda     #$00
+        lda     #$00                    ; A = 0
         sta     nmi_skip                ; disable NMI processing
         ldx     #$B4                    ; delay $B4 frames
-        jsr     task_yield_x
+        jsr     task_yield_x            ; wait 180 frames (~3 seconds)
         jsr     fade_palette_in         ; fade palette to black
-        lda     #$04
+        lda     #$04                    ; OAM pointer start offset
         sta     oam_ptr                 ; set OAM write pointer
         jsr     prepare_oam_buffer      ; prepare OAM buffer (clear sprites)
         jsr     clear_entity_table      ; clear entity table
         jsr     task_yield              ; wait for NMI (yield one frame)
-        lda     #SNDCMD_INIT
+        lda     #SNDCMD_INIT            ; sound command: initialize/silence
         jsr     submit_sound_ID_D9      ; submit sound command $F0 (silence all)
-        lda     #$00
+        lda     #$00                    ; A = 0 for clearing
         sta     $B1                     ; clear music state variables
-        sta     $B2
-        sta     $B3
+        sta     $B2                     ; clear music state byte 2
+        sta     $B3                     ; clear music state byte 3
         sta     $70                     ; clear nametable fill progress flag
-        sta     camera_x_hi             ; reset camera position
-        sta     camera_x_lo
+        sta     camera_x_hi             ; reset camera position (high byte)
+        sta     camera_x_lo            ; reset camera position (low byte)
         sta     game_mode               ; reset game mode
         jsr     rendering_off           ; turn off rendering (PPU mask)
         lda     #$20                    ; nametable at $2000
@@ -93,33 +93,33 @@ select_PRG_banks           := $FF6B     ; select PRG banks
         ldy     #$1F                    ; 32 bytes (indices $1F..$00)
 load_game_over_palette_loop:  lda     game_over_palette_table,y ; copy 32-byte palette for game over screen
         sta     $0620,y                 ; store to palette buffer
-        dey
+        dey                             ; decrement palette index
         bpl     load_game_over_palette_loop               ; loop all 32 palette bytes
 ; --- set CHR bank configuration ---
         ldy     #$05                    ; 6 CHR bank entries
 load_game_over_chr_banks_loop:  lda     game_over_chr_bank_table,y ; load CHR bank mapping table
         sta     $E8,y                   ; store to CHR bank registers $E8-$ED
-        dey
+        dey                             ; decrement CHR bank index
         bpl     load_game_over_chr_banks_loop               ; loop all 6 entries
-        lda     #$66                    ; override first CHR bank slot
-        sta     $E8
+        lda     #$66                    ; CHR page $66 for background
+        sta     $E8                     ; override 2KB CHR slot 0
         jsr     update_CHR_banks        ; apply CHR bank configuration
         jsr     task_yield              ; yield one frame
 ; --- write "GAME OVER" text to nametable ---
-        lda     #$0D
+        lda     #$0D                    ; PRG bank $0D (nametable data)
         sta     prg_bank                ; select PRG bank $0D (nametable data source)
         jsr     select_PRG_banks        ; apply bank switch
         ldx     #$12                    ; PPU write buffer index $12
-        lda     #$00
+        lda     #$00                    ; no nametable select flags
         sta     $10                     ; no flags for write mode
         jsr     load_ppu_write_buffer               ; load PPU write buffer (writes "GAME OVER" text)
         jsr     task_yield              ; yield to let NMI process the buffer
 ; --- set up background stage for falling animation ---
         jsr     fade_palette_out        ; fade palette out (prepare for stage bg)
         ldx     #$F0                    ; delay $F0 frames
-        jsr     task_yield_x
+        jsr     task_yield_x            ; wait 240 frames (~4 seconds)
         jsr     fade_palette_in         ; fade palette back in
-        lda     #$16
+        lda     #$16                    ; stage ID for game over bg
         sta     stage_id                ; stage $16 = game over background stage
         lda     #$02                    ; screen column offset 2
         jsr     metatile_column_ptr_by_id ; load metatile column pointer for stage bg
@@ -131,7 +131,7 @@ fill_background_nametable_loop:  lda     #$00
         lda     $70                     ; check if fill is complete
         bne     fill_background_nametable_loop               ; loop until done ($70 = 0)
 ; --- update CHR for Mega Man sprite ---
-        lda     #$78
+        lda     #$78                    ; CHR page $78 for Mega Man
         sta     $E8                     ; set CHR bank for Mega Man sprite tiles
         jsr     update_CHR_banks        ; apply CHR bank update
 
@@ -147,41 +147,41 @@ fill_background_nametable_loop:  lda     #$00
         ldy     #$01                    ; init entities 1 down to 0
 init_game_over_entities_loop:  lda     #$80
         sta     ent_status,y            ; mark entity as active
-        lda     #$90
+        lda     #$90                    ; active + palette 1
         sta     ent_flags,y             ; set entity flags (palette, flip)
-        lda     game_over_anim_entity_anim_table,y
+        lda     game_over_anim_entity_anim_table,y ; look up animation ID
         sta     ent_anim_id,y           ; set animation ID from table
-        lda     game_over_anim_entity_x_table,y
+        lda     game_over_anim_entity_x_table,y ; look up X position
         sta     ent_x_px,y              ; set X position from table
-        lda     game_over_anim_entity_y_table,y
+        lda     game_over_anim_entity_y_table,y ; look up Y position
         sta     ent_y_px,y              ; set Y position from table
-        lda     #$00
+        lda     #$00                    ; A = 0 for clearing
         sta     ent_x_scr,y             ; clear screen-relative X
         sta     ent_anim_frame,y        ; clear animation frame
         sta     ent_anim_state,y        ; clear animation state
         sta     ent_y_scr,y             ; clear screen-relative Y
         sta     ent_yvel_sub,y          ; clear Y velocity (sub-pixel)
         sta     ent_yvel,y              ; clear Y velocity (whole pixel)
-        dey
+        dey                             ; previous entity slot
         bpl     init_game_over_entities_loop               ; loop for both entities
 ; --- load OAM sprite data for game over letters ---
         ldy     #$07                    ; 8 OAM bytes (2 sprites)
 load_fixed_sprites_oam_loop:  lda     game_over_fixed_sprites_oam_table,y ; 8 bytes of OAM data (2 sprites for "GE" tiles)
         sta     $0200,y                 ; write to OAM buffer
-        dey
+        dey                             ; decrement OAM byte index
         bpl     load_fixed_sprites_oam_loop               ; loop all 8 OAM bytes
 ; --- start game over animation loop ---
-        lda     #$11
+        lda     #$11                    ; mode $11 = game over anim
         sta     game_mode               ; game mode $11 = game over animation
-        lda     #$C0
+        lda     #$C0                    ; PPU ctrl: NMI on + bg $1000
         sta     $5E                     ; set PPU control mirror (enable NMI, etc.)
         jsr     task_yield              ; yield one frame
         jsr     fade_palette_out        ; fade palette out
-        lda     #$00
+        lda     #$00                    ; A = 0 for clearing
         sta     $0104                   ; palette cycle index = 0
         sta     ent_var1                ; clear entity variable (delay counter)
         sta     $B8                     ; clear music playback state
-        lda     #$0B
+        lda     #$0B                    ; start at RM index $0B
         sta     ent_timer               ; set timer to robot master index $0B
 ; --- main game over animation loop ---
 ; Mega Man stands at X=$D0 during the music playback phase. Once all RM
@@ -191,7 +191,7 @@ game_over_anim_main_loop:  lda     ent_x_px
         cmp     #$D0                    ; has Mega Man reached X=$D0?
         bne     music_playback_phase               ; no — still in music playback phase
 ; --- falling phase (Mega Man at target X) ---
-        lda     #$13
+        lda     #$13                    ; falling animation ID
         cmp     ent_anim_id             ; is anim already set to falling ($13)?
         beq     check_fall_anim_state               ; yes — skip anim change
         ldx     #$00                    ; entity slot 0 (Mega Man)
@@ -201,22 +201,22 @@ check_fall_anim_state:  lda     ent_anim_state
         bne     jump_to_frame_update               ; if nonzero, skip gravity update
         sta     ent_anim_frame          ; reset animation frame
 ; --- apply gravity to Mega Man ---
-        lda     ent_y_sub
+        lda     ent_y_sub               ; load Y sub-pixel position
         sec                             ; set up 16-bit subtraction
         sbc     ent_yvel_sub            ; subtract Y velocity (sub-pixel)
-        sta     ent_y_sub
-        lda     ent_y_px
+        sta     ent_y_sub               ; store updated sub-pixel Y
+        lda     ent_y_px                ; load Y pixel position
         sbc     ent_yvel                ; subtract Y velocity (whole pixel)
-        sta     ent_y_px
+        sta     ent_y_px                ; store updated pixel Y
         bcs     apply_gravity_acceleration               ; no underflow — still on screen
         jmp     results_screen_init               ; Y wrapped — transition to results screen
 ; --- increase gravity (acceleration) ---
 apply_gravity_acceleration:  lda     ent_yvel_sub
         adc     #$3F                    ; add $3F to sub-pixel velocity
-        sta     ent_yvel_sub
-        lda     ent_yvel
+        sta     ent_yvel_sub            ; store updated sub-pixel velocity
+        lda     ent_yvel                ; load whole-pixel velocity
         adc     #$00                    ; carry into whole-pixel velocity
-        sta     ent_yvel
+        sta     ent_yvel                ; store updated whole velocity
 jump_to_frame_update:  jmp     game_over_frame_update           ; skip to per-frame update
 
 ; --- music playback phase (Mega Man not yet at X=$D0) ---
@@ -239,7 +239,7 @@ music_playback_phase:  lda     ent_var1            ; check inter-track delay
         ldx     ent_timer               ; current RM index
         cpx     #$0C                    ; is this the first RM? ($0C = Needle Man)
         bne     start_rm_music_track               ; not first — skip jingle
-        lda     #MUSIC_GAME_OVER
+        lda     #MUSIC_GAME_OVER        ; sound ID $12 = game over jingle
         jsr     submit_sound_ID_D9      ; submit sound $12 (game over jingle)
 start_rm_music_track:  jsr     music_start_track ; start playing RM music track
         jmp     game_over_frame_update               ; skip to per-frame update
@@ -249,7 +249,7 @@ tick_music_engine:  jsr     music_driver_tick ; tick music engine
         cmp     #$FF                    ; music finished? ($FF = done)
         bne     game_over_frame_update               ; no — keep ticking
         inc     ent_timer               ; advance to next RM track
-        lda     #$B4
+        lda     #$B4                    ; 180-frame delay between tracks
         sta     ent_var1                ; set inter-track delay ($B4 frames)
         bne     game_over_frame_update               ; always taken (A=$B4 != 0)
 ; --- inter-track delay ---
@@ -283,8 +283,8 @@ game_over_frame_update:  lda     $95
         ldx     #$05                    ; start at palette offset 5
 copy_palette_cycle_loop:  lda     game_over_palette_cycle_and_ppu_write_data,y ; read 3 palette bytes per cycle step
         sta     $0600,x                 ; write to palette buffer (BG palette 1)
-        iny
-        inx
+        iny                             ; next source palette byte
+        inx                             ; next destination offset
         cpx     #$08                    ; 3 bytes per cycle step
         bne     copy_palette_cycle_loop               ; loop until 3 bytes copied
         stx     palette_dirty           ; flag palette for NMI update
@@ -292,7 +292,7 @@ copy_palette_cycle_loop:  lda     game_over_palette_cycle_and_ppu_write_data,y ;
         lda     $0104                   ; check cycle index
         cmp     #$06                    ; 6 cycle steps total
         bne     game_over_render_frame               ; not at end — skip reset
-        lda     #$00
+        lda     #$00                    ; reset to first cycle step
         sta     $0104                   ; wrap around to step 0
 game_over_render_frame:  lda     #$08
         sta     oam_ptr                 ; set OAM write offset past fixed sprites
@@ -316,7 +316,7 @@ results_screen_init:  lda     #$00                ; A = 0
         jsr     clear_entity_table      ; clear entity table
         jsr     task_yield              ; yield one frame
         lda     #$00                    ; set V-mirroring
-        sta     MMC3_MIRRORING
+        sta     MMC3_MIRRORING          ; set vertical mirroring
 ; --- load results screen palette ---
         ldy     #$0F                    ; copy 16 bytes
 load_results_palette_loop:  lda     results_screen_palette_table,y ; 16-byte palette for results screen
@@ -540,7 +540,7 @@ screen_wipe_loop:  inc     $5E                 ; increment to create screen spli
 ; ===========================================================================
 
 credits_nametable_setup:  lda     #$01                ; set H-mirroring
-        sta     MMC3_MIRRORING
+        sta     MMC3_MIRRORING          ; apply horizontal mirroring
         lda     #$00                    ; A = 0
         sta     nmi_skip                ; enable NMI
         sta     game_mode               ; reset game mode
@@ -652,18 +652,18 @@ continue_screen_init:  ldx     #$F0                ; hold for $F0 frames
         sta     nmi_skip                ; re-enable NMI
         jsr     fade_palette_in         ; fade palette to black
         lda     #$04                    ; OAM buffer start offset
-        sta     oam_ptr
+        sta     oam_ptr                 ; set OAM write pointer
         jsr     prepare_oam_buffer      ; clear OAM buffer
         jsr     clear_entity_table      ; clear entity table
         jsr     task_yield              ; wait one frame
-        lda     #$00                    ; set V-mirroring
-        sta     MMC3_MIRRORING
+        lda     #$00                    ; V-mirroring mode
+        sta     MMC3_MIRRORING          ; set vertical mirroring
         sta     ent_status              ; deactivate player entity
 ; --- play password screen music ---
-        lda     #MUSIC_CONTINUE
+        lda     #MUSIC_CONTINUE         ; sound ID $0F = continue music
         jsr     submit_sound_ID_D9      ; submit sound ID $0F (password screen music)
 ; --- load password/continue screen nametable ---
-        lda     #$13
+        lda     #$13                    ; bank/stage $13 = password data
         sta     prg_bank                ; bank $13 = password screen data
         sta     stage_id                ; stage $13 = password screen
         jsr     select_PRG_banks        ; apply bank switch
@@ -674,7 +674,7 @@ continue_screen_init:  ldx     #$F0                ; hold for $F0 frames
 fill_continue_nametable_loop:  lda     #$00                ; clear nametable select
         sta     $10                     ; nametable flags = 0
         jsr     fill_nametable_progressive ; fill nametable progressively
-        jsr     task_yield
+        jsr     task_yield              ; wait one frame
         lda     $70                     ; check fill progress
         bne     fill_continue_nametable_loop               ; loop until complete
 ; --- prepare secondary nametable ---
@@ -690,21 +690,21 @@ fill_continue_nametable_loop:  lda     #$00                ; clear nametable sel
 load_password_chr_banks_loop:  lda     password_screen_chr_bank_table,y ; password screen CHR config
         sta     $E8,y                   ; store to CHR bank shadow
         dey                             ; next bank slot
-        bpl     load_password_chr_banks_loop
+        bpl     load_password_chr_banks_loop ; loop all 6 entries
         jsr     update_CHR_banks        ; apply CHR banks
 ; --- load password screen palette ---
-        ldy     #$0F
+        ldy     #$0F                    ; 16 palette bytes
 load_password_palette_loop:  lda     password_screen_palette_table,y ; 16-byte palette for password screen
         sta     $0620,y                 ; store to palette buffer
         dey                             ; next palette entry
-        bpl     load_password_palette_loop
+        bpl     load_password_palette_loop ; loop all 16 entries
         lda     #$0F                    ; palette byte count
         sta     $0630                   ; palette size/flag
 ; --- reset camera and scrolling ---
         lda     #$00                    ; A = 0
-        sta     camera_x_lo
-        sta     camera_x_hi
-        sta     scroll_y
+        sta     camera_x_lo             ; reset camera X low
+        sta     camera_x_hi            ; reset camera X high
+        sta     scroll_y               ; reset vertical scroll
 ; --- write "CONTINUE/PASSWORD" text to nametable ---
         sta     $10                     ; nametable flags = 0
         ldx     #$13                    ; PPU write buffer index $13
@@ -712,7 +712,7 @@ load_password_palette_loop:  lda     password_screen_palette_table,y ; 16-byte p
         jsr     task_yield              ; wait one frame
         jsr     fade_palette_out        ; fade palette out
         ldx     #$B4                    ; hold $B4 frames
-        jsr     task_yield_x
+        jsr     task_yield_x            ; wait 180 frames
         lda     #$00                    ; A = 0
         sta     ent_timer               ; reset robot master index
 ; ===========================================================================
@@ -728,13 +728,13 @@ load_password_palette_loop:  lda     password_screen_palette_table,y ; 16-byte p
 ; ===========================================================================
 
 ; --- initialize portrait entity ---
-        lda     #$80
+        lda     #$80                    ; status = active
         sta     $0310                   ; ent_status[$10] = active
         sta     $0590                   ; ent_flags[$10] = active
         sta     boss_active             ; flag boss display active
-        lda     #$70
+        lda     #$70                    ; Y position for portrait
         sta     $03D0                   ; ent_y_px[$10] = $70 (portrait Y)
-        lda     #$58
+        lda     #$58                    ; X position for portrait
         sta     $0370                   ; ent_x_px[$10] = $58 (portrait X)
 ; --- main loop: iterate through 8 robot masters ---
 weapon_showcase_loop:  lda     #$00                ; clear nametable flags
@@ -744,9 +744,9 @@ weapon_showcase_loop:  lda     #$00                ; clear nametable flags
         jsr     load_ppu_write_buffer               ; write portrait border nametable data
         jsr     task_yield              ; wait one frame
 ; --- load robot master portrait ---
-        lda     #$01
+        lda     #$01                    ; bank $01 = portrait data
         sta     prg_bank                ; bank $01 = robot master portrait data
-        jsr     select_PRG_banks
+        jsr     select_PRG_banks        ; apply bank switch
         ldx     ent_timer               ; current RM index (0-7)
         lda     weapon_showcase_portrait_anim_id_table,x ; portrait animation ID
         sta     $05D0                   ; ent_anim_id[$10]
@@ -756,20 +756,20 @@ weapon_showcase_loop:  lda     #$00                ; clear nametable flags
         lda     weapon_showcase_music_init_param_table,x ; RM music/init parameter
         jsr     banked_A000             ; init portrait (via bank $01 routine)
         jsr     update_CHR_banks        ; apply CHR banks
-        lda     #$80
+        lda     #$80                    ; status = active
         sta     $0310                   ; show portrait entity
 ; --- wait for portrait animation to reach target frame ---
 wait_portrait_anim_loop:  jsr     process_frame_yield_full ; process frame yield (full)
-        ldx     ent_timer
+        ldx     ent_timer               ; current RM index
         lda     weapon_showcase_target_anim_state_table,x ; target anim state for this RM
         cmp     $05B0                   ; compare to current anim state
         bne     wait_portrait_anim_loop               ; loop until match
 ; --- play robot master music ---
         lda     #$00                    ; A = 0
         sta     nmi_skip                ; enable NMI processing
-        lda     #$0E
+        lda     #$0E                    ; bank $0E = music driver
         sta     prg_bank                ; bank $0E = music engine
-        jsr     select_PRG_banks
+        jsr     select_PRG_banks        ; apply bank switch
         ldx     ent_timer               ; RM index
         jsr     music_start_track       ; start RM music
         jsr     task_yield              ; wait one frame
@@ -777,15 +777,15 @@ wait_portrait_anim_loop:  jsr     process_frame_yield_full ; process frame yield
 tick_rm_music_loop:  jsr     music_driver_tick ; tick music engine
         lda     $B8                     ; check music status byte
         cmp     #$FF                    ; music finished?
-        beq     advance_to_next_rm
-        ldx     #$04                    ; wait 4 frames between ticks
-        jsr     task_yield_x
-        jmp     tick_rm_music_loop
+        beq     advance_to_next_rm      ; $FF = track finished
+        ldx     #$04                    ; 4-frame delay between ticks
+        jsr     task_yield_x            ; wait 4 frames
+        jmp     tick_rm_music_loop      ; continue playback loop
 ; --- advance to next robot master ---
-advance_to_next_rm:  ldx     #$B4                ; pause $B4 frames between portraits
-        jsr     task_yield_x
+advance_to_next_rm:  ldx     #$B4                ; 180-frame pause
+        jsr     task_yield_x            ; wait between portraits
         inc     ent_timer               ; next RM index
-        lda     ent_timer
+        lda     ent_timer               ; load current index
         cmp     #$08                    ; all 8 done?
         beq     final_transition_init               ; yes — finish
         jmp     weapon_showcase_loop               ; no — loop to next RM
@@ -801,21 +801,21 @@ final_transition_init:  ldy     #$1F                ; 32-byte palette (index $1F
 load_dimmed_palette_loop:  lda     final_dimmed_palette_table,y ; 32-byte dimmed/black palette
         sta     $0600,y                 ; write to full palette buffer
         dey                             ; next palette entry
-        bpl     load_dimmed_palette_loop
+        bpl     load_dimmed_palette_loop ; loop all 32 entries
         sty     palette_dirty           ; flag palette dirty ($FF)
 ; --- set CHR banks for continue screen ---
         ldy     #$05                    ; 6 CHR bank slots
 load_continue_chr_banks_loop:  lda     continue_screen_chr_bank_table,y ; CHR bank config for continue screen
         sta     $E8,y                   ; store to CHR bank shadow
         dey                             ; next bank slot
-        bpl     load_continue_chr_banks_loop
+        bpl     load_continue_chr_banks_loop ; loop all 6 entries
         jsr     update_CHR_banks        ; apply CHR banks
         lda     #$04                    ; OAM buffer start offset
-        sta     oam_ptr
+        sta     oam_ptr                 ; set OAM write pointer
         jsr     prepare_oam_buffer      ; clear OAM buffer
         lda     #$00                    ; A = 0
         sta     $B8                     ; clear music state
-        lda     #$01
+        lda     #$01                    ; camera starts at page 1
         sta     camera_x_hi             ; camera page = 1
 ; --- jump to continue/password handler ---
         lda     #$0F                    ; bank $0F
@@ -864,7 +864,7 @@ restore_column_advance:  pla
         sta     $28                     ; restore original column value
         dec     $28                     ; move to previous column
         bpl     scroll_column_done               ; still positive — done
-        lda     #$3F
+        lda     #$3F                    ; rightmost column index
         sta     $28                     ; wrap to column $3F
         inc     $29                     ; advance page
 scroll_column_done:  rts
@@ -909,7 +909,7 @@ copy_tile_data_loop:  lda     ($02),y             ; copy tile data bytes
         bmi     copy_ppu_commands_loop               ; next command
 ; --- terminator reached ---
 ppu_write_terminator:  sta     nametable_dirty ; signal NMI to process PPU queue
-        rts
+        rts                             ; return to caller
 ; ===========================================================================
 ; DATA TABLES ($8626)
 ; ===========================================================================
