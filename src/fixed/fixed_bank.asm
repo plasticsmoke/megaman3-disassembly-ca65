@@ -1972,8 +1972,8 @@ game_entry_render_columns_loop:  lda     #$01 ; $10 = 1 (render direction: right
         sta     $10                     ; render direction = right
         jsr     do_render_column        ; render one BG column
         jsr     task_yield              ; yield to NMI (display frame)
-        lda     $29                     ; loop until rendering complete
-        beq     game_entry_render_columns_loop ; ($29 set to nonzero by renderer)
+        lda     $29                     ; check if rendering complete
+        beq     game_entry_render_columns_loop ; still zero — keep rendering
 
 ; --- parse room 0 config from $AA40 ---
         lda     stage_id                ; switch to stage data bank

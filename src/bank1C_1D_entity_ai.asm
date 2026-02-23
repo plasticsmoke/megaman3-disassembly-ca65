@@ -156,8 +156,8 @@ process_sprites_spark_freeze_loop:  lda     #$00 ; A = 0
         beq     process_sprites_spark_freeze_wpn ; always branches (A == 0)
         cpx     #$10                    ; weapon slot? (< $10)
         bcc     process_sprites_next_slot ; check being hit by weapon
-        lda     ent_routine,x           ; only for enemies with
-        beq     process_sprites_next_slot ; nonzero main indices
+        lda     ent_routine,x           ; get entity's AI routine index
+        beq     process_sprites_next_slot ; skip if zero (no AI assigned)
         jsr     check_weapon_hit        ; test weapon collision on enemy
 process_sprites_spark_freeze_wpn:  lda     ent_hitbox,x ; if this sprite can
         bpl     process_sprites_next_slot ; cause player damage,

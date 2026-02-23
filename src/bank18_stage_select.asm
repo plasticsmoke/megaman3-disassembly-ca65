@@ -1410,7 +1410,7 @@ robot_master_intro_entry:  jsr     fade_palette_in ; disable sprites/rendering
         sta     stage_id                ; set boss intro layout ID
         lda     #$07                    ; metatile column 7
         jsr     metatile_column_ptr_by_id ; pointer → $B0C0 in bank $13
-robot_master_nametable_fill_wait_loop:  lda     #$00 ; $10 = 0 → write to nametable $2000
+robot_master_nametable_fill_wait_loop:  lda     #$00 ; target nametable $2000
         sta     $10                     ; target nametable $2000
         jsr     fill_nametable_progressive ; write 4 tile rows
         jsr     task_yield              ; wait for NMI

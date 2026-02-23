@@ -511,8 +511,8 @@ results_process_frame:  jsr     process_frame_yield ; process frame + yield
 mega_man_pose_wait:  lda     ent_var3            ; load saved OAM pointer
         sta     oam_ptr                 ; set OAM pointer
         jsr     process_frame_yield     ; process frame + yield
-        lda     ent_anim_state          ; wait for pose animation to complete
-        beq     mega_man_pose_wait               ; loop until anim state is nonzero
+        lda     ent_anim_state          ; check pose animation progress
+        beq     mega_man_pose_wait               ; still zero — keep waiting
         lda     #$00                    ; clear animation frame
         sta     ent_anim_frame          ; reset frame
         ldx     #$78                    ; hold pose for $78 frames
