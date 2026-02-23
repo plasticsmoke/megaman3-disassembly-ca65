@@ -7949,8 +7949,8 @@ bar_x_positions:  .byte   $10,$18,$28,$A0,$FB,$2A,$EC,$88
         .byte   $D4,$F5,$05,$56,$00,$EC,$14,$9A
         .byte   $10,$B0,$50,$BE,$55,$F6,$14,$7C
         .byte   $01,$E0,$54,$2A,$45,$4A,$51,$6D
-        ora     $38,x
-        .byte   $14
+        ora     $38,x                   ; data (disassembler artifact)
+        .byte   $14                     ; password table (continued)
         .byte   $E2
         .byte   $50
 
@@ -9438,6 +9438,8 @@ call_bank0E_A003:
         jsr     select_PRG_banks        ; apply bank switch
         jsr     banked_A003             ; call bank $0E entry point
         jmp     restore_A000            ; restore bank and return
+
+; unused data / padding before RESET vector
         .byte   $8A,$40,$A3,$00,$0F
         .byte   $04,$4B,$50,$80,$04,$18,$10,$E0
         .byte   $00,$64,$04,$C5,$45,$67,$50,$CA

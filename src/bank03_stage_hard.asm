@@ -52,7 +52,7 @@ select_PRG_banks           := $FF6B
 .segment "BANK03"
 
         lda     #MUSIC_STAGE_START      ; play stage intro music
-        jsr     submit_sound_ID_D9
+        jsr     submit_sound_ID_D9      ; queue sound effect
         lda     #$80                    ; mark entity slot $10 active
         sta     $0310                   ; (used for scroll entity)
         sta     $0590                   ; ent_flags slot $10 = active
@@ -62,19 +62,19 @@ select_PRG_banks           := $FF6B
 ; Grid: 0=Spark, 1=Snake, 2=Needle, 3=Hard, 4=Center, 5=Top,
 ;       6=Gemini, 7=Magnet, 8=Shadow
         lda     hard_stage_config_table,y ; → $05D0 (stage config)
-        sta     $05D0
+        sta     $05D0                   ; store stage config
         lda     hard_stage_scroll_sub_pixel_speed_table,y ; → $0410 (tileset / scroll speed sub)
-        sta     $0410
+        sta     $0410                   ; store scroll sub-pixel speed
         lda     hard_stage_scroll_whole_pixel_speed_table,y ; → $0430 (enemy/level data)
-        sta     $0430
+        sta     $0430                   ; store scroll whole-pixel speed
         lda     hard_stage_boss_sprite_y_table,y ; → $0450 (sprite data)
-        sta     $0450
+        sta     $0450                   ; store boss sprite Y position
         lda     hard_stage_scroll_direction_table,y ; → $0470 (scroll direction flag)
-        sta     $0470
+        sta     $0470                   ; store scroll direction
         lda     hard_stage_scroll_limit_table,y ; → $03D0 (scroll limit / position)
-        sta     $03D0
+        sta     $03D0                   ; store scroll limit
         lda     hard_stage_bg_scroll_init_table,y ; → $0370 (BG scroll position)
-        sta     $0370
+        sta     $0370                   ; store BG scroll init value
 
 ; Load intro sprite palettes (8 bytes → SP 0 and SP 1, both active + working copy).
         ldx     #$07                    ; 8 bytes (indices 7..0)
@@ -210,7 +210,7 @@ hard_stage_name_tile_write_loop:  ldy     $10 ; Y = current name table offset
         sta     $0783                   ; → PPU write queue tile data
         inc     nametable_dirty         ; flag PPU write pending
         lda     #$00                    ; allow NMI
-        sta     nmi_skip
+        sta     nmi_skip                ; enable NMI processing
         jsr     task_yield              ; wait for NMI (tile gets uploaded)
         inc     nmi_skip                ; skip next NMI (pacing)
         inc     $95                     ; frame counter
@@ -444,9 +444,9 @@ password_load_cursor_oam_loop:  lda     password_cursor_oam_template_y,y ; load 
         lda     password_cursor_oam_template_x,y ; load sprite X from template
         sta     $0207,y                 ; store to OAM X
         dey                             ; Y -= 4 (prev OAM entry)
-        dey
-        dey
-        dey
+        dey                             ;   (second byte)
+        dey                             ;   (third byte)
+        dey                             ;   (fourth byte)
         bpl     password_load_cursor_oam_loop ; loop for all 6 sprites
 ; --- main input loop ---
 password_bottom_row_input_loop:  lda     joy1_press ; A pressed? → confirm
@@ -565,9 +565,9 @@ password_set_cursor_corner_loop:  lda     $00 ; load base X position
         adc     password_cursor_y_offsets_table,y ; for this corner
         sta     $0204,x                 ; set cursor sprite Y
         dex                             ; X -= 4 (prev OAM entry)
-        dex
-        dex
-        dex
+        dex                             ;   (second byte)
+        dex                             ;   (third byte)
+        dex                             ;   (fourth byte)
         dey                             ; next corner
         bpl     password_set_cursor_corner_loop ; loop for all 4 corners
         rts                             ; return
@@ -654,8 +654,8 @@ progression_initial_scan_loop:  ldx     progression_initial_scan_slots_table,y ;
         bpl     progression_initial_scan_loop ; loop until all checked
         bmi     progression_scan_boss_pairs ; all zero = valid password
 progression_show_error:  lda     camera_x_hi ; get nametable page
+        asl     a                       ; shift bit 0 to bit 1
         asl     a                       ; shift bit 1 to bit 2
-        asl     a
         and     #$04                    ; isolate nametable bit
         sta     $10                     ; store PPU base offset
         ldx     #$0F                    ; PPU data table index $0F
@@ -668,9 +668,9 @@ progression_show_error:  lda     camera_x_hi ; get nametable page
         lda     #$F8                    ; $F8 = hide sprite (off-screen Y)
 progression_hide_sprites_loop:  sta     $0200,y ; hide OAM sprite Y
         iny                             ; advance 4 bytes per sprite
-        iny
-        iny
-        iny
+        iny                             ;   (skip tile byte)
+        iny                             ;   (skip attr byte)
+        iny                             ;   (skip X byte)
         bne     progression_hide_sprites_loop ; loop until all 63 sprites hidden
         jsr     task_yield              ; wait one frame
         jmp     password_entry_init     ; restart password entry screen
@@ -766,9 +766,9 @@ progression_valid_password:  jsr     restore_weapon_energy ; restore weapon ener
         lda     #$F8                    ; $F8 = off-screen Y
 progression_hide_oam_loop:  sta     $0200,y ; hide OAM sprite Y
         dey                             ; previous sprite (4 bytes)
-        dey
-        dey
-        dey
+        dey                             ;   (skip X byte)
+        dey                             ;   (skip attr byte)
+        dey                             ;   (skip tile byte)
         bne     progression_hide_oam_loop ; loop until sprite 0
         lda     stage_select_page       ; check current tier
         bmi     progression_all_complete_exit ; bit 7 set = all complete
@@ -779,7 +779,7 @@ progression_all_complete_exit:  pla     ; discard return address
         lda     #$80                    ; set bit 7
         sta     $74                     ; store to $74 flag
         lda     #$00                    ; clear $75
-        sta     $75
+        sta     $75                     ; clear progression flag low
         ldy     #$1F                    ; clear 32 bytes
 progression_clear_cells_loop:  sta     $0150,y ; zero out $0150+Y
         dey                             ; next byte
@@ -825,7 +825,7 @@ restore_fill_rush_coil:  sta     $AB    ; fill Shadow Blade ammo ($AB)
 restore_set_lives:  lda     #$02        ; start with 2 lives
         sta     lives                   ; set lives count
         ldy     $00                     ; restore original Y
-        rts
+        rts                             ; return to caller
 
 ; =============================================================================
 ; PASSWORD ENCODING → OAM DOT DISPLAY
@@ -858,7 +858,7 @@ encoding_boss_pair_loop:  lda     #$00  ; clear dot color flag
 encoding_both_beaten_set_blue:  inc     $13 ; $13=1 means blue dot
 encoding_place_rm_dot:  jsr     encoding_place_cell_dot ; place Robot Master dot
 encoding_shift_next_pair:  lsr     $10  ; shift to next pair bits
-        lsr     $10
+        lsr     $10                     ; shift out second bit of pair
         iny                             ; next boss pair
         cpy     #$04                    ; done with first 4 pairs?
         bne     encoding_boss_pair_loop ; no, loop
@@ -920,8 +920,8 @@ encoding_calc_etank_index:  clc         ; add $0D base offset
 encoding_place_cell_dot:  lda     progression_robot_master_cells_table,y ; get cell index from table
 encoding_write_dot_oam:  sty     $00    ; save Y, use cell as new Y
         tay                             ; cell index to Y
+        asl     a                       ; multiply by 2
         asl     a                       ; multiply by 4 for OAM offset
-        asl     a
         tax                             ; OAM offset to X
         lda     #$F0                    ; $F0 = base cell marker
         ora     $13                     ; OR with dot color ($00/$01)
@@ -937,7 +937,7 @@ encoding_write_dot_oam:  sty     $00    ; save Y, use cell as new Y
         lda     password_grid_x_positions_table,y ; get grid X position
         sta     $021F,x                 ; set OAM sprite X
         ldy     $00                     ; restore saved Y index
-        rts
+        rts                             ; return to encoding loop
 
 ; ===========================================================================
 ; Stage select progression lookup tables

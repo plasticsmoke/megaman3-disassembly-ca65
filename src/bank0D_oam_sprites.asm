@@ -66,35 +66,35 @@ copy_oam_quad_loop:  lda     ($00),y             ; read Y position (or terminato
         cmp     #$FF                    ; end of sprite frame?
         beq     copy_portrait_palette               ; yes -- done copying
         sta     $0200,y                 ; write Y position to OAM buffer
-        iny
+        iny                             ; advance to tile index byte
         lda     ($00),y                 ; read tile index
         sta     $0200,y                 ; write tile index
-        iny
+        iny                             ; advance to attribute byte
         lda     ($00),y                 ; read attribute byte (palette, flip)
         sta     $0200,y                 ; write attributes
-        iny
+        iny                             ; advance to X position byte
         lda     ($00),y                 ; read X position
         sta     $0200,y                 ; write X position
-        iny
+        iny                             ; advance to next quad
         bne     copy_oam_quad_loop               ; loop (max 64 sprites)
 ; --- copy palette for this portrait ---
 copy_portrait_palette:  sty     oam_ptr             ; save OAM write position
         sty     ent_var3                ; also store in entity var3
         lda     ent_var2                ; current portrait index
         asl     a                       ; * 8 (each palette is 8 bytes)
-        asl     a
-        asl     a
+        asl     a                       ; * 4
+        asl     a                       ; * 8 complete
         tay                             ; Y = palette offset
-        ldx     #$00
+        ldx     #$00                    ; X = destination index
 palette_copy_loop:  lda     robot_master_palette_data,y ; read palette byte
         sta     $0618,x                 ; write to palette staging buffer
-        iny
-        inx
+        iny                             ; next source byte
+        inx                             ; next destination byte
         cpx     #$08                    ; 8 bytes per palette block
-        bne     palette_copy_loop
+        bne     palette_copy_loop       ; loop until all 8 copied
         stx     palette_dirty           ; flag palette as needing PPU update
         inc     ent_var2                ; advance to next portrait for next call
-        rts
+        rts                             ; return to caller
 
 ; ===========================================================================
 ; SPRITE FRAME POINTER TABLE ($A04D)
