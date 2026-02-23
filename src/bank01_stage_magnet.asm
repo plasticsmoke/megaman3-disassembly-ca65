@@ -56,31 +56,31 @@
 set_room_chr_and_palette:
         asl     a                       ; param * 2 → index into $A200
         pha                             ; (save param*2 for palette calc)
-        tax
+        tax                             ; X = param*2 for CHR table lookup
         lda     chr_bank_sprite_lower,x ; $EC = sprite CHR bank for $1800-$1BFF
         sta     $EC                     ; (tiles $80-$BF)
         lda     chr_bank_sprite_upper,x ; $ED = sprite CHR bank for $1C00-$1FFF
         sta     $ED                     ; (tiles $C0-$FF)
         pla                             ; param*2 → param*4 → param*8
         asl     a                       ; for palette table offset
-        asl     a
+        asl     a                       ; now param*8
         tay                             ; Y = (param*8) & $FF
         lda     #$00                    ; high byte = $A0 + carry from ASL
         adc     #$A0                    ; ($A0 for param $00-$1F,
         sta     $01                     ; $A1 for param $20-$3F)
         lda     #$30                    ; low byte = $30
         sta     $00                     ; → pointer = $A030 + (param*8 overflow)
-        ldx     #$00
+        ldx     #$00                    ; destination index into palette buffer
 palette_copy_from_rom:  lda     ($00),y ; copy 8 palette bytes (SP2 + SP3):
         sta     $0618,x                 ; $0618-$061F = active SP2-SP3
         sta     $0638,x                 ; $0638-$063F = working copy
-        iny
-        inx
-        cpx     #$08
-        bne     palette_copy_from_rom
+        iny                             ; next source palette byte
+        inx                             ; next destination slot
+        cpx     #$08                    ; copied all 8 bytes?
+        bne     palette_copy_from_rom   ; loop until complete
         ldx     #$FF                    ; $18 = $FF → trigger palette DMA
         stx     palette_dirty           ; (NMI will copy to PPU)
-        rts
+        rts                             ; return to load_room caller
 
 ; ===========================================================================
 ; Sprite palette table ($A030) -- 8 bytes per param (SP2 + SP3)

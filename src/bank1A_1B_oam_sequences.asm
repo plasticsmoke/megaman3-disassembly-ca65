@@ -1049,11 +1049,11 @@ check_spawn_left_loop:  ldy     $9F     ; fetch last left-spawned
         bne     spawn_left_found        ; if == , check camera X left edge
         lda     spawn_data_x_boundary_left,y ; >= last left-spawned enemy X
         cmp     $00                     ; if < , spawn
-        bcc     track_right_no_spawn
+        bcc     track_right_no_spawn ; camera X not past enemy, skip
 spawn_left_found:  dey                  ; spawn,
         jsr     spawn_enemy             ; set new last left-spawned enemy ID,
         dec     $9F                     ; and continue looking for more
-        bne     check_spawn_left_loop
+        bne     check_spawn_left_loop ; more enemies to check
 
 ; track stage enemy ID for right side but don't spawn
 ; anything on right while moving left
@@ -1126,20 +1126,20 @@ spawn_check_dup_loop:  cmp     ent_spawn_id,x ; if this ID is already here
         jsr     find_enemy_freeslot_x   ; find a slot, if none found
         bcs     spawn_check_return      ; don't spawn
         tya                             ; store new stage ID
-        sta     ent_spawn_id,x
+        sta     ent_spawn_id,x          ; record stage ID in slot
         pha                             ; save stage enemy ID
         and     #$07                    ; low 3 bits = bit position
         tay                             ; index into bit mask table
         lda     $DEC2,y                 ; bit mask (1,2,4,8,16,32,64,128)
-        sta     $04
+        sta     $04                     ; store bit mask for killed check
         pla                             ; restore stage enemy ID
         lsr     a                       ; stage ID >> 3
         lsr     a                       ; = byte index into
         lsr     a                       ; spawn tracking array
-        tay
+        tay                             ; Y = byte index into killed array
         lda     $0150,y                 ; if this enemy's bit is set, don't spawn
         and     $04                     ; test killed bitmask
-        bne     spawn_check_return
+        bne     spawn_check_return      ; already killed, abort spawn
 
 ; finally, actually spawn — read from 4 per-stage enemy placement tables:
 ;   $AB00,y = screen number (X page) where enemy appears
@@ -1150,11 +1150,11 @@ spawn_check_dup_loop:  cmp     ent_spawn_id,x ; if this ID is already here
 ;   enemy_flags_g ($A000) / enemy_main_ID_g ($A100) / etc.
         ldy     ent_spawn_id,x          ; load stage enemy ID for data
         lda     spawn_data_enemy_screen,y ; enemy screen number
-        sta     ent_x_scr,x
+        sta     ent_x_scr,x             ; set entity screen number
         lda     spawn_data_enemy_x_pos,y ; enemy X pixel position
-        sta     ent_x_px,x
+        sta     ent_x_px,x              ; set entity X position
         lda     spawn_data_enemy_y_pos,y ; enemy Y pixel position
-        sta     ent_y_px,x
+        sta     ent_y_px,x              ; set entity Y position
         lda     spawn_data_enemy_type_id,y ; global enemy ID
         pha                             ; save global enemy ID
         stx     $05                     ; preserve X
@@ -1165,34 +1165,34 @@ spawn_check_dup_loop:  cmp     ent_spawn_id,x ; if this ID is already here
         pla                             ; Y = global enemy ID
         tay                             ; for initial data lookup
         lda     #$80                    ; mark entity active
-        sta     ent_status,x
+        sta     ent_status,x            ; activate entity slot
         lda     anim_seq_ptr_lo_table,y ; sprite flags from $A000,y
-        sta     ent_flags,x
+        sta     ent_flags,x             ; set entity behavior flags
         lda     anim_seq_ptr_hi_table,y ; AI routine ID from $A100,y
-        sta     ent_routine,x
+        sta     ent_routine,x           ; set AI routine index
         lda     oam_sprite_def_ptr_hi_table,y ; hitbox/shape from $A200,y
-        sta     ent_hitbox,x
+        sta     ent_hitbox,x            ; set collision hitbox
         lda     anim_variable_records,y ; sprite graphic ID
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; initialize sprite animation
         jsr     face_player             ; face toward player
         lda     oam_tile_base_table,y   ; HP from $A400,y
-        sta     ent_hp,x
+        sta     ent_hp,x                ; set hit points
         lda     oam_attr_base_table,y   ; Y = speed ID
         tay                             ; use speed ID as index
         lda     oam_xoffset_base_table,y ; X velocity subpixel
-        sta     ent_xvel_sub,x
+        sta     ent_xvel_sub,x          ; set X velocity subpixel
         lda     oam_yoffset_base_table,y ; X velocity pixel
-        sta     ent_xvel,x
+        sta     ent_xvel,x              ; set X velocity whole pixel
         jsr     reset_gravity           ; Y velocity
-        lda     #$00
+        lda     #$00                    ; zero for clearing fields
         sta     ent_y_scr,x             ; clear Y screen,
         sta     ent_x_sub,x             ; X subpixel,
         sta     ent_y_sub,x             ; Y subpixel,
-        sta     ent_timer,x
+        sta     ent_timer,x             ; clear entity timer
         sta     ent_var1,x              ; and all 4 wildcards
-        sta     ent_var2,x
-        sta     ent_var3,x
-        lda     stage_id
+        sta     ent_var2,x              ; clear variable 2
+        sta     ent_var3,x              ; clear variable 3
+        lda     stage_id                ; restore stage bank
         sta     prg_bank                ; switch $A000-$BFFF bank
         jmp     select_PRG_banks        ; back to stage's bank, return
 

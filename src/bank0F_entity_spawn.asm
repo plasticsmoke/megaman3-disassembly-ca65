@@ -41,15 +41,15 @@ process_frame_yield           := $FD80  ; process_frame_yield — render frame +
 .segment "BANK0F"
 
         lda     #$00                    ; clear all credits state
-        sta     $95
-        sta     $A006
-        sta     nmi_skip
-        sta     ent_timer
-        sta     ent_var1
-        sta     ent_var2
-        sta     ent_var3
-        sta     ent_status
-        sta     $0310
+        sta     $95                     ; clear frame counter
+        sta     $A006                   ; clear MMC3 mirroring register
+        sta     nmi_skip                ; allow NMI processing
+        sta     ent_timer               ; clear entity 0 timer
+        sta     ent_var1                ; clear entity 0 variable 1
+        sta     ent_var2                ; clear entity 0 variable 2
+        sta     ent_var3                ; clear entity 0 variable 3
+        sta     ent_status              ; mark entity 0 inactive
+        sta     $0310                   ; clear entity 1 misc state
 ; ===========================================================================
 ; CREDITS MAIN LOOP — NAMETABLE TEXT SCROLL
 ; ===========================================================================
@@ -62,7 +62,7 @@ credits_main_loop:  lda     ent_status          ; check if credits entity active
         bmi     skip_to_scroll_check               ; if active (bit 7 set), skip scroll
         lda     $95                     ; frame counter
         and     #$01                    ; only process on even frames
-        bne     skip_to_scroll_check
+        bne     skip_to_scroll_check    ; odd frame, skip update
         lda     scroll_y                ; get Y scroll position
         and     #$07                    ; check if on 8-pixel boundary
         bne     skip_to_scroll_check               ; not aligned, skip nametable update
@@ -101,7 +101,7 @@ fill_blank_row:  lda     $03                 ; load PPU addr high byte
         lda     #$24                    ; blank tile
 fill_blank_loop:  sta     $0783,y             ; fill row buffer with blanks
         dey                             ; next tile slot
-        bpl     fill_blank_loop
+        bpl     fill_blank_loop         ; loop for all 32 tiles
         sty     $07A3                   ; terminator
         sty     nametable_dirty         ; signal NMI to upload
 skip_to_scroll_check:  jmp     check_scroll_done           ; jump to scroll check
@@ -138,7 +138,7 @@ copy_text_tiles_loop:  lda     ($00),y             ; copy text tiles to buffer
 fill_right_padding_loop:  sta     $0783,x             ; fill remaining with blanks
         inx                             ; next buffer position
         cpx     #$20                    ; filled all 32 tiles?
-        bne     fill_right_padding_loop
+        bne     fill_right_padding_loop  ; continue until row full
         lda     #$FF                    ; terminator value
         sta     $07A3                   ; terminator
         sta     nametable_dirty         ; signal NMI to upload
@@ -196,11 +196,11 @@ star_sprite_loop:  lda     credits_star_sprites_oam_y,y ; sprite Y position (bas
         lda     ent_timer               ; advance slot 0 Y offset
         clc                             ; prepare for add
         adc     #$02                    ; move stars downward 2px/frame
-        sta     ent_timer
+        sta     ent_timer               ; update slot 0 star Y offset
         lda     ent_var1                ; advance slot 1 Y offset
         clc                             ; prepare for add
         adc     #$03                    ; move stars downward 3px/frame
-        sta     ent_var1
+        sta     ent_var1                ; update slot 1 star Y offset
         jsr     process_frame_yield     ; yield frame (process_frame_yield)
         jmp     credits_main_loop               ; loop back to credits main
 
@@ -218,14 +218,14 @@ init_character_slot_loop:  lda     #$80                ; active flag value
         sta     ent_status,x            ; mark entity active
         sta     ent_flags,x             ; set active flag
         lda     credits_character_anim_ids,x ; animation ID from table
-        sta     ent_anim_id,x
+        sta     ent_anim_id,x           ; set walk animation ID
         lda     credits_character_y_positions,x ; initial Y position from table
-        sta     ent_y_px,x
+        sta     ent_y_px,x              ; place character vertically
         lda     #$F8                    ; start off-screen right
-        sta     ent_x_px,x
+        sta     ent_x_px,x              ; set initial X position
         lda     #$00                    ; zero value
-        sta     ent_anim_frame,x        ; reset animation
-        sta     ent_anim_state,x
+        sta     ent_anim_frame,x        ; reset animation frame
+        sta     ent_anim_state,x        ; reset animation state
         dex                             ; next slot
         bpl     init_character_slot_loop               ; loop for both slots
         lda     #$25                    ; set up two nametable row clears
@@ -238,7 +238,7 @@ init_character_slot_loop:  lda     #$80                ; active flag value
         sta     $0785                   ; PPU addr low (row 2)
         lda     #$00                    ; zero for clear
         sta     $0782                   ; tile count = 0 (clear)
-        sta     $0786
+        sta     $0786                   ; tile count row 2 = 0 (clear)
         sta     ent_timer               ; reset animation timer
 ; --- character walk + text reveal animation ---
 walkon_anim_update:  dec     $0361               ; decrement slot 1 X timer
@@ -276,11 +276,11 @@ check_trigger_fall:  lda     ent_x_px            ; check current X position
         cmp     #$20                    ; reached left target position?
         bne     walkon_next_frame               ; not at target, skip fall
         lda     #$44                    ; set Y velocity sub-pixel
-        sta     ent_yvel_sub
+        sta     ent_yvel_sub            ; set Y velocity subpixel
         lda     #$03                    ; set Y velocity (falling speed)
-        sta     ent_yvel
+        sta     ent_yvel                ; set Y velocity whole pixel
         lda     #$07                    ; switch to falling animation
-        sta     ent_anim_id
+        sta     ent_anim_id             ; update animation to falling
         lda     #$00                    ; zero for reset
         sta     ent_anim_state          ; reset animation state
         sta     ent_anim_frame          ; reset animation frame

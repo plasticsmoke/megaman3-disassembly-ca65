@@ -374,7 +374,7 @@ star_twinkle_update:  lda     $95                 ; load frame counter
 phase2_wind_sfx_check:  lda     $95                 ; load frame counter
         and     #$0F                    ; check every 16th frame
         bne     phase2_process_frame               ; skip wind SFX
-        lda     #SFX_WIND
+        lda     #SFX_WIND               ; load wind sound effect ID
         jsr     submit_sound_ID         ; submit wind SFX $28
 phase2_process_frame:  inc     palette_dirty       ; mark palette for NMI upload
         jsr     process_frame_yield_full ; process frame + yield (full)
@@ -399,17 +399,17 @@ intro_phase3_init:  lda     #$00                ; A = 0 for clearing
         sta     ent_yvel_sub            ; clear Y velocity sub-pixel
         sta     ent_yvel                ; no vertical velocity initially
         sta     ent_xvel_sub            ; clear X velocity sub-pixel
-        lda     #$04
+        lda     #$04                    ; X speed = 4 px/frame
         sta     ent_xvel                ; horizontal speed = 4 px/frame
-        lda     #$10
+        lda     #$10                    ; phase lasts 16 frames
         sta     ent_timer               ; movement phase duration
-        lda     #$E8
+        lda     #$E8                    ; Y = 232 (near bottom of screen)
         sta     ent_y_px                ; start near bottom
-        lda     #$80
+        lda     #$80                    ; X = 128 (screen center)
         sta     ent_x_px                ; center X
-        lda     #$80
+        lda     #$80                    ; bit 7 = entity active
         sta     ent_status              ; entity active
-        lda     #$98
+        lda     #$98                    ; facing left, palette 2
         sta     ent_flags               ; facing left, palette 2
 ; --- set BG palette to black, copy sprite palette down ---
         ldy     #$0F                    ; loop 16 palette entries
@@ -482,7 +482,7 @@ proto_man_timer_update:  lda     $0501               ; Proto Man timer
 proto_man_approach_tick:  lda     #$00                ; A = 0
         sta     $95                     ; reset frame counter
         dec     $0501                   ; decrement timer
-        jmp     star_field_update
+        jmp     star_field_update       ; continue to star scrolling
 ; --- whistle / departure phase ---
 proto_man_whistle_phase:  lda     $0521               ; ent_var1[1] = whistle delay
         beq     proto_man_depart_init               ; delay expired
@@ -492,7 +492,7 @@ proto_man_whistle_phase:  lda     $0521               ; ent_var1[1] = whistle de
         bne     proto_man_whistle_skip               ; not at whistle trigger yet
         ldx     #$00                    ; entity 0 = Mega Man
         lda     #$5E                    ; anim $5E = Proto Man whistling
-        jsr     reset_sprite_anim
+        jsr     reset_sprite_anim       ; set Proto Man whistle animation
 proto_man_whistle_skip:  jmp     star_field_update
 ; --- Proto Man departure: prepare MM for flight ---
 proto_man_depart_init:  lda     #$00                ; A = 0
@@ -522,10 +522,10 @@ flight_accelerate_upward:  lda     $0521               ; flight countdown
         dec     $0521                   ; decrement flight countdown
         lda     ent_yvel_sub            ; accelerate upward
         clc                             ; add $10 to Y velocity sub
-        adc     #$10
+        adc     #$10                    ; add $10 to sub-pixel velocity
         sta     ent_yvel_sub            ; store updated sub-pixel
         lda     ent_yvel                ; add carry to whole pixel
-        adc     #$00
+        adc     #$00                    ; carry from sub-pixel addition
         sta     ent_yvel                ; store updated Y velocity
         cmp     #$04                    ; cap vertical speed at 4
         bne     star_field_update               ; not capped, continue
@@ -565,9 +565,9 @@ star_field_sprite_loop:  lda     intro_star_field_y_table,x ; star Y position (b
         adc     ent_var2                ; add scroll offset
         sta     $0203,x                 ; write to OAM X position
         inx                             ; advance OAM index (4 bytes)
-        inx
-        inx
-        inx
+        inx                             ; +2
+        inx                             ; +3
+        inx                             ; +4 (next OAM entry)
         cpx     #$28                    ; 10 star sprites * 4 bytes
         bne     star_field_sprite_loop               ; loop for all 10 stars
         lda     $95                     ; get frame counter
@@ -578,7 +578,7 @@ set_oam_flicker:  stx     oam_ptr
         lda     ent_var3                ; get wind SFX timer
         and     #$0F                    ; every 16 frames
         bne     phase3_process_frame               ; not time for wind SFX
-        lda     #SFX_WIND
+        lda     #SFX_WIND               ; load wind sound effect ID
         jsr     submit_sound_ID         ; wind SFX $28
 phase3_process_frame:  jsr     process_frame_yield ; process frame + yield
         inc     ent_var3                ; increment wind timer
@@ -599,7 +599,7 @@ doc_robot_stage_init:  lda     #$00                ; A = 0
         lda     #MUSIC_DOC_ROBOT        ; music ID $36
         jsr     submit_sound_ID_D9      ; submit music $36 (Doc Robot theme)
         lda     #$04                    ; OAM offset past sprites
-        sta     oam_ptr
+        sta     oam_ptr                 ; set OAM write pointer
         jsr     prepare_oam_buffer      ; prepare OAM buffer
         jsr     clear_entity_table      ; clear entity table
         jsr     task_yield              ; wait for NMI
@@ -721,10 +721,10 @@ doc_robot_animate_frame:  txa                         ; save X
         pha                             ; push X to stack
         tya                             ; save Y
         pha                             ; push Y to stack
-        lda     #$C8
+        lda     #$C8                    ; OAM offset $C8 for icon area
         sta     oam_ptr                 ; OAM start position
         ldy     $75                     ; boss selection index
-        cpy     #$04
+        cpy     #$04                    ; bosses 4-5 have no blink
         bcs     doc_animate_done               ; skip blink for bosses 4-5
         ldx     intro_doc_robot_boss_icon_oam_offset_table,y ; OAM offset for this boss's icon
         lda     $95                     ; load frame counter for blink
@@ -759,7 +759,7 @@ draw_boss_icons_loop:  ldy     ent_timer
         beq     draw_boss_icons_done               ; yes — skip it (will be revealed later)
         ldx     intro_doc_robot_boss_sprite_data_offset_table,y ; sprite data offset for this boss
         lda     intro_doc_robot_boss_sprite_count_table,y ; sprite count for this boss
-        sta     $00
+        sta     $00                     ; save sprite countdown
         ldy     $10                     ; OAM cursor
 copy_boss_sprite_loop:  lda     intro_doc_robot_boss_icon_sprite_data_table,x ; sprite Y
         sta     $0200,y                 ; write Y pos to OAM
@@ -769,17 +769,17 @@ copy_boss_sprite_loop:  lda     intro_doc_robot_boss_icon_sprite_data_table,x ; 
         sta     $0202,y                 ; write attribute to OAM
         lda     intro_doc_robot_boss_icon_x_continuation,x ; sprite X
         sta     $0203,y                 ; write X pos to OAM
-        inx
-        inx
-        inx
+        inx                             ; advance source index +1
+        inx                             ; +2
+        inx                             ; +3
         inx                             ; advance sprite data pointer
-        iny
-        iny
-        iny
+        iny                             ; advance OAM index +1
+        iny                             ; +2
+        iny                             ; +3
         iny                             ; advance OAM cursor
         sty     $10                     ; save OAM cursor
         dec     $00                     ; more sprites for this boss?
-        bpl     copy_boss_sprite_loop
+        bpl     copy_boss_sprite_loop   ; loop if sprites remain
         inc     ent_timer               ; next boss
         bne     draw_boss_icons_loop               ; loop to next boss
 draw_boss_icons_done:  rts                         ; return
@@ -800,46 +800,46 @@ reveal_selected_boss:  ldy     ent_timer           ; selected boss index
         tay                             ; use OAM base as Y index
 reveal_sprite_loop:  lda     intro_doc_robot_boss_icon_sprite_data_table,x ; copy one sprite to OAM
         sta     $0240,y                 ; Y pos (at $0240+ for reveal area)
-        lda     intro_doc_robot_boss_icon_tile_continuation,x
+        lda     intro_doc_robot_boss_icon_tile_continuation,x ; sprite tile ID
         sta     $0241,y                 ; tile
-        lda     intro_doc_robot_boss_icon_attr_continuation,x
+        lda     intro_doc_robot_boss_icon_attr_continuation,x ; sprite palette/flip
         sta     $0242,y                 ; attribute
-        lda     intro_doc_robot_boss_icon_x_continuation,x
+        lda     intro_doc_robot_boss_icon_x_continuation,x ; sprite X position
         sta     $0243,y                 ; X pos
-        inx                             ; advance sprite data pointer
-        inx
-        inx
-        inx
-        iny                             ; advance OAM pointer
-        iny
-        iny
-        iny
+        inx                             ; advance source index +1
+        inx                             ; +2
+        inx                             ; +3
+        inx                             ; +4 (next sprite data entry)
+        iny                             ; advance OAM index +1
+        iny                             ; +2
+        iny                             ; +3
+        iny                             ; +4 (next OAM entry)
         sty     $10                     ; save OAM cursor
-        lda     #SFX_HP_FILL
+        lda     #SFX_HP_FILL            ; HP fill sound for reveal
         jsr     submit_sound_ID         ; reveal SFX $1C
         jsr     doc_robot_animate_frame               ; wait 4 frames (with Doc Robot anim)
         jsr     doc_robot_animate_frame               ; frame 2 of 4
         jsr     doc_robot_animate_frame               ; frame 3 of 4
         jsr     doc_robot_animate_frame               ; frame 4 of 4
         dec     $0F                     ; more sprites to reveal?
-        bpl     reveal_sprite_loop
+        bpl     reveal_sprite_loop      ; loop if sprites remain
 ; --- special case: boss 5 spawns second Doc Robot entity ---
         lda     $75                     ; load selected boss index
         cmp     #$05                    ; is it boss 5?
         bne     reveal_boss_done               ; not boss 5, skip
-        lda     #$80
+        lda     #$80                    ; bit 7 = entity active
         sta     $0301                   ; ent_status[1] = active
         sta     $0581                   ; ent_flags[1] = active
-        lda     #$00
+        lda     #$00                    ; zero for clearing fields
         sta     $0381                   ; ent_x_scr[1]
         sta     $03E1                   ; ent_y_scr[1]
         sta     $05E1                   ; ent_anim_frame[1]
         sta     $05A1                   ; ent_anim_state[1]
-        lda     #$7B
+        lda     #$7B                    ; anim ID $7B = Doc Robot
         sta     $05C1                   ; ent_anim_id[1] = Doc Robot
-        lda     #$60
+        lda     #$60                    ; X = 96 pixels
         sta     $0361                   ; ent_x_px[1] = $60
-        lda     #$4C
+        lda     #$4C                    ; Y = 76 pixels
         sta     $03C1                   ; ent_y_px[1] = $4C
 reveal_boss_done:  rts                         ; return
 
@@ -885,7 +885,7 @@ apply_sinusoidal_xvel:  lda     ent_x_sub
         dec     ent_timer               ; phase duration countdown
         bne     sine_movement_done               ; phase not expired, skip
         inc     ent_var1                ; next phase
-        lda     #$10
+        lda     #$10                    ; 16 frames per phase
         sta     ent_timer               ; reset phase timer ($10 frames)
 sine_movement_done:  rts
 ; ===========================================================================
