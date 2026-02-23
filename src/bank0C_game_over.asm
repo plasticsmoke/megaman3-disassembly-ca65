@@ -269,7 +269,7 @@ walk_right_phase:  inc     ent_x_px            ; move Mega Man right 1 pixel
         ldx     #$00                    ; entity slot 0 (Mega Man)
         jsr     reset_sprite_anim       ; set entity 0 to walking animation
         lda     ent_flags               ; get current entity flags
-        ora     #$40                    ; set horizontal flip (face right)
+        ora     #ENT_FLAG_HFLIP         ; set horizontal flip (face right)
         sta     ent_flags               ; apply horizontal flip
 ; --- per-frame update: palette cycling + entity rendering ---
 game_over_frame_update:  lda     $95

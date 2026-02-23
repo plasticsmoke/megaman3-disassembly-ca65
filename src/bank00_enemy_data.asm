@@ -61,7 +61,7 @@
 ; ===========================================================================
 ; Written to ent_flags on spawn. Bit meanings (from rendering engine):
 ;   bit 7 ($80): entity active / drawn
-;   bit 6 ($40): horizontal flip
+;   bit 6 (ENT_FLAG_HFLIP): horizontal flip
 ;   bit 5 ($20): on-ladder (behind-background OAM priority)
 ;   bit 4 ($10): uses world coordinates (subtract camera for screen pos)
 ;   bit 3 ($08): wide offscreen margin (keep alive within 72px of edge)

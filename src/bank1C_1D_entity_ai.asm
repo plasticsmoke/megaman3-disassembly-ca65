@@ -663,7 +663,7 @@ main_ret_B:
 main_unknown_1B:
 
         lda     ent_facing,x            ; check direction flags
-        and     #$01                    ; bit 0 = moving right
+        and     #FACING_RIGHT           ; bit 0 = moving right
         beq     unknown_1B_move_left
         jsr     move_sprite_right       ; move right (unchecked)
         jmp     unknown_1B_check_is_enemy
@@ -957,7 +957,7 @@ unknown_1B_restore_dir_set_xvel:  plp   ; restore direction
 unknown_1B_move_left_chase:  ldy     #$09 ; move left with collision
         jsr     move_left_collide       ; move_left_collide
 unknown_1B_copy_player_facing:  lda     ent_flags ; copy player facing (bit 6)
-        and     #$40                    ; isolate H-flip bit
+        and     #ENT_FLAG_HFLIP         ; isolate H-flip bit
         sta     temp_00
         lda     $0581                   ; slot 1 ent_flags
         and     #$BF                    ; clear existing bit 6
@@ -977,8 +977,8 @@ unknown_1B_copy_player_facing:  lda     ent_flags ; copy player facing (bit 6)
 ; | up to 6.0 px/frame terminal velocity. Despawns off-screen.
 ; |
 ; | ent_facing direction flags:
-; |   bit 0 ($01) = moving right  (horizontal phase)
-; |   bit 1 ($02) = moving left   (horizontal phase)
+; |   bit 0 (FACING_RIGHT) = moving right  (horizontal phase)
+; |   bit 1 (FACING_LEFT)  = moving left   (horizontal phase)
 ; |   bit 2 ($04) = moving down   (vertical phase)
 ; |   bit 3 ($08) = moving up     (vertical phase)
 ; |   $00 = entered vertical phase (bits 0-1 cleared)
@@ -995,7 +995,7 @@ main_magnet_missile:
         beq     magnet_missile_check_facing ; (skip write if already set)
         sta     ent_anim_id,x
 magnet_missile_check_facing:  lda     ent_facing,x
-        and     #$01                    ; bit 0 = moving right
+        and     #FACING_RIGHT           ; bit 0 = moving right
         beq     magnet_missile_move_left
         jsr     move_sprite_right       ; move missile right
         jmp     magnet_missile_scan_init ; skip left branch
@@ -1084,7 +1084,7 @@ main_gemini_laser:
         rts                             ; still waiting (staggered spawn delay)
 
 gemini_laser_direction:  lda     ent_facing,x ; check horizontal direction
-        and     #$01                    ; bit 0 = moving right?
+        and     #FACING_RIGHT           ; bit 0 = moving right?
         beq     gemini_laser_left_check ; no → moving left
         lda     ent_timer,x             ; bounce timer active?
         beq     gemini_laser_free_right ; 0 → free movement (no collision)
@@ -1093,7 +1093,7 @@ gemini_laser_direction:  lda     ent_facing,x ; check horizontal direction
         jmp     gemini_laser_wall_bounce ; → check if wall was hit
 
 gemini_laser_free_right:  lda     ent_flags,x ; set facing right (bit 6)
-        ora     #$40                    ; (free phase: set manually since
+        ora     #ENT_FLAG_HFLIP         ; (free phase: set manually since
         sta     ent_flags,x             ; move_sprite doesn't set facing)
         jsr     move_sprite_right       ; move right, no collision
         jmp     gemini_laser_vert_dispatch ; → vertical movement
@@ -1197,7 +1197,7 @@ gemini_laser_fly_accel:  lda     ent_xvel,x ; flying phase: accelerate X speed
         adc     #$00
         sta     ent_xvel,x
 gemini_laser_fly_maxed:  lda     ent_facing,x ; move horizontally based on facing
-        and     #$01                    ; bit 0: 1=right, 0=left
+        and     #FACING_RIGHT           ; bit 0: 1=right, 0=left
         beq     gemini_laser_fly_left
         jsr     move_sprite_right       ; move_sprite_right
         jmp     gemini_laser_wobble     ; → Y wobble
@@ -1230,7 +1230,7 @@ gemini_laser_exit:  rts
 ; ===========================================================================
 ; State 0: falling with $99 to find a surface (horizontal timer ent_timer).
 ; State 1: crawling along surfaces (floor→wall→ceiling), wraps around corners.
-; ent_facing direction: bit0=right, bit1=left, bit2=down, bit3=up.
+; ent_facing direction: bit0=FACING_RIGHT, bit1=FACING_LEFT, bit2=down, bit3=up.
 ; Crawl speed: 3.0 px/frame. OAM: $A5=horiz, $A6=descend, $A7=ascend.
 main_search_snake:
 
@@ -1315,7 +1315,7 @@ search_snake_hit_vert_solid:  lda     ent_facing,x ; moving up and hit ceiling?
 search_snake_move_horizontal:  lda     #$A5 ; OAM $A5 = horizontal
         sta     ent_anim_id,x
         lda     ent_facing,x            ; bit 0 = moving right?
-        and     #$01
+        and     #FACING_RIGHT
         beq     search_snake_move_left_wall ; no → move left
         ldy     #$1E                    ; move right with wall detection
         jsr     move_right_collide      ; move_right_collide
@@ -1340,7 +1340,7 @@ main_spark_shock:
         and     #$0F                    ; check state low nibble
         bne     spark_shock_dec_timer   ; nonzero = shocking enemy
 spark_shock_check_facing:  lda     ent_facing,x ; facing left?
-        and     #$01                    ; bit 0 = moving right?
+        and     #FACING_RIGHT           ; bit 0 = moving right?
         beq     spark_shock_move_left
         jmp     move_sprite_right       ; else move right
 
@@ -1363,7 +1363,7 @@ main_shadow_blade:
         lda     ent_facing,x            ; check horizontal direction bits
         and     #$03                    ; bits 0-1 = left/right
         beq     shadow_blade_check_vertical
-        and     #$01                    ; bit 0 = moving right?
+        and     #FACING_RIGHT           ; bit 0 = moving right?
         beq     shadow_blade_move_left  ; no → move left
         jsr     move_sprite_right       ; else move right
         jmp     shadow_blade_check_vertical
@@ -1419,7 +1419,7 @@ main_dada:
         lda     #$03                    ; face-player countdown = 3 bounces
         sta     ent_var1,x              ; store face-player countdown
 dada_movement:  lda     ent_facing,x    ; check facing direction
-        and     #$01
+        and     #FACING_RIGHT
         beq     dada_move_left          ; bit 0 clear → move left
         ldy     #$0A                    ; speed index for rightward walk
         jsr     move_right_collide      ; move_right_collide
@@ -1466,7 +1466,7 @@ main_potton:
         cmp     #$23                    ; OAM $23 = flying
         beq     potton_collision        ; already dropping → skip movement
         lda     ent_facing,x            ; check facing for movement
-        and     #$01                    ; bit 0 = facing right
+        and     #FACING_RIGHT           ; bit 0 = facing right
         beq     potton_move_left
         ldy     #$08                    ; speed index for rightward fly
         jsr     move_right_collide      ; move_right_collide
@@ -1571,7 +1571,7 @@ hammer_joe_face_player:  lda     ent_facing,x ; save old facing, re-face player
         cmp     ent_facing,x            ; compare with new facing
         beq     hammer_joe_open_check   ; same → skip flip
         lda     ent_flags,x             ; facing changed: toggle H-flip
-        eor     #$40
+        eor     #ENT_FLAG_HFLIP
         sta     ent_flags,x             ; store updated flags
 hammer_joe_open_check:  lda     ent_anim_id,x ; only act when shield is open ($27)
         cmp     #$27
@@ -1607,7 +1607,7 @@ hammer_joe_spawn_hammer:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sty     temp_00                 ; save child slot
         lda     ent_facing,x            ; copy facing to hammer
         sta     ent_facing,y
-        and     #$02                    ; index: 0=facing right, 2=facing left
+        and     #FACING_LEFT            ; index: 0=facing right, 2=facing left
         tay
         lda     ent_x_px,x              ; hammer X = Joe X + offset
         clc                             ; (+$13 if right, -$13 if left)
@@ -1653,7 +1653,7 @@ hammer_joe_hammer_x_scr:  .byte   $00,$ED,$FF,$A0,$00
         rts
 
 hammer_joe_check_walk_dir:  lda     ent_facing,x ; check facing direction
-        and     #$01                    ; bit 0 = facing right
+        and     #FACING_RIGHT           ; bit 0 = facing right
         beq     hammer_joe_move_left
         ldy     #$00                    ; move right with wall collision
         jsr     move_right_collide      ; move_right_collide
@@ -1697,7 +1697,7 @@ hammer_joe_crouch_anim_check:  lda     ent_anim_id,x ; if current OAM != $6A (cr
         bcs     hammer_joe_jump_landing ; no free slot, skip spawn
         sty     temp_00                 ; save child slot in $00
         lda     ent_facing,x            ; use facing to index X offset table
-        and     #$02                    ; y=0 if right, y=2 if left
+        and     #FACING_LEFT            ; y=0 if right, y=2 if left
         tay
         lda     ent_x_px,x              ; child X = parent X + offset
         clc                             ; (16-bit add from table at $8DC4)
@@ -1855,7 +1855,7 @@ bombflier_apply_movement:  dec     ent_timer,x ; decrement speed countdown
         adc     ent_yvel,x
         sta     ent_y_px,x              ; store updated Y pixel
         lda     ent_facing,x            ; apply X movement based on facing
-        and     #$02                    ; bit 1 = facing left
+        and     #FACING_LEFT            ; bit 1 = facing left
         bne     bombflier_move_left
         jsr     move_sprite_right       ; move right at X speed
         bcs     bombflier_penpen_check  ; unconditional jump
@@ -1895,7 +1895,7 @@ bombflier_walking_state:  lda     ent_routine,x ; if AI routine != $0A (not PenP
 bombflier_anim_wait:  rts
 
 bombflier_walk_direction:  lda     ent_facing,x ; walk in facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     bombflier_walk_left     ; skip negation
         jmp     move_sprite_right       ; walk right
 
@@ -1915,7 +1915,7 @@ bombflier_distance_check:  jsr     entity_x_dist_to_player ; get X distance to p
         rts
 
 bombflier_horiz_move:  lda     ent_facing,x ; move horizontally based on direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     bombflier_homing_left   ; facing left -> move left
         jsr     move_sprite_right       ; move right
         jmp     bombflier_vert_move
@@ -1960,7 +1960,7 @@ bombflier_xspeed_table:  .byte   $00,$75,$00,$D9,$00,$1B,$01,$33
 ;   ent_var2 = lifetime timer — when expired, spawns a clone and despawns
 ;   ent_var3 = saved X position (metatile-aligned) for child spawn
 ;   ent_flags bit 5 ($20) = tile collision check flag
-; Direction table at $9030: $02,$01,$01,$02 = left, right, right, left
+; Direction table at $9030: FACING_LEFT, FACING_RIGHT, FACING_RIGHT, FACING_LEFT
 ; -----------------------------------------------
 main_cloud_platform:
         lda     ent_status,x            ; get entity state
@@ -1975,7 +1975,7 @@ cloud_platform_activate:  inc     ent_status,x ; advance to state 1 (active flyi
         sta     ent_yvel_sub,x          ; rise speed $00.CC (~0.8 px/frame upward)
         lda     #$00                    ; Y speed whole = $00 (no whole-pixel rise)
         sta     ent_yvel,x              ; Y speed whole = $00
-        lda     #$02                    ; initial direction = left ($02)
+        lda     #FACING_LEFT            ; initial direction = left ($02)
         sta     ent_facing,x            ; set facing direction
         lda     #$10                    ; movement timer = 16 frames (first segment)
         sta     ent_timer,x
@@ -2005,7 +2005,7 @@ cloud_platform_movement:  jsr     move_sprite_up ; rise upward (apply Y speed)
         and     #$DF
         sta     ent_flags,x
 cloud_platform_horizontal:  lda     ent_facing,x ; check direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     cloud_platform_move_left ; not right -> move left
         jsr     move_sprite_right       ; move right
         jmp     cloud_platform_timer_check
@@ -2076,7 +2076,7 @@ cloud_platform_respawn:  jsr     find_enemy_freeslot_y ; find free enemy slot ->
         sta     ent_xvel_sub,y          ; set X speed sub-pixel
         lda     #$E8                    ; Y position = $E8 (bottom of screen)
         sta     ent_y_px,y              ; set child Y position
-        lda     #$02                    ; initial direction = left ($02)
+        lda     #FACING_LEFT            ; initial direction = left ($02)
         sta     ent_facing,y            ; set child facing direction
         lda     #$10                    ; movement timer = 16 frames
         sta     ent_timer,y
@@ -2165,7 +2165,7 @@ unknown_0C_check_anim_grounded:  lda     ent_anim_id,x ; check current OAM ID
         lda     temp_00                 ; no special tile: check if landed
         bpl     unknown_0C_done         ; not landed (bit 7 clear) -> done
 unknown_0C_check_horizontal_trigger:  lda     ent_facing,x ; check facing direction
-        and     #$01                    ; bit 0 = facing right
+        and     #FACING_RIGHT           ; bit 0 = facing right
         beq     unknown_0C_check_left_tile ; facing left -> check left tile
         lda     tile_at_feet_lo         ; facing right: check tile to right
         cmp     #TILE_LADDER_TOP        ; is it the trigger tile?
@@ -2193,7 +2193,7 @@ unknown_0C_falling_init:  ldy     #$0C  ; collision check offset
 unknown_0C_state_return:  rts
 
 unknown_0C_horizontal_walk:  lda     ent_facing,x ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     unknown_0C_move_left    ; facing left -> move left
         ldy     #$08                    ; collision offset for right
         jsr     move_right_collide      ; move right with wall check
@@ -2229,7 +2229,7 @@ unknown_0C_done:  rts
 unknown_0C_horizontal_return:  rts
 
 unknown_0C_facing_check:  lda     ent_facing,x ; check direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     unknown_0C_move_left_2  ; facing left -> move left
         jmp     move_sprite_right       ; move right
 
@@ -2301,7 +2301,7 @@ giant_springer_dispatch:  lda     ent_status,x ; active flag + state
         and     #$0F                    ; isolate state bits
         bne     giant_springer_bouncing ; state 1 → bouncing
         lda     ent_facing,x            ; direction flags
-        and     #$01                    ; bit 0 = moving right?
+        and     #FACING_RIGHT           ; bit 0 = moving right?
         beq     giant_springer_move_left ; if not, move left
         ldy     #$20                    ; speed index for move right
         jsr     move_right_collide      ; move right with wall check
@@ -2555,7 +2555,7 @@ electric_gabyoall_main_loop:  lda     ent_hitbox,x ; load hitbox
         sta     ent_y_px,x
         jsr     check_player_hit        ; check contact with player
         lda     ent_facing,x            ; facing direction
-        and     #$01                    ; isolate direction bit
+        and     #FACING_RIGHT           ; isolate direction bit
         beq     electric_gabyoall_move_left ; bit 0 clear: moving left
         ldy     #$08                    ; speed index for move right
         jsr     move_right_collide      ; move_right_collide
@@ -2736,7 +2736,7 @@ petit_snakey_init_check:  lda     ent_var1,x ; attack cooldown active?
         lda     ent_timer,x             ; idle timer active?
         bne     petit_snakey_dec_idle   ; yes -> decrement idle
         lda     ent_facing,x            ; check facing direction
-        and     #$02                    ; bit 1 = facing left
+        and     #FACING_LEFT            ; bit 1 = facing left
         bne     petit_snakey_left_arc   ; facing left
         jsr     calc_direction_to_player ; calc_direction_to_player (right)
         sec
@@ -2784,7 +2784,7 @@ petit_snakey_spawn_proj:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_y
         sty     temp_00                 ; save projectile slot index
         lda     ent_facing,x            ; copy parent facing to proj
         sta     ent_facing,y
-        and     #$02                    ; facing as table index (0 or 2)
+        and     #FACING_LEFT            ; facing as table index (0 or 2)
         tay
         lda     ent_x_px,x              ; parent X pixel
         clc
@@ -2903,7 +2903,7 @@ yambow_advance_state:  lda     #$14     ; timer = 20 frames
 
         ; --- state 2: swoop toward player ---
 yambow_swoop:  lda     ent_facing,x     ; check facing direction
-        and     #$02                    ; bit 1 = facing left
+        and     #FACING_LEFT            ; bit 1 = facing left
         beq     yambow_swoop_right_check ; facing right
         jsr     entity_x_dist_to_player ; entity_x_dist_to_player
         bcc     yambow_swoop_left       ; player is to the right
@@ -2930,7 +2930,7 @@ yambow_to_state4:  jmp     yambow_advance_state ; advance to state 4
 
         ; --- state 4: fly forward in facing direction ---
 yambow_fly_forward:  lda     ent_facing,x
-        and     #$02                    ; check facing direction
+        and     #FACING_LEFT            ; check facing direction
         beq     yambow_fly_right        ; facing right -> fly right
         jmp     move_sprite_left        ; move_sprite_left
 
@@ -2998,7 +2998,7 @@ met_apply_gravity:  ldy     #$00        ; apply $99; C=1 if on ground
         beq     met_close_helmet        ; zero → done walking
         dec     ent_var1,x              ; decrement walk counter
         lda     ent_facing,x            ; walk in facing direction
-        and     #$01                    ; bit 0 = facing right
+        and     #FACING_RIGHT           ; bit 0 = facing right
         beq     met_walk_left           ; facing left -> walk left
         ldy     #$00                    ; Y = 0 (no slope offset)
         jmp     move_right_collide
@@ -3195,7 +3195,7 @@ cannon_speed_found:  lda     cannon_xvel_sub,x ; set shell X speed from bracket
         lda     cannon_xvel,x           ; X speed whole
         sta     ent_xvel,y
         pla                             ; offset shell X based on facing
-        and     #$02                    ; (facing left: bit 1 set → index 2)
+        and     #FACING_LEFT            ; (facing left: bit 1 set → index 2)
         tax
         lda     ent_x_px,y              ; shell X += offset
         clc                             ; right: +$0C, left: -$0C
@@ -3224,7 +3224,7 @@ cannon_shell_x_scr:  brk
         jsr     move_vertical_gravity   ; move_vertical_gravity
         bcs     cannon_shell_explode    ; landed → explode
         lda     ent_facing,x            ; walk horizontally with collision
-        and     #$02
+        and     #FACING_LEFT
         beq     cannon_shell_move_right
         ldy     #$07                    ; move speed = 7
         jsr     move_left_collide       ; move_left_collide
@@ -3297,7 +3297,7 @@ metall_dx_state0_rts:  rts
 
 metall_dx_fly_past:  jsr     entity_x_dist_to_player ; get X distance (sets carry)
         lda     ent_facing,x            ; check if passed player
-        and     #$02                    ; facing left + player behind → fire
+        and     #FACING_LEFT            ; facing left + player behind → fire
         beq     metall_dx_check_fire    ; facing right → check fire
         bcs     metall_dx_fire_3        ; C=1: player left of us → fire
         jmp     yambow_fly_forward      ; keep flying
@@ -3375,7 +3375,7 @@ metall_dx_proj_facing:  .byte   $02,$01,$01
 ; ---------------------------------------------------------------------------
 main_mag_fly:
         lda     ent_facing,x            ; direction flag
-        and     #$01
+        and     #FACING_RIGHT
         beq     mag_fly_move_left       ; bit 0 clear → move left
         jsr     move_sprite_right       ; move_sprite_right
         jmp     mag_fly_check_distance  ; then check player distance
@@ -3477,7 +3477,7 @@ junk_golem_face_player:  lda     ent_facing,x ; save old direction
         cmp     ent_facing,x
         beq     junk_golem_toggle_flip  ; no change, skip flip
         lda     ent_flags,x             ; direction changed: toggle sprite
-        eor     #$40                    ; horizontal flip (bit 6)
+        eor     #ENT_FLAG_HFLIP         ; horizontal flip (bit 6)
         sta     ent_flags,x
 junk_golem_toggle_flip:  lda     ent_var1,x ; throw cooldown timer
         bne     junk_golem_check_throw_anim ; non-zero: skip spawning
@@ -3633,7 +3633,7 @@ pickelman_bull_rts:  rts
 pickelman_bull_driving_gravity:  ldy     #$2A
         jsr     move_down_collide       ; move_down_collide (gravity)
         lda     ent_facing,x            ; check entity facing
-        and     #$01                    ; facing right?
+        and     #FACING_RIGHT           ; facing right?
         beq     pickelman_bull_check_left_wall ; no -> check left
         lda     $42                     ; tile at feet (low check point)
         and     #$10                    ; solid?
@@ -3718,7 +3718,7 @@ main_bikky:
         sta     ent_anim_frame,x        ; reset anim frame while airborne
         .byte   $BD                     ; encoded: lda ent_facing,x
 bikky_facing_decode:  ldy     #$04      ; (encoded lda ent_facing,x)
-        and     #$01                    ; isolate facing direction
+        and     #FACING_RIGHT           ; isolate facing direction
         beq     bikky_move_left         ; facing left
         ldy     #$0E                    ; Y = speed parameter
         jmp     move_right_collide      ; move_right_collide
@@ -3767,7 +3767,7 @@ main_magnet_force:
         cmp     #$68                    ; within 104 px horizontally?
         bcs     magnet_force_done       ; no -> rts
         lda     ent_flags,x             ; load entity flags
-        and     #$40                    ; entity facing (bit 6)
+        and     #ENT_FLAG_HFLIP         ; entity facing (bit 6)
         bne     magnet_force_player_check ; facing left -> branch
         lda     temp_00                 ; facing right: player to right?
         bmi     magnet_force_done       ; no -> no force
@@ -3867,7 +3867,7 @@ shotman_spawn_bullet_pair:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_
         sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy parent facing to child
         sta     ent_facing,y
-        and     #$02                    ; facing -> offset index (0 or 2)
+        and     #FACING_LEFT            ; facing -> offset index (0 or 2)
         tay
         lda     ent_x_px,x              ; parent X pixel
         clc
@@ -3954,7 +3954,7 @@ shotman_xvel_table:  .byte   $02,$01,$01,$00
         jsr     move_vertical_gravity   ; move_vertical_gravity
         bcs     shotman_proj_collision  ; floor/wall hit -> destroy
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     shotman_proj_move_left  ; 0 = left
         ldy     #$1E                    ; speed index $1E
         jsr     move_right_collide      ; move_right_collide
@@ -3978,7 +3978,7 @@ shotman_proj_death_upper:  lda     #$71 ; anim $71 (explosion)
 shotman_proj_death_anim:  jmp     reset_sprite_anim ; set death animation
 
         lda     ent_facing,x            ; check facing direction
-        and     #$01
+        and     #FACING_RIGHT
         beq     shotman_debris_move_left ; 0 = facing left
         ldy     #$0C                    ; speed index $0C
         jsr     move_right_collide      ; move_right_collide
@@ -4004,7 +4004,7 @@ shotman_debris_spawn_loop:
         bcs     shotman_debris_rts      ; no slot -> done
         sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; get parent facing
-        and     #$02                    ; facing -> offset index
+        and     #FACING_LEFT            ; facing -> offset index
         tay
         lda     ent_x_px,x              ; parent X pixel
         clc
@@ -4123,7 +4123,7 @@ proto_man_walk_phase:  ldy     #$00
         jsr     move_vertical_gravity   ; move_vertical_gravity
         rol     $0F                     ; save carry (landed) into $0F bit 0
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; isolate direction bit
+        and     #FACING_RIGHT           ; isolate direction bit
         beq     proto_man_walk_right    ; 0 = walk right (facing left)
         ldy     #$00                    ; Y = speed parameter
         jsr     move_right_collide      ; move_right_collide
@@ -4135,7 +4135,7 @@ proto_man_walk_collision:  lda     $0F
         and     #$01                    ; check if landed on floor
         beq     proto_man_walk_done     ; airborne → skip wall checks
         lda     ent_facing,x            ; check facing for edge test
-        and     #$01                    ; isolate direction bit
+        and     #FACING_RIGHT           ; isolate direction bit
         beq     proto_man_walk_left_edge ; 0 = check left edge
         lda     ent_x_px,x              ; check X position
         cmp     #$D6                    ; near right edge?
@@ -4178,7 +4178,7 @@ proto_man_walk_done:  rts
 proto_man_attack_phase:  lda     ent_var2,x ; attack cooldown
         bne     proto_man_attack_cooldown ; still cooling down → decrement
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; isolate direction bit
+        and     #FACING_RIGHT           ; isolate direction bit
         beq     proto_man_attack_left   ; 0 = attack left
         ldy     #$00                    ; Y = speed parameter
         jsr     move_right_collide      ; move_right_collide
@@ -4187,7 +4187,7 @@ proto_man_attack_phase:  lda     ent_var2,x ; attack cooldown
 proto_man_attack_left:  ldy     #$01
         jsr     move_left_collide       ; move_left_collide
 proto_man_attack_edges:  lda     ent_facing,x ; edge/wall checks same as walking
-        and     #$01                    ; isolate direction bit
+        and     #FACING_RIGHT           ; isolate direction bit
         beq     proto_man_attack_x_check ; 0 = check left edge
         lda     ent_x_px,x              ; check X position
         cmp     #$D6                    ; near right edge?
@@ -4398,7 +4398,7 @@ proto_man_cutscene_spawn_projectile:  jsr     find_enemy_freeslot_y ; find_enemy
         sty     temp_00                 ; save child slot
         lda     ent_facing,x            ; copy parent facing to child
         sta     ent_facing,y            ; set child facing
-        and     #$02                    ; direction offset for X spawn table
+        and     #FACING_LEFT            ; direction offset for X spawn table
         tay
         lda     ent_x_px,x              ; child X = parent X + offset
         clc
@@ -4526,7 +4526,7 @@ hari_harry_walking:  lda     ent_anim_id,x ; check if using helmet sprite (OAM $
         lda     #$AA                    ; on floor: set damage flags (hurts player, takes damage)
         sta     ent_hitbox,x            ; set vulnerable hitbox
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = direction
+        and     #FACING_RIGHT           ; bit 0 = direction
         beq     hari_harry_walk_left    ; branch if facing left
         ldy     #$1C                    ; move right with collision
         jsr     move_right_collide      ; move_right_collide
@@ -4648,7 +4648,7 @@ main_nitron:
         and     #$0F                    ; extract sub-state
         bne     nitron_state_dispatch   ; nonzero -> already moving
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     nitron_approach_left    ; 0 = left
         jsr     move_sprite_right       ; move right toward player
         jmp     nitron_check_distance   ; check if close enough
@@ -4714,7 +4714,7 @@ nitron_apply_movement:  dec     ent_timer,x ; decrement frame delay
         adc     ent_yvel,x
         sta     ent_y_px,x              ; store updated Y pixel
         lda     ent_facing,x            ; check facing direction
-        and     #$02                    ; bit 1 = left/right
+        and     #FACING_LEFT            ; bit 1 = left/right
         bne     nitron_move_left        ; bit 1 set = facing left
         jsr     move_sprite_right       ; move_sprite_right
         bcs     nitron_after_move       ; (unconditional: always branch
@@ -4767,7 +4767,7 @@ nitron_spawn_bomb:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     nitron_spawn_rts        ; no slot: abort
         sty     temp_00                 ; save child slot
         lda     ent_facing,x            ; facing -> offset (0 or 2)
-        and     #$02                    ; isolate left/right bit
+        and     #FACING_LEFT            ; isolate left/right bit
         tay                             ; Y = table offset
         lda     ent_x_px,x              ; parent X pixel
         clc
@@ -4867,7 +4867,7 @@ gyoraibo_state_dispatch:  lda     ent_status,x ; check state
         and     #$02                    ; bit 1 = fire phase
         bne     gyoraibo_fire_phase     ; -> firing logic
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     gyoraibo_move_left      ; 0 = left
         ldy     #$14                    ; speed index $14
         jsr     move_right_collide      ; move_right_collide
@@ -4910,7 +4910,7 @@ gyoraibo_fire_phase:  lda     ent_anim_id,x ; check current OAM
         sty     temp_00                 ; save child slot
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y
-        and     #$02
+        and     #FACING_LEFT
         tay
         lda     ent_x_px,x              ; parent X pixel
         clc
@@ -4985,7 +4985,7 @@ gyoraibo_increment_timer:  inc     ent_timer,x ; set timer (stop spawning)
         sty     temp_00
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y            ; to child entity
-        and     #$02                    ; extract direction bit
+        and     #FACING_LEFT            ; extract direction bit
         tay                             ; Y = table offset (0 or 2)
         lda     ent_x_px,x              ; parent X pixel
         clc
@@ -5138,7 +5138,7 @@ penpen_maker_spawn_penpen:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_
         sty     temp_00                 ; save child slot
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y            ; set child facing
-        and     #$02                    ; extract facing index (0 or 2)
+        and     #FACING_LEFT            ; extract facing index (0 or 2)
         tay                             ; Y = facing-based table index
         lda     ent_x_px,x              ; parent X pixel
         clc                             ; clear carry for add
@@ -5171,7 +5171,7 @@ penpen_maker_spawn_done:  rts           ; return from penpen spawn
 penpen_maker_penpen_x_adj:  .byte   $F8
 penpen_maker_penpen_x_scr:  .byte   $FF,$F8,$FF
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     penpen_maker_check_facing ; 0 = left
         lda     #$08                    ; speed index $08
         jsr     move_right_collide      ; move_right_collide
@@ -5293,7 +5293,7 @@ bomber_pepe_move_phase:  lda     ent_status,x ; check state
         and     #$02                    ; bit 1 = bouncing
         bne     bomber_pepe_bounce      ; -> bounce logic
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     bomber_pepe_move_left   ; 0 = left
         ldy     #$0A                    ; speed index $0A
         jsr     move_right_collide      ; move_right_collide
@@ -5336,7 +5336,7 @@ bomber_pepe_spawn_bomb:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_y
         sty     temp_00                 ; save child slot
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y
-        and     #$02
+        and     #FACING_LEFT
         tay
         lda     ent_x_px,x              ; parent X pixel
         clc
@@ -5373,7 +5373,7 @@ bomber_pepe_bomb_fall_init:  lda     ent_status,x ; check state
         and     #$02                    ; bit 1 = fuse expired
         bne     bomber_pepe_bounce_countdown ; -> countdown to explode
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     bomber_pepe_bomb_move_left ; 0 = left
         jsr     move_sprite_right       ; move_sprite_right
         jmp     bomber_pepe_bomb_gravity
@@ -5500,7 +5500,7 @@ nutton_homing_entry:  lda     ent_x_px  ; player X pixel
         bcc     nutton_move_left        ; player is left -> move left
         jsr     move_sprite_right       ; move_sprite_right
         lda     ent_flags,x             ; set H-flip flag (facing right)
-        ora     #$40                    ; set bit 6
+        ora     #ENT_FLAG_HFLIP         ; set bit 6
         sta     ent_flags,x             ; store facing right flag
         jmp     nutton_move_y           ; proceed to Y tracking
 
@@ -5643,7 +5643,7 @@ main_have_su_bee:
         eor     #$04
         sta     ent_flags,x             ; store updated flags
         lda     ent_facing,x            ; get facing direction
-        and     #$02                    ; facing -> offset (0 or 2)
+        and     #FACING_LEFT            ; facing -> offset (0 or 2)
         tay                             ; Y = table offset
         lda     ent_x_px,x              ; current X pixel
         clc
@@ -5662,7 +5662,7 @@ have_su_bee_active:  lda     ent_status,x ; check state
         bne     have_su_bee_hover       ; -> hover logic
         jsr     set_sprite_hflip        ; set_sprite_hflip
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     have_su_bee_move_left   ; 0 = left
         jsr     move_sprite_right       ; move_sprite_right
         jmp     have_su_bee_dist_check  ; check distance to player
@@ -5680,7 +5680,7 @@ have_su_bee_dist_check:  lda     ent_var1,x ; check range flag
         lda     #$00                    ; Y speed whole = 0
         sta     ent_yvel,x
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     have_su_bee_flip_left   ; facing left -> flip left
         lda     ent_flags,x             ; clear H-flip (bit 6)
         and     #$BF
@@ -5688,7 +5688,7 @@ have_su_bee_dist_check:  lda     ent_var1,x ; check range flag
         rts
 
 have_su_bee_flip_left:  lda     ent_flags,x ; set H-flip (bit 6)
-        ora     #$40
+        ora     #ENT_FLAG_HFLIP
         sta     ent_flags,x
 have_su_bee_move_rts:  rts
 
@@ -5725,7 +5725,7 @@ have_su_bee_spawn_bee:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_y
         sty     $01                     ; save child slot
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y
-        and     #$02                    ; isolate left/right bit
+        and     #FACING_LEFT            ; isolate left/right bit
         tay                             ; Y = table offset
         lda     ent_x_px,x              ; parent X pixel
         clc
@@ -5907,7 +5907,7 @@ monking_grounded:  lda     ent_var2,x   ; check retreat flag
         rts
 
 monking_walk_dir:  lda     ent_facing,x ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     monking_move_left       ; 0 = left
         ldy     #$16                    ; speed index $16
         jsr     move_right_collide      ; move_right_collide
@@ -6153,7 +6153,7 @@ komasaburo_child_fall:  ldy     #$08    ; gravity speed index $08
         jsr     move_vertical_gravity   ; move_vertical_gravity
         bcc     komasaburo_child_timer
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     komasaburo_child_left   ; 0 = move left
         ldy     #$08                    ; speed index $08
         jsr     move_right_collide      ; move_right_collide
@@ -6194,7 +6194,7 @@ main_mechakkero:
         and     #$0F                    ; extract sub-state
         bne     mechakkero_in_air_state ; nonzero -> grounded state
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     mechakkero_move_left    ; 0 = left
         ldy     #$18                    ; speed index $18
         jsr     move_right_collide      ; move_right_collide
@@ -6270,7 +6270,7 @@ main_top_man_platform:
         inc     ent_var1,x              ; set moving-down flag
 top_man_platform_set_timer:  lda     #$10 ; conveyor timer = 16 frames
         sta     ent_timer,x
-        lda     #$01                    ; face right initially
+        lda     #FACING_RIGHT           ; face right initially
         sta     ent_facing,x
         rts
 
@@ -6281,7 +6281,7 @@ top_man_platform_check_proximity:  jsr     entity_x_dist_to_player ; entity_x_di
         cmp     #$15                    ; within 21 px Y?
         bcs     top_man_platform_movement_check ; no -> skip conveyor push
         lda     ent_facing,x            ; check facing direction
-        and     #$02                    ; bit 1 = direction
+        and     #FACING_LEFT            ; bit 1 = direction
         bne     top_man_platform_facing_right ; bit 1 set -> push right
         lda     #$01                    ; push left direction
         bne     top_man_platform_move   ; (always taken)
@@ -6449,7 +6449,7 @@ elecn_oscillation:  lda     ent_var1,x  ; get spark phase
         adc     elecn_y_move_whole,y    ; add Y movement whole
         sta     ent_y_px,x
         lda     ent_facing,x            ; check facing direction
-        and     #$02                    ; bit 1 = left
+        and     #FACING_LEFT            ; bit 1 = left
         beq     elecn_dist_right        ; right -> check dist right
         lda     ent_var2,x              ; check fire flag
         bne     elecn_move_left         ; already fired -> move left
@@ -6521,7 +6521,7 @@ main_peterchy:
         ldy     #$08
         jsr     move_vertical_gravity   ; move_vertical_gravity
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     peterchy_move_right     ; 0 = left
         ldy     #$1A                    ; speed index $1A
         jsr     move_right_collide      ; move_right_collide
@@ -6582,7 +6582,7 @@ main_walking_bomb:
 ; --- survived weapon hit: walk horizontally ---
 
 walking_bomb_check_facing:  lda     ent_facing,x ; check facing direction
-        and     #$01
+        and     #FACING_RIGHT
         beq     walking_bomb_move_left  ; bit 0 clear → move left
         ldy     #$1C                    ; move right with wall collision
         jsr     move_right_collide      ; move_right_collide
@@ -6675,7 +6675,7 @@ hologran_visibility_timer:  lda     ent_timer,x ; if visibility timer active,
 
 ; --- state 0: invisible, drifting horizontally ---
         lda     ent_facing,x            ; move in facing direction
-        and     #$01
+        and     #FACING_RIGHT
         beq     hologran_move_left      ; bit 0 clear → move left
         jsr     move_sprite_right       ; move_sprite_right
         jmp     hologran_check_range
@@ -6832,7 +6832,7 @@ parasyu_apply_speed:  dec     ent_timer,x ; decrement speed hold timer
         adc     ent_yvel,x
         sta     ent_y_px,x              ; store updated Y pixel
         lda     ent_facing,x            ; check facing direction
-        and     #$02                    ; bit 1: 0=right, 1=left
+        and     #FACING_LEFT            ; bit 1: 0=right, 1=left
         bne     parasyu_move_left
         jsr     move_sprite_right       ; move_sprite_right
         bcs     parasyu_horizontal_done ; unconditional branch pair
@@ -6865,7 +6865,7 @@ parasyu_initial_delay_table:  .byte   $22,$2A,$26,$2E
 ; ===========================================================================
 ; Same routine handles all 8 Doc Robot intros. State 0: calls init_boss_wait,
 ; spawns a shutter entity, sets up CHR banks and palette for the specific
-; Doc Robot master. State 1: waits for boss HP bar to fill ($B0 >= $9C),
+; Doc Robot master. State 1: waits for boss HP bar to fill ($B0 >= HEALTH_FULL),
 ; then morphs this entity into the actual Doc Robot AI (via
 ; doc_robot_master_main_indices table).
 main_doc_robot_intro:
@@ -6875,7 +6875,7 @@ main_doc_robot_intro:
         and     #$0F                    ; extract sub-state
         beq     doc_robot_intro_shutter_init ; state 0 -> init shutter
         lda     boss_hp_display         ; HP bar fill value
-        cmp     #$9C                    ; fully filled?
+        cmp     #HEALTH_FULL            ; fully filled?
         bne     doc_robot_intro_morph_done ; not yet → wait
         lda     ent_status,x            ; set bit 6 (morphing flag)
         ora     #$40                    ; bit 6 = morph in progress
@@ -7019,7 +7019,7 @@ doc_robot_intro_xvel:  .byte   $01,$00,$00,$01,$01,$00,$02,$04
 ; ===========================================================================
 ; Shared intro for all 8 Robot Masters. State 0: calls init_boss_wait,
 ; advances state. Then falls with gravity until Y >= $80. Once landed and
-; boss HP bar filled ($B0 >= $9C), morphs entity into the actual Robot Master
+; boss HP bar filled ($B0 >= HEALTH_FULL), morphs entity into the actual Robot Master
 ; AI (via robot_master_main_indices table), sets HP to $1C (28), and loads
 ; the master-specific initial animation frame.
 main_robot_master_intro:
@@ -7051,7 +7051,7 @@ robot_master_intro_gravity:  lda     ent_routine,x ; look up floor tile for this
         lda     #$00                    ; reset animation frame
         sta     ent_anim_frame,x
         lda     boss_hp_display         ; check boss HP bar fill progress
-        cmp     #$9C                    ; HP bar fully filled?
+        cmp     #HEALTH_FULL            ; HP bar fully filled?
         bne     robot_master_intro_rts  ; not full yet -> wait
 ; --- morph into actual Robot Master AI ---
         lda     #$C0                    ; active + invincible
@@ -7382,7 +7382,7 @@ big_snakey_post_collision:  lda     #$00 ; clear anim frame
         rts
 
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = horizontal dir
+        and     #FACING_RIGHT           ; bit 0 = horizontal dir
         beq     big_snakey_move_left    ; bit 0 clear -> move left
         jsr     move_sprite_right       ; move_sprite_right
         jmp     big_snakey_vert_check
@@ -7659,7 +7659,7 @@ tama_b_proj_xspeed:  .byte   $01,$01,$01
         lda     #$03                    ; bounce Y velocity whole = 3
         sta     ent_yvel,x
 tama_b_gravity_applied:  lda     ent_facing,x ; check facing direction
-        and     #$01                    ; bit 0 = horizontal dir
+        and     #FACING_RIGHT           ; bit 0 = horizontal dir
         beq     tama_b_move_left        ; bit 0 clear -> move left
         ldy     #$08                    ; collision offset = 8
         jsr     move_right_collide      ; move_right_collide
@@ -7678,7 +7678,7 @@ tama_b_projectile_done:  rts
         dec     ent_timer,x             ; decrement flight timer
         jsr     apply_y_speed           ; apply_y_speed
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = horizontal dir
+        and     #FACING_RIGHT           ; bit 0 = horizontal dir
         beq     tama_b_projectile_move_left ; bit 0 clear -> move left
         jmp     move_sprite_right       ; move_sprite_right
 
@@ -7705,7 +7705,7 @@ tama_b_projectile_fall_phase:  ldy     #$12 ; gravity offset = $12
         sta     ent_xvel,x
         jsr     face_player             ; face_player
 tama_b_fall_loop:  lda     ent_facing,x ; check facing direction
-        and     #$01                    ; bit 0 = horizontal dir
+        and     #FACING_RIGHT           ; bit 0 = horizontal dir
         beq     tama_b_move_left_collision ; bit 0 clear -> move left
 tama_b_move_right_collision_jmp:  ldy     #$1E ; collision offset = $1E
         jsr     move_right_collide      ; move_right_collide
@@ -7801,7 +7801,7 @@ item_pickup_apply_energy:  inc     $58  ; flag: energy refill active
         sty     $0E                     ; target weapon/HP slot
 item_pickup_energy_loop:  ldy     $0E   ; check current energy level
         lda     player_hp,y             ; (player_hp+Y: player_hp=HP, $A3+=weapon ammo)
-        cmp     #$9C                    ; $9C = max energy (28 units)
+        cmp     #HEALTH_FULL            ; max energy (28 units)
         beq     item_pickup_clear_refill ; already full → done
         lda     player_hp,y             ; add 1 tick of energy
         clc

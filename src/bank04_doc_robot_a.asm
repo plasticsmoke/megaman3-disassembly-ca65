@@ -95,7 +95,7 @@ flash_phase_dispatch:  lda     ent_status,x        ; --- phase dispatch ---
         jsr     move_vertical_gravity   ; apply gravity to Doc Flash
         rol     $0F                     ; save carry (ground flag)
         lda     ent_facing,x            ; check current facing
-        and     #$01                    ; test right-facing bit
+        and     #FACING_RIGHT           ; test right-facing bit
         beq     flash_walk_left               ; branch if facing left
         ldy     #$20                    ; walk speed right
         jsr     move_right_collide      ; walk right with collision
@@ -174,7 +174,7 @@ flash_spawn_projectile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y            ; to child entity
-        and     #$01                    ; extract right bit as index
+        and     #FACING_RIGHT           ; extract right bit as index
         tay                             ; use as X-offset table index
         lda     ent_x_px,x              ; parent X position
         clc                             ; prepare offset addition
@@ -247,7 +247,7 @@ flash_homing_move:  lda     ent_var2,x          ; --- movement phase ---
 
 flash_homing_move_down:  jsr     move_sprite_down    ; move projectile down
 flash_homing_move_horiz:  lda     ent_facing,x        ; check horizontal direction
-        and     #$01                    ; test right-facing bit
+        and     #FACING_RIGHT           ; test right-facing bit
         beq     flash_homing_move_left               ; branch if facing left
         jmp     move_sprite_right       ; move projectile right
 
@@ -396,7 +396,7 @@ wood_state_done:  rts
         rts
 
 wood_fall_walk:  lda     ent_facing,x        ; check facing direction
-        and     #$01                    ; bit 0 set = facing right
+        and     #FACING_RIGHT           ; bit 0 set = facing right
         beq     wood_fall_walk_left               ; facing left, branch
         ldy     #$20                    ; walk speed parameter
         jsr     move_right_collide      ; move right with collision
@@ -503,7 +503,7 @@ wood_spawn_done:  rts
 ; --- spawn 4 falling crash blocks (called recursively) ---
 wood_spawn_crash_blocks:  jsr     find_enemy_freeslot_y ; find free enemy slot
         bcs     wood_spawn_done               ; no free slot, abort
-        lda     #$02                    ; face left
+        lda     #FACING_LEFT            ; face left
         sta     ent_facing,y
         lda     ent_x_scr,x             ; same screen as parent
         sta     ent_x_scr,y
@@ -566,7 +566,7 @@ wood_leaf_bounce_init:  lda     ent_status,x        ; check if initialized
         sta     ent_timer,x             ; bounce direction timer
         inc     ent_status,x            ; advance to active state
 wood_leaf_bounce_move:  lda     ent_facing,x        ; move horizontally
-        and     #$01                    ; facing right?
+        and     #FACING_RIGHT           ; facing right?
         beq     wood_leaf_bounce_left               ; no — move left
         jsr     move_sprite_right       ; move leaf right
         jmp     wood_leaf_bounce_down               ; skip left movement
@@ -608,7 +608,7 @@ crash_phase_dispatch:  lda     ent_status,x        ; --- phase dispatch ---
         and     #$02                    ; check bit 1 (airborne)
         bne     crash_airborne_move               ; airborne — jump to phase 2
         lda     ent_facing,x            ; --- phase 1: walking ---
-        and     #$01                    ; facing right?
+        and     #FACING_RIGHT           ; facing right?
         beq     crash_walk_left               ; no — move left
         ldy     #$20                    ; hitbox Y=$20
         jsr     move_right_collide      ; walk right with collision
@@ -653,7 +653,7 @@ crash_check_b_press:  lda     joy1_press          ; check B button mid-walk
         rts
 
 crash_airborne_move:  lda     ent_facing,x        ; --- phase 2: airborne ---
-        and     #$01                    ; facing right?
+        and     #FACING_RIGHT           ; facing right?
         beq     crash_airborne_left               ; no — move left
         ldy     #$20                    ; hitbox Y=$20
         jsr     move_right_collide      ; move right with collision
@@ -693,7 +693,7 @@ crash_airborne_anim:  lda     ent_anim_id,x       ; --- still airborne ---
         cmp     ent_facing,x            ; did facing change?
         beq     crash_spawn_bomb_at_apex               ; no — skip H-flip
         lda     ent_flags,x             ; toggle sprite H-flip
-        eor     #$40                    ; flip bit 6
+        eor     #ENT_FLAG_HFLIP         ; flip bit 6
         sta     ent_flags,x             ; store updated flags
 crash_spawn_bomb_at_apex:  jsr     crash_spawn_bomb           ; spawn crash bomb
         lda     ent_var2,x              ; restore movement direction
@@ -732,7 +732,7 @@ crash_face_player_sprite:  lda     ent_facing,x        ; save movement direction
         cmp     ent_facing,x            ; did facing change?
         beq     crash_restore_facing               ; no — skip H-flip
         lda     ent_flags,x             ; facing changed — flip sprite H
-        eor     #$40                    ; flip bit 6
+        eor     #ENT_FLAG_HFLIP         ; flip bit 6
         sta     ent_flags,x             ; store updated flags
 crash_restore_facing:  lda     ent_var2,x          ; restore original facing
         sta     ent_facing,x            ; keep original walk dir
@@ -751,7 +751,7 @@ crash_scan_bomb_loop:  cmp     ent_spawn_id,y      ; bomb already exists?
         sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y            ; to child entity
-        and     #$01                    ; isolate right/left bit
+        and     #FACING_RIGHT           ; isolate right/left bit
         tay                             ; use as X offset index
         lda     ent_x_px,x              ; parent X position
         clc                             ; add facing-based offset
@@ -795,7 +795,7 @@ crash_bomb_init:  lda     ent_status,x        ; --- init ---
         lda     ent_x_px,x              ; save original X position
         sta     ent_var1,x              ; store in var1
         lda     ent_facing,x            ; get facing direction
-        and     #$01                    ; isolate right/left bit
+        and     #FACING_RIGHT           ; isolate right/left bit
         tay                             ; use as offset index
         lda     ent_x_px,x              ; current X position
         clc                             ; offset for homing calc
@@ -821,7 +821,7 @@ crash_bomb_move_down:  ldy     #$12                ; hitbox Y=$12
         jsr     move_down_collide       ; move down with collision
 crash_bomb_check_wall_v:  bcs     crash_bomb_explode_start           ; hit wall — start explosion
         lda     ent_facing,x            ; check horizontal dir
-        and     #$01                    ; facing right?
+        and     #FACING_RIGHT           ; facing right?
         beq     crash_bomb_move_left               ; no — move left
         ldy     #$1E                    ; hitbox Y=$1E
         jsr     move_right_collide      ; move right with collision
@@ -833,7 +833,7 @@ crash_bomb_check_wall_v:  bcs     crash_bomb_explode_start           ; hit wall 
 crash_bomb_move_left:  ldy     #$1F                ; hitbox Y=$1F
         jsr     move_left_collide       ; move left with collision
         lda     ent_flags,x             ; set H-flip (face left)
-        ora     #$40                    ; set bit 6
+        ora     #ENT_FLAG_HFLIP         ; set bit 6
         sta     ent_flags,x             ; store updated flags
 crash_bomb_check_wall_h:  bcc     crash_bomb_done           ; no wall hit — continue
 crash_bomb_explode_start:  lda     #$0C                ; --- wall hit: explode ---
@@ -948,7 +948,7 @@ metal_bounce_update:  lda     ent_anim_frame,x    ; --- state 3: wall bounce ---
         lda     #$03                    ; jumping anim ID
         jsr     reset_sprite_anim       ; start jump animation
 metal_bounce_move_horiz:  lda     ent_facing,x        ; check facing direction
-        and     #$01                    ; bit 0: 1=right
+        and     #FACING_RIGHT           ; bit 0: 1=right
         beq     metal_bounce_move_left               ; facing left — branch
         jsr     move_sprite_right       ; move right (no collision)
         jmp     metal_bounce_gravity               ; skip left move
@@ -964,14 +964,14 @@ metal_bounce_gravity:  ldy     #$1E                ; gravity collision box
         lda     #$1D                    ; standing anim ID
         jsr     reset_sprite_anim       ; set standing animation
         lda     ent_facing,x            ; check facing for H-flip
-        and     #$01                    ; bit 0: 1=right
+        and     #FACING_RIGHT           ; bit 0: 1=right
         beq     metal_bounce_set_hflip               ; facing left — set H-flip
         lda     ent_flags,x             ; facing right — clear H-flip
         and     #$BF                    ; clear bit 6 (H-flip)
         sta     ent_flags,x             ; store cleared flags
         bne     metal_bounce_reverse_dir               ; always taken (nonzero)
 metal_bounce_set_hflip:  lda     ent_flags,x         ; facing left — set H-flip
-        ora     #$40                    ; set bit 6 (H-flip)
+        ora     #ENT_FLAG_HFLIP         ; set bit 6 (H-flip)
         sta     ent_flags,x             ; store flipped flags
 metal_bounce_reverse_dir:  lda     ent_facing,x        ; reverse facing direction
         eor     #$03                    ; toggle bits 0-1 (L<->R)
@@ -990,14 +990,14 @@ metal_bounce_midair_throw:  lda     ent_yvel,x          ; --- midair throw (boun
         lda     ent_facing,x            ; save current facing
         sta     $0F                     ; preserve in temp
         lda     ent_facing,x            ; check facing for H-flip
-        and     #$01                    ; bit 0: 1=right
+        and     #FACING_RIGHT           ; bit 0: 1=right
         beq     metal_bounce_set_hflip_left               ; facing left — set H-flip
         lda     ent_flags,x             ; facing right — clear H-flip
         and     #$BF                    ; clear bit 6 (H-flip)
         sta     ent_flags,x             ; store cleared flags
         bne     metal_bounce_face_and_throw               ; always taken (nonzero)
 metal_bounce_set_hflip_left:  lda     ent_flags,x         ; facing left — set H-flip
-        ora     #$40                    ; set bit 6 (H-flip)
+        ora     #ENT_FLAG_HFLIP         ; set bit 6 (H-flip)
         sta     ent_flags,x             ; store flipped flags
 metal_bounce_face_and_throw:  jsr     face_player         ; turn toward player to throw
         jsr     metal_spawn_blade               ; spawn Metal Blade projectile
@@ -1033,7 +1033,7 @@ metal_spawn_blade:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y            ; to child entity
-        and     #$01                    ; extract direction bit
+        and     #FACING_RIGHT           ; extract direction bit
         tay                             ; index for X offset table
         lda     ent_x_px,x              ; parent X position
         clc                             ; add facing-based offset

@@ -24,7 +24,7 @@ ent_xvel        = $0420  ; X velocity pixel (signed)
 ent_yvel_sub    = $0440  ; Y velocity sub-pixel
 ent_yvel        = $0460  ; Y velocity pixel (signed)
 ent_hitbox      = $0480  ; shape/hitbox (bit 7 = contact damage)
-ent_facing      = $04A0  ; facing direction (1=right, 2=left)
+ent_facing      = $04A0  ; facing direction (FACING_RIGHT, FACING_LEFT)
 ent_spawn_id    = $04C0  ; stage enemy ID (spawn tracking)
 ent_hp          = $04E0  ; health / hit points
 ent_timer       = $0500  ; AI timer / general counter
@@ -196,6 +196,22 @@ SFX_WEAPON_GET      = $31   ; Weapon acquired jingle
 SFX_EXPLOSION       = $32   ; Explosion burst
                             ; $33 = MUSIC_STAGE_START (defined above)
 SFX_TELEPORT        = $34   ; Teleport beam
+
+; =============================================================================
+; Entity Facing Direction (stored in ent_facing / $04A0,x)
+; =============================================================================
+FACING_RIGHT     = $01   ; facing right (bit 0 set)
+FACING_LEFT      = $02   ; facing left (bit 1 set)
+
+; =============================================================================
+; Entity Flags Bitmask (for ent_flags / $0580,x)
+; =============================================================================
+ENT_FLAG_HFLIP   = $40   ; bit 6 — horizontal flip (mirror sprite)
+
+; =============================================================================
+; Health / Energy Bar
+; =============================================================================
+HEALTH_FULL      = $9C   ; full HP / weapon energy (28 units × 4 sub-units)
 
 ; =============================================================================
 ; Sound Commands

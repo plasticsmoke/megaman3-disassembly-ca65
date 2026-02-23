@@ -183,7 +183,7 @@ heat_store_target_x:  lda     ent_x_px            ; store player X as dash targe
         sta     ent_var1,x              ; save as dash target X
         jsr     face_player             ; face player
 heat_move_toward_target:  lda     ent_facing,x        ; --- move toward target X ---
-        and     #$02                    ; test facing-left bit
+        and     #FACING_LEFT            ; test facing-left bit
         beq     heat_move_right               ; facing right -- branch
         jsr     move_sprite_left        ; move left
         lda     ent_x_px,x              ; get current X pixel
@@ -272,7 +272,7 @@ heat_fireball_main:  ldy     #$12                ; gravity strength index
         jsr     move_vertical_gravity   ; apply gravity
         bcs     heat_fireball_rts               ; off-screen — despawn
         lda     ent_facing,x            ; check facing direction
-        and     #$02                    ; test facing-left bit
+        and     #FACING_LEFT            ; test facing-left bit
         beq     heat_fireball_move_right               ; facing right -- branch
         ldy     #$1F                    ; left speed index
         jsr     move_left_collide       ; move left with collision
@@ -452,7 +452,7 @@ bubble_spawn_projectile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sta     ent_facing,y            ; copy facing to child
         ldx     $01                     ; restore phase index
         beq     bubble_spawn_done               ; phase 0: no X offset
-        and     #$02                    ; phase 1: offset X per facing
+        and     #FACING_LEFT            ; phase 1: offset X per facing
         tax                             ; use facing as table index
         lda     ent_x_px,y              ; get child X pixel
         clc                             ; prepare for add
@@ -494,7 +494,7 @@ bubble_proj_main:  lda     $95                 ; frame parity check
         lda     #$05                    ; bounce Y velocity = 5
         sta     ent_yvel,x              ; set upward bounce vel
 bubble_proj_move_horiz:  lda     ent_facing,x        ; move horizontally
-        and     #$02                    ; test facing-left bit
+        and     #FACING_LEFT            ; test facing-left bit
         beq     bubble_proj_move_right               ; facing right -- branch
         ldy     #$09                    ; left speed index
         jsr     move_left_collide       ; move left with collision
@@ -609,7 +609,7 @@ quick_in_air_drift:  lda     ent_timer,x         ; check if at boomerang spawn p
         bpl     quick_drift_horizontal               ; no — skip
         jsr     quick_spawn_boomerangs               ; spawn 3 boomerangs
 quick_drift_horizontal:  lda     ent_facing,x        ; drift horizontally
-        and     #$02                    ; check facing left bit
+        and     #FACING_LEFT            ; check facing left bit
         beq     quick_drift_right               ; facing right? branch
         ldy     #$21                    ; speed = $21
         jmp     move_left_collide       ; move left with collision
@@ -736,7 +736,7 @@ quick_boom_check_onscreen:  lda     ent_flags,x         ; still on-screen?
 quick_boom_rts:  rts
 
 quick_boom_move_horiz:  lda     ent_facing,x        ; move horizontally
-        and     #$02                    ; check horizontal dir bit
+        and     #FACING_LEFT            ; check horizontal dir bit
         beq     quick_boom_move_right               ; bit clear — move right
         jmp     move_sprite_left        ; move left
 
@@ -874,12 +874,12 @@ air_landing_flip_side:  dec     ent_status,x        ; back to phase 0
         lda     #$00
         sta     ent_var1,x              ; reset step counter
         lda     ent_flags,x             ; toggle H-flip flag
-        eor     #$40
+        eor     #ENT_FLAG_HFLIP
         sta     ent_flags,x
         lda     ent_facing,x            ; flip facing (left <-> right)
         eor     #$03
         sta     ent_facing,x
-        and     #$02                    ; test facing bit 1
+        and     #FACING_LEFT            ; test facing bit 1
         beq     air_snap_left_pos               ; facing right — use left pos
         lda     #$C8                    ; facing left: X = $C8 (right side)
         bne     air_set_landing_pos               ; always taken
@@ -996,7 +996,7 @@ tornado_vert_check_onscreen:  lda     ent_flags,x         ; still on-screen?
         rts
 
 tornado_vert_move_horiz:  lda     ent_facing,x        ; horizontal direction
-        and     #$02                    ; check bit 1 (left flag)
+        and     #FACING_LEFT            ; check bit 1 (left flag)
         beq     tornado_vert_move_right               ; bit 1 clear — move right
         jmp     move_sprite_left        ; move left
 
@@ -1020,7 +1020,7 @@ tornado_diag_main:  lda     ent_timer,x         ; initial delay timer
         rts                             ; still waiting
 
 tornado_diag_move_horiz:  lda     ent_facing,x        ; --- horizontal movement ---
-        and     #$01                    ; check bit 0 (right flag)
+        and     #FACING_RIGHT           ; check bit 0 (right flag)
         beq     tornado_diag_move_left               ; bit 0 clear — move left
         lda     ent_timer,x             ; facing bit 0 set: move right
         beq     tornado_diag_right_nocollide               ; timer 0 — no collision check
@@ -1029,7 +1029,7 @@ tornado_diag_move_horiz:  lda     ent_facing,x        ; --- horizontal movement 
         jmp     tornado_diag_wall_bounce
 
 tornado_diag_right_nocollide:  lda     ent_flags,x         ; no timer — move right (no collision)
-        ora     #$40                    ; set H-flip flag
+        ora     #ENT_FLAG_HFLIP         ; set H-flip flag
         sta     ent_flags,x
         jsr     move_sprite_right       ; move right (sprite only)
         jmp     tornado_diag_move_vert
@@ -1173,7 +1173,7 @@ unused_bounce_ceiling_hit:  lda     ent_facing,x        ; floor/ceiling hit whil
 unused_bounce_move_horiz:  lda     #$52
         sta     ent_anim_id,x           ; anim: horizontal
         lda     ent_facing,x
-        and     #$01
+        and     #FACING_RIGHT
         beq     unused_bounce_move_left
         ldy     #$1E
         jsr     move_right_collide      ; move right with collision

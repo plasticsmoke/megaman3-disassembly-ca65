@@ -113,7 +113,7 @@ hard_man_state_ptrs_high_table:  .byte   $A0,$A0,$A0,$A1,$A1 ; high bytes for ph
         cmp     ent_facing,x            ; did facing direction change?
         beq     hard_man_walk_check_timer               ; same direction → skip flip
         lda     ent_flags,x             ; load sprite flags
-        eor     #$40                    ; flip sprite horizontally
+        eor     #ENT_FLAG_HFLIP         ; flip sprite horizontally
         sta     ent_flags,x             ; store updated flags
 hard_man_walk_check_timer:  lda     ent_timer,x
         bne     hard_man_walk_check_second_shot               ; timer nonzero → already fired once
@@ -159,7 +159,7 @@ hard_man_walk_done:  rts
 hard_man_airborne_check_timer:  lda     ent_timer,x         ; timer == 0 → first descent
         bne     hard_man_headbutt_descent               ; timer != 0 → head-butt descent
         lda     ent_facing,x            ; get facing direction
-        and     #$01                    ; check bit 0 (right)
+        and     #FACING_RIGHT           ; check bit 0 (right)
         beq     hard_man_move_left               ; facing left → branch
         ldy     #$22                    ; collision mask index
         jsr     move_right_collide      ; move right with collision
@@ -335,7 +335,7 @@ hard_man_spawn_fist:  jsr     find_enemy_freeslot_y ; find free enemy slot → Y
         sty     temp_00                 ; save free slot index
         lda     ent_facing,x            ; copy facing direction
         sta     ent_facing,y            ; projectile inherits facing
-        and     #$02                    ; isolate left/right bit
+        and     #FACING_LEFT            ; isolate left/right bit
         tay                             ; use as table index (0 or 2)
         lda     ent_x_px,x              ; position projectile relative to Hard Man
         clc                             ; add carry into position
@@ -397,7 +397,7 @@ hard_man_fist_move_down:  jsr     move_sprite_down    ; move down
         bne     hard_man_fist_despawn               ; off-screen → despawn
 hard_man_fist_move_horiz:  jsr     set_sprite_hflip    ; update sprite flip
         lda     ent_facing,x            ; get facing direction
-        and     #$01                    ; check bit 0 (right)
+        and     #FACING_RIGHT           ; check bit 0 (right)
         beq     hard_man_fist_move_left               ; facing left → branch
         jsr     move_sprite_right       ; move right
         jmp     hard_man_fist_check_reached               ; skip to distance check
@@ -527,7 +527,7 @@ spark_man_jump_apply_gravity:  ldy     #$1E
         lda     spark_man_waypoint_xvel_whole_table,y ; look up X velocity whole pixel
         sta     ent_xvel,x              ; set X velocity whole
         lda     ent_facing,x            ; get facing direction
-        and     #$02                    ; check horizontal direction
+        and     #FACING_LEFT            ; check horizontal direction
         beq     spark_man_move_right               ; facing right → branch
         ldy     #$21                    ; left collision mask index
         jmp     move_left_collide       ; move left with collision
@@ -552,7 +552,7 @@ flip_direction:  lda     ent_facing,x        ; flip horizontal direction
         eor     #$03                    ; toggle right/left bits
         sta     ent_facing,x            ; store flipped facing
         lda     ent_flags,x             ; load sprite flags
-        eor     #$40                    ; flip sprite
+        eor     #ENT_FLAG_HFLIP         ; flip sprite
         sta     ent_flags,x             ; store flipped sprite
 flip_direction_done:  rts
 
@@ -655,7 +655,7 @@ spark_man_spawn_homing_ball:  stx     $0E                 ; save Spark Man slot
         ldy     $0F                     ; restore child slot
         lda     $0C                     ; apply homing facing/velocity
         sta     ent_facing,y            ; set child facing
-        and     #$02                    ; isolate left-facing bit
+        and     #FACING_LEFT            ; isolate left-facing bit
         tax                             ; use as table index
         lda     ent_x_px,y              ; offset X position based on facing
         clc
@@ -742,7 +742,7 @@ snake_man_walk_move:  jsr     move_horizontal_facing           ; move horizontal
 snake_man_check_waypoint:  lda     ent_timer,x         ; current waypoint index
         tay                             ; waypoint index to Y
         lda     ent_facing,x            ; get facing direction
-        and     #$02                    ; check facing direction
+        and     #FACING_LEFT            ; check facing direction
         beq     snake_man_check_waypoint_right               ; facing right → branch
         lda     snake_man_waypoint_xpos_table,y ; facing left: check if passed waypoint
         cmp     ent_x_px,x              ; compare with X position
@@ -861,7 +861,7 @@ snake_man_spawn_search_snake:  lda     #$02                ; set firing anim sta
         jsr     face_player             ; face player
         lda     ent_facing,x            ; get player-facing result
         sta     ent_facing,y            ; set child facing
-        and     #$02                    ; offset X based on facing
+        and     #FACING_LEFT            ; offset X based on facing
         tax                             ; facing as table index
         lda     ent_x_px,y              ; get child X pixel
         clc
@@ -974,7 +974,7 @@ gemini_man_apply_gravity:  ldy     #$00                ; gravity type = normal
 
 ; --- horizontal movement utility (shared with Snake Man) ---
 move_horizontal_facing:  lda     ent_facing,x        ; get facing direction
-        and     #$02                    ; isolate left-facing bit
+        and     #FACING_LEFT            ; isolate left-facing bit
         beq     move_horizontal_right               ; facing right → branch
         ldy     #$01                    ; collision check slot 1
         jmp     move_left_collide       ; move left with collision
@@ -1055,7 +1055,7 @@ gemini_man_shoot_check_end:  lda     ent_anim_frame,x    ; check anim frame
         lda     ent_anim_state,x        ; check anim state
         cmp     #$02                    ; shoot anim done?
         bne     gemini_man_run_rts
-        lda     #$01                    ; facing = right
+        lda     #FACING_RIGHT           ; facing = right
         sta     ent_facing,x            ; face right
         jsr     set_sprite_hflip        ; update sprite flip
         lda     #$35                    ; resume running anim
@@ -1189,7 +1189,7 @@ gemini_man_copy_pos_to_child:  lda     #$8B
         sta     ent_y_scr,y
         lda     ent_facing,x            ; offset X by facing direction
         sta     ent_facing,y            ; copy facing to child
-        and     #$02                    ; bit 1 = facing left?
+        and     #FACING_LEFT            ; bit 1 = facing left?
         tax                             ; use as table index (0/2)
         lda     ent_x_px,y              ; get child X position
         clc                             ; prepare add
