@@ -563,10 +563,11 @@ weapon_damage_ptr_hi_special:  .byte   $A6,$A7,$A1,$A8,$A1,$A9,$A1 ; TopSpin, Sn
 ; Indexed by entity type. Each byte is the low byte of the AI routine address.
 ; $00=ret_A $02=dada $03=potton $05=new_shotman $06=hammer_joe $07=peterchy
 ; $08=bubukan $0A=bomb_flier $0D=yambow $0E=met $12=cannon $14=cloud_platform
-; $15/$16=jamacy $17/$18=unknown_0C $1A=mag_fly $1E=gyoraibo $1F=junk_golem
-; $20=pickelman_bull $21=giant_springer $24=unknown_14 $25=magnet_force
+; $15/$16=jamacy $17/$18=giant_metall_met $1A=mag_fly $1E=gyoraibo $1F=junk_golem
+; $20=pickelman_bull $21=giant_springer $22=giant_metall $24=junk_block_thrown
+; $25=magnet_force $27=block_debris
 ; $28=gyoraibo $2A=hari_harry $2B=penpen_maker $2C=returning_monking
-; $2D=unknown_1B $2E=have_su_bee $2F=beehive $30=bolton_nutton $32=wanaan
+; $2D=block_breaker $2E=have_su_bee $2F=beehive $30=bolton_nutton $32=wanaan
 ; $33=needle_press $34=walking_bomb $35=elecn $37=mechakkero $38=top_man_plat
 ; $3B=chibee $3D=bomb_flier $3E=spark_falling_plat $3F=ret_B $42=pole
 ; $47=komasaburo $49=parasyu $4A/$4B=hologran $4C=bomber_pepe $4D=metall_dx
@@ -649,7 +650,7 @@ main_ret_B:
         rts
 
 ; ===========================================================================
-; main_unknown_1B — Breakable block projectile walker
+; main_block_breaker — Breakable block collision projectile
 ;\
 ; | Moves horizontally (left/right per ent_facing direction flags).
 ; | For weapon slots (X < $10): checks for breakable tiles ($70 type)
@@ -660,36 +661,36 @@ main_ret_B:
 ; | Used on Gemini Man stages for breakable block destruction.
 ; /
 ; ===========================================================================
-main_unknown_1B:
+main_block_breaker:
 
         lda     ent_facing,x            ; check direction flags
         and     #FACING_RIGHT           ; bit 0 = moving right
-        beq     unknown_1B_move_left
+        beq     block_breaker_move_left
         jsr     move_sprite_right       ; move right (unchecked)
-        jmp     unknown_1B_check_is_enemy
+        jmp     block_breaker_check_is_enemy
 
-unknown_1B_move_left:  jsr     move_sprite_left ; move left (unchecked)
-unknown_1B_check_is_enemy:  cpx     #$10 ; only weapon/player slots break blocks
-        bcs     unknown_1B_done         ; enemy slots ($10+) → return
+block_breaker_move_left:  jsr     move_sprite_left ; move left (unchecked)
+block_breaker_check_is_enemy:  cpx     #$10 ; only weapon/player slots break blocks
+        bcs     block_breaker_done         ; enemy slots ($10+) → return
         ldy     #$06                    ; check tile at foot height ahead
         jsr     check_tile_horiz
         lda     tile_at_feet_max        ; tile type = breakable block ($70)?
         cmp     #TILE_DISAPPEAR
-        bne     unknown_1B_done         ; no → return
+        bne     block_breaker_done         ; no → return
         lda     ent_x_px,x              ; entity X - camera X
         sec                             ; = screen-relative position
         sbc     camera_x_lo
         cmp     #$10                    ; < $10 → off left edge
-        bcc     unknown_1B_done
+        bcc     block_breaker_done
         cmp     #$F0                    ; >= $F0 → off right edge
-        bcs     unknown_1B_done         ; must be visible to break
+        bcs     block_breaker_done         ; must be visible to break
         jsr     queue_metatile_clear    ; erase 2x2 metatile from nametable
-        bcs     unknown_1B_done         ; carry set = buffer full, abort
+        bcs     block_breaker_done         ; carry set = buffer full, abort
         jsr     find_enemy_freeslot_y   ; find free slot for debris entity
-        bcc     unknown_1B_spawn_debris_init ; found → spawn debris
+        bcc     block_breaker_spawn_debris_init ; found → spawn debris
 
 ; --- no free slot or max debris: become explosion in place ---
-unknown_1B_explode_in_place:  lda     #$71 ; OAM $71 = small explosion sprite
+block_breaker_explode_in_place:  lda     #$71 ; OAM $71 = small explosion sprite
         jsr     reset_sprite_anim       ; reset_sprite_anim
         lda     #$00                    ; routine $00 = idle dispatch
         sta     ent_routine,x
@@ -703,29 +704,29 @@ unknown_1B_explode_in_place:  lda     #$71 ; OAM $71 = small explosion sprite
         and     #$F0
         ora     #$08
         sta     ent_y_px,x
-        jmp     unknown_1B_mark_block_destroyed ; mark block destroyed in bitfield
+        jmp     block_breaker_mark_block_destroyed ; mark block destroyed in bitfield
 
-unknown_1B_done:  rts
+block_breaker_done:  rts
 
 ; --- free slot found: count existing debris, then spawn child ---
 
-unknown_1B_spawn_debris_init:  sty     $01 ; save free slot index
+block_breaker_spawn_debris_init:  sty     $01 ; save free slot index
         lda     #$00                    ; debris counter = 0
         sta     temp_00
         ldy     #$1F                    ; scan enemy slots $10-$1F
-unknown_1B_count_debris_loop:  lda     ent_status,y ; skip inactive slots
-        bpl     unknown_1B_debris_loop_next
+block_breaker_count_debris_loop:  lda     ent_status,y ; skip inactive slots
+        bpl     block_breaker_debris_loop_next
         lda     ent_routine,y           ; is this a debris entity (routine $27)?
         cmp     #$27
-        bne     unknown_1B_debris_loop_next ; no → skip
+        bne     block_breaker_debris_loop_next ; no → skip
         inc     temp_00                 ; count++
-unknown_1B_debris_loop_next:  dey       ; loop $1F down to $10
+block_breaker_debris_loop_next:  dey       ; loop $1F down to $10
         cpy     #$0F
-        bne     unknown_1B_count_debris_loop
+        bne     block_breaker_count_debris_loop
         ldy     $01                     ; restore free slot
         lda     temp_00                 ; already 3 debris on screen?
         cmp     #$03
-        beq     unknown_1B_explode_in_place ; yes → just explode, no child
+        beq     block_breaker_explode_in_place ; yes → just explode, no child
         lda     #$71                    ; spawn child with OAM $71 (explosion)
         jsr     init_child_entity       ; init_child_entity
         lda     #$27                    ; child AI routine = $27
@@ -747,7 +748,7 @@ unknown_1B_debris_loop_next:  dey       ; loop $1F down to $10
         sta     ent_spawn_id,x          ; prevent respawn
 
 ; --- mark block destroyed in $0110 bitfield ---
-unknown_1B_mark_block_destroyed:  stx     temp_00 ; save entity slot
+block_breaker_mark_block_destroyed:  stx     temp_00 ; save entity slot
         lda     $13                     ; nametable page (bit 0) << 5
         and     #$01                    ; isolate bit 0 (nametable page)
         asl     a                       ; shift left 5 times total
@@ -789,7 +790,7 @@ unknown_1B_mark_block_destroyed:  stx     temp_00 ; save entity slot
 
         lda     ent_status,x            ; check state
         and     #$0F
-        bne     unknown_1B_state_1_gravity ; state 1+ → gravity fall
+        bne     block_breaker_state_1_gravity ; state 1+ → gravity fall
 
 ; --- state 0: initial upward toss ---
         jsr     apply_y_speed           ; apply initial Y velocity
@@ -797,16 +798,16 @@ unknown_1B_mark_block_destroyed:  stx     temp_00 ; save entity slot
         clc
         adc     #$10                    ; offset 16 pixels below
         cmp     ent_y_px                ; compare with player Y
-        bcc     unknown_1B_freeze_anim_timer ; still above player → freeze anim
+        bcc     block_breaker_freeze_anim_timer ; still above player → freeze anim
         inc     ent_status,x            ; → state 1 ($99 fall)
 
 ; --- state 1: fall with $99 ---
-unknown_1B_state_1_gravity:  ldy     #$00 ; hitbox index 0
+block_breaker_state_1_gravity:  ldy     #$00 ; hitbox index 0
         jsr     move_vertical_gravity   ; move_vertical_gravity
-        bcc     unknown_1B_freeze_anim_timer ; no landing → freeze anim
+        bcc     block_breaker_freeze_anim_timer ; no landing → freeze anim
         lda     ent_anim_state,x        ; landed: check anim frame
         cmp     #$04                    ; must be frame 4 (final bounce)
-        bne     unknown_1B_freeze_anim_return ; not ready → return
+        bne     block_breaker_freeze_anim_return ; not ready → return
         lda     #$81                    ; switch to routine $81
         sta     ent_routine,x           ; (item waiting on ground)
         lda     #$80                    ; active, state 0
@@ -817,20 +818,20 @@ unknown_1B_state_1_gravity:  ldy     #$00 ; hitbox index 0
         jsr     check_tile_horiz
         lda     $10                     ; solid wall? (bit 4)
         and     #$10                    ; check solid bit
-        beq     unknown_1B_check_weapon_type ; no wall → check weapon type
-unknown_1B_state_blocked_advance:  inc     ent_status,x ; advance state (wall blocked)
+        beq     block_breaker_check_weapon_type ; no wall → check weapon type
+block_breaker_state_blocked_advance:  inc     ent_status,x ; advance state (wall blocked)
         lda     #$00                    ; clear Y speed
         sta     ent_yvel_sub,x
         sta     ent_yvel,x
         rts
 
-unknown_1B_check_weapon_type:  lda     current_weapon ; current weapon = Rush Marine ($09)?
+block_breaker_check_weapon_type:  lda     current_weapon ; current weapon = Rush Marine ($09)?
         cmp     #WPN_RUSH_MARINE
-        bne     unknown_1B_fetch_weapon_oam ; no → set weapon OAM
+        bne     block_breaker_fetch_weapon_oam ; no → set weapon OAM
         lda     tile_at_feet_max        ; tile type = water ($80)?
         cmp     #$80
-        bne     unknown_1B_state_blocked_advance ; not water → wall-blocked path
-unknown_1B_fetch_weapon_oam:  lda     ent_flags,x ; set sprite flag bit 0
+        bne     block_breaker_state_blocked_advance ; not water → wall-blocked path
+block_breaker_fetch_weapon_oam:  lda     ent_flags,x ; set sprite flag bit 0
         ora     #$01                    ; (direction/visibility)
         sta     ent_flags,x
         lda     current_weapon          ; weapon_id - 6, >> 1 = table index
@@ -838,18 +839,18 @@ unknown_1B_fetch_weapon_oam:  lda     ent_flags,x ; set sprite flag bit 0
         sbc     #$06                    ; $07→0, $09→1, $0B→2
         lsr     a                       ; divide by 2 for table index
         tay
-        lda     unknown_1B_weapon_oam_table,y ; OAM from weapon_oam_table
+        lda     block_breaker_weapon_oam_table,y ; OAM from weapon_oam_table
         jsr     reset_sprite_anim       ; set sprite animation
         rts
 
-unknown_1B_freeze_anim_timer:  lda     #$00 ; freeze animation timer
+block_breaker_freeze_anim_timer:  lda     #$00 ; freeze animation timer
         sta     ent_anim_frame,x        ; (keep current frame)
-unknown_1B_freeze_anim_return:  .byte   $60
+block_breaker_freeze_anim_return:  .byte   $60
 
 ; weapon_oam_table: OAM IDs indexed by (weapon_id - 6) >> 1
 ; $D8=Search Snake, $D9=Spark Shock, $D7=Shadow Blade
 ; $81=Rush Coil, $82=Rush Marine, $83=Rush Jet
-unknown_1B_weapon_oam_table:  .byte   $D8,$D9,$D7
+block_breaker_weapon_oam_table:  .byte   $D8,$D9,$D7
         sta     ($82,x)
         .byte   $83
 
@@ -866,21 +867,21 @@ unknown_1B_weapon_oam_table:  .byte   $D8,$D9,$D7
 ; ===========================================================================
         lda     ent_status,x            ; check state
         and     #$0F
-        bne     unknown_1B_wait_anim_frame_2 ; state 1 → rising
+        bne     block_breaker_wait_anim_frame_2 ; state 1 → rising
 
 ; --- state 0: item sitting on ground, timer countdown ---
         dec     ent_timer,x             ; decrement wait timer
-        beq     unknown_1B_start_teleport_rise ; timer done → become beam
+        beq     block_breaker_start_teleport_rise ; timer done → become beam
         lda     ent_anim_id,x           ; if OAM = $D8 (Search Snake item)
         cmp     #$D8                    ; is it Search Snake item?
-        bne     unknown_1B_check_early_timer ; other → skip freeze
+        bne     block_breaker_check_early_timer ; other → skip freeze
         lda     #$00                    ; freeze anim timer
         sta     ent_anim_frame,x        ; hold on frame 0
         lda     ent_anim_state,x        ; check anim state
-        bne     unknown_1B_check_offscreen ; not at idle frame → return
-unknown_1B_check_early_timer:  lda     ent_timer,x ; timer >= $88?
+        bne     block_breaker_check_offscreen ; not at idle frame → return
+block_breaker_check_early_timer:  lda     ent_timer,x ; timer >= $88?
         cmp     #$88                    ; (still early in wait)
-        bcs     unknown_1B_check_offscreen ; → normal display, return
+        bcs     block_breaker_check_offscreen ; → normal display, return
         lda     ent_anim_frame,x        ; set bit 7 of anim timer
         ora     #$80                    ; (flicker/flash effect
         sta     ent_anim_frame,x        ; when about to expire)
@@ -888,7 +889,7 @@ unknown_1B_check_early_timer:  lda     ent_timer,x ; timer >= $88?
 
 ; --- timer expired: become teleport beam rising ---
 
-unknown_1B_start_teleport_rise:  inc     ent_status,x ; advance to state 1
+block_breaker_start_teleport_rise:  inc     ent_status,x ; advance to state 1
         lda     #$00                    ; clear Y speed
         sta     ent_yvel_sub,x
         sta     ent_yvel,x
@@ -902,9 +903,9 @@ unknown_1B_start_teleport_rise:  inc     ent_status,x ; advance to state 1
         sta     ent_anim_state,x        ; (beam animation start)
 
 ; --- state 1: accelerate upward and rise off screen ---
-unknown_1B_wait_anim_frame_2:  lda     ent_anim_state,x ; wait for anim frame 2
+block_breaker_wait_anim_frame_2:  lda     ent_anim_state,x ; wait for anim frame 2
         cmp     #$02                    ; (beam fully formed)
-        bne     unknown_1B_check_offscreen ; not yet → return
+        bne     block_breaker_check_offscreen ; not yet → return
         lda     #$00                    ; freeze anim at frame 2
         sta     ent_anim_frame,x        ; hold at frame 2
         lda     ent_yvel_sub,x          ; Y speed sub += gravity
@@ -916,10 +917,10 @@ unknown_1B_wait_anim_frame_2:  lda     ent_anim_state,x ; wait for anim frame 2
         sta     ent_yvel,x
         jsr     move_sprite_up          ; move up (unchecked)
         lda     ent_y_scr,x             ; if Y screen != 0
-        beq     unknown_1B_check_offscreen ; on-screen → return
+        beq     block_breaker_check_offscreen ; on-screen → return
         lda     #$00                    ; deactivate entity
         sta     ent_status,x
-unknown_1B_check_offscreen:  rts
+block_breaker_check_offscreen:  rts
 
 ; ===========================================================================
 ; Routine $82 — Horizontal player chaser
@@ -937,26 +938,26 @@ unknown_1B_check_offscreen:  rts
         lda     ent_x_scr               ; screen page subtraction
         sbc     ent_x_scr,x
         pla
-        bcs     unknown_1B_save_direction ; player is to the right
+        bcs     block_breaker_save_direction ; player is to the right
         eor     #$FF                    ; negate: absolute distance
         adc     #$01                    ; abs(distance) + 1
         clc                             ; carry clear = player left
-unknown_1B_save_direction:  php         ; save direction (carry)
+block_breaker_save_direction:  php         ; save direction (carry)
         cmp     #$03                    ; clamp speed to max 3 px/frame
-        bcc     unknown_1B_restore_dir_set_xvel
+        bcc     block_breaker_restore_dir_set_xvel
         lda     #$03                    ; cap at 3 px/frame
-unknown_1B_restore_dir_set_xvel:  plp   ; restore direction
+block_breaker_restore_dir_set_xvel:  plp   ; restore direction
         sta     ent_xvel,x              ; set X speed = clamped distance
         lda     #$00                    ; sub-pixel = 0
         sta     ent_xvel_sub,x          ; clear X speed sub-pixel
-        bcc     unknown_1B_move_left_chase ; player left → move left
+        bcc     block_breaker_move_left_chase ; player left → move left
         ldy     #$08                    ; move right with collision
         jsr     move_right_collide      ; move_right_collide
-        jmp     unknown_1B_copy_player_facing
+        jmp     block_breaker_copy_player_facing
 
-unknown_1B_move_left_chase:  ldy     #$09 ; move left with collision
+block_breaker_move_left_chase:  ldy     #$09 ; move left with collision
         jsr     move_left_collide       ; move_left_collide
-unknown_1B_copy_player_facing:  lda     ent_flags ; copy player facing (bit 6)
+block_breaker_copy_player_facing:  lda     ent_flags ; copy player facing (bit 6)
         and     #ENT_FLAG_HFLIP         ; isolate H-flip bit
         sta     temp_00
         lda     $0581                   ; slot 1 ent_flags
@@ -2087,19 +2088,19 @@ cloud_platform_respawn:  jsr     find_enemy_freeslot_y ; find free enemy slot ->
 cloud_platform_done:  rts
 
 ; -----------------------------------------------
-; main_unknown_14 -- Entity spawner
+; main_giant_metall — Giant Metall (Doc Robot Needle Man stage mini-boss)
 ; -----------------------------------------------
-; Periodically spawns a child entity every $F0 (240) frames.
-; The child uses OAM $4E, AI routine $18, and has X speed $01.80.
-; The spawner faces the player after each spawn cycle.
-; Child HP = 1, damage flags = $C0 (bit 7 = hurts player, bit 6 set).
+; Stationary enemy that periodically deploys small Mets every 240 frames.
+; Each Met child uses OAM $4E, AI routine $18 (giant_metall_met),
+; X speed $01.80, HP 1, damage flags $C0.
+; Faces the player after each spawn cycle.
 ; -----------------------------------------------
-main_unknown_14:
+main_giant_metall:
 
         lda     ent_timer,x             ; check spawn cooldown timer
-        bne     unknown_14_dec_cooldown ; timer active -> decrement and wait
+        bne     giant_metall_dec_cooldown ; timer active -> decrement and wait
         jsr     find_enemy_freeslot_y   ; find free enemy slot -> Y
-        bcs     unknown_14_init_cooldown ; no free slot -> reset timer, skip spawn
+        bcs     giant_metall_init_cooldown ; no free slot -> reset timer, skip spawn
         lda     ent_facing,x            ; copy parent direction to child
         sta     ent_facing,y            ; set child facing direction
         lda     ent_x_px,x              ; copy parent X position to child
@@ -2120,17 +2121,17 @@ main_unknown_14:
         sta     ent_xvel_sub,y          ; child X speed = $01.80 (1.5 px/frame)
         lda     #$01
         sta     ent_xvel,y              ; X speed whole = $01
-unknown_14_init_cooldown:  lda     #$F0 ; spawn cooldown = 240 frames ($F0)
+giant_metall_init_cooldown:  lda     #$F0 ; spawn cooldown = 240 frames ($F0)
         sta     ent_timer,x
         jmp     face_player             ; turn toward player
 
-unknown_14_dec_cooldown:  dec     ent_timer,x ; decrement spawn cooldown
+giant_metall_dec_cooldown:  dec     ent_timer,x ; decrement spawn cooldown
         rts
 
 ; -----------------------------------------------
-; main_unknown_0C -- Falling entity with physics (also used as AI $0D)
+; main_giant_metall_met — Giant Metall's spawned Met (also used as AI $0D)
 ; -----------------------------------------------
-; A falling projectile/entity that interacts with tile properties.
+; Small Met deployed by Giant Metall. Falls with gravity, walks on landing.
 ; Two OAM modes: $4E (falling/grounded) and $4F (rising after tile trigger).
 ;
 ; OAM $4E (falling/grounded state):
@@ -2146,35 +2147,35 @@ unknown_14_dec_cooldown:  dec     ent_timer,x ; decrement spawn cooldown
 ; Tile ID $40 = special trigger tile (e.g. lava/spikes/water surface).
 ; tile_at_feet_max = tile below, $42 = tile to left, $43 = tile to right.
 ; -----------------------------------------------
-main_unknown_0C:
+main_giant_metall_met:
 
         lda     ent_status,x            ; get entity state
         and     #$0F                    ; isolate state bits
-        bne     unknown_0C_check_anim_grounded ; state 1+: skip init
+        bne     giant_metall_met_check_anim_grounded ; state 1+: skip init
         jsr     reset_gravity           ; state 0: zero Y speed
         inc     ent_status,x            ; advance to state 1
-unknown_0C_check_anim_grounded:  lda     ent_anim_id,x ; check current OAM ID
+giant_metall_met_check_anim_grounded:  lda     ent_anim_id,x ; check current OAM ID
         cmp     #$4E                    ; OAM $4E = grounded/falling mode
-        bne     unknown_0C_falling_init ; different OAM -> initial drop state
+        bne     giant_metall_met_falling_init ; different OAM -> initial drop state
         ldy     #$08                    ; $99 strength index
         jsr     move_vertical_gravity   ; apply gravity + move (C=1 if landed)
         ror     temp_00                 ; save carry (landed flag) into $00 bit 7
         lda     tile_at_feet_max        ; tile ID at feet (below entity)
         cmp     #TILE_LADDER_TOP        ; special trigger tile?
-        beq     unknown_0C_check_horizontal_trigger ; yes -> check horizontal tiles
+        beq     giant_metall_met_check_horizontal_trigger ; yes -> check horizontal tiles
         lda     temp_00                 ; no special tile: check if landed
-        bpl     unknown_0C_done         ; not landed (bit 7 clear) -> done
-unknown_0C_check_horizontal_trigger:  lda     ent_facing,x ; check facing direction
+        bpl     giant_metall_met_done         ; not landed (bit 7 clear) -> done
+giant_metall_met_check_horizontal_trigger:  lda     ent_facing,x ; check facing direction
         and     #FACING_RIGHT           ; bit 0 = facing right
-        beq     unknown_0C_check_left_tile ; facing left -> check left tile
+        beq     giant_metall_met_check_left_tile ; facing left -> check left tile
         lda     tile_at_feet_lo         ; facing right: check tile to right
         cmp     #TILE_LADDER_TOP        ; is it the trigger tile?
-        bne     unknown_0C_horizontal_walk ; no -> walk horizontally
-        beq     unknown_0C_transition_rising ; yes -> transition to rising
-unknown_0C_check_left_tile:  lda     $42 ; facing left: check tile to left
+        bne     giant_metall_met_horizontal_walk ; no -> walk horizontally
+        beq     giant_metall_met_transition_rising ; yes -> transition to rising
+giant_metall_met_check_left_tile:  lda     $42 ; facing left: check tile to left
         cmp     #$40                    ; is it the trigger tile?
-        bne     unknown_0C_horizontal_walk ; no -> walk horizontally
-unknown_0C_transition_rising:  lda     #$4F ; switch to rising OAM sprite ($4F)
+        bne     giant_metall_met_horizontal_walk ; no -> walk horizontally
+giant_metall_met_transition_rising:  lda     #$4F ; switch to rising OAM sprite ($4F)
         jsr     reset_sprite_anim       ; reset animation
         lda     #$80                    ; Y speed sub = $80
         sta     ent_yvel_sub,x          ; rise speed = $01.80 (1.5 px/frame upward)
@@ -2182,32 +2183,32 @@ unknown_0C_transition_rising:  lda     #$4F ; switch to rising OAM sprite ($4F)
         sta     ent_yvel,x              ; Y speed whole = $01
         rts
 
-unknown_0C_falling_init:  ldy     #$0C  ; collision check offset
+giant_metall_met_falling_init:  ldy     #$0C  ; collision check offset
         jsr     move_down_collide       ; move down with collision (C=1 if landed)
-        bcc     unknown_0C_state_return ; not landed -> keep falling
+        bcc     giant_metall_met_state_return ; not landed -> keep falling
         dec     ent_status,x            ; landed: go back to state 0
         jsr     face_player             ; turn toward player
         jsr     reset_gravity           ; zero Y speed
         lda     #$4E                    ; switch to grounded OAM ($4E)
         jsr     reset_sprite_anim       ; reset animation
-unknown_0C_state_return:  rts
+giant_metall_met_state_return:  rts
 
-unknown_0C_horizontal_walk:  lda     ent_facing,x ; check facing direction
+giant_metall_met_horizontal_walk:  lda     ent_facing,x ; check facing direction
         and     #FACING_RIGHT           ; bit 0 = right
-        beq     unknown_0C_move_left    ; facing left -> move left
+        beq     giant_metall_met_move_left    ; facing left -> move left
         ldy     #$08                    ; collision offset for right
         jsr     move_right_collide      ; move right with wall check
-        jmp     unknown_0C_check_wall_collision ; check wall collision result
+        jmp     giant_metall_met_check_wall_collision ; check wall collision result
 
-unknown_0C_move_left:  ldy     #$09     ; collision offset for left
+giant_metall_met_move_left:  ldy     #$09     ; collision offset for left
         jsr     move_left_collide       ; move left with wall check
-unknown_0C_check_wall_collision:  lda     $10 ; tile collision result flags
+giant_metall_met_check_wall_collision:  lda     $10 ; tile collision result flags
         and     #$10                    ; bit 4 = hit solid wall
-        beq     unknown_0C_done         ; no wall -> done
+        beq     giant_metall_met_done         ; no wall -> done
         lda     ent_facing,x            ; hit wall: reverse direction
         eor     #$03                    ; flip both direction bits (left<->right)
         sta     ent_facing,x
-unknown_0C_done:  rts
+giant_metall_met_done:  rts
 
 ; --- Unreferenced code block at $9165 ---
 ; Gravity fall, on landing: state 0 sets X speed $03.44 and faces player,
@@ -2215,10 +2216,10 @@ unknown_0C_done:  rts
 
         ldy     #$00                    ; $99 index 0
         jsr     move_vertical_gravity   ; fall with gravity
-        bcc     unknown_0C_horizontal_return ; not landed -> done
+        bcc     giant_metall_met_horizontal_return ; not landed -> done
         lda     ent_status,x            ; landed: check state
         and     #$0F
-        bne     unknown_0C_facing_check ; state 1+ -> walk horizontally
+        bne     giant_metall_met_facing_check ; state 1+ -> walk horizontally
         inc     ent_status,x            ; state 0: advance to state 1
         lda     #$44                    ; Y speed sub = $44
         sta     ent_yvel_sub,x          ; Y speed = $03.44 (~3.27 px/frame)
@@ -2226,14 +2227,14 @@ unknown_0C_done:  rts
         sta     ent_yvel,x              ; Y speed whole = $03
         jsr     face_player             ; face toward player
         jsr     set_sprite_hflip        ; update sprite flip to match direction
-unknown_0C_horizontal_return:  rts
+giant_metall_met_horizontal_return:  rts
 
-unknown_0C_facing_check:  lda     ent_facing,x ; check direction
+giant_metall_met_facing_check:  lda     ent_facing,x ; check direction
         and     #FACING_RIGHT           ; bit 0 = right
-        beq     unknown_0C_move_left_2  ; facing left -> move left
+        beq     giant_metall_met_move_left_2  ; facing left -> move left
         jmp     move_sprite_right       ; move right
 
-unknown_0C_move_left_2:  jmp     move_sprite_left ; move left
+giant_metall_met_move_left_2:  jmp     move_sprite_left ; move left
 
 ; =============================================================================
 ; main_giant_springer — Large bouncing spring enemy (entity $BD parent)
@@ -3536,38 +3537,38 @@ junk_golem_spawn_block:  jsr     find_enemy_freeslot_y ; find free enemy slot
         jsr     init_child_entity       ; init_child_entity
         lda     #$CA                    ; damage flags $CA: hurts player + takes damage
         sta     ent_hitbox,y
-        lda     #$24                    ; AI routine = $24 (main_unknown_24)
+        lda     #$24                    ; AI routine = $24 (main_junk_block_thrown)
         sta     ent_routine,y           ; set child AI routine
         lda     #$08                    ; HP = 8
         sta     ent_hp,y
 junk_golem_spawn_return:  rts
 
 ; ===========================================================================
-; main_unknown_24 — Junk Golem's thrown block (entity $94)
+; main_junk_block_thrown — Junk Golem's thrown block (Hard Man stage, entity $94)
 ; State 0: init, set downward speed $04.00 (4 px/frame).
 ; State 1: fall straight down. When within $20 pixels of target Y (ent_timer,x
 ;   = golem's Y at spawn time), compute homing velocity toward player at
 ;   speed $04.80 and switch to routine $0B (generic homing projectile).
 ; ===========================================================================
-main_unknown_24:
+main_junk_block_thrown:
 
         lda     ent_status,x            ; check entity sub-state
         and     #$0F
-        bne     unknown_24_move_down    ; skip if already initialized
+        bne     junk_block_move_down    ; skip if already initialized
         sta     ent_yvel_sub,x          ; A=0: clear Y velocity sub
         lda     #$04                    ; Y velocity = $04 (4 px/frame)
         sta     ent_yvel,x              ; set Y velocity whole
         inc     ent_status,x            ; advance to state 1
-unknown_24_move_down:  jsr     move_sprite_down ; move downward (no collision)
+junk_block_move_down:  jsr     move_sprite_down ; move downward (no collision)
         lda     ent_y_px,x              ; current Y position
         sec
         sbc     ent_timer,x             ; minus target Y (golem's Y)
-        bcs     unknown_24_distance_check ; if positive, skip negate
+        bcs     junk_block_distance_check ; if positive, skip negate
         eor     #$FF                    ; take absolute value
         adc     #$01
         clc
-unknown_24_distance_check:  cmp     #$20 ; if |Y dist to target| >= $20,
-        bcs     unknown_24_done         ; still falling, done
+junk_block_distance_check:  cmp     #$20 ; if |Y dist to target| >= $20,
+        bcs     junk_block_done         ; still falling, done
         lda     #$80                    ; homing speed = $04.80 (4.5 px/frame)
         sta     $02                     ; speed sub-pixel = $80
         lda     #$04                    ; speed whole = $04
@@ -3577,7 +3578,7 @@ unknown_24_distance_check:  cmp     #$20 ; if |Y dist to target| >= $20,
         sta     ent_facing,x            ; set entity facing
         lda     #$0B                    ; switch to routine $0B (generic homing)
         sta     ent_routine,x           ; block now flies toward player
-unknown_24_done:  rts
+junk_block_done:  rts
 
 ; ===========================================================================
 ; main_pickelman_bull — Pickelman Bull (bulldozer enemy, Hard Man stage)
@@ -4822,11 +4823,11 @@ nitron_animation_init:  lda     ent_anim_id,x ; check current OAM
         jmp     reset_sprite_anim       ; reset_sprite_anim
 
 ; ===========================================================================
-; main_unknown_27 — Debris / explosion child entity
-; Spawned by breakable objects. Checks if break animation ($71) has
-; completed (anim_state $04), then switches to a secondary OAM ($92).
+; main_block_debris — Breakable block debris (Gemini Man stage)
+; Spawned by main_block_breaker when a block is destroyed. Plays break
+; animation ($71), then switches to secondary OAM ($92) for scatter.
 ; ===========================================================================
-main_unknown_27:
+main_block_debris:
         lda     ent_anim_id,x           ; check current OAM sprite
         cmp     #$71                    ; break anim $71?
         bne     nitron_homing_jump      ; no -> nutton homing AI
