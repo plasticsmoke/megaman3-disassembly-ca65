@@ -57,7 +57,7 @@
 ;   nt_column_dirty ($1A)  = nametable column update flag
 ;   stage_id ($22)         = current stage index (see STAGE MAPPING below)
 ;   player_state ($30)     = player state (index into player_state_ptr, 22 states)
-;   player_facing ($31)    = facing direction (1=right, 2=left)
+;   player_facing ($31)    = facing direction (FACING_RIGHT, FACING_LEFT)
 ;   walk_flag ($32)        = walking / sub-state (nonzero = active)
 ;   entity_ride_slot ($34) = entity slot being ridden (state $05)
 ;   facing_sub ($35)       = facing sub-state / Mag Fly direction inherit
@@ -77,12 +77,12 @@
 ; Weapon / Inventory Block ($A0-$AF):
 ;   current_weapon ($A0)   = weapon ID (see constants.inc WPN_*)
 ;   weapon_cursor ($A1)    = pause screen cursor position
-;   player_hp ($A2)        = player HP (full=$9C, empty=$80, 28 max)
+;   player_hp ($A2)        = player HP (HEALTH_FULL=full, $80=empty, 28 max)
 ;   player_hp+1..+$0B      = weapon ammo ($A3-$AD, indexed by weapon ID)
 ;   lives ($AE)            = extra lives (BCD)
 ;   etanks ($AF)           = E-Tank count
 ;
-;   boss_hp_display ($B0)  = boss HP bar position (starts $80, fills to $9C)
+;   boss_hp_display ($B0)  = boss HP bar position (starts $80, fills to HEALTH_FULL)
 ;   nmi_skip ($EE)         = NMI skip flag
 ;   sprite_slot ($EF)      = current sprite slot (process_sprites loop var)
 ;   mmc3_shadow ($F0)      = MMC3 bank select register shadow
@@ -170,7 +170,7 @@
 ;   ent_yvel_sub,x = Y velocity sub-pixel
 ;   ent_yvel,x = Y velocity pixel (signed: negative=up/$99, positive=down)
 ;   ent_hitbox,x = entity shape/hitbox (bit 7 = causes player contact damage)
-;   ent_facing,x = facing direction (1=right, 2=left)
+;   ent_facing,x = facing direction (FACING_RIGHT, FACING_LEFT)
 ;   ent_spawn_id,x = stage enemy ID (spawn tracking, prevents duplicate spawns)
 ;   ent_hp,x = health / hit points
 ;   ent_timer,x = AI timer / general purpose counter
@@ -214,15 +214,15 @@
 ; Palette RAM:
 ;   $0600-$061F = palette buffer (32 bytes, uploaded to PPU $3F00 during NMI)
 ;
-; Controller Button Masks (for $14 / $16):
-;   #$80 = A button (Jump)
-;   #$40 = B button (Fire)
-;   #$20 = Select
-;   #$10 = Start
-;   #$08 = Up
-;   #$04 = Down
-;   #$02 = Left
-;   #$01 = Right
+; Controller Button Masks (for joy1_press / joy1_held):
+;   BTN_A      = A button (Jump)
+;   BTN_B      = B button (Fire)
+;   BTN_SELECT = Select
+;   BTN_START  = Start
+;   BTN_UP     = Up
+;   BTN_DOWN   = Down
+;   BTN_LEFT   = Left
+;   BTN_RIGHT  = Right
 ;
 ; Controller 2 Debug Features (shipped in retail cart):
 ;   $17 = P2 held buttons — read directly by debug checks in gameplay loop.
@@ -1901,7 +1901,7 @@ main_game_entry:
         sta     mmc3_select
         jsr     select_PRG_banks
         jsr     stage_select_title ; title screen / stage select (bank $18)
-        lda     #$9C                    ; $A9 = $9C = full Rush Coil ammo
+        lda     #HEALTH_FULL            ; full Rush Coil ammo
         sta     $A9
         lda     #$02                    ; $AE = 2 $AE (display as 3)
         sta     lives
@@ -1958,7 +1958,7 @@ stage_init:  lda     #$00               ; $EE = 0: allow NMI rendering
         jsr     submit_sound_ID_D9      ; play music
 
 ; --- set initial scroll/render state ---
-        lda     #$01                    ; initial facing = right
+        lda     #FACING_RIGHT           ; initial facing = right
         sta     player_facing           ; player facing = right (1=R, 2=L)
         sta     $23                     ; scroll column state = 1
         sta     $2E                     ; scroll direction = right
@@ -2008,7 +2008,7 @@ game_entry_set_mirroring:  stx     MMC3_MIRRORING ; set mirroring mode
         sta     ent_x_px                ; player X = 128 (center of screen)
 
 ; --- set HP and scroll mode for stage type ---
-game_entry_set_hp_scroll:  lda     #$9C ; $A2 = $9C (full HP: 28 bars)
+game_entry_set_hp_scroll:  lda     #HEALTH_FULL ; (full HP: 28 bars)
         sta     player_hp               ; full HP = 28 bars
         lda     #$E8                    ; default: $51/$5E = $E8 (normal scroll)
         sta     $51                     ; scroll end marker (normal)
@@ -2457,7 +2457,7 @@ frame_loop_render_columns_loop:  pha    ; save column counter
         sta     ent_x_px                ; player X = 128 (center of screen)
         jmp     game_entry_set_hp_scroll ; → continue stage_init (Gemini scroll, fade-in)
 
-; --- refill_all_ammo: fill all weapon ammo to $9C (full) ---
+; --- refill_all_ammo: fill all weapon ammo to HEALTH_FULL ---
 ; Called when $98 mode indicates refill (e.g. E-Tank usage).
 
         lda     $98
@@ -2465,7 +2465,7 @@ frame_loop_render_columns_loop:  pha    ; save column counter
         cmp     #$01                    ; mode 1 = refill
         bne     frame_loop_ammo_refill_exit ; if not, skip
         ldy     #$0B                    ; fill $A2-$AD (12 ammo slots)
-frame_loop_ready_overlay_oam:  lda     #$9C ; all to $9C = full (28 units)
+frame_loop_ready_overlay_oam:  lda     #HEALTH_FULL ; all to full (28 units)
 frame_loop_ammo_refill_loop:  .byte   $99
 frame_loop_ready_sprite_table:  ldx     #$00
         dey                             ; next ammo slot
@@ -2610,7 +2610,7 @@ prelude_platform_push_restore:  pla     ; restore original X speed
         pla
         sta     ent_xvel_sub
         pla                             ; restore original facing (bit 6 only)
-        and     #$40                    ; from saved sprite flags
+        and     #ENT_FLAG_HFLIP         ; from saved sprite flags
         sta     temp_00
         lda     ent_flags               ; clear bit 6, then OR with saved
         and     #$BF
@@ -3051,7 +3051,7 @@ init_weapon_spawn_shot:  ldx     current_weapon ; X = current weapon ID
         ror     a                       ; to sprite flags bit 6 (H-flip)
         ror     a                       ; $01→ROR³→$00→AND=$00 (right)
         ror     a                       ; $02→ROR³→$40→AND=$40 (left=flip)
-        and     #$40                    ; isolate H-flip bit
+        and     #ENT_FLAG_HFLIP         ; isolate H-flip bit
         ora     #$90                    ; bits: $80=drawn, $10=child spawn
         sta     ent_flags,y
         lda     #$00
@@ -3117,7 +3117,7 @@ init_rush_spawn_entity:  ldy     #$01   ; spawn entity $13 (Rush) in slot 1
         sta     $0481
         lda     player_facing           ; copy player facing to Rush ($04A1)
         sta     $04A1                   ; copy facing to Rush slot
-        and     #$02                    ; X = 0 if facing right, 2 if facing left
+        and     #FACING_LEFT            ; X = 0 if facing right, 2 if facing left
         tax                             ; (bit 1 of $31: 1=R has bit1=0, 2=L has bit1=1)
         lda     ent_x_px                ; Rush X = player X + directional offset
         clc                             ; offset from $D31F table (2 entries: R, L)
@@ -3254,7 +3254,7 @@ init_top_spin_exit:  rts
 ; ===========================================================================
 ; init_shadow_blade — weapon $0A: Shadow Blade
 ; ===========================================================================
-; D-pad direction stored in ent_facing (bits: up=$08, down=$02, right=$01).
+; D-pad direction stored in ent_facing (bits: up=$08, down=FACING_LEFT, right=FACING_RIGHT).
 ; If no D-pad held, ent_facing=0 → blade fires horizontally (facing direction).
 ; X speed $04.00 (4 px/f). Copies player position to blade (spawns at player).
 init_shadow_blade:
@@ -3558,7 +3558,7 @@ player_ladder:
         beq     ladder_fire_weapon      ; yes → fire normally
         sta     player_facing           ; update facing direction
         lda     ent_flags               ; toggle H-flip (bit 6)
-        eor     #$40
+        eor     #ENT_FLAG_HFLIP
         sta     ent_flags
 ladder_fire_weapon:  jsr     weapon_fire ; fire weapon
 
@@ -3874,7 +3874,7 @@ player_knockback_physics:  lda     $3E  ; check saved OAM for special cases:
         lda     ent_flags               ; save facing before move
         pha
         lda     ent_flags               ; check facing direction bit
-        and     #$40                    ; knockback goes OPPOSITE to facing
+        and     #ENT_FLAG_HFLIP         ; knockback goes OPPOSITE to facing
         bne     player_knockback_move_left ; facing right → knock left
         ldy     #$00                    ; facing left → knock right
         jsr     move_right_collide      ; move right with collision
@@ -4155,8 +4155,8 @@ rush_marine_clear_shoot:  lda     #$00  ; clear shoot timer
 ; Player stands still while boss intro plays (shutters close, HP bars fill).
 ; Applies $99 until grounded, then sets standing OAM. Handles two phases:
 ;   1. Wily4 ($22=$10): progressively draws boss arena nametable (column $1A)
-;   2. HP bar fill: $B0 increments from $80 to $9C (28 ticks = full HP bar),
-;      playing sound $1C each tick. When $B0 reaches $9C, returns to state $00.
+;   2. HP bar fill: boss_hp_display increments from $80 to HEALTH_FULL (28 ticks),
+;      playing SFX_HP_FILL each tick. When it reaches HEALTH_FULL, returns to state $00.
 ; ---------------------------------------------------------------------------
 player_boss_wait:
 
@@ -4201,7 +4201,7 @@ boss_intro_bank_switch:  sta     prg_bank ; switch to stage bank
 ; --- HP bar fill sequence ---
 
 boss_intro_hp_bar_fill:  lda     boss_hp_display ; boss_hp_display = boss HP bar value
-        cmp     #$9C                    ; $9C = full (28 units)
+        cmp     #HEALTH_FULL            ; full (28 units)
         beq     boss_intro_return_normal ; full → end boss intro
         lda     $95                     ; $95 = frame counter, tick every 4th frame
         and     #$03
@@ -4233,7 +4233,7 @@ player_top_spin:                        ; $A000 bank target = 0
         bcs     spark_freeze_clear_timer ; landed → end Top Spin recoil
         lda     ent_flags               ; save facing (move_collide may change it)
         pha
-        and     #$40                    ; bit 6: 0=right, 1=left
+        and     #ENT_FLAG_HFLIP         ; bit 6: 0=right, 1=left
         bne     spark_freeze_move_left
         ldy     #$00                    ; facing right → move right
         jsr     move_right_collide
@@ -4661,18 +4661,18 @@ teleport_beam_check_formed:  lda     ent_anim_state ; anim state $02 = beam full
         beq     rush_jet_energy_full_table ; Needle Man → award Rush Jet
         cmp     #STAGE_SHADOW           ; check if Shadow Man stage
         bne     teleport_timer_done     ; other stages → no Rush award
-        lda     #$9C                    ; fill Rush Marine energy ($AB)
-        sta     $AB                     ; $9C = full
+        lda     #HEALTH_FULL            ; fill Rush Marine energy
+        sta     $AB
         rts
 
-rush_jet_energy_full_table:  lda     #$9C ; fill Rush Jet energy ($AD)
-rush_jet_energy_set:  sta     $AD       ; $9C = full
+rush_jet_energy_full_table:  lda     #HEALTH_FULL ; fill Rush Jet energy
+rush_jet_energy_set:  sta     $AD
 teleport_timer_done:  rts
 
 wily_stage_clear:  lda     #$FF         ; mark fortress stage cleared
         sta     $74
         inc     $75                     ; advance fortress progression
-        lda     #$9C                    ; refill player health
+        lda     #HEALTH_FULL            ; refill player health
         sta     player_hp               ; refill HP
         rts
 
@@ -4822,7 +4822,7 @@ player_warp_init:
 ; --- negative screen = Wily stage clear (no more bosses) ---
         sta     $74                     ; mark fortress stage cleared ($FF)
         inc     $75                     ; advance fortress progression
-        lda     #$9C                    ; refill player health
+        lda     #HEALTH_FULL            ; refill player health
         sta     player_hp
         rts
 
@@ -5050,7 +5050,7 @@ break_man_walk_init:  lda     #$00      ; reset player state
         lda     #$FF                    ; $60 = $FF → all Doc Robots beaten
         sta     stage_select_page       ; mark all Doc Robots beaten
         ldy     #$0B                    ; fill all 12 ammo slots to $9C (full)
-        lda     #$9C                    ; $9C = full ammo
+        lda     #HEALTH_FULL            ; full ammo
 break_man_check_defeated:  sta     player_hp,y ; fill ammo for each weapon slot
         dey
         bpl     break_man_check_defeated
@@ -5124,7 +5124,7 @@ auto_walk_spawn_done:  .byte   $A9      ; lda #$5A (hand-assembled)
 weapon_hurt_timer_done:  .byte   $5A    ; initial wait = 90 frames
         sta     ent_timer               ; set player timer
         lda     ent_flags               ; load player flags
-        ora     #$40
+        ora     #ENT_FLAG_HFLIP
         sta     ent_flags               ; store updated facing
         lda     #$78                    ; override: wait = $78 frames (120)
         sta     ent_timer               ; override timer to 120 frames
@@ -7566,7 +7566,7 @@ sprite_render_ret:  rts                 ; invisible → skip rendering
 
 setup_sprite_render:  ldy     #$00      ; Y = 0 (no flip)
         lda     ent_flags,x             ; bit 6 = horizontal flip
-        and     #$40                    ; isolate H-flip bit
+        and     #ENT_FLAG_HFLIP         ; isolate H-flip bit
         sta     $10                     ; $10 = flip flag for OAM attr
         beq     sprite_flip_offset_setup ; not flipped → Y stays 0
         iny                             ; Y=1 if flipped
@@ -7684,7 +7684,7 @@ sprite_render_skip_draw:  rts            ; return without drawing
 ; write_entity_oam — assembles OAM entries from sprite definition
 ; -----------------------------------------------
 ; Entry: A = sprite definition ID
-;   $10 = H-flip mask ($40 or $00)
+;   $10 = H-flip mask (ENT_FLAG_HFLIP or $00)
 ;   $11 = flip table offset (0=normal, 1=flipped)
 ;   $12 = entity screen Y position
 ;   $13 = entity screen X position
@@ -7794,7 +7794,7 @@ write_oam_hide_sprite:  lda     #$F8    ; hide sprite (Y=$F8 = below screen)
 ; draw_energy_bars — draws up to 3 HUD energy meters
 ; -----------------------------------------------
 ; $B1-$B3 = bar slot IDs (bit 7 = active, bits 0-6 = energy index)
-; $A2+Y = energy value ($80=empty, $9C=full, 28 units)
+; $A2+Y = energy value ($80=empty, HEALTH_FULL=full, 28 units)
 ; Alternates iteration direction each frame for OAM priority fairness.
 ; Each bar draws 7 sprites vertically: tile selected from $F313 table,
 ; position from $F318 (OAM attr) and $F31B (X position).
@@ -7974,7 +7974,7 @@ bar_x_positions:  .byte   $10,$18,$28,$A0,$FB,$2A,$EC,$88
 ; moves right, checks screen boundary (player only), checks tile collision.
 ; Returns: C=1 if hit solid tile, C=0 if clear
 move_right_collide:  lda     ent_flags,x ; set bit 6 = facing right (H-flip)
-        ora     #$40                    ; set H-flip bit (facing right)
+        ora     #ENT_FLAG_HFLIP         ; set H-flip bit (facing right)
         sta     ent_flags,x     ; store updated flags
 move_right_collide_no_face:             ; 0 = full, skip
         cpx     #$00                    ; player (slot 0)?
@@ -8418,7 +8418,7 @@ init_child_entity:  sta     ent_anim_id,y ; child shape/type
         sta     ent_anim_state,y        ; clear child anim state
         sta     ent_y_scr,y             ; clear child Y screen
         lda     ent_flags,x             ; read parent flags
-        and     #$40                    ; isolate H-flip (bit 6)
+        and     #ENT_FLAG_HFLIP         ; isolate H-flip (bit 6)
         ora     #$90                    ; combine with active + child flags
         sta     ent_flags,y             ; store child flags
         lda     #$80                    ; status $80 = active
@@ -8433,7 +8433,7 @@ init_child_entity:  sta     ent_anim_id,y ; child shape/type
 ; X: sprite slot
 face_player:
 
-        lda     #$01                    ; start facing right
+        lda     #FACING_RIGHT           ; start facing right
         sta     ent_facing,x            ; default = facing right
         lda     ent_x_px,x              ; entity X pixel
         sec                             ; subtract player X pixel
@@ -8441,7 +8441,7 @@ face_player:
         lda     ent_x_scr,x             ; entity X screen
         sbc     ent_x_scr               ; subtract player X screen
         bcc     face_player_exit        ; entity left of player → keep facing right
-        lda     #$02                    ; entity right of player → face left
+        lda     #FACING_LEFT            ; entity right of player → face left
         sta     ent_facing,x            ; store facing left
 face_player_exit:  rts                  ; return
 
@@ -8463,7 +8463,7 @@ set_sprite_hflip:
         ror     a                       ; 3x ROR: bit 0 → bit 6
         ror     a                       ; (continued)
         ror     a                       ; (continued)
-        and     #$40                    ; isolate bit 6 (was bit 0)
+        and     #ENT_FLAG_HFLIP         ; isolate bit 6 (was bit 0)
         sta     temp_00                 ; save new hflip bit
         lda     ent_flags,x             ; clear old hflip, set new
         and     #$BF                    ; clear bit 6 (old hflip)
@@ -9149,8 +9149,8 @@ entity_freeslot_y_found:  clc           ; return C=0 slot found
 ;   ent_xvel,x.ent_xvel_sub,x = X velocity (8.8 fixed-point)
 ;   ent_yvel,x.ent_yvel_sub,x = Y velocity (8.8 fixed-point)
 ;   $0C = direction bitmask:
-;     bit 0 ($01) = player is right
-;     bit 1 ($02) = player is left
+;     bit 0 (FACING_RIGHT) = player is right
+;     bit 1 (FACING_LEFT)  = player is left
 ;     bit 2 ($04) = player is below
 ;     bit 3 ($08) = player is above
 ;   Callers typically store $0C into ent_facing,x and use it

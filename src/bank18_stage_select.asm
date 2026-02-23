@@ -1380,7 +1380,7 @@ password_cursor_done:  rts
         ldy     #$0B                    ; refill weapon energy
 weapon_energy_refill_loop:  lda     player_hp,y ; player_hp+Y = weapon ammo
         bpl     weapon_energy_refill_continue ; positive → weapon OK, skip refill
-        lda     #$9C                    ; $9C = full energy (28 units)
+        lda     #HEALTH_FULL            ; full energy (28 units)
         sta     player_hp,y             ; store full energy for weapon Y
 weapon_energy_refill_continue:  dey     ; next weapon slot
         bpl     weapon_energy_refill_loop ; loop until all weapons checked
@@ -2114,7 +2114,7 @@ password_input_loop:
 password_selection_process:  ldx     #$0B ; 12 weapon/HP slots
 weapon_slot_check_loop:  lda     player_hp,x ; check weapon/HP slot
         bpl     weapon_slot_next        ; positive = valid, skip
-        lda     #$9C                    ; set to full HP ($9C)
+        lda     #HEALTH_FULL            ; set to full HP
         sta     player_hp,x             ; fill this weapon/HP slot
 weapon_slot_next:  dex                  ; next slot
         bpl     weapon_slot_check_loop  ; loop all 12 slots
@@ -2412,7 +2412,7 @@ wily_gate_init:                         ; y += 2
         sta     $2A                     ; scroll boundary
         lda     #$30
         sta     ent_x_px                ; Mega Man X = $30
-        lda     #$01                    ; facing right
+        lda     #FACING_RIGHT           ; facing right
         sta     player_facing           ; facing right
         sta     $23                     ; set screen counter
         sta     $2E                     ; set scroll sub-state
@@ -2480,7 +2480,7 @@ fortress_palette_loop:  lda     $9E2A,y ; fortress palette data (32 bytes)
         sta     $039F                   ; ent_x_scr[$1F] = $18
         lda     #$C0                    ; X pixel = $C0 (192)
         sta     $037F                   ; entity $1F X position
-        lda     #$02                    ; facing left
+        lda     #FACING_LEFT            ; facing left
         sta     $04BF                   ; ent_facing[$1F] = left
 ; --- Clear various entity fields ---
         lda     #$00                    ; zero out remaining fields

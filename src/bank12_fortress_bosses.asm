@@ -143,10 +143,10 @@ yellow_devil_dispatch:  lda     ent_status,x ; current status
         lda     #MUSIC_BOSS             ; SFX $0D = boss intro music
         jsr     submit_sound_ID_D9      ; play boss music
 yellow_devil_hp_bar_filled:  lda     boss_hp_display ; has HP bar filled to $9C?
-        cmp     #$9C                    ; HP bar fully filled?
+        cmp     #HEALTH_FULL            ; HP bar fully filled?
         bne     yellow_devil_return     ; wait for HP bar to fill
         inc     ent_status,x            ; advance to spawn state
-        lda     #$02                    ; face left
+        lda     #FACING_LEFT            ; face left
         sta     ent_facing,x            ; set facing
         lda     #$FF                    ; long delay (255 frames)
         sta     ent_timer,x             ; set timer
@@ -285,7 +285,7 @@ yellow_devil_body_attack:  lda     ent_hitbox,x ; save current hitbox
         dec     ent_var1,x              ; decrement shots left
         bne     yellow_devil_piece_update ; more shots remaining
         lda     ent_facing,x            ; current facing
-        and     #$02                    ; isolate left bit
+        and     #FACING_LEFT            ; isolate left bit
         tay                             ; 0 or 2 = table index
         lda     yellow_devil_status_table,y ; next state from table
         sta     ent_status,x            ; transition to reassemble
@@ -462,7 +462,7 @@ yellow_devil_piece_left_update:  lda     ent_anim_id,x ; current piece animation
 yellow_devil_piece_left_return:  rts
 
 yellow_devil_piece_right_update:  lda     ent_facing,x ; facing direction
-        and     #$02                    ; isolate left-facing bit
+        and     #FACING_LEFT            ; isolate left-facing bit
         tay                             ; Y = 0 or 2 (facing offset)
         lda     yellow_devil_facing_offset,y ; base table offset for direction
         clc
@@ -472,7 +472,7 @@ yellow_devil_piece_right_update:  lda     ent_facing,x ; facing direction
         and     #$0F                    ; isolate low nibble (sub-phase)
         bne     yellow_devil_piece_right_anim ; nonzero: skip to anim check
         lda     ent_facing,x            ; facing direction
-        and     #$01                    ; check right-facing bit
+        and     #FACING_RIGHT           ; check right-facing bit
         beq     yellow_devil_piece_right_left ; not right-facing: move left
         jsr     move_sprite_right       ; move piece rightward
         jmp     yellow_devil_piece_right_cont
@@ -525,7 +525,7 @@ yellow_devil_piece_right_anim:  lda     ent_anim_state,x ; check animation progr
         lda     #$00                    ; clear slot $1F timer
         sta     $051F                   ; stop piece spawning
         lda     $04BF                   ; slot $1F spawn ID (facing)
-        and     #$01                    ; isolate right-facing bit
+        and     #FACING_RIGHT           ; isolate right-facing bit
         tay                             ; Y = 0 (right) or 1 (left)
         lda     yellow_devil_palette_indices,y ; palette for assembled form
         sta     $05DF                   ; set slot $1F OAM anim ID
@@ -809,7 +809,7 @@ wily_machine_a_oam_loop:  lda     $0377,y ; copy X positions to var3
         dey                             ; next sprite slot
         bpl     wily_machine_a_oam_loop ; loop all 9 sprites
 wily_machine_a_hp_check:  lda     boss_hp_display ; check HP bar fill progress
-        cmp     #$9C                    ; 28 HP filled? ($80+$1C)
+        cmp     #HEALTH_FULL            ; 28 HP filled?
         bne     wily_machine_a_return   ; no — wait for fill
         inc     ent_status,x            ; advance to next AI phase
         lda     #$0D                    ; game mode = boss fight
@@ -1178,10 +1178,10 @@ wily_machine_a_palette_update:  lda     $059C ; flags slot $1C
         and     #$04                    ; offscreen?
         bne     wily_machine_a_palette_check ; yes — skip leg anim
         lda     wily_machine_b_flip_table,y ; get walk frame A
-        ora     #$40                    ; add H-flip bit
+        ora     #ENT_FLAG_HFLIP         ; add H-flip bit
         sta     $059C                   ; set slot $1C flags
         lda     wily_machine_b_flip_alt,y ; get walk frame B
-        ora     #$40                    ; add H-flip bit
+        ora     #ENT_FLAG_HFLIP         ; add H-flip bit
         sta     $0598                   ; set slot $18 flags
 wily_machine_a_palette_check:  lda     $031E ; check slot $1E status
         bpl     wily_machine_a_palette_end ; bit 7 clear — skip
@@ -1274,7 +1274,7 @@ wily_machine_b_fire_delay:  lda     ent_timer,x ; HP bar fill timer
         jsr     submit_sound_ID         ; play HP fill SFX
         inc     boss_hp_display         ; advance HP bar 1 tick
         lda     boss_hp_display         ; current bar position
-        cmp     #$9C                    ; $9C = 28 HP (full)
+        cmp     #HEALTH_FULL            ; 28 HP (full)
         bne     wily_machine_b_fire_timer_inc ; not full, keep filling
         lda     $059F                   ; slot $1F flags
         and     #$FB                    ; clear bit 2 (palette)
@@ -1285,7 +1285,7 @@ wily_machine_b_fire_delay:  lda     ent_timer,x ; HP bar fill timer
         sta     $053E                   ; clear slot $1E var1
         sta     $055E                   ; clear slot $1E var2
         lda     $031F                   ; slot $1F status
-        ora     #$40                    ; set H-flip bit
+        ora     #ENT_FLAG_HFLIP         ; set H-flip bit
         sta     $031F                   ; update slot $1F status
 wily_machine_b_fire_timer_inc:  inc     ent_timer,x ; advance fill timer
 wily_machine_b_fire_return:  rts
@@ -1323,7 +1323,7 @@ wily_machine_b_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
 wily_machine_b_spawn_end:  rts
 
 wily_machine_b_move_dir:  lda     ent_facing,x ; check H-move direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     wily_machine_b_move_left ; not right, move left
         jsr     move_sprite_right
         jmp     wily_machine_b_move_vert
@@ -1384,7 +1384,7 @@ wily_machine_b_move_return:  rts
 
 wily_machine_b_attack_vert:  jsr     apply_y_speed ; apply gravity + Y velocity
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     wily_machine_b_move_left_atk ; not right, move left
         jmp     move_sprite_right
 
@@ -1481,7 +1481,7 @@ gamma_b_setup_hp:  lda     #$80         ; reset HP display flag
 
 ; Wait for boss HP bar to fill, then release player
 gamma_b_hp_bar_check:  lda     boss_hp_display ; HP bar position
-        cmp     #$9C                    ; filled to max?
+        cmp     #HEALTH_FULL            ; filled to max?
         bne     gamma_b_init_end        ; no → keep filling
         lda     #$00                    ; state → $00 (on_ground)
         sta     player_state            ; release player, fight begins
@@ -1598,7 +1598,7 @@ gamma_b_spawn_homing_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; parent facing direction
         sta     ent_facing,y            ; child inherits facing
-        and     #$02                    ; bit 1 = facing left
+        and     #FACING_LEFT            ; bit 1 = facing left
         tay                             ; use as table index (0/2)
         lda     ent_x_px,x              ; parent X pixel
         clc
@@ -1886,11 +1886,11 @@ teleporter_pos_check_y:  lda     ent_y_px,x ; check Y position
         cmp     #$68                    ; target Y = $68
         beq     teleporter_pos_check_x  ; at target → check X
         inc     ent_x_px,x              ; not at target → move right
-        lda     #$01                    ; facing right
+        lda     #FACING_RIGHT           ; facing right
         jmp     teleporter_set_facing   ; set facing and return
 
 teleporter_pos_check_x:  dec     ent_x_px,x ; move left toward center
-        lda     #$02                    ; facing left
+        lda     #FACING_LEFT            ; facing left
 teleporter_set_facing:  sta     ent_facing,x ; store facing direction
         lda     ent_y_px,x              ; save Y position
         pha
@@ -2030,7 +2030,7 @@ wily_machine_c_main:  inc     ent_var1,x ; increment frame counter
         sta     ent_xvel,y
         lda     #$FB                    ; AI routine $FB
         sta     ent_routine,y
-        lda     #$01                    ; facing right
+        lda     #FACING_RIGHT           ; facing right
         sta     ent_facing,y
         ldy     #$07                    ; 8 palette entries
 wily_machine_c_pal_loop:  lda     wily_machine_c_pal_table,y ; load palette data
@@ -2054,7 +2054,7 @@ wily_machine_c_block_fall:  jsr     apply_y_speed ; apply vertical velocity
         rts
 
 wily_machine_c_block_move:  lda     ent_facing,x ; check facing direction
-        and     #$01                    ; bit 0: 1=right, 0=left
+        and     #FACING_RIGHT           ; bit 0: 1=right, 0=left
         beq     wily_machine_c_block_left ; even → move left
         jmp     move_sprite_right       ; move block rightward
 
@@ -2111,7 +2111,7 @@ wily_machine_c_block_anim:  lda     ent_anim_state,x ; check anim state
 wily_machine_c_block_anim_end:  lda     #$00 ; freeze at frame 0
         sta     ent_anim_frame,x
 wily_machine_c_block_facing:  lda     ent_facing,x ; check lateral direction
-        and     #$01                    ; bit 0: 1=right, 0=left
+        and     #FACING_RIGHT           ; bit 0: 1=right, 0=left
         beq     wily_machine_c_block_left_move ; even → move left
         jmp     move_sprite_right       ; move block rightward
 
@@ -2145,7 +2145,7 @@ wily_machine_c_block_jump:  lda     #$A3 ; Y velocity sub = $A3
         sta     ent_yvel,x
         lda     #$7B                    ; breaking anim $7B
         jsr     reset_sprite_anim       ; set breaking animation
-        lda     #$02                    ; facing left (scatter dir)
+        lda     #FACING_LEFT            ; facing left (scatter dir)
         sta     ent_facing,x            ; set scatter direction
 wily_machine_c_block_end:  rts
 
@@ -2303,7 +2303,7 @@ kamegoro_maker_pellet_loop:  jsr     find_enemy_freeslot_y ; find free enemy slo
         clc
         adc     #$30                    ; offset down by 48 px
         sta     ent_y_px,y              ; set pellet Y position
-        lda     #$02                    ; face left
+        lda     #FACING_LEFT            ; face left
         sta     ent_facing,y            ; pellets fire leftward
         stx     temp_00                 ; save parent slot
         ldx     $01                     ; use counter as param index
@@ -2372,7 +2372,7 @@ kamegoro_current_init:  lda     ent_status,x ; get sub-phase counter
         lda     #MUSIC_BOSS             ; play boss music
         jsr     submit_sound_ID_D9      ; if not already playing
 kamegoro_current_hp_check:  lda     boss_hp_display ; check HP bar fill status
-        cmp     #$9C                    ; fully filled ($9C)?
+        cmp     #HEALTH_FULL            ; fully filled?
         bne     kamegoro_current_return ; still filling, wait
         jsr     kamegoro_current_death_counter ; randomize movement params
         inc     ent_status,x            ; advance to active phase
@@ -2400,7 +2400,7 @@ kamegoro_current_anim_check:  lda     ent_anim_state,x ; check anim completion
         jsr     reset_sprite_anim       ; switch to closed anim
         inc     ent_var1,x              ; flag children alive
 kamegoro_current_movement:  lda     ent_facing,x ; check horizontal direction
-        and     #$01                    ; test right-facing bit
+        and     #FACING_RIGHT           ; test right-facing bit
         beq     kamegoro_current_move_left_col ; 0 = facing left
         ldy     #$20                    ; right collision box $20
         jsr     move_right_collide      ; move right with collision
@@ -2506,7 +2506,7 @@ kamegoro_current_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy 
         lda     #$5E                    ; entity OAM type $5E
         jsr     init_child_entity       ; init child sprite/status
         lda     ent_facing,y            ; check child facing
-        and     #$01                    ; test right-facing bit
+        and     #FACING_RIGHT           ; test right-facing bit
         bne     kamegoro_current_spawn_return ; facing right, keep H-flip
         lda     ent_flags,y             ; facing left, clear H-flip
         and     #$BF                    ; clear bit 6 (H-flip)
@@ -2545,7 +2545,7 @@ kamegoro_current_timer_cmp:  cmp     #$FF ; $FF = continuous mode?
         beq     kamegoro_current_move_dir ; skip decrement if $FF
 kamegoro_current_timer_dec_2:  dec     ent_timer,x ; count down move timer
 kamegoro_current_move_dir:  lda     ent_facing,x ; check facing direction
-        and     #$01                    ; test right-facing bit
+        and     #FACING_RIGHT           ; test right-facing bit
         beq     kamegoro_current_move_left ; 0 = facing left
         ldy     #$0C                    ; collision box $0C
         jsr     move_right_collide      ; move right with collision
@@ -2581,14 +2581,14 @@ kamegoro_current_anim_set:  sta     ent_anim_id,x ; set animation ID
         jmp     kamegoro_current_col_return
 
 kamegoro_current_facing_check:  lda     ent_facing,x ; check facing for sprite flip
-        and     #$01                    ; test right-facing bit
+        and     #FACING_RIGHT           ; test right-facing bit
         beq     kamegoro_current_flag_clear ; 0 = facing left
         lda     ent_flags,x             ; facing right, clear H-flip
         and     #$BF                    ; clear bit 6
         sta     ent_flags,x             ; update flags (no H-flip)
         bne     kamegoro_current_flag_check ; always branch (flags != 0)
 kamegoro_current_flag_clear:  lda     ent_flags,x ; facing left, set H-flip
-        ora     #$40                    ; set bit 6 (H-flip)
+        ora     #ENT_FLAG_HFLIP         ; set bit 6 (H-flip)
         sta     ent_flags,x             ; update flags (H-flipped)
 kamegoro_current_flag_check:  lda     ent_timer,x ; check if continuous mode
         cmp     #$FF                    ; timer $FF = continuous?
@@ -2626,7 +2626,7 @@ kamegoro_current_gravity:  ldy     #$0F ; collision box $0F
         jmp     kamegoro_current_status_dec ; landed, return to walking
 
 kamegoro_current_move_dir_2:  lda     ent_facing,x ; check facing direction
-        and     #$01                    ; test right-facing bit
+        and     #FACING_RIGHT           ; test right-facing bit
         beq     kamegoro_current_move_left_2 ; 0 = facing left
         ldy     #$0C                    ; collision box $0C
         jsr     move_right_collide      ; move right with collision
@@ -2638,7 +2638,7 @@ kamegoro_current_move_dir_2:  lda     ent_facing,x ; check facing direction
 kamegoro_current_move_left_2:  ldy     #$0D ; collision box $0D
         jsr     move_left_collide       ; move left with collision
         lda     ent_flags,x             ; set H-flip for left
-        ora     #$40                    ; set bit 6
+        ora     #ENT_FLAG_HFLIP         ; set bit 6
         sta     ent_flags,x             ; update flags
 kamegoro_current_col_end:  bcc     kamegoro_current_vel_check ; no wall hit, check Y vel
 kamegoro_current_status_dec:  dec     ent_status,x ; wall/floor hit, end launch
@@ -2704,14 +2704,14 @@ kamegoro_current_face_dir:  lda     ent_facing,x ; get facing direction
         rts
 
 kamegoro_current_horiz_check:  lda     ent_facing,x ; get facing direction
-        and     #$01                    ; test right-facing bit
+        and     #FACING_RIGHT           ; test right-facing bit
         beq     kamegoro_current_facing_right ; 0 = facing left
         lda     ent_flags,x             ; facing right, clear H-flip
         and     #$BF                    ; clear bit 6
         sta     ent_flags,x             ; update flags
         bne     kamegoro_current_anim_id_set ; always branch (flags != 0)
 kamegoro_current_facing_right:  lda     ent_flags,x ; facing left, set H-flip
-        ora     #$40                    ; set bit 6 (H-flip)
+        ora     #ENT_FLAG_HFLIP         ; set bit 6 (H-flip)
         sta     ent_flags,x             ; update flags
 kamegoro_current_anim_id_set:  lda     #$64 ; horizontal crawl-up anim
         sta     ent_anim_id,x           ; set animation ID
@@ -2759,7 +2759,7 @@ kamegoro_current_effect_spawn_2:  jsr     find_enemy_freeslot_y ; find free enem
         lda     #$66                    ; entity OAM type $66
         jsr     init_child_entity       ; init child sprite/status
         lda     ent_facing,y            ; check child facing
-        and     #$01                    ; test right-facing bit
+        and     #FACING_RIGHT           ; test right-facing bit
         bne     kamegoro_current_effect_ret_2 ; facing right, keep H-flip
         lda     ent_flags,y             ; facing left, clear H-flip
         and     #$BF                    ; clear bit 6
@@ -2933,7 +2933,7 @@ holograph_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         jsr     init_child_entity       ; init as child entity
         lda     ent_facing,x            ; inherit parent facing
         sta     ent_facing,y
-        and     #$01                    ; bit 0 = right side
+        and     #FACING_RIGHT           ; bit 0 = right side
         tay
         lda     ent_x_px,x              ; parent X position
         clc
@@ -2976,7 +2976,7 @@ holograph_current_dir_init:  lda     ent_facing,x ; check direction bits
         jmp     holograph_current_hit_check
 
 holograph_current_horiz:  lda     ent_facing,x ; check horizontal dir
-        and     #$01                    ; bit 0 = rightward
+        and     #FACING_RIGHT           ; bit 0 = rightward
         beq     holograph_current_move_left ; moving left?
         ldy     #$08                    ; Y = 8 (speed param)
         jsr     move_right_collide      ; move current right
@@ -3006,11 +3006,11 @@ holograph_current_dist_check:  jsr     entity_x_dist_to_player ; get X distance 
         rts
 
 holograph_current_facing_dir:  lda     ent_facing,x ; check horizontal facing
-        and     #$02                    ; bit 1 = left facing
+        and     #FACING_LEFT            ; bit 1 = left facing
         bne     holograph_current_facing_right ; facing left?
         lda     #$01                    ; push player right
         bne     holograph_current_dir_set ; always branch
-holograph_current_facing_right:  lda     #$02 ; push player left
+holograph_current_facing_right:  lda     #FACING_LEFT ; push player left
 holograph_current_dir_set:  sta     $36 ; set push direction
         lda     #$00                    ; no Y push
         sta     $37
@@ -3035,7 +3035,7 @@ holograph_boss_init:  lda     ent_status,x ; check sub-state
         lda     #MUSIC_BOSS             ; play boss music
         jsr     submit_sound_ID_D9
 holograph_boss_hp_check:  lda     boss_hp_display ; check HP bar fill
-        cmp     #$9C                    ; $9C = bar fully filled
+        cmp     #HEALTH_FULL            ; bar fully filled
         bne     holograph_boss_return   ; still filling?
         lda     ent_status,x            ; set invincibility bit
         ora     #$40
@@ -3048,7 +3048,7 @@ holograph_boss_hp_check:  lda     boss_hp_display ; check HP bar fill
         sta     ent_timer,x
         lda     #$36                    ; 54px movement distance
         sta     ent_var1,x
-        lda     #$01                    ; start facing right
+        lda     #FACING_RIGHT           ; start facing right
         sta     ent_facing,x
         inc     ent_status,x            ; advance to movement phase
 holograph_boss_phase_check:  lda     ent_status,x ; check sub-state
@@ -3078,10 +3078,10 @@ holograph_boss_anim_check:  lda     ent_anim_state,x ; check animation progress
 holograph_boss_return:  rts
 
 holograph_boss_facing_check:  lda     ent_facing,x ; check facing direction
-        and     #$01                    ; bit 0 = right
+        and     #FACING_RIGHT           ; bit 0 = right
         beq     holograph_boss_flag_left ; facing right?
         lda     ent_flags,x             ; set H-flip flag
-        ora     #$40                    ; bit 6 = horizontal flip
+        ora     #ENT_FLAG_HFLIP         ; bit 6 = horizontal flip
         sta     ent_flags,x
         jsr     move_sprite_right       ; move boss rightward
         jmp     holograph_boss_var1_dec
@@ -3257,7 +3257,7 @@ holograph_tentacle_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; inherit parent facing
         sta     ent_facing,y
-        and     #$01                    ; bit 0 = right direction
+        and     #FACING_RIGHT           ; bit 0 = right direction
         tay
         lda     ent_x_px,x              ; parent X position
         clc

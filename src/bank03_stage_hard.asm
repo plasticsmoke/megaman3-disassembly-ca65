@@ -796,7 +796,7 @@ restore_weapon_loop:  ldx     progression_robot_master_cells_table,y ; Robot Mas
         beq     restore_check_doc_robot ; not beaten → check Doc Robot
         pha                             ; save completion flag
         ldx     progression_weapon_energy_robot_master_table,y ; get weapon energy offset
-        lda     #$9C                    ; $9C = full weapon energy
+        lda     #HEALTH_FULL            ; full weapon energy
         sta     player_hp,x             ; fill Robot Master weapon
         pla                             ; restore completion flag
         and     #$01                    ; bit 0 = Doc Robot also beaten
@@ -806,12 +806,12 @@ restore_check_doc_robot:  ldx     progression_doc_robot_cells_table,y ; get Doc 
         lda     $0150,x                 ; read Doc Robot flag
         beq     restore_next_boss_pair  ; not beaten, skip weapon fill
 restore_fill_doc_weapon:  ldx     progression_weapon_energy_doc_robot_table,y ; get Doc weapon energy offset
-        lda     #$9C                    ; $9C = full weapon energy
+        lda     #HEALTH_FULL            ; full weapon energy
         sta     player_hp,x             ; fill Doc Robot weapon
 restore_next_boss_pair:  iny            ; next boss pair
         cpy     #$04                    ; done with 4 pairs?
         bne     restore_weapon_loop     ; no, continue loop
-        lda     #$9C                    ; $9C = full energy
+        lda     #HEALTH_FULL            ; full energy
         sta     $A9                     ; fill Rush Marine ammo ($A9)
         ldy     $0164                   ; check Rush Jet cell
         beq     restore_check_rush_coil ; zero = not obtained

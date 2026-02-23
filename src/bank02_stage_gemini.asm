@@ -112,7 +112,7 @@ menu_toggle_page:  lda     $B4
 ; Use E-Tank — refill player HP
 ; ===========================================================================
 ; Only works on page 1 ($B4=0). Decrements E-Tank count (BCD), then
-; fills player HP one unit every 4 frames until full ($9C = 28 bars).
+; fills player HP one unit every 4 frames until full (HEALTH_FULL = 28 bars).
 
 use_etank:  lda     $B4                 ; check current page
         bne     etank_done               ; page 2 → skip (no E-Tanks there)
@@ -133,7 +133,7 @@ use_etank:  lda     $B4                 ; check current page
 etank_refill_loop:  lda     #$00                ; cursor = 0 (HP bar slot)
         sta     weapon_cursor           ; temporarily set cursor to slot 0
         lda     player_hp               ; check current HP
-        cmp     #$9C                    ; HP full? (28 bars)
+        cmp     #HEALTH_FULL            ; HP full? (28 bars)
         beq     etank_done               ; yes → done
         lda     $95                     ; load frame counter
         and     #$03                    ; every 4th frame:
@@ -264,7 +264,7 @@ copy_weapon_palette_loop:  lda     weapon_palette_color_table,y ; copy 3 palette
 ; ===========================================================================
 ; Called after collecting a weapon energy refill pickup. Builds the menu
 ; overlay, then fills the selected weapon's ammo bar one unit every 4
-; frames until full ($9C = 28 bars). Then slides menu out.
+; frames until full (HEALTH_FULL = 28 bars). Then slides menu out.
 
 refill_weapon_entry:  lda     $EA                 ; save coroutine state
         pha
@@ -286,7 +286,7 @@ refill_ammo_loop:  lda     $95
         adc     $B4                     ; absolute weapon index
         tax                             ; X = weapon slot index
         lda     player_hp,x             ; weapon ammo (player_hp+N)
-        cmp     #$9C                    ; full?
+        cmp     #HEALTH_FULL            ; full?
         beq     refill_ammo_done               ; yes → done
         inc     player_hp,x             ; add 1 ammo unit
         jsr     update_energy_bar               ; update ammo bar display

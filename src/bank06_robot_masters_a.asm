@@ -187,7 +187,7 @@ needle_man_jump_player:
         lda     #$00                    ; reset frame counter
         sta     ent_anim_frame,x        ; set up animation frame
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; bit 0 set = facing right
+        and     #FACING_RIGHT           ; bit 0 set = facing right
         beq     needle_man_jump_move_left ; bit 0 clear: go left
         ldy     #$20                    ; collision mask
         jsr     move_right_collide      ; move right with collision
@@ -297,7 +297,7 @@ spawn_needle:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sty     temp_00                 ; save slot index
         lda     ent_facing,x            ; copy facing to projectile
         sta     ent_facing,y
-        and     #$02                    ; isolate left/right bit
+        and     #FACING_LEFT            ; isolate left/right bit
         tay                             ; use as offset (0 or 2)
         lda     ent_anim_state,x        ; check throw pose
         cmp     #$01                    ; first throw pose?
@@ -376,7 +376,7 @@ magnet_man_state_ptr_hi_table:  .byte   $A2,$A2,$A3,$A3,$A3
         and     #$01                    ; check odd/even toggle
         beq     magnet_man_bounce_move_left               ; even -> move left
         lda     ent_flags,x             ; load flags
-        ora     #$40                    ; face right
+        ora     #ENT_FLAG_HFLIP         ; face right
         sta     ent_flags,x             ; store updated flags
         jsr     move_sprite_right       ; move sprite right
         jmp     magnet_man_bounce_apply_gravity               ; skip to gravity/floor check
@@ -512,7 +512,7 @@ magnet_man_fall_done:  rts
         cmp     #$18                    ; close enough? (< 24 px)
         bcc     magnet_man_pull_end               ; yes -> end pull, go to state $03
         lda     ent_flags,x             ; load entity flags
-        and     #$40                    ; check facing direction
+        and     #ENT_FLAG_HFLIP         ; check facing direction
         bne     magnet_man_pull_set_left               ; facing right -> pull left
         lda     #$01                    ; pull direction = right
         bne     magnet_man_pull_store_dir               ; always branch
@@ -551,10 +551,10 @@ magnet_man_pull_set_hitbox:  lda     #$AA                ; magnet pull hitbox (c
 ; --- face player and update sprite flip flag --------------------------------
 magnet_man_face_player_flip:  jsr     face_player         ; face toward player
         lda     ent_facing,x            ; check facing direction
-        and     #$01                    ; test right-facing bit
+        and     #FACING_RIGHT           ; test right-facing bit
         beq     magnet_man_face_clear_flip               ; facing left -> clear flip
         lda     ent_flags,x             ; load flags
-        ora     #$40                    ; set H-flip flag (facing right)
+        ora     #ENT_FLAG_HFLIP         ; set H-flip flag (facing right)
         sta     ent_flags,x             ; store updated flags
         bne     magnet_man_face_done               ; always branch (skip left)
 magnet_man_face_clear_flip:  lda     ent_flags,x         ; load flags
@@ -574,7 +574,7 @@ spawn_magnet_missile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sty     temp_00                 ; save enemy slot index
         lda     ent_facing,x            ; copy facing to missile
         sta     ent_facing,y            ; set missile facing
-        and     #$01                    ; isolate facing bit
+        and     #FACING_RIGHT           ; isolate facing bit
         tay                             ; use as offset index
         lda     ent_x_px,x              ; position missile with X offset
         clc                             ; add spawn X offset
@@ -610,7 +610,7 @@ magnet_missile_ai:  lda     ent_anim_id,x       ; check current animation
         and     #$0F                    ; isolate state bits
         bne     magnet_missile_fall_logic               ; hit -> skip to fall logic
         lda     ent_facing,x            ; move in facing direction
-        and     #$01                    ; test right-facing bit
+        and     #FACING_RIGHT           ; test right-facing bit
         beq     magnet_missile_move_left               ; facing left -> go left
         jsr     move_sprite_right       ; move right
         jmp     magnet_missile_check_distance               ; skip to distance check
@@ -752,7 +752,7 @@ top_man_walk_reverse_dir:  lda     ent_var3,x          ; toggle walk direction
         eor     #$03                    ; toggle left/right bits
         sta     ent_facing,x            ; store new facing
         lda     ent_flags,x             ; flip sprite
-        eor     #$40                    ; toggle H-flip bit
+        eor     #ENT_FLAG_HFLIP         ; toggle H-flip bit
         sta     ent_flags,x             ; store flipped flags
         lda     #$49                    ; turn-around animation
         jsr     reset_sprite_anim
@@ -768,7 +768,7 @@ spawn_top_spin_projectile:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy facing
         sta     ent_facing,y            ; set child facing
-        and     #$01                    ; isolate direction bit
+        and     #FACING_RIGHT           ; isolate direction bit
         tay                             ; use as index
         lda     ent_x_px,x              ; same X as Top Man
         ldy     temp_00                 ; restore child slot
@@ -818,7 +818,7 @@ top_spin_projectile_ai:  lda     ent_status,x        ; get phase from status
         and     #$0F                    ; isolate low nibble
         bne     top_spin_check_phase2               ; skip phase 0 if nonzero
         lda     ent_facing,x            ; phase 0: move outward
-        and     #$01                    ; check direction bit
+        and     #FACING_RIGHT           ; check direction bit
         beq     top_spin_phase0_move_left               ; 0 = move left
         jsr     move_sprite_right       ; move right
         jmp     top_spin_phase0_move_up
@@ -858,7 +858,7 @@ top_spin_homing_apply_move:  lda     ent_facing,x        ; apply homing movement
 
 top_spin_homing_move_down:  jsr     move_sprite_down    ; move down
 top_spin_homing_check_horiz:  lda     ent_facing,x        ; check horizontal direction
-        and     #$01                    ; test right bit
+        and     #FACING_RIGHT           ; test right bit
         beq     top_spin_homing_move_left               ; 0 = move left
         jmp     move_sprite_right       ; move right
 
@@ -906,7 +906,7 @@ shadow_man_state_ptr_hi_table:  .byte   $A6,$A6,$A7,$A7,$A7
         lda     ent_var1,x              ; landing pause active?
         bne     shadow_man_jump_landing_pause               ; yes, handle landing pause
         lda     ent_facing,x            ; move in facing direction
-        and     #$01                    ; test direction bit
+        and     #FACING_RIGHT           ; test direction bit
         beq     shadow_man_jump_move_left               ; 0 = facing left
         ldy     #$24                    ; move right with collision
         jsr     move_right_collide
@@ -1035,7 +1035,7 @@ shadow_man_throw_done:  rts
         dec     ent_timer,x             ; post-pass timer
         beq     shadow_man_slide_stop               ; timer expired -> stop
 shadow_man_slide_move:  lda     ent_facing,x        ; slide in facing direction
-        and     #$01                    ; test direction bit
+        and     #FACING_RIGHT           ; test direction bit
         beq     shadow_man_slide_move_left               ; 0 = slide left
         ldy     #$24                    ; move right with collision
         jsr     move_right_collide
@@ -1070,7 +1070,7 @@ test_facing_change:  lda     ent_facing,x ; save old facing
         cmp     ent_facing,x            ; or right to left)
         beq     test_facing_change_return ; same facing? skip flip
         lda     ent_flags,x             ; if so,
-        eor     #$40                    ; flip facing-lock flag
+        eor     #ENT_FLAG_HFLIP         ; flip facing-lock flag
         sta     ent_flags,x             ; to simulate proper facing
 test_facing_change_return:  rts
 
@@ -1099,7 +1099,7 @@ spawn_shadow_blade:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy facing to blade
         sta     ent_facing,y            ; set blade facing
-        and     #$01                    ; isolate direction bit
+        and     #FACING_RIGHT           ; isolate direction bit
         tay                             ; use as index
         lda     ent_x_px,x              ; same X position
         ldy     temp_00                 ; restore child slot
