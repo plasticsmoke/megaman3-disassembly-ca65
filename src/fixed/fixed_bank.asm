@@ -1,6 +1,6 @@
 ; da65 V2.18 - Ubuntu 2.19-1
 ; Created:    2026-02-21 06:01:26
-; Input file: /home/kn/megamanforever/megaman3-disassembly-ca65/tools/../build/bank1E_1F.bin
+; Input file: build/bank1E_1F.bin
 ; Page:       1
 
 
@@ -22,7 +22,7 @@
 ;
 ; NOTE: MM3 shares its engine with Mega Man 4 (MM4). Many routines here
 ; are near-identical to MM4's bank38_3F.asm (the MM4 fixed bank).
-; MM4 cross-references (from plasticsmoke/megaman4-disassembly):
+; MM4 cross-references (from megaman4-disassembly):
 ;   process_sprites    ($1C800C) → code_3A8014 — entity processing loop
 ;   check_player_hit   ($1C8097) → code_3A81CC — contact damage check
 ;   check_weapon_hit   ($1C8102) → code_3FF95D — weapon-entity collision
@@ -200,7 +200,7 @@
 ;   ent_var1,x = general purpose / wildcard 1
 ;   ent_var2,x = general purpose / wildcard 2
 ;   ent_var3,x = general purpose / wildcard 3
-;   ent_flags,x = entity flags (bit 7=active/collidable, bit 6=H-flip, bit 4=child)
+;   ent_flags,x = entity flags (bit 7=active/collidable, bit 6=H-flip, bit 4=world coords)
 ;   ent_anim_state,x = animation state (0=reset, set by reset_sprite_anim)
 ;   ent_anim_id,x = current animation / OAM ID
 ;   ent_anim_frame,x = animation frame counter (bit 7 preserved on anim reset)
@@ -304,21 +304,21 @@
 
 task_ptr           := $0093
 irq_handler_ptr           := $009C
-L8000           := $8000
-L8003           := $8003
-L8006           := $8006
-L8009           := $8009
-L800C           := $800C
-L800F           := $800F
-L8012           := $8012
-L9000           := $9000
-L9003           := $9003
-L9006           := $9006
-L9009           := $9009
-check_new_enemies           := $9C00
-LA000           := $A000
-LA003           := $A003
-LA006           := $A006
+banked_8000     := $8000
+banked_8003     := $8003
+banked_8006     := $8006
+banked_8009     := $8009
+banked_800C     := $800C
+banked_800F     := $800F
+banked_8012     := $8012
+stage_select_rm_intro := $9000
+stage_select_password := $9003
+stage_select_wily_gate := $9006
+stage_select_title := $9009
+check_new_enemies := $9C00
+banked_A000     := $A000
+banked_A003     := $A003
+banked_A006     := $A006
 NMI:  php                               ; push processor status (NMI entry = $C000)
 nmi_preserve_regs:  pha                 ; push A (this addr = $C001 = MMC3 IRQ reload)
         txa                             ; preserve X, Y, and
@@ -1856,7 +1856,7 @@ load_room_parse_connections:  lda     $AA82,y ; parse 4 screen connection bytes
         sta     prg_bank                ; bank $01 has CHR/palette lookup tables
         jsr     select_PRG_banks        ; switch to bank $01
         pla                             ; A = CHR/palette param from $AA60
-        jsr     LA000                   ; → sets $EC/$ED from $A200[param*2]
+        jsr     banked_A000             ; → sets $EC/$ED from $A200[param*2]
         jmp     update_CHR_banks        ; → and SP2-SP3 from $A030[param*8]
 
 ; default_sprite_palette: sprite palette 0-1 defaults (8 bytes)
@@ -1923,7 +1923,7 @@ main_game_entry:
         lda     #$18                    ; map bank $18 to $8000-$9FFF
         sta     mmc3_select
         jsr     select_PRG_banks
-        jsr     L9009                   ; title screen / stage select (bank $18)
+        jsr     stage_select_title ; title screen / stage select (bank $18)
         lda     #$9C                    ; $A9 = $9C = full Rush Coil ammo
         sta     $A9
         lda     #$02                    ; $AE = 2 $AE (display as 3)
@@ -1949,7 +1949,7 @@ stage_init:  lda     #$00               ; $EE = 0: allow NMI rendering
         jsr     task_yield              ; wait for NMI
         jsr     clear_entity_table      ; zero all 32 entity slots
         lda     #$01                    ; $A000 = 1 (H-mirroring)
-        sta     LA000
+        sta     MMC3_MIRRORING
 
 ; --- zero-init game state variables ---
         lda     #$00
@@ -2012,7 +2012,7 @@ game_entry_render_columns_loop:  lda     #$01 ; $10 = 1 (render direction: right
         beq     game_entry_set_mirroring ; if no vertical connection: H-mirror
         dex                             ; else: X=0 (V-mirror), Y=$26
         ldy     #$26                    ; reduced viewport height (v-mirror)
-game_entry_set_mirroring:  stx     LA000 ; set mirroring mode
+game_entry_set_mirroring:  stx     MMC3_MIRRORING ; set mirroring mode
         sty     $52                     ; $52 = nametable height ($2A or $26)
         pla                             ; bits 4-0 of room config
         and     #$1F                    ; = screen count
@@ -2179,7 +2179,7 @@ game_entry_check_pause:  ldy     player_state ; check per-state pause permission
         lda     #$02                    ; switch to bank $02/$03 (pause menu code)
         sta     prg_bank
         jsr     select_PRG_banks
-        jsr     LA003                   ; call pause menu handler
+        jsr     banked_A003             ; call pause menu handler
 gameplay_no_pause:  lda     stage_id    ; switch to stage bank
         sta     prg_bank                ; stage bank for state dispatch
         jsr     select_PRG_banks
@@ -2222,7 +2222,7 @@ frame_loop_track_screen_progress:  lda     ent_x_px ; player X pixel position
         inx
         stx     prg_bank
         jsr     select_PRG_banks        ; switch to entity AI banks
-        jsr     L8000                   ; process all entity AI
+        jsr     banked_8000             ; process all entity AI
         lda     #$1A                    ; bank $1A = enemy spawner
         sta     mmc3_select
         lda     stage_id
@@ -2232,13 +2232,13 @@ frame_loop_track_screen_progress:  lda     ent_x_px ; player X pixel position
         lda     #$09                    ; select bank $09
         sta     mmc3_select             ; (per-frame subsystems)
         jsr     select_PRG_banks        ; switch to per-frame subsystem bank
-        jsr     L8003                   ; bank $09 subsystems:
-        jsr     L8006                   ; screen scroll, HUD update,
-        jsr     L800F                   ; sound processing,
-        jsr     L8009                   ; background animation,
-        jsr     L800C                   ; item pickup,
-        jsr     L8000                   ; checkpoint tracking,
-        jsr     L8012                   ; etc.
+        jsr     banked_8003             ; bank $09 subsystems:
+        jsr     banked_8006             ; screen scroll, HUD update,
+        jsr     banked_800F             ; sound processing,
+        jsr     banked_8009             ; background animation,
+        jsr     banked_800C             ; item pickup,
+        jsr     banked_8000             ; checkpoint tracking,
+        jsr     banked_8012             ; etc.
         jsr     palette_fade_tick       ; update palette fade animation
         jsr     process_frame_yield_with_player ; build OAM + yield 1 frame
 ; --- DEBUG (shipped in retail) — controller 2 left-press latches right-held ---
@@ -2274,7 +2274,7 @@ frame_loop_boss_defeated:  lda     #$00 ; clear rendering/overlay/scroll state
         lda     #$10
         sta     prg_bank                ; bank $10 = boss post-defeat code
         jsr     select_PRG_banks        ; switch banks
-        jsr     L9000                   ; boss post-defeat (bank $10)
+        jsr     stage_select_rm_intro ; boss post-defeat (bank $10)
         jmp     game_entry_stage_reinit ; → stage_reinit
 
 ; --- death_handler ($3C != 0) ---
@@ -2309,7 +2309,7 @@ frame_loop_bcd_lives_correction:  lda     #$00 ; clear rendering/overlay state
 frame_loop_wily_respawn:  lda     #$18  ; select bank $18
         sta     mmc3_select             ; bank $18 for Wily respawn
         jsr     select_PRG_banks        ; switch banks
-        jmp     L9006                   ; Wily respawn (bank $18)
+        jmp     stage_select_wily_gate ; Wily respawn (bank $18)
 
 ; --- game_over ($AE underflowed) ---
 
@@ -2324,7 +2324,7 @@ game_over:  lda     #$00                ; clear all state
         lda     #$13
         sta     prg_bank                ; bank $13 = game over handler
         jsr     select_PRG_banks
-        jsr     L9003                   ; game over sequence (bank $18)
+        jsr     stage_select_password ; game over sequence (bank $18)
         jmp     game_entry_stage_reinit ; → stage_reinit (continue/retry)
 
 ; --- stage_clear_handler ($74 != 0: stage completion triggered) ---
@@ -2348,7 +2348,7 @@ stage_clear_handler:  pha               ; save $74 (stage clear type)
         pla                             ; $74 AND $7F: 0 = normal stage clear
         and     #$7F
         bne     frame_loop_special_clear_check ; nonzero = special clear (Wily/Doc Robot)
-        jsr     L8000                   ; normal stage clear sequence (bank $0E)
+        jsr     banked_8000             ; normal stage clear sequence (bank $0E)
         jmp     game_entry_stage_reinit ; → stage_reinit
 
 ; --- special stage clear (Wily/Doc Robot stages) ---
@@ -2356,7 +2356,7 @@ stage_clear_handler:  pha               ; save $74 (stage clear type)
 frame_loop_special_clear_check:  lda     $75 ; $75 = stage clear sub-type
         cmp     #$06                    ; $06 = final boss / ending
         beq     frame_loop_ending_sequence ; $06 = ending → special path
-        jsr     L8003                   ; Wily/Doc Robot clear (bank $0E)
+        jsr     banked_8003             ; Wily/Doc Robot clear (bank $0E)
         jmp     game_entry_stage_reinit ; → stage_reinit
 
 ; --- game ending sequence ---
@@ -2368,7 +2368,7 @@ frame_loop_ending_sequence:  lda     #$0C ; switch to banks $0C/$0E
         jsr     select_PRG_banks        ; switch banks
         lda     #$11                    ; $F8 = $11 (ending game mode)
         sta     game_mode               ; set ending game mode
-        jsr     L8000                   ; run ending sequence
+        jsr     banked_8000             ; run ending sequence
         jmp     game_entry_stage_reinit ; → stage_reinit (title screen)
 
 handle_checkpoint:  lda     stage_id    ; store current level
@@ -2442,7 +2442,7 @@ frame_loop_checkpoint_mirroring:  ldx     #$01 ; default: H-mirror, viewport hei
         bne     frame_loop_checkpoint_set_height ; h-scroll → keep H-mirror defaults
         dex                             ; else: V-mirror (X=0), viewport $26
         ldy     #$26
-frame_loop_checkpoint_set_height:  stx     LA000 ; set nametable mirroring (0=V, 1=H)
+frame_loop_checkpoint_set_height:  stx     MMC3_MIRRORING ; set nametable mirroring (0=V, 1=H)
         sty     $52                     ; $52 = viewport height ($2A or $26)
         pla                             ; $2C = screen count (lower 5 bits)
         and     #$1F
@@ -4205,7 +4205,7 @@ boss_intro_stage_check:  lda     stage_id ; check current stage
         beq     boss_intro_nt_render_check ; yes → check render progress
         sty     $52                     ; first time: initialize nametable render
         ldy     #$00                    ; $A000 bank target = 0
-        sty     LA000
+        sty     MMC3_MIRRORING
         sty     $70                     ; render progress counter = 0
         sty     $28                     ; column counter = 0
         beq     boss_intro_bank_switch
@@ -4350,7 +4350,7 @@ victory_phase_continue:  lda     #SFX_WEAPON_GET ; weapon acquired jingle
         lda     #$02                    ; bank $02 = HUD/menu update code
         sta     prg_bank
         jsr     select_PRG_banks
-        jsr     LA000                   ; update HUD for new weapon
+        jsr     banked_A000             ; update HUD for new weapon
         lda     #PSTATE_TELEPORT        ; $30 = state $0D (teleport away)
         sta     player_state            ; set state $0D (teleport away)
         lda     #$80                    ; player type = $80 (active)
@@ -4745,7 +4745,7 @@ warp_boss_refight_init:  ldy     #$26   ; set viewport ($52 = $26)
         beq     warp_arena_nt_render    ; already set → check progress
         sty     $52                     ; first time: init progressive render
         ldy     #$00
-        sty     LA000
+        sty     MMC3_MIRRORING
         sty     $70                     ; progress counter = 0
         sty     $28                     ; column counter = 0
         beq     warp_arena_finalize
@@ -4882,7 +4882,7 @@ proto_man_walk_init:  lda     warp_screen_table,y ; camera screen = boss screen 
         sta     $9E                     ; (used by boss spawn code)
         sta     $9F
         lda     warp_chr_param_table,y  ; CHR bank param → bank $01 $A000
-        jsr     LA000                   ; (set_room_chr_and_palette in bank $01)
+        jsr     banked_A000             ; (set_room_chr_and_palette in bank $01)
         jsr     update_CHR_banks        ; apply CHR bank changes
 
 ; --- render arena nametable (33 columns, right-to-left) ---
@@ -5668,9 +5668,9 @@ camera_stx_load:  stx     $12
         and     #$20                    ; (bit 5 = horizontal scroll)
         beq     camera_mmc3_protect_enable
         sta     $2A
-camera_mmc3_protect_enable:  lda     #$01 ; enable MMC3 RAM protect
-        sta     LA000
-        lda     #$2A                    ; $52 = $2A (timer/delay value?)
+camera_mmc3_protect_enable:  lda     #$01 ; set H-mirroring
+        sta     MMC3_MIRRORING
+        lda     #$2A                    ; $52 = $2A (viewport height, h-mirror)
         sta     $52
         jsr     load_room               ; load room layout + CHR/palette
         ldx     #$00                    ; check player tile collision at (0,4)
@@ -5769,8 +5769,8 @@ room_link_set_position:  sta     $2D
         sta     $29                     ; $29 = metatile column base
         sta     camera_screen           ; $F9 = camera screen
         sta     ent_x_scr               ; ent_x_scr = player X screen
-        lda     #$00                    ; $A000 = 0 (MMC3 bank config)
-        sta     LA000                   ; disable MMC3 RAM protect
+        lda     #$00                    ; set V-mirroring
+        sta     MMC3_MIRRORING
         lda     #$26                    ; $52 = $26 (viewport height for V-mirror)
         sta     $52
         sec                             ; C=1 → link found
@@ -7123,7 +7123,7 @@ call_bank10_8000:  lda     mmc3_select  ; save current $8000 bank
         lda     #$10                    ; switch $8000-$9FFF to bank $10
         sta     mmc3_select
         jsr     select_PRG_banks
-        jsr     L8000                   ; call bank $10 entry point 0
+        jsr     banked_8000             ; call bank $10 entry point 0
         pla                             ; restore original $8000 bank
         sta     mmc3_select
         jmp     select_PRG_banks
@@ -7133,7 +7133,7 @@ call_bank10_8003:  lda     mmc3_select  ; save current $8000 bank
         lda     #$10                    ; switch $8000-$9FFF to bank $10
         sta     mmc3_select
         jsr     select_PRG_banks
-        jsr     L8003                   ; call bank $10 entry point 1
+        jsr     banked_8003             ; call bank $10 entry point 1
         pla                             ; restore original $8000 bank
         sta     mmc3_select
         jmp     select_PRG_banks
@@ -7615,7 +7615,7 @@ sprite_oam_id_check:  lda     ent_anim_id,x ; OAM ID = 0? no sprite
         beq     sprite_render_ret       ; return
         and     #$7F                    ; strip bank select bit
         tay                             ; Y = OAM ID (7-bit index)
-        lda     L8000,y                 ; low byte of anim sequence ptr
+        lda     banked_8000,y           ; low byte of anim sequence ptr
         sta     temp_00                 ; store ptr low
         lda     $8080,y                 ; high byte of anim sequence ptr
         sta     $01                     ; store ptr high
@@ -9439,7 +9439,7 @@ call_bank0E_A006:
         sta     prg_bank                ; set $A000 bank = $0E
         jsr     select_PRG_banks        ; apply bank switch
         ldx     $B8                     ; X = parameter from $B8
-        jsr     LA006                   ; call bank $0E entry point
+        jsr     banked_A006             ; call bank $0E entry point
 restore_A000:
         pla                             ; restore $A000 bank
         sta     prg_bank                ; write back $A000 bank
@@ -9458,7 +9458,7 @@ call_bank0E_A003:
         lda     #$0E                    ; switch $A000 to bank $0E
         sta     prg_bank                ; set $A000 bank = $0E
         jsr     select_PRG_banks        ; apply bank switch
-        jsr     LA003                   ; call bank $0E entry point
+        jsr     banked_A003             ; call bank $0E entry point
         jmp     restore_A000            ; restore bank and return
         .byte   $8A,$40,$A3,$00,$0F
         .byte   $04,$4B,$50,$80,$04,$18,$10,$E0
@@ -9528,7 +9528,7 @@ sound_buffer_clear_loop:  sta     $DC,x ; X=7..0 → $E3..$DC
         lda     #$18                    ; PPUMASK shadow: show sprites + BG
         sta     ppu_mask_shadow
         lda     #$00                    ; MMC3 mirroring: vertical
-        sta     LA000
+        sta     MMC3_MIRRORING
         ldx     #$1C                    ; $F4/$F5 = initial PRG banks
         stx     mmc3_select             ; bank $1C at $8000-$9FFF
         inx                             ; bank $1D at $A000-$BFFF
@@ -9805,10 +9805,10 @@ process_frame_sound_check:  ldx     $DB ; is current sound slot in buffer
         and     #$07                    ; with wraparound $07 -> $00
         sta     $DB
         pla                             ; play sound ID
-        jsr     L8003                   ; bank $16: play_sound_effect
+        jsr     banked_8003             ; bank $16: play_sound_effect
         jmp     process_frame_sound_check ; check next slot
 
-process_frame_sound_call:  jsr     L8000 ; bank $16: sound_driver_tick
+process_frame_sound_call:  jsr     banked_8000 ; bank $16: sound_driver_tick
         lda     #$00                    ; clear race condition flag
         sta     $F7
         jmp     select_PRG_banks        ; apply bank switch and return

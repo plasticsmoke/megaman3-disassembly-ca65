@@ -27,9 +27,9 @@
 .include "include/hardware.inc"
 
 ; --- External references (fixed bank + swappable bank $0E) ---
-LA000           := $A000                ; init music driver (bank $0E)
-LA003           := $A003                ; continue music playback (bank $0E)
-LA006           := $A006                ; start music track X (bank $0E)
+music_driver_init := $A000              ; init music driver (bank $0E)
+music_driver_tick := $A003              ; continue music playback (bank $0E)
+music_start_track := $A006              ; start music track X (bank $0E)
 prepare_oam_buffer           := $C5E9   ; prepare OAM buffer
 clear_entity_table           := $C628   ; clear entity table
 fade_palette_out           := $C74C     ; fade palette out (reveal)
@@ -238,10 +238,10 @@ phase1_process_frame:  lda     #$08                ; OAM past mountain sprites
         lda     $B8                     ; music continuation flag
         bne     continue_music_track               ; track playing — continue it
         ldx     ent_timer               ; track index (starts at $08)
-        jsr     LA006                   ; start new music track X
+        jsr     music_start_track       ; start new music track X
         jmp     phase1_loop_back               ; skip delay/continue logic
 ; --- continue current music track ---
-continue_music_track:  jsr     LA003               ; continue music playback
+continue_music_track:  jsr     music_driver_tick ; continue music playback
         lda     $B8                     ; check music status
         cmp     #$FF                    ; track finished?
         bne     phase1_loop_back               ; no — keep playing
@@ -260,7 +260,7 @@ inter_track_delay:  dec     ent_var1            ; count down delay
         jsr     select_PRG_banks        ; select music bank
         lda     #$00                    ; A = 0
         sta     nmi_skip                ; enable NMI processing
-        jsr     LA000                   ; init music driver for next track
+        jsr     music_driver_init       ; init music driver for next track
         jsr     task_yield              ; wait for NMI
 phase1_loop_back:  jmp     phase1_main_loop           ; loop phase 1
 

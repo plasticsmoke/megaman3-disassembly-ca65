@@ -181,7 +181,7 @@ process_sprites_done:  rts
 ; State transitions: → $06 (damage) on hit, → $0E (death) if HP depleted.
 ; Immune during: $06 (already damaged), $0E (dead), $0C (victory).
 ; Also immune if $39 != 0 (i-frames / invincibility timer).
-; $A2 = player HP (low 5 bits = current HP, bit 7 = death flag)
+; $A2 = player HP (low 5 bits = current HP, bit 7 = display dirty flag)
 ; Damage amount comes from table at $A000 indexed by entity routine ent_routine,x.
 ; ---------------------------------------------------------------------------
 
@@ -1406,7 +1406,7 @@ shadow_blade_flip_horizontal:  lda     ent_facing,x ; flip horizontal
 shadow_blade_rts:  rts
 
 ; ===========================================================================
-; main_dada — Dada (bouncing robot, Hard Man stage)
+; main_dada — Dada (bouncing robot, Snake Man stage)
 ; ===========================================================================
 ; Walks horizontally with $99, bouncing in 3 progressively higher arcs.
 ; Re-faces player every 3 bounces. ent_timer=bounce index (0-2), ent_var1=face timer.
@@ -2937,7 +2937,7 @@ yambow_fly_forward:  lda     ent_facing,x
 yambow_fly_right:  jmp     move_sprite_right ; move_sprite_right
 
 ; ===========================================================================
-; main_met — Met (hard hat enemy, classic hide/peek/shoot)
+; main_met — Metall DX (hard hat enemy, classic hide/peek/shoot)
 ; ===========================================================================
 ; State 0: hiding under helmet (invulnerable, ent_hitbox=$A3). Timer ent_timer counts
 ; down before peeking. When timer done + anim at frame 0 with counter 1 +
@@ -3580,9 +3580,11 @@ unknown_24_distance_check:  cmp     #$20 ; if |Y dist to target| >= $20,
 unknown_24_done:  rts
 
 ; ===========================================================================
-; main_pickelman_bull — Pickelman Bull (bulldozer enemy with rider)
+; main_pickelman_bull — Pickelman Bull (bulldozer enemy, Hard Man stage)
+; A Pickelman rides a small bulldozer. Body is invulnerable; only the
+; exposed head (rider hitbox, Y-$17 above body) can be hit.
 ; State 0: init — fall speed $04.00, random drive count, $1E frame timer.
-; State 1: driving — moves horizontally with collision, $99. Rider
+; State 1: driving — moves horizontally with collision, gravity. Rider
 ;   hitbox checked at Y-$17 (separate weapon collision). On drive count
 ;   expired, advance to state 2 (stopped).
 ; State 2: stopped — rider oscillates left/right (1px per 2 frames).
@@ -5960,7 +5962,7 @@ monking_retreat_timer:  dec     ent_var3,x ; decrement retreat timer
 monking_retreat_rts:  rts
 
 ; ===========================================================================
-; main_wanaan — Wanaan (pipe snake, Snake Man stage)
+; main_wanaan — Wanaan (pipe snake, Hard Man stage)
 ; Hides in pipe, snaps out to bite when player is within $18 px both X and Y.
 ; Snap sequence: presnap delay → upward snap (6 frames) → sound → downward
 ; snap (16 frames) → retract to original position and re-hide.
@@ -6511,7 +6513,7 @@ elecn_proj_yvel:  .byte   $FE,$FE,$00,$01,$02,$01,$00,$FE
 elecn_proj_facing:  .byte   $02,$02,$02,$02,$01,$01,$01,$01
 
 ; ===========================================================================
-; main_peterchy — Peterchy (walking snake, Snake Man stage)
+; main_peterchy — Peterchy (walking enemy, Magnet/Shadow/Spark stages)
 ; Walks horizontally with gravity, reverses at walls. Charges when player
 ; is close (< $10 px), backs off when > $30 px away.
 ; ===========================================================================

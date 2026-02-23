@@ -25,7 +25,7 @@ main_hard_man_j:
 .include "include/constants.inc"
 .include "include/hardware.inc"
 
-L8003           := $8003
+entity_ai_dispatch           := $8003
 move_right_collide           := $F580
 move_left_collide           := $F5C4
 move_down_collide           := $F606
@@ -928,7 +928,7 @@ gemini_man_dual_sync_hp:  lda     ent_timer,x         ; check clone status flag
         ldy     ent_var1,x              ; Y = clone entity slot
         lda     ent_status,y            ; check clone active bit
         bpl     gemini_man_movement_dispatch               ; clone inactive → skip sync
-        jsr     L8003                   ; check collision with player
+        jsr     entity_ai_dispatch      ; check collision with player
         bcs     gemini_man_movement_dispatch
         ldy     ent_var1,x              ; reload clone slot
         lda     ent_hp,x                ; sync HP: copy to clone

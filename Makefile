@@ -55,7 +55,7 @@ ALL_OBJS = $(ALL_SRCS:%.asm=build/%.o)
 
 .PHONY: all verify nsfe clean
 
-all: verify
+all: verify nsfe
 
 nsfe: build/mm3.nsfe
 

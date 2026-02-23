@@ -6,21 +6,15 @@ Automated health checks verify comment accuracy against the actual instructions 
 
 ## Building
 
-Requires ca65/ld65 (from [cc65](https://cc65.github.io/)) and GNU Make.
+Requires ca65/ld65 (from [cc65](https://cc65.github.io/)), Python 3, and GNU Make.
 
 ```
 make
 ```
 
-Produces `build/mm3_built.nes` and verifies it matches the original ROM byte-for-byte.
-
-### NSFe Soundtrack
-
-```
-make nsfe
-```
-
-Builds `build/mm3.nsfe` — an NSFe soundtrack rip with per-track labels, composer credits, and timing. Extracts the sound engine (banks $16-$18) directly from the assembled ROM and patches it for non-bankswitched playback. Playable in foobar2000 (with foo_input_nsf), NSFPlay, or any NSFe-compatible player.
+Produces:
+- `build/mm3_built.nes` — byte-perfect ROM, verified against the original
+- `build/mm3.nsfe` — NSFe soundtrack with per-track labels, composer credits, and timing (extracted from the assembled ROM)
 
 ### Expected Checksums
 
@@ -102,7 +96,7 @@ chr/
 
 ## Annotation Progress
 
-The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. All auto-labels (`L_XXXX`) and internal branch targets (`code_XXXX`) have been replaced with descriptive names (~3,310 total). Cross-bank imports have been named where possible (28 of 46 renamed, 17 orphaned artifacts removed). Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, music/SFX IDs, and NES hardware registers. Zero-page variables cover ~80 addresses including general-purpose temps ($00-$0F) and sound driver workspace ($C0-$CF). 21 `.byte` code blocks have been converted back to proper instructions across 6 files. Pure data banks have section boundary markers, record indices, and enemy name annotations. An automated health check verifies comment accuracy and header correctness across 19 categories.
+The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. All auto-labels (`L_XXXX`) and internal branch targets (`code_XXXX`) have been replaced with descriptive names (~3,310 total). All cross-bank imports have been resolved — 46 original `LXXXX` labels renamed to descriptive names or hardware registers, 17 orphaned artifacts removed, and the final 25 switchable-bank entry points renamed to semantic labels (`banked_XXXX` for multi-bank trampolines, `stage_select_*` for bank $18, `music_driver_*` for bank $0E, `entity_ai_*` for bank $1C, `MMC3_MIRRORING` for hardware writes). Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, music/SFX IDs, and NES hardware registers. Zero-page variables cover ~80 addresses including general-purpose temps ($00-$0F) and sound driver workspace ($C0-$CF). 21 `.byte` code blocks have been converted back to proper instructions across 6 files. Pure data banks have section boundary markers, record indices, and enemy name annotations. An automated health check verifies comment accuracy and header correctness across 19 categories.
 
 | Bank | File | Annotation |
 |------|------|------------|
