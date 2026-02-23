@@ -257,7 +257,7 @@ doc_flash_homing_random_y_offset_table:  .byte   $24,$0C,$10,$00,$E0,$F4,$10,$F8
         .byte   $18,$F0,$08,$10,$00,$F0,$00,$E8
 
 ; --- copy explosion OAM data to sprite page (special death effect) ---
-flash_copy_explosion_oam:  ldy     #$68                ; 27 sprites * 4 bytes = $6C
+flash_copy_explosion_oam:  ldy     #$68                ; last OAM offset (27 sprites, 4 bytes each)
 flash_explosion_oam_loop:  lda     doc_flash_explosion_oam_data_y,y ; load sprite Y coordinate
         sta     $0200,y                 ; write to OAM buffer Y
         lda     doc_flash_explosion_oam_data_x,y ; load sprite tile index

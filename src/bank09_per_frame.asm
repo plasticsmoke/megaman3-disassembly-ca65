@@ -82,7 +82,7 @@ subsys_stage_clear:  jmp     stage_clear_spawner ; entry 1: $8003
 ; State: $55=spawn counter, $56=anim frame, $57=anim cycle
 ; ===========================================================================
 gemini_platform_update:  lda     stage_id ; load current stage
-        cmp     #STAGE_SNAKE            ; Gemini Man stage?
+        cmp     #STAGE_SNAKE            ; Snake Man stage?
         bne     gemini_platform_clear   ; not Snake stage, skip
         ldy     camera_screen           ; load current screen
         cpy     #$05                    ; screen $05?
@@ -333,7 +333,7 @@ item_load_palette:  lda     $AABE,y     ; load 16 bytes of new palette from bank
         sta     $0620,y                 ; palette buffer 2
         dey                             ; previous byte
         bpl     item_load_palette       ; loop until all 16 copied
-        sty     palette_dirty           ; $18 = $FF: force palette update
+        sty     palette_dirty           ; palette_dirty = $FF: force palette update
         ldx     #$00                    ; pal anim slot index
         ldy     #$4C                    ; offset into stage bank palette anim data
 item_init_pal_anim:  lda     $AA82,y    ; load palette animation entry

@@ -91,7 +91,7 @@ hard_stage_intro_palette_loop:  lda     hard_stage_intro_palette_data,x ; intro 
         sta     $05B0                   ; clear entity slot $10 anim phase
         sta     ent_status              ; clear entity slot 0 type
         lda     #$40                    ; $99 = deceleration value for
-        sta     gravity                 ; scroll physics ($99)
+        sta     gravity                 ; scroll physics (gravity)
 
 ; --- Horizontal scroll loop ---
 ; Scrolls X position by 4px/frame. $FC = X scroll low byte (0-255).
@@ -99,11 +99,11 @@ hard_stage_intro_palette_loop:  lda     hard_stage_intro_palette_data,x ; intro 
 ; This scrolls the display from the old nametable (stage select)
 ; to the new nametable (boss intro band). Takes 64 frames (256/4).
 ; Simultaneously applies "$99" to entity $10 (Y movement).
-hard_stage_scroll_loop:  lda     camera_x_lo ; $FC += 4
+hard_stage_scroll_loop:  lda     camera_x_lo ; camera_x_lo += 4
         clc                             ; prepare for add
         adc     #$04                    ; scroll 4 pixels per frame
         sta     camera_x_lo             ; store new X scroll
-        lda     camera_x_hi             ; $FD = carry into nametable select
+        lda     camera_x_hi             ; camera_x_hi = carry into nametable select
         adc     #$00                    ; propagate carry
         and     #$01                    ; (wrap to 0-1)
         sta     camera_x_hi             ; store nametable select
@@ -126,7 +126,7 @@ hard_stage_scroll_sub_pixel:  lda     $0350 ; advance sub-pixel scroll
 hard_stage_scroll_frame_wait:  jsr     boss_frame_yield ; process entities + wait for NMI
         lda     #$00                    ; A = 0
         sta     $05F0                   ; clear entity $10 flags
-        lda     camera_x_lo             ; loop until $FC wraps to 0
+        lda     camera_x_lo             ; loop until camera_x_lo wraps to 0
         bne     hard_stage_scroll_loop  ; (64 frames)
 
 ; --- Post-scroll wait ---
@@ -175,7 +175,7 @@ hard_stage_wait_boss_anim_sync:  jsr     boss_frame_yield ; process entities + w
 ; Tile encoding: $0A=A, $0B=B, ... $23=Z, $25=space
 ; ---------------------------------------------------------------------------
 
-hard_stage_write_boss_name:  lda     stage_select_page ; if not Robot Master ($60 != 0),
+hard_stage_write_boss_name:  lda     stage_select_page ; if not Robot Master (stage_select_page != 0),
         bne     hard_stage_final_wait   ; skip name writing
 
 ; Set up PPU write queue for 1-tile-at-a-time writes.
@@ -704,7 +704,7 @@ progression_next_boss_pair:  iny        ; next boss pair
         cmp     #$FF                    ; ($FF = bits 0-7 all set)
         bne     progression_check_unused_cells ; not all beaten yet
         lda     #$09                    ; advance to Doc Robot tier
-        sta     stage_select_page       ; $60 = $09 (stage select offset)
+        sta     stage_select_page       ; stage_select_page = $09 (stage select offset)
         lda     #$3A                    ; $61 = $3A (pre-set defeated bits
         sta     bosses_beaten           ; for stages without Doc Robots)
         bne     progression_boss_pair_loop ; continue scanning pairs 4-5
@@ -728,7 +728,7 @@ check_doc_robot_complete:  lda     bosses_beaten ; all 4 Doc Robot stages beaten
         cmp     #$FF                    ; ($FF = all bits set)
         bne     progression_check_break_man ; not all beaten
         lda     #$12                    ; advance to Wily tier
-        sta     stage_select_page       ; $60 = $12
+        sta     stage_select_page       ; stage_select_page = $12
         lda     $0168                   ; if Break Man defeated too,
         beq     progression_scan_etank_cells ; done
         lda     #$FF                    ; $60 = $FF marks all stages

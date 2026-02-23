@@ -789,7 +789,7 @@ unknown_1B_mark_block_destroyed:  stx     temp_00 ; save entity slot
 
         lda     ent_status,x            ; check state
         and     #$0F
-        bne     unknown_1B_state_1_gravity ; state 1+ → $99 fall
+        bne     unknown_1B_state_1_gravity ; state 1+ → gravity fall
 
 ; --- state 0: initial upward toss ---
         jsr     apply_y_speed           ; apply initial Y velocity
@@ -2157,7 +2157,7 @@ unknown_0C_check_anim_grounded:  lda     ent_anim_id,x ; check current OAM ID
         cmp     #$4E                    ; OAM $4E = grounded/falling mode
         bne     unknown_0C_falling_init ; different OAM -> initial drop state
         ldy     #$08                    ; $99 strength index
-        jsr     move_vertical_gravity   ; apply $99 + move (C=1 if landed)
+        jsr     move_vertical_gravity   ; apply gravity + move (C=1 if landed)
         ror     temp_00                 ; save carry (landed flag) into $00 bit 7
         lda     tile_at_feet_max        ; tile ID at feet (below entity)
         cmp     #TILE_LADDER_TOP        ; special trigger tile?
@@ -2214,7 +2214,7 @@ unknown_0C_done:  rts
 ; state 1 walks horizontally in facing direction.
 
         ldy     #$00                    ; $99 index 0
-        jsr     move_vertical_gravity   ; fall with $99
+        jsr     move_vertical_gravity   ; fall with gravity
         bcc     unknown_0C_horizontal_return ; not landed -> done
         lda     ent_status,x            ; landed: check state
         and     #$0F
@@ -2250,7 +2250,7 @@ unknown_0C_move_left_2:  jmp     move_sprite_left ; move left
 main_giant_springer:
 
         ldy     #$1E                    ; $99 speed index
-        jsr     move_vertical_gravity   ; apply $99
+        jsr     move_vertical_gravity   ; apply gravity
         lda     ent_anim_id,x           ; current OAM ID
         cmp     #$BC                    ; is it stopped (launching) sprite?
         bne     giant_springer_dispatch ; if not, go to walk/bounce state logic
@@ -3391,7 +3391,7 @@ mag_fly_check_distance:  jsr     entity_y_dist_to_player ; check player proximit
         bcs     mag_fly_check_dismount  ; state >= 2 → check dismount only
         lda     #PSTATE_ENTITY_RIDE     ; state → $05 (entity_ride)
         sta     player_state            ; set player to entity_ride
-        stx     entity_ride_slot        ; $34 = ridden entity slot
+        stx     entity_ride_slot        ; save ridden entity slot
         lda     #$07                    ; player OAM $07 (riding anim)
         sta     ent_anim_id
         lda     #$00
@@ -6989,8 +6989,8 @@ doc_robot_intro_shutter_landed:  lda     #$00 ; shutter landed
 init_boss_wait:  lda     #PSTATE_BOSS_WAIT ; state → $09 (boss_wait)
         sta     player_state            ; freeze player
         lda     #$80                    ; init boss HP display
-        sta     boss_hp_display         ; $B0 = HP bar position
-        sta     boss_active             ; $5A = boss active flag
+        sta     boss_hp_display         ; HP bar = $80 (initial position)
+        sta     boss_active             ; boss active = $80 (true)
         lda     #$8E                    ; $B3 = HP fill target
         sta     $B3                     ; ($8E = $80 + 14 ticks = 28 HP)
         lda     #MUSIC_WILY_MAP         ; SFX $0C = boss intro music
@@ -7731,7 +7731,7 @@ main_item_pickup:
         ldy     #$2C                    ; small pickup hitbox
         bne     item_pickup_apply_gravity ; always taken (Y nonzero)
         ldy     #$2D                    ; large pickup hitbox
-item_pickup_apply_gravity:  jsr     move_vertical_gravity ; apply $99
+item_pickup_apply_gravity:  jsr     move_vertical_gravity ; apply gravity
         jsr     check_player_collision  ; check if player touches item
         bcs     item_pickup_despawn_timer ; no collision → timer logic
 
@@ -7792,7 +7792,7 @@ item_pickup_timer_return:  rts
 
 ; --- pickup_ammo_small: restore 2 ammo ---
         lda     #$02
-item_pickup_set_weapon_ammo:  ldy     current_weapon ; Y = current weapon ID ($A0)
+item_pickup_set_weapon_ammo:  ldy     current_weapon ; Y = current weapon ID
         beq     item_pickup_clear_refill ; weapon 0 (buster) has no ammo → skip
 
 ; --- apply_energy_refill: A=amount, Y=weapon slot index ---
@@ -7800,7 +7800,7 @@ item_pickup_apply_energy:  inc     $58  ; flag: energy refill active
         sta     $0F                     ; remaining ticks to add
         sty     $0E                     ; target weapon/HP slot
 item_pickup_energy_loop:  ldy     $0E   ; check current energy level
-        lda     player_hp,y             ; ($A2+Y: $A2=HP, $A3+=weapon ammo)
+        lda     player_hp,y             ; (player_hp+Y: player_hp=HP, $A3+=weapon ammo)
         cmp     #$9C                    ; $9C = max energy (28 units)
         beq     item_pickup_clear_refill ; already full → done
         lda     player_hp,y             ; add 1 tick of energy
@@ -7824,7 +7824,7 @@ item_pickup_clear_refill:  lda     #$00 ; clear refill-active flag
 
         lda     #SFX_1UP                ; play 1-up/E-tank sound
         jsr     submit_sound_ID         ; submit_sound_ID
-        lda     etanks                  ; current E-tanks ($AF)
+        lda     etanks                  ; current E-tank count
         cmp     #$09                    ; max 9?
         beq     item_pickup_etank_return ; yes → don't add more
         inc     etanks                  ; E-tanks += 1
@@ -7834,10 +7834,10 @@ item_pickup_etank_return:  rts
 
         lda     #SFX_1UP                ; play 1-up sound
         jsr     submit_sound_ID         ; submit_sound_ID
-        lda     lives                   ; $AE ($AE, BCD format)
+        lda     lives                   ; current lives (BCD format)
         cmp     #$99                    ; max 99?
         beq     item_pickup_1up_return  ; yes → done
-        inc     lives                   ; $AE += 1
+        inc     lives                   ; lives += 1
         lda     lives                   ; BCD fixup: if low nibble >= $A
         and     #$0F                    ; carry into high nibble
         cmp     #$0A
