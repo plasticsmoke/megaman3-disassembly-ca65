@@ -180,8 +180,8 @@ process_sprites_done:  rts
 ; Checks AABB collision between entity X and player, applies damage.
 ; State transitions: → $06 (damage) on hit, → $0E (death) if HP depleted.
 ; Immune during: $06 (already damaged), $0E (dead), $0C (victory).
-; Also immune if $39 != 0 (i-frames / invincibility timer).
-; $A2 = player HP (low 5 bits = current HP, bit 7 = display dirty flag)
+; Also immune if invincibility_timer != 0 (i-frames).
+; player_hp = player HP (low 5 bits = current HP, bit 7 = display dirty flag)
 ; Damage amount comes from table at $A000 indexed by entity routine ent_routine,x.
 ; ---------------------------------------------------------------------------
 
@@ -2144,7 +2144,7 @@ unknown_14_dec_cooldown:  dec     ent_timer,x ; decrement spawn cooldown
 ;   faces player, and enters the grounded/falling state.
 ;
 ; Tile ID $40 = special trigger tile (e.g. lava/spikes/water surface).
-; $41 = tile below, $42 = tile to left, $43 = tile to right.
+; tile_at_feet_max = tile below, $42 = tile to left, $43 = tile to right.
 ; -----------------------------------------------
 main_unknown_0C:
 
@@ -3369,7 +3369,7 @@ metall_dx_proj_facing:  .byte   $02,$01,$01
 ; Flying magnet enemy that magnetically pulls Mega Man upward.
 ; This is the ONLY entity that triggers player state $05 (entity_ride).
 ; Player mounts when within X distance < $10 and Y overlap, state $00/$01.
-; $34 = slot index of entity being ridden (player tracks this entity).
+; entity_ride_slot = slot index of entity being ridden.
 ; Confirmed via Mesen breakpoint — triggered by magnetic pull while
 ; standing or jumping near a Mag Fly in Magnet Man's stage.
 ; ---------------------------------------------------------------------------
@@ -6983,7 +6983,7 @@ doc_robot_intro_shutter_landed:  lda     #$00 ; shutter landed
 ; Called when boss shutter closes. Sets state $09 (boss_wait):
 ; player frozen while boss HP bar fills, then released to $00.
 ; Same pattern used by all Robot Masters, Doc Robots, and fortress bosses.
-; $B0 = boss HP meter position, $B3 = HP fill target ($8E = 28 HP).
+; boss_hp_display = HP meter position, $B3 = HP fill target ($8E = 28 HP).
 ; ---------------------------------------------------------------------------
 
 init_boss_wait:  lda     #PSTATE_BOSS_WAIT ; state → $09 (boss_wait)

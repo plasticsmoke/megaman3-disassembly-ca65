@@ -636,11 +636,11 @@ password_grid_y_positions_table:  .byte   $27,$27,$27,$27,$27,$27,$37,$37
         .byte   $7F,$7F,$7F,$7F,$3F,$3F,$70
 
 ; -----------------------------------------------
-; stage_select_progression: rebuilds $60/$61 from save data
+; stage_select_progression: rebuilds stage_select_page/bosses_beaten from save data
 ; scans $0150,x completion flags to determine which tier
 ; the player is on and which bosses are defeated.
-;   $60 = stage select tier (0=Robot Master, $09=Doc Robot, $12=Wily)
-;   $61 = boss-defeated bitmask ($FF = all beaten in current tier)
+;   stage_select_page = tier (0=Robot Master, $09=Doc Robot, $12=Wily)
+;   bosses_beaten = boss-defeated bitmask ($FF = all beaten in current tier)
 ; -----------------------------------------------
 stage_select_progression:  lda     #$00 ; reset tier and defeat
         sta     stage_select_page       ; bitmask to start fresh
