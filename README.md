@@ -1,8 +1,10 @@
 # Mega Man 3 (U) — ca65 Disassembly
 
-An experiment in using [Claude Code](https://claude.com/claude-code) to disassemble and cleanly, accurately annotate a NES game. This is a byte-perfect disassembly of **Mega Man 3** (NES, US release) targeting the [ca65](https://cc65.github.io/doc/ca65.html) assembler.
+A byte-perfect, fully annotated disassembly of **Mega Man 3** (NES, US release) targeting the [ca65](https://cc65.github.io/doc/ca65.html) assembler. Every instruction line across all 20 code banks has an inline comment. Data banks have section headers, record boundaries, and enemy name annotations. An automated 25-category health check verifies comment accuracy against the actual instructions.
 
-Automated health checks verify comment accuracy against the actual instructions — catching branch condition mismatches, X/Y axis confusion, load/store direction errors, operand value contradictions, and more. The build system verifies byte-perfect ROM output on every build.
+Built with [Claude Code](https://claude.com/claude-code) — starting from raw da65 output through label renaming, constant extraction, and full annotation.
+
+Anyone familiar with Mega Man 3's internals, NES development, or MMC3 mapper conventions is welcome to double-check the annotations and file corrections or improvements.
 
 ## Building
 
@@ -88,55 +90,41 @@ include/
   zeropage.inc                  Zero-page variable definitions (~80 vars)
   constants.inc                 Named constants (entity arrays, stage/weapon IDs,
                                 button masks, tile types, music/SFX IDs)
+  hardware.inc                  NES hardware registers (PPU, APU, controller, MMC3)
 cfg/
   nes.cfg                       ld65 linker configuration
 chr/
   chr.bin                       Raw CHR data (128 KB)
 ```
 
-## Annotation Progress
+## Annotation
 
-The disassembly is byte-perfect. Annotation is ongoing — all 30 bank files have section headers, inline comments, and named labels. All auto-labels (`L_XXXX`) and internal branch targets (`code_XXXX`) have been replaced with descriptive names (~3,310 total). All cross-bank imports have been resolved — 46 original `LXXXX` labels renamed to descriptive names or hardware registers, 17 orphaned artifacts removed, and the final 25 switchable-bank entry points renamed to semantic labels (`banked_XXXX` for multi-bank trampolines, `stage_select_*` for bank $18, `music_driver_*` for bank $0E, `entity_ai_*` for bank $1C, `MMC3_MIRRORING` for hardware writes). Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, music/SFX IDs, and NES hardware registers. Zero-page variables cover ~80 addresses including general-purpose temps ($00-$0F) and sound driver workspace ($C0-$CF). 21 `.byte` code blocks have been converted back to proper instructions across 6 files. Pure data banks have section boundary markers, record indices, and enemy name annotations. An automated health check verifies comment accuracy and header correctness across 19 categories.
+The raw da65 disassembly produced ~2,340 `L_XXXX` address labels and ~970 `code_XXXX` branch targets. All have been replaced with descriptive names based on code analysis (~3,310 total). Named constants cover entity arrays, stage/weapon/player-state IDs, button masks, tile types, music/SFX IDs, and NES hardware registers. ~80 zero-page variables are named, including general-purpose temps ($00-$0F) and sound driver workspace ($C0-$CF). 21 `.byte` blocks where da65 emitted instructions as raw data have been converted back to proper mnemonics. All 46 cross-bank imports (`LXXXX` symbols) have been resolved to descriptive names or hardware registers.
 
-| Bank | File | Annotation |
-|------|------|------------|
-| $10 | bank10_stage_setup.asm | ~100% — 21 labels, 373 comments |
-| $0E | bank0E_anim_frames.asm | ~100% — 14 labels, 298 comments |
-| $03 | bank03_stage_hard.asm | ~94% — 107 labels, 731 comments |
-| $0B | bank0B_intro.asm | ~93% — 94 labels, 866 comments |
-| $16 | bank16_sound_driver.asm | ~92% — 170 labels, 1072 comments |
-| $18 | bank18_stage_select.asm | ~91% — 175 labels, 1771 comments |
-| $07 | bank07_robot_masters_b.asm | ~91% — 150 labels, 1041 comments |
-| $06 | bank06_robot_masters_a.asm | ~91% — 141 labels, 956 comments |
-| $09 | bank09_per_frame.asm | ~91% — 80 labels, 585 comments |
-| $0F | bank0F_entity_spawn.asm | ~89% — 30 labels, 372 comments |
-| $04 | bank04_doc_robot_a.asm | ~88% — 123 labels, 864 comments |
-| $0C | bank0C_game_over.asm | ~88% — 85 labels, 848 comments |
-| $12 | bank12_fortress_bosses.asm | ~85% — 408 labels, 2501 comments |
-| $02 | bank02_stage_gemini.asm | ~84% — 117 labels, 785 comments |
-| $05 | bank05_doc_robot_b.asm | ~81% — 152 labels, 906 comments |
-| $1A/$1B | bank1A_1B_oam_sequences.asm | ~81% — 30 labels, 303 comments |
-| Fixed | fixed_bank.asm | ~82% — 928 labels, 7456 comments |
-| $1C/$1D | bank1C_1D_entity_ai.asm | ~81% — 946 labels, 5881 comments |
-| $01 | bank01_stage_magnet.asm | ~73% — 4 labels, 221 comments |
-| $0D | bank0D_oam_sprites.asm | ~73% — 6 labels, 282 comments |
-| $00 | bank00_enemy_data.asm | Data — 8 labels, 364 comments |
-| $08 | bank08_stage_doc_needle.asm | Data — section markers, enemy names, column indices |
-| $0A | bank0A_damage_tables.asm | Data — 10 labels, 539 comments |
-| $11 | bank11_ending_data.asm | Data — section markers, enemy names, column indices |
-| $13 | bank13_ending_data2.asm | Data — section markers, enemy names, column indices |
-| $14 | bank14_sprite_offsets_alt.asm | Data — 61 sprite record boundaries |
-| $15 | bank15_weapon_anim.asm | Data — 13 animation sequence markers |
-| $17 | bank17_sound_data.asm | Data — 13 music track boundaries |
-| $19 | bank19_sprite_offsets.asm | Data — 91 sprite record boundaries |
+Inline comments align to column 40. Automated health checks were run during this process for verification: branch condition contradictions, load/store direction, operand value mismatches, entity array cross-confusion, constant value verification, stale address references, unreachable code detection, and more.
 
-## Technical Notes
+### Label Renaming by Bank
 
-- 32 entity slots with $20 stride, arrays at $0300-$05FF
-- 22 player states dispatched via pointer table in the fixed bank
-- Direct routine-index AI dispatch for entity behavior
-- Palette buffer at $0600-$061F
-- Sound driver in bank $16, music/SFX data in bank $17
+- **Fixed bank ($1E/$1F)**: ~928 labels — player states, collision detection, camera/scroll engine, rendering, cooperative scheduler, bank switching
+- **Entity AI ($1C/$1D)**: ~946 labels — all 100+ entity AI routines in the dispatch table, from Metalls to Wily Machine phases
+- **Fortress bosses ($12)**: ~408 labels — Yellow Devil, Kamegoro Maker, Holograph, Wily Machine A/B/C, Gamma
+- **Robot Masters ($04-$07)**: ~566 labels across 4 banks — AI state machines for all 8 Robot Masters and 8 Doc Robot variants
+- **Stage banks ($00-$08)**: enemy names, stage event handlers, palette/CHR init routines
+- **Cross-bank imports**: 46 symbols resolved — `banked_XXXX` for multi-bank trampolines, `stage_select_*` for bank $18 entry points, `music_driver_*` for bank $0E, `entity_ai_*` for bank $1C, `MMC3_MIRRORING` for hardware register writes
+
+## Engine Notes
+
+**Cooperative multitasking.** The game runs a stack-based coroutine scheduler in the fixed bank. Game logic calls `task_yield` to surrender control each frame. The NMI handler processes rendering, then patches the return address on the stack to route through the sound driver before resuming mainline code — avoiding bank-switch conflicts when NMI interrupts mid-swap.
+
+**Entity system.** 32 entity slots using 18 parallel arrays at $0300-$05FF with $20 stride. Slot 0 is the player, slots $01-$0F are weapons/projectiles, $10-$1F are enemies/items/bosses. The `ent_hp` field doubles as a lifetime timer for projectiles. The `ent_routine` index encodes both the target bank and routine offset — values $00-$9F dispatch from bank $1D, $A0-$DF from the Robot Master banks ($04-$07), $E0-$FF from the fortress boss bank ($12). One pointer table, three bank groups.
+
+**Mixed code+data banks.** Stage banks ($00-$08) pack both level layout data and stage-specific code in the same 8 KB window. Enemy spawn tables always sit at offset $0E00 ($AE00 CPU). The per-stage bank mapping table handles shared banks — bank $0D serves three different stages (Doc Shadow, Doc Snake, and Wily 1).
+
+**IRQ scanline splits.** Multiple IRQ handler groups implement per-scanline screen effects: gameplay status bar, horizontal/vertical scroll splits, water wave distortion, screen wipes, stage select grid rendering, and mid-frame CHR bank swaps. Each screen mode chains its own custom split configuration through the MMC3 scanline counter.
+
+**22 player states.** Beyond the standard ground/airborne/slide/ladder states, the engine has dedicated states for Top Spin recoil bounce, Hard Knuckle fire freeze, Doc Flash Time Stopper death, vertical scroll transitions, warp tube sequences, boss intro freeze, and two scripted auto-walk sequences for the ending.
+
+**Debug code in retail ROM.** Player 2 controller input activates debug features: P2 Right grants super jump + pit immunity, P2 Up enables slow-motion, P2 A freezes all entities, P2 Left latches permanent rightward movement.
 
 ## License
 
