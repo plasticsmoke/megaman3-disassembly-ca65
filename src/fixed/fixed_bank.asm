@@ -2466,11 +2466,13 @@ frame_loop_render_columns_loop:  pha    ; save column counter
         bne     frame_loop_ammo_refill_exit ; if not, skip
         ldy     #$0B                    ; fill $A2-$AD (12 ammo slots)
 frame_loop_ready_overlay_oam:  lda     #HEALTH_FULL ; all to full (28 units)
-frame_loop_ammo_refill_loop:  .byte   $99
-frame_loop_ready_sprite_table:  ldx     #$00 ; (encoded: part of sta $A2,y)
+; --- overlap trick: $99,$A2,$00 = sta $00A2,y (sta ammo_array,y) ---
+; Fall-through fills ammo slots; entry at ready_sprite_table loads X=0.
+frame_loop_ammo_refill_loop:  .byte   $99   ; opcode: sta abs,y
+frame_loop_ready_sprite_table:  ldx     #$00 ; code: ldx #$00 | addr: $00A2
         dey                             ; next ammo slot
         bpl     frame_loop_ammo_refill_loop ; loop until all 12 filled
-frame_loop_ammo_refill_exit:  .byte   $60
+frame_loop_ammo_refill_exit:  rts
 frame_loop_ready_overlay_data:  .byte   $80
 rush_coil_dispatch_table:  .byte   $40
 rush_marine_dispatch_table:  .byte   $00
@@ -3213,7 +3215,7 @@ init_hard_knuckle_ladder:  lda     #$00 ; zero X/Y speeds for slot 1
         sta     ent_var1                ; (Hard Knuckle movement handler)
         lda     #PSTATE_WEAPON_RECOIL   ; set player state $0B = hard_knuckle_ride
         sta     player_state            ; (D-pad steers the projectile)
-init_hard_knuckle_exit:  .byte   $60
+init_hard_knuckle_exit:  rts
 
 ; Hard Knuckle OAM IDs per player state ($30=0..3)
 ; $AA=ground, $AB=air, $00=skip(slide), $AD=ladder
@@ -3277,7 +3279,7 @@ shadow_blade_init_dir:  lda     #$00    ; clear Y speed:
         sta     ent_x_scr,y             ; store blade X screen
         lda     ent_y_px,x              ; copy player Y position to blade
         sta     ent_y_px,y              ; store blade Y pixel
-shadow_blade_init_exit:  .byte   $60
+shadow_blade_init_exit:  rts
 
 ; routine pointers for weapon init upon firing
 weapon_init_ptr_lo:  .byte   $03,$12,$FB,$4D,$03,$9F,$B4,$A6 ; Mega Buster
@@ -3986,7 +3988,7 @@ death_explosion_move_upward:  jsr     move_sprite_up ; move slot 0 up at $03.00/
 death_explosion_inc_timer:  inc     $3F ; $3F++, if overflow then $3C++
         bne     death_burst_table_start ; no overflow → return (data follows)
         inc     $3C                     ; high byte of death timer
-death_burst_table_start:  .byte   $60   ; rts encoded as data byte
+death_burst_table_start:  rts           ; return from death timer increment
 
 ; radial velocity tables for death explosion (16 fragments, index 0-15)
 ; each fragment gets a unique direction vector for the burst pattern
@@ -4787,7 +4789,7 @@ warp_teleport_complete:  dey            ; next entity
         lda     $059E                   ; set bit 2 on slot $1E (keep one shutter visible
         ora     #$04                    ; during transition for visual continuity)
         sta     $059E                   ; store updated slot $1E flags
-proto_man_encounter_init:  .byte   $60  ; rts encoded as data byte
+proto_man_encounter_init:  rts           ; return from encounter init
 
 ; shutter entity base Y positions (for slots $1C-$1F during scroll)
 shutter_base_y_table:  .byte   $48
@@ -5120,8 +5122,11 @@ weapon_hurt_walk_check_x:  lda     ent_x_px ; check if at X=$50
         sta     $037F                   ; set slot $1F X pixel
         lda     #$EE                    ; Break Man routine = $EE (AI state)
         sta     $033F                   ; store to ent_routine for slot $1F
-auto_walk_spawn_done:  .byte   $A9      ; lda #$5A (hand-assembled)
-weapon_hurt_timer_done:  .byte   $5A    ; initial wait = 90 frames
+; --- overlap trick: $A9,$5A = lda #$5A (load 90 into A for timer) ---
+; Fall-through loads A=$5A (90 frames); entry at weapon_hurt_timer_done
+; skips the load (A already set by caller).
+auto_walk_spawn_done:  .byte   $A9      ; opcode: lda immediate
+weapon_hurt_timer_done:  .byte   $5A    ; operand: $5A (90 frames)
         sta     ent_timer               ; set player timer
         lda     ent_flags               ; load player flags
         ora     #ENT_FLAG_HFLIP         ; set horizontal flip
@@ -6877,14 +6882,11 @@ clear_destroyed_blocks:  lda     stage_id ; only on Gemini Man stages
         bne     metatile_zero_done      ; no → skip
 metatile_zero_destroyed:  lda     #$00  ; zero $0110..$014F (64 bytes)
         ldy     #$3F                    ; = 64 block slots
-        sta     $0110,y                 ; clear destroyed-block byte
-        .byte   $88,$10,$FA
-metatile_zero_done:  .byte   $60
-bitmask_table:  .byte   $80,$40,$20,$10
-        php                             ; data: bitmask $08
-        .byte   $04
-        .byte   $02
-        .byte   $01
+metatile_zero_loop:  sta     $0110,y   ; clear destroyed-block byte
+        dey                             ; decrement slot index
+        bpl     metatile_zero_loop      ; loop until all 64 slots cleared
+metatile_zero_done:  rts
+bitmask_table:  .byte   $80,$40,$20,$10,$08,$04,$02,$01
 
 ; ---------------------------------------------------------------------------
 ; proto_man_wall_override — open breakable walls after Proto Man cutscene
@@ -8971,8 +8973,9 @@ entity_hitbox_width_cmp:  cmp     hitbox_mega_man_widths,y ; if abs(X delta) > h
         bcs     entity_hitbox_return    ; player below? already positive
         eor     #$FF                    ; negate if player is above
         adc     #$01                    ; two's complement
-entity_hitbox_return:  .byte   $C5,$00,$90,$00 ; CMP $00 / BCC +0 (compare Y dist vs height)
-entity_hitbox_done:  .byte   $60        ; RTS
+entity_hitbox_return:  cmp     $00     ; compare Y dist vs hitbox height
+        bcc     entity_hitbox_done      ; A < height: carry clear → no hit
+entity_hitbox_done:  rts                ; return (caller checks carry)
 
 ; sprite hitbox heights for Mega Man collision
 ; the actual height is double this, cause it compares delta
@@ -9073,7 +9076,7 @@ entity_anim_weapon_width:  cmp     hitbox_weapon_widths,y ; if abs(X delta) > hi
         adc     #$01                    ; two's complement
 entity_anim_weapon_height:  cmp     hitbox_weapon_heights,y ; compare abs(Y) vs hitbox height
         .byte   $90,$00                 ; bcc = collision (carry clear)
-entity_anim_collision_done:  .byte   $60 ; rts
+entity_anim_collision_done:  rts
 
 ; sprite hitbox heights for weapon collision
 ; the actual height is double this, cause it compares delta
