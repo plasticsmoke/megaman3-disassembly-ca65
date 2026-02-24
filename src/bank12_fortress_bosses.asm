@@ -1838,9 +1838,11 @@ gamma_f_player_collision:  pla          ; restore player Y pixel
         bcs     gamma_f_collision_flag  ; no collision → skip
         lda     #PSTATE_DEATH           ; state → $0E (death)
         sta     player_state            ; instant kill, no damage calc
+; --- overlap trick: $09,$04 = ora #$04 (set bit 2 in flags) ---
+; Fall-through executes ora #$04; gamma_f_collision_byte also read by index.
 gamma_f_collision_flag:  lda     ent_flags,x ; read current flags
-        .byte   $09                     ; ORA immediate (opcode $09)
-gamma_f_collision_byte:  .byte   $04
+        .byte   $09                     ; opcode: ora immediate
+gamma_f_collision_byte:  .byte   $04     ; code: #$04 | data: indexed table
         sta     ent_flags,x             ; store updated flags
         lda     gamma_f_collision_byte,x ; indexed read from $04 table
         sec                             ; prepare for subtraction

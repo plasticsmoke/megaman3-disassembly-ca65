@@ -23,8 +23,11 @@
 
 .segment "BANK16"
 
-driver_entry_jump:  .byte   $4C         ; JMP opcode byte ($4C)
-driver_entry_bank:  jmp     ($4C80)     ; MMC3 bank swap indirect jump
+; --- overlap trick: self-modifying jump target ---
+; Entry at driver_entry_jump: $4C + next 2 bytes = jmp to patched address.
+; Entry at driver_entry_bank: jmp ($4C80) = indirect jump via MMC3 vector.
+driver_entry_jump:  .byte   $4C         ; opcode: jmp abs (target patched)
+driver_entry_bank:  jmp     ($4C80)     ; alternate entry: indirect jmp
 
         .byte   $FE
         .byte   $80

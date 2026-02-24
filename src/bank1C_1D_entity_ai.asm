@@ -845,7 +845,7 @@ block_breaker_fetch_weapon_oam:  lda     ent_flags,x ; set sprite flag bit 0
 
 block_breaker_freeze_anim_timer:  lda     #$00 ; freeze animation timer
         sta     ent_anim_frame,x        ; (keep current frame)
-block_breaker_freeze_anim_return:  .byte   $60
+block_breaker_freeze_anim_return:  rts
 
 ; weapon_oam_table: OAM IDs indexed by (weapon_id - 6) >> 1
 ; $D8=Search Snake, $D9=Spark Shock, $D7=Shadow Blade
@@ -1166,7 +1166,7 @@ gemini_laser_floor_bounce:  bcc     gemini_laser_bounce_rts ; C=0: no hit → do
         lda     ent_facing,x            ; flip vertical direction
         eor     #$0C                    ; (swap bits 2↔3: down↔up)
         sta     ent_facing,x            ; store flipped direction
-gemini_laser_bounce_rts:  .byte   $60
+gemini_laser_bounce_rts:  rts
         ldy     $B2,x                   ; load hard knuckle sub-state
         bcs     gemini_laser_down_entry ; carry set → branch to fist open
         cpy     #$05                    ; check if sub-state >= 5
@@ -1448,7 +1448,7 @@ dada_advance_bounce:  inc     ent_timer,x ; advance bounce index
         bcc     dada_rts                ; still in range → return
         lda     #$00                    ; wrap bounce index back to 0
         sta     ent_timer,x             ; reset bounce index to 0
-dada_rts:  .byte   $60                  ; rts (encoded as .byte $60)
+dada_rts:  rts
 
 ; bounce Y speeds: sub={$44,$44,$EA}, whole={$03,$03,$07}
 ; bounce 0: $03.44, bounce 1: $03.44, bounce 2: $07.EA (big hop)
@@ -1636,7 +1636,7 @@ hammer_joe_spawn_hammer:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sta     ent_hitbox,y            ; store child hitbox
         lda     #$01                    ; HP = 1
         sta     ent_hp,y                ; hammer dies in one hit
-hammer_joe_spawn_rts:  .byte   $60      ; rts (encoded as .byte $60)
+hammer_joe_spawn_rts:  rts
 
 ; hammer X offset: right=$0013, left=$FFED (-19)
 hammer_joe_hammer_x_off:  .byte   $13
@@ -1748,7 +1748,7 @@ hammer_joe_done:  rts
 ; also serves as auto_walk_spawn_done trampoline for child entity
 
 hammer_joe_xoffset:  .byte   $20        ; right offset = $20 pixels
-hammer_joe_xscreen_offset:  brk
+hammer_joe_xscreen_offset:  .byte   $00
         cpx     #$FF                    ; left offset = $FFE0 (-32)
 
 ; child projectile AI: just apply Y speed ($99 projectile)
@@ -1795,13 +1795,13 @@ jamacy_apply_movement:  dec     ent_timer,x ; decrement period counter
         sta     ent_timer,x             ; it always doubles from initial value)
 jamacy_exit:  rts
 
-; jamacy initial half-period table: routine $15=$60, $16=$70 frames
-
-jamacy_done:  rts                       ; table: $60 (routine $15)
-
-        bvs     jamacy_set_yvel         ; table: $70 (routine $16)
-        brk                             ; hidden: lda ent_status,x ($BD)
-        .byte   $03                     ; hidden: low byte of ent_status addr
+; --- overlap trick: jamacy initial half-period table ---
+; Bytes $60,$70 serve as both data (timer values for routine $15/$16)
+; and code (rts + bvs branch). Entry here returns; indexed read gets $60/$70.
+jamacy_done:  rts                       ; code: rts | data: $60 (routine $15)
+        bvs     jamacy_set_yvel         ; code: bvs  | data: $70 (routine $16)
+        .byte   $00                     ; operand lo: bvs offset=$BD forms lda abs,x
+        .byte   $03                     ; operand hi: $0300 = ent_status
         and     #$0F                    ; isolate state bits
         bne     bombflier_check_state   ; skip init
         inc     ent_status,x            ; state 0 -> 1 (flying)
@@ -2032,12 +2032,10 @@ cloud_platform_screen_check:  lda     ent_y_scr,x ; check Y screen (high byte)
         beq     cloud_platform_rts      ; still on screen 0 -> keep alive
         lda     #$00                    ; scrolled offscreen: deactivate entity
         sta     ent_status,x            ; deactivate cloud platform
-cloud_platform_rts:  .byte   $60
+cloud_platform_rts:  rts
 
 ; Cloud platform direction table: left, right, right, left (zigzag)
-cloud_platform_dir_table:  .byte   $02
-        ora     ($01,x)                 ; data: $01 (right), $01 (right)
-        .byte   $02
+cloud_platform_dir_table:  .byte   $02,$01,$01,$02
 
 ; -----------------------------------------------
 ; spawn_cloud_platform_clone
@@ -2457,7 +2455,7 @@ chibee_apply_y_movement:  lda     ent_y_sub,x ; Y sub-pixel
         beq     chibee_movement_done    ; still on screen 0 -> done
         lda     #$00                    ; off-screen vertically
         sta     ent_status,x            ; deactivate entity
-chibee_movement_done:  .byte   $60
+chibee_movement_done:  rts
 
 ; -- chibee direction lookup tables (16 directions x 2 sets = 32 entries each) --
 ; Indexed by combined direction from track_direction_to_player.
@@ -2576,8 +2574,8 @@ electric_gabyoall_offset_table:  .byte   $BC
         .byte   $20
 electric_gabyoall_variant_index:  .byte   $03
         .byte   $BD
-electric_gabyoall_anim_id_table:  cpy     #$03
-electric_gabyoall_hitbox_table:  clc
+electric_gabyoall_anim_id_table:  .byte   $C0,$03
+electric_gabyoall_hitbox_table:  .byte   $18
         adc     electric_gabyoall_variant_index,y ; + lower Y offset per variant
         sta     ent_y_px,x              ; store adjusted Y pixel
         jsr     check_player_hit        ; check lower hitbox contact
@@ -2620,10 +2618,10 @@ electric_gabyoall_restore_y:  pla       ; restore original Y pixel
         and     #$E0                    ; keep upper 3 flag bits
         ora     electric_gabyoall_hitbox_table,y ; OR in electric damage bits
         sta     ent_hitbox,x            ; store updated electric hitbox
-        .byte   $20,$97,$80             ; jsr check_player_hit (inline bytes)
-electric_gabyoall_apply_hitbox:  .byte   $60,$D8,$C8,$50,$70 ; rts ($60) + data: $D8,$C8,$50,$70
-        cmp     $E1                     ; data (overlapping instruction)
-        asl     joy1_press,x            ; data (overlapping instruction)
+        .byte   $20,$97,$80             ; jsr $8097 (hand-assembled)
+electric_gabyoall_apply_hitbox:  rts     ; return after hitbox check
+        .byte   $D8,$C8,$50,$70         ; data between routines
+        .byte   $C5,$E1,$16,$14         ; data between routines
 ; ---------------------------------------------------------------------------
 ; main_junk_block -- Junk Block (entity type $64)
 ; ---------------------------------------------------------------------------
@@ -2761,10 +2759,12 @@ petit_snakey_reset_anim:  jsr     reset_sprite_anim ; reset_sprite_anim
         jsr     petit_snakey_spawn_proj ; fire homing projectile
         lda     #$10                    ; attack cooldown = 16 frames
         sta     ent_var1,x              ; attack cooldown = 16 frames
+; --- overlap trick: $9D,$00,$05 = sta ent_timer,x; $60 = rts ---
+; Also used as data: petit_snakey_data reads $00 by index.
 petit_snakey_reset_idle:  lda     #$78  ; idle timer = 120 frames
-        .byte   $9D
-petit_snakey_data:  brk
-        ora     stage_select_page       ; data: $05,$07 (sta cross-page encoding)
+        .byte   $9D                     ; opcode: sta abs,x
+petit_snakey_data:  .byte   $00         ; addr lo ($0500 = ent_timer)
+        .byte   $05,$60                 ; addr hi + rts
 petit_snakey_dec_idle:  dec     ent_timer,x ; decrement idle timer
         rts                             ; return from idle decrement
 
@@ -2825,7 +2825,7 @@ petit_snakey_spawn_proj:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_y
         sta     ent_hitbox,y            ; set hitbox
 petit_snakey_spawn_fail:  rts
 petit_snakey_proj_x_off:  .byte   $04
-petit_snakey_proj_x_scr:  brk
+petit_snakey_proj_x_scr:  .byte   $00
         .byte   $FC
         .byte   $FF
 ; ---------------------------------------------------------------------------
@@ -3216,7 +3216,7 @@ cannon_xvel_sub:  .byte   $00,$80,$00,$80
 cannon_xvel:  .byte   $02,$01,$01,$00
 cannon_idle_delay:  .byte   $3C,$78
 cannon_shell_x_off:  .byte   $0C
-cannon_shell_x_scr:  brk
+cannon_shell_x_scr:  .byte   $00
         .byte   $F4
         .byte   $FF
 
@@ -3688,7 +3688,7 @@ pickelman_bull_oscillate_rider:  lda     ent_var2,x ; oscillation delay
 pickelman_bull_delay_decrement:  dec     ent_var2,x ; decrement delay
         rts                             ; return (delay counting down)
 pickelman_bull_oscillation_x:  .byte   $01 ; oscillation X offsets: +1, 0, -1, -1
-pickelman_bull_oscillation_scr:  brk    ; screen offset: +0
+pickelman_bull_oscillation_scr:  .byte   $00 ; screen offset: +0
         .byte   $FF
         .byte   $FF
 ; --- random drive count from table ($10/$20/$30/$10) ---
@@ -3699,9 +3699,7 @@ pickelman_bull_random_drive:  lda     $E4 ; pseudo-random: add two RNG bytes
         tay                             ; Y = random table index
         lda     bikky_drive_table,y     ; lookup drive count by random index
         rts                             ; return with drive count in A
-bikky_drive_table:
-        bpl     bikky_jump_encode       ; (also data: $10, $20)
-        bmi     bikky_facing_decode     ; (also data: $30, offset)
+bikky_drive_table:  .byte   $10,$20,$30,$10 ; drive counts per random index
 ; ---------------------------------------------------------------------------
 ; main_bikky -- Bikky (stomping enemy, entity type $21)
 ; ---------------------------------------------------------------------------
@@ -3717,16 +3715,19 @@ main_bikky:
         bcs     bikky_check_anim_state  ; landed -> check anim state
         lda     #$00                    ; A = 0
         sta     ent_anim_frame,x        ; reset anim frame while airborne
-        .byte   $BD                     ; encoded: lda ent_facing,x
-bikky_facing_decode:  ldy     #$04      ; (encoded lda ent_facing,x)
+; --- overlap trick: $BD,$A0,$04 = lda $04A0,x (lda ent_facing,x) ---
+; Fall-through reads lda ent_facing,x; entry at bikky_facing_decode reads ldy #$04.
+        .byte   $BD                     ; opcode: lda abs,x
+bikky_facing_decode:  ldy     #$04      ; code: ldy #$04 | addr: $04A0
         and     #FACING_RIGHT           ; isolate facing direction
         beq     bikky_move_left         ; facing left
         ldy     #$0E                    ; Y = speed parameter
         jmp     move_right_collide      ; move_right_collide
 
+; --- overlap trick: $4C + cpy prg_bank bytes = jmp move_left_collide ---
 bikky_move_left:  ldy     #$0F
-        .byte   $4C
-bikky_jump_encode:  cpy     prg_bank    ; encoded: jmp move_left_collide
+        .byte   $4C                     ; opcode: jmp abs
+bikky_jump_encode:  cpy     prg_bank    ; code: cpy | addr: move_left_collide
         ; --- landed: check animation state ---
 bikky_check_anim_state:  lda     ent_anim_state,x
         cmp     #$08                    ; stomp anim finished?
@@ -3902,11 +3903,11 @@ shotman_spawn_bullet_pair:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_
         inc     $01                     ; increment bullet pair counter
         lda     $01                     ; load pair counter
         cmp     #$02                    ; spawned both bullets?
-        .byte   $90,$A2
-shotman_bullet_no_slot:  .byte   $60
+        .byte   $90,$A2                 ; bcc (loop back if < 2 bullets)
+shotman_bullet_no_slot:  rts
 shotman_bullet_x_offset:  .byte   $0F
-shotman_bullet_x_scr:  brk
-        sbc     (ppu_ctrl_shadow),y     ; data: $F1,$22 (sbc + branch offset)
+shotman_bullet_x_scr:  .byte   $00
+        .byte   $F1,$FF                 ; data between routines
 ; --- new shotman: spawn falling projectile (type $73, Y speed $04.00) ---
 shotman_spawn_falling_proj:  jsr     find_enemy_freeslot_y ; find_enemy_freeslot_y
         bcs     shotman_bullet_no_slot  ; no slot -> rts
@@ -4043,8 +4044,8 @@ shotman_debris_spawn_loop:
         inc     $01                     ; next debris index
         lda     $01                     ; load debris counter
         cmp     #$04                    ; spawned all 4 debris?
-        .byte   $90,$96
-shotman_debris_rts:  .byte   $60
+        .byte   $90,$96                 ; bcc (loop back if < 4 debris)
+shotman_debris_rts:  rts
 shotman_debris_facing:  .byte   $01,$01,$02,$02
 shotman_debris_yvel_sub:  .byte   $9E,$44,$9E,$44
 shotman_debris_yvel:  .byte   $04,$03,$04,$03
@@ -7084,7 +7085,7 @@ robot_master_intro_xvel:  .byte   $01,$00,$03,$01,$04,$01,$01,$04 ; X velocity (
 robot_master_intro_init_anim:  .byte   $29,$1F,$33,$2C,$49,$22,$36,$3F ; initial anim frame per master
 robot_master_intro_target_anim:  .byte   $04,$03,$05,$06,$02,$02,$08,$03 ; target anim_state per master
 robot_master_intro_gravity_floor:  .byte   $1E,$1E,$00,$26,$1E,$00,$1E,$1E ; gravity floor offset per master
-        .byte   $60
+        rts
 
 ; ===========================================================================
 ; main_spinning_wheel — Spinning Wheel (Shadow Man stage conveyor)
@@ -7917,13 +7918,13 @@ surprise_box_item_selected:  lda     surprise_box_item_anim_ids,y ; item anim ID
         sta     ent_flags,x             ; store updated flags
         lda     #$F0                    ; 240-frame despawn timer
         sta     ent_timer,x             ; set entity timer
-surprise_box_return:  .byte   $60
+surprise_box_return:  rts
 ; surprise box data tables
 surprise_box_prob_thresholds:  .byte   $63,$41,$23,$19,$0F,$05 ; probability thresholds (99,65,35,25,15,5)
 surprise_box_item_anim_ids:  .byte   $FB,$F9,$FA,$FC,$FE,$FD ; item anim IDs
 surprise_box_item_routine_ids:  .byte   $66,$64,$65 ; item AI routine IDs
         .byte   $67
-        adc     #$68                    ; data: item AI routine $68
+        .byte   $69,$68                 ; item AI routine IDs: $69, $68
         lda     ent_anim_state,x        ; check break anim state
         cmp     #$04                    ; anim_state == 4 = break done?
         bne     surprise_box_alt_return ; not done -> return
@@ -7955,7 +7956,7 @@ surprise_box_alt_item_selected:  lda     surprise_box_alt_anim_ids,y ; load sele
         lda     #$00                    ; clear Y velocity sub
         sta     ent_yvel_sub,x          ; store Y velocity sub = 0
         sta     ent_yvel,x              ; store Y velocity whole = 0
-surprise_box_alt_return:  .byte   $60
+surprise_box_alt_return:  rts
 surprise_box_alt_prob_thresholds:  .byte   $1D,$1B,$0C,$0A,$01
 surprise_box_alt_anim_ids:  .byte   $FB,$FC,$F9,$FA,$FE
 surprise_box_alt_routine_ids:  .byte   $66,$67,$64,$65,$69
