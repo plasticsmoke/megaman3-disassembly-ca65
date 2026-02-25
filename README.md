@@ -145,6 +145,8 @@ Inline comments align to column 40. Automated health checks were run during this
 
 **22 player states.** Beyond the standard ground/airborne/slide/ladder states, the engine has dedicated states for Top Spin recoil bounce, Hard Knuckle fire freeze, Doc Flash Time Stopper death, vertical scroll transitions, warp tube sequences, boss intro freeze, and two scripted auto-walk sequences for the ending.
 
+**Cross-track music data sharing.** The sound data in bank $17 is not 13 isolated tracks — it's a continuous stream where track headers serve as entry points into a shared pool of channel sequences. The driver's loop (`$0E`) and jump (`$0F`) commands reference absolute addresses, so one track's channels can live inside another track's address range. Snake Man's entire stage theme is 62 bytes; its melody loops back into Top Man's data, and its percussion channel jumps into Spark Man's. Wily 3-4 is even smaller at 53 bytes — effectively a remix header that points 3 of its 4 channels into Wily 5-6's data. Shadow Man (75 bytes) and the Ending theme follow the same pattern. The only clean boundary between adjacent tracks is Gemini Man / Hard Man.
+
 **Debug code in retail ROM.** Player 2 controller input activates debug features: P2 Right grants super jump + pit immunity, P2 Up enables slow-motion, P2 A freezes all entities, P2 Left latches permanent rightward movement.
 
 ## Acknowledgments
