@@ -31,7 +31,7 @@ Produces:
 
 The NSFe file is built entirely from source — no ROM extraction, no external scripts. A two-pass ca65/ld65 pipeline assembles the sound engine banks ($16/$17/$18) with `-D NSF_BUILD`, which NOPs out a mapper bank-switch check that isn't needed in the linear NSF address space. The result is linked into a raw PRG binary, then wrapped by `src/nsfe.asm` into a complete NSFe container with chunk headers, track metadata, and the PRG payload via `.incbin`.
 
-All metadata lives in `src/nsfe.asm` as assembly directives: track names, per-track durations, fade times, and composer credits (Yasuaki Fujita and Harumi Fujita). Chunk sizes auto-calculate via label math. To change a track title or timing, edit the file and rebuild.
+All metadata lives in `src/nsfe.asm` as assembly directives: track names, per-track durations, fade times, and composer credits. Chunk sizes auto-calculate via label math. To change a track title or timing, edit the file and rebuild.
 
 ## ROM Layout
 
@@ -137,7 +137,8 @@ Inline comments align to column 40. Automated health checks were run during this
 
 ## Acknowledgments
 
-- Initial xkas disassembly and enemy/routine label naming by Raidenthequick ([original repo](https://github.com/refreshing-lemonade/megaman3-disassembly)). Enemy names sourced from official Capcom Rockman 3 documentation.
+- Initial xkas disassembly and enemy/routine label naming by Raidenthequick ([original repo](https://github.com/refreshing-lemonade/megaman3-disassembly)).
+- Enemy names sourced from official Capcom Rockman 3 documentation.
 
 ## License
 
