@@ -135,6 +135,10 @@ Inline comments align to column 40. Automated health checks were run during this
 
 **Debug code in retail ROM.** Player 2 controller input activates debug features: P2 Right grants super jump + pit immunity, P2 Up enables slow-motion, P2 A freezes all entities, P2 Left latches permanent rightward movement.
 
+## Acknowledgments
+
+- Initial xkas disassembly and enemy/routine label naming by Raidenthequick ([original repo](https://github.com/refreshing-lemonade/megaman3-disassembly)). Enemy names sourced from official Capcom Rockman 3 documentation.
+
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
