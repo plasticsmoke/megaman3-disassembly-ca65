@@ -89,8 +89,20 @@ src/
   bank1A_1B_oam_sequences.asm   OAM animation sequences (dual bank)
   bank1C_1D_entity_ai.asm       Sprite processing + entity AI (dual bank)
   fixed/
-    fixed_bank.asm              Fixed bank — main game loop, player states, movement,
-                                collision, camera, rendering ($C000-$FFFF)
+    fixed_bank.asm              Fixed bank master file — header docs, address defs,
+                                .include directives for the 12 sub-files below
+    nmi.asm                     NMI handler (OAM DMA, palette, scroll, IRQ setup)
+    irq.asm                     13 IRQ handlers (scanline splits) + vector tables
+    ppu_utils.asm               PPU buffer drain, rendering, controllers, fade, stage load
+    game_loop.asm               Main game entry, stage init, frame loop, pause, game over
+    player_ground.asm           Player state $00 (ground) + airborne sub + weapon fire
+    player_states.asm           Player states $02-$0D + weapon init routines
+    player_warp.asm             Player states $10-$15 (scroll, warp, auto-walk, Break Man)
+    camera.asm                  Scroll engine, room transitions, vertical scroll, metatile rendering
+    collision.asm               Tile collision, breakable blocks, snap routines, metatile PPU writes
+    sprites.asm                 Sprite animation engine, OAM assembly, energy bars
+    movement.asm                Entity movement with collision, gravity, velocity, facing, helpers
+    system.asm                  RESET, cooperative scheduler, bank switching, sound, vectors
   nsfe.asm                      NSFe container (metadata + .incbin PRG payload)
   chr.asm                       CHR ROM (128 KB pattern tables)
 include/
