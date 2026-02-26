@@ -1487,7 +1487,7 @@ potton_state_check:  lda     ent_status,x ; state check
         bcs     potton_rts              ; no → return
         inc     ent_status,x            ; state → 1 (stop and drop)
         lda     #$23                    ; set OAM $23 (propeller stop anim)
-        bne     potton_reset_anim       ; → reset_sprite_anim
+        bne     potton_reset_anim       ; → potton_reset_anim
 potton_check_drop:  lda     ent_anim_id,x ; already showing bomb bay ($24)?
         cmp     #$24                    ; OAM $24 = bomb bay open
         beq     potton_rts              ; yes → done

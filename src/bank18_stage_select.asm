@@ -628,7 +628,7 @@ bank03_portrait_setup_routine:  .byte   $60,$70,$60,$71,$71,$74,$73,$6F
 
         jmp     password_screen_entry   ; → password_screen_entry
 
-        jmp     wily_gate_setup         ; → wily_gate_entry
+        jmp     wily_gate_setup         ; → wily_gate_setup
 
 ; ===========================================================================
 ; Title screen → stage select transition ($9009)

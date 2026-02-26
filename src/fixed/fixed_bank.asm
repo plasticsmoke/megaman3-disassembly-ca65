@@ -136,7 +136,7 @@
 ;   $BF00 table is per-stage, loaded from the stage's PRG bank
 ;
 ; LEVEL DATA FORMAT (per-stage PRG bank, mapped to $A000-$BFFF):
-;   Stage bank = stage_to_bank[$22] table at $C8B9 (usually bank = stage index)
+;   Stage bank = ensure_stage_bank_table[$22] at $C8B9 (usually bank = stage index)
 ;   $A000-$A4FF: enemy data tables (flags, main routine IDs, spawn data)
 ;   $AA00+:      screen metatile grid (column IDs, read during tile collision)
 ;   $AA60:       screen pointer table (2 bytes/screen: init param, layout index)

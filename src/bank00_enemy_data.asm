@@ -429,7 +429,7 @@ enemy_x_velocity_g:
 ; NEEDLE MAN STAGE DATA ($A800-$BFFF)
 ; =============================================================================
 ; Stage layout and enemy placement data for Needle Man's stage.
-; Stage ID $22 maps to PRG bank $00 via the stage_to_bank table.
+; Stage ID $22 maps to PRG bank $00 via the ensure_stage_bank_table.
 ; =============================================================================
 
 

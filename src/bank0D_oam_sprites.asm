@@ -32,7 +32,7 @@
 ;                     Wily 2/3 facing-right and facing-left variants
 ;        $BF00-$BFFF: stage data set 5 — Wily Fortress 5
 ;      Shared by stage IDs $0D (Wily 2), $0E (Wily 3), $10 (Wily 5)
-;      via the stage_to_bank lookup table at $C8B9.
+;      via the ensure_stage_bank_table lookup table at $C8B9.
 ; =============================================================================
 
         .setcpu "6502"
@@ -324,7 +324,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
 ; =============================================================================
 ; Standard stage data for Wily Fortress stages 2, 3, and 5. This bank is
 ; shared by stage IDs $0D (Wily 2), $0E (Wily 3), and $10 (Wily 5) — all
-; mapped to bank $0D via the stage_to_bank lookup table at $C8B9.
+; mapped to bank $0D via the ensure_stage_bank_table lookup table at $C8B9.
 ;
 ; The intro cutscene data above ($A000-$A5AA) occupies what is normally the
 ; enemy flag/property table region ($A000-$A4FF) in other stage banks, so

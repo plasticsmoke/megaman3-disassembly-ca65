@@ -7,7 +7,7 @@ main_yellow_devil:
 ; Wily capsule). Dispatched from bank1C_1D for routine indices $E0-$FF.
 ; Known bosses: main_yellow_devil, main_wily_machine_A, main_wily_machine_B,
 ; main_gamma_B, main_gamma_F.
-; Also serves as stage data for stage $12 (special/ending) via stage_to_bank.
+; Also serves as stage data for stage $12 (special/ending) via ensure_stage_bank_table.
 ; =============================================================================
 
         .setcpu "6502"

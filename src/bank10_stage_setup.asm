@@ -14,7 +14,7 @@
 ;      between columns. A sound effect ($1D) plays during the animation.
 ;
 ;   2. Stage data for stage $14 ($83D0-$9FFF)
-;      Also referenced by stage_to_bank in the fixed bank.
+;      Also referenced by ensure_stage_bank_table in the fixed bank.
 ;      Standard stage data layout (shifted from $A000 base to $8000):
 ;        $83D0: Collision bitmask table (also used as attr masks by door code)
 ;        $8800: Tile property / solid flag map
@@ -381,7 +381,7 @@ boss_door_open_attr_palette_bits:  .byte   $03,$30,$03,$30,$20,$00,$00,$00
 ; STAGE $14 DATA — Wily Stage 2 (Doc Robot: Gemini + Spark)
 ; =============================================================================
 ; From $83D0 onward this bank serves as stage data for stage $14.
-; Referenced by stage_to_bank in the fixed bank. This is a Doc Robot
+; Referenced by ensure_stage_bank_table in the fixed bank. This is a Doc Robot
 ; remixed stage combining Gemini Man and Spark Man environments.
 ;
 ; The collision bitmask table at stage_collision_bitmask_table doubles as the attribute mask

@@ -695,7 +695,7 @@ load_stage_default_palette_table:  .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
 ; ---------------------------------------------------------------------------
 ; ensure_stage_bank — switch $F5 to current stage's PRG bank if needed
 ; ---------------------------------------------------------------------------
-; Looks up stage_to_bank[$22] and switches $F5. No-op if $F5 is already $13
+; Looks up ensure_stage_bank_table[$22] and switches $F5. No-op if $F5 is already $13
 ; (bank $13 = fixed/shared). Preserves X and Y.
 ; ---------------------------------------------------------------------------
 ensure_stage_bank:  txa                 ; save X
@@ -715,7 +715,7 @@ ensure_stage_bank_skip:  pla            ; restore Y from stack
         tax                             ; transfer to X
         rts                             ; return to caller
 
-; stage_to_bank: maps stage index ($22) → PRG bank ($F5)
+; ensure_stage_bank_table: maps stage index ($22) → PRG bank ($F5)
 ; $00=Needle $01=Magnet $02=Gemini $03=Hard $04=Top $05=Snake $06=Spark $07=Shadow
 ; $08-$0B=Doc Robot (Needle/Gemini/Spark/Shadow stages)
 ; $0C-$0F=Wily fortress, $10+=special/ending
