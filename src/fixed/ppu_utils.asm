@@ -3,7 +3,7 @@
 ; ===========================================================================
 ; Contains:
 ;   drain_ppu_buffer      — flush PPU write buffer at $0780 to nametable
-;   disable_nmi / enable_nmi — PPUCTRL NMI flag management
+;   disable_nmi             — PPUCTRL NMI flag management (enable_nmi is dead code)
 ;   rendering_off / rendering_on — PPUMASK rendering control + nmi_skip
 ;   read_controllers      — read both joypads with DPCM-glitch mitigation
 ;   fill_nametable        — fill a PPU nametable with a single tile
@@ -59,16 +59,21 @@ disable_nmi:
         sta     PPUCTRL                 ; write PPUCTRL
         rts                             ; return
 
-; ---------------------------------------------------------------------------
-; enable_nmi — set NMI enable bit in PPUCTRL
-; ---------------------------------------------------------------------------
-enable_nmi:
+; --- DEAD CODE: unreachable block at $1EC527 ---
+; No references to this address exist in any bank — unreachable dead code.
+; Would have set PPUCTRL bit 7 (NMI enable) via the shadow register.
+; Counterpart to disable_nmi above, but unlike disable_nmi (referenced by
+; the sound driver dispatch table at $168A68), this routine was never called.
+
+dead_code_enable_nmi:
 
         lda     ppu_ctrl_shadow         ; load PPUCTRL shadow
         ora     #$80                    ; set bit 7 (NMI enable)
         sta     ppu_ctrl_shadow         ; update shadow
         sta     PPUCTRL                 ; write PPUCTRL
-        rts                             ; return
+dead_code_enable_nmi_exit:  rts        ; return
+
+; --- END DEAD CODE ---
 
 ; ---------------------------------------------------------------------------
 ; rendering_off — blank screen and increment frame-lock counter

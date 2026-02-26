@@ -581,14 +581,23 @@ frame_loop_render_columns_loop:  pha    ; save column counter
         sta     ent_x_px                ; player X = 128 (center of screen)
         jmp     game_entry_set_hp_scroll ; → continue stage_init (Gemini scroll, fade-in)
 
-; --- refill_all_ammo: fill all weapon ammo to HEALTH_FULL ---
-; Called when $98 mode indicates refill (e.g. E-Tank usage).
+; --- DEAD CODE: unreachable block at $1ECCE5 ---
+; No references to this address exist in any bank — unreachable dead code.
+; Would have checked $98 mode for refill state and filled all 12 weapon ammo
+; slots to HEALTH_FULL. The bytes at $CCF1-$CCF3 also serve as the overlap
+; trick operand for the Rush dispatch table below, so they must be preserved.
 
+dead_code_refill_all_ammo:
         lda     $98                     ; load P2 button state
         and     #$03                    ; check if mode == 1 (refill)
         cmp     #$01                    ; mode 1 = refill
         bne     frame_loop_ammo_refill_exit ; if not, skip
         ldy     #$0B                    ; fill $A2-$AD (12 ammo slots)
+
+; --- END DEAD CODE ---
+; (Bytes below serve as overlap data for Rush dispatch tables and are
+; referenced from player_ground.asm via frame_loop_ready_overlay_oam.)
+
 frame_loop_ready_overlay_oam:  lda     #HEALTH_FULL ; all to full (28 units)
 ; --- overlap trick: $99,$A2,$00 = sta $00A2,y (sta ammo_array,y) ---
 ; Fall-through fills ammo slots; entry at ready_sprite_table loads X=0.
