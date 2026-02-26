@@ -5,7 +5,7 @@
 ;
 ; This bank serves dual purposes: it contains nametable streaming code used
 ; by the stage select and password screens, AND it doubles as the stage data
-; bank for Wily 6 (stage $16) via the stage_to_bank mapping table.
+; bank for Wily 6 (stage $16) via the ensure_stage_bank_table mapping table.
 ;
 ; ---- Nametable Streaming Code ($A000-$A09C) ----
 ;
@@ -316,7 +316,7 @@ string_pointer_table_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
 ; WILY 6 (STAGE $16) — STAGE DATA ($A32D-$BFFF)
 ; =============================================================================
 ; Complete level data for Wily fortress stage 6 (the final Wily stage).
-; Loaded when stage_id = $16 via the stage_to_bank mapping table.
+; Loaded when stage_id = $16 via the ensure_stage_bank_table mapping table.
 ;
 ; Standard stage data layout (see bank08.asm header for format details):
 ;   $A32D-$A9FC:  2-bit encoded screen nametable column data

@@ -2,7 +2,7 @@
 ; MEGA MAN 3 (U) — BANK $11 — WILY CASTLE 6 / ENDING STAGE DATA
 ; =============================================================================
 ; Mapped to $A000-$BFFF. Stage data bank for STAGE_WILY6 ($11).
-; Referenced by stage_to_bank[$11] = $11.
+; Referenced by ensure_stage_bank_table[$11] = $11.
 ;
 ; Standard MM3 stage data layout:
 ;   $A000-$A9FF: boss AI local data / compressed nametable graphics

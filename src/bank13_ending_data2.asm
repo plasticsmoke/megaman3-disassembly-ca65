@@ -2,7 +2,7 @@
 ; MEGA MAN 3 (U) — BANK $13 — SPECIAL/ENDING STAGE DATA 2
 ; =============================================================================
 ; Mapped to $A000-$BFFF. Stage data bank for stage $13 (ending sequence).
-; Referenced by stage_to_bank[$13] = $13. Also loaded for game over screen
+; Referenced by ensure_stage_bank_table[$13] = $13. Also loaded for game over screen
 ; (bank18 sets prg_bank=$13). The ensure_stage_bank routine skips bank switch
 ; when prg_bank is already $13, suggesting this bank remains mapped as a
 ; default in some contexts.
