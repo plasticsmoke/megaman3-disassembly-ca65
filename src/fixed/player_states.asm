@@ -315,7 +315,7 @@ slide_initiate_confirmed:  lda     #PSTATE_SLIDE ; state $02 = player_slide
 
 ; player state $02: sliding on ground
 ; Speed: $02.80 = 2.5 px/frame. Timer in $33 (starts at $14 = 20 frames).
-; First 8 frames: uncancellable. Frames 9-20: cancellable with A (slide jump).
+; First 9 frames: uncancellable. Frames 10-20: cancellable with A (slide jump).
 ; Exits: timer expires, direction change, wall hit, ledge, or A button.
 player_slide:
         ldy     #$02                    ; apply $99 (Y=2 = slide hitbox)
