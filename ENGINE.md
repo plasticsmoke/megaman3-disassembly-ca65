@@ -82,7 +82,7 @@ The engine divides zero page into functional regions:
 |-------|---------|
 | `$0100-$01FF` | Stack (grows down from `$01BF`) |
 | `$0200-$02FF` | OAM shadow buffer (64 sprites, DMA'd to PPU each frame) |
-| `$0300-$05FF` | Entity arrays (32 slots x 20 fields, stride `$20`) |
+| `$0300-$05FF` | Entity arrays (32 slots x 24 fields, stride `$20`) |
 | `$0600-$061F` | Palette buffer (32 bytes, uploaded to PPU `$3F00` when dirty) |
 | `$0780+` | PPU nametable update buffer |
 
@@ -149,12 +149,12 @@ Runs every VBlank. Must complete within ~2,200 CPU cycles (VBlank period) to avo
 6. **Primary PPU buffer** — If `nametable_dirty` is set, call `drain_ppu_buffer` (horizontal VRAM writes).
 7. **Secondary PPU buffer** — If `nt_column_dirty` is set, set VRAM increment to +32 (vertical), drain buffer, restore +1.
 8. **Palette upload** — If `palette_dirty` is set, copy 32 bytes from `$0600` to PPU `$3F00`.
-9. **Scroll setup** — Write `PPUSCROLL` X/Y. Mode `$02` (stage select) uses a separate X source. Re-enable rendering via `ppu_mask_shadow`. Write `PPUCTRL` with nametable select.
+9. **Scroll setup** — Write `PPUSCROLL` X/Y. Mode `$02` (auto-scroll) uses a separate X source (`$5F`). Re-enable rendering via `ppu_mask_shadow`. Write `PPUCTRL` with nametable select.
 10. **CHR bank refresh** — Write 6 CHR bank registers (`$E8-$ED`) to MMC3.
 11. **MMC3 IRQ setup** — Program scanline counter from `irq_scanline` ($7B). Load IRQ handler address from vector table indexed by `screen_mode`.
 12. **Frame counter** — Increment `frame_counter` ($92), set `nmi_occurred` = `$FF`.
 13. **Envelope timers** — Decrement sound envelope timers for 4 channels.
-14. **Stack patch** — Overwrite the return address on the stack so RTI routes through the sound driver trampoline at `$C122` instead of returning directly to the interrupted code.
+14. **Stack patch** — Overwrite the return address on the stack so RTI routes through the sound driver trampoline at `$C121` instead of returning directly to the interrupted code.
 
 ---
 
@@ -223,7 +223,7 @@ Each frame of active gameplay:
 |----|----------|---------|-------------|
 | `$00` | `PSTATE_GROUND` | `player_on_ground` | Idle, walking, jump initiation, slide, shoot |
 | `$01` | `PSTATE_AIRBORNE` | `player_airborne` | Jumping or falling, variable-height jump |
-| `$02` | `PSTATE_SLIDE` | `player_slide` | 20-frame slide at 2.5 px/f, uncancellable first 8 frames |
+| `$02` | `PSTATE_SLIDE` | `player_slide` | 20-frame slide at 2.5 px/f, uncancellable first 9 frames |
 | `$03` | `PSTATE_LADDER` | `player_ladder` | Climbing, can fire or jump off |
 | `$04` | `PSTATE_REAPPEAR` | `player_reappear` | Teleport beam drops from top of screen |
 | `$05` | `PSTATE_RIDE` | `player_entity_ride` | Riding Mag Fly (magnetic pull) |
@@ -257,16 +257,19 @@ A per-state bitmask table controls which states allow pausing. Bit 7 set = canno
 | Normal jump | `$04.E5` | 4.89 px/frame initial |
 | Rush Coil jump | `$06.EE` | 6.93 px/frame initial |
 | Debug super jump | `$08.00` | 8.00 px/frame initial |
-| Gravity | `$00.55` | 0.33 px/frame² |
+| Gravity (entities) | `$00.55` | 0.33 px/frame² |
+| Gravity (player) | `$00.40` | 0.25 px/frame² |
 | Terminal velocity | `$F9.00` | -7.00 px/frame (signed) |
 | Resting velocity (player) | `$FF.C0` | -0.25 px/frame (gentle ground pin) |
 | Resting velocity (enemies) | `$FF.AB` | -0.33 px/frame |
 
 All velocities use 8.8 fixed-point (whole.fraction). Negative values are two's complement — `$F9.00` = -7.
 
+Gravity has two values because the player state dispatch prelude writes `$40` to `gravity` each frame, then entity AI (`process_sprites` in bank `$1C`) overwrites it to `$55`. Since the player runs first, player physics uses `$40`; entities processed afterward use `$55`.
+
 ### Variable-Height Jump
 
-The airborne state checks whether the A button is still held. If the player releases A and upward velocity is still above a threshold, it's cut to `$FE.00` (-2.0 px/f), creating the classic Mega Man short-hop vs. full-jump feel.
+The airborne state checks whether the A button is still held. If the player releases A while still rising, the velocity is immediately set to the resting value `$FF.C0` (-0.25 px/f) via `reset_gravity`, killing upward momentum and letting gravity take over. This creates the classic Mega Man short-hop vs. full-jump feel.
 
 ### Weapon Fire
 
@@ -280,7 +283,7 @@ The airborne state checks whether the A button is still held. If the player rele
 
 ### Struct-of-Arrays Storage
 
-32 entity slots stored as 20+ parallel arrays with `$20` stride. Each array holds one field for all 32 slots:
+32 entity slots stored as 24 parallel arrays with `$20` stride. Each array holds one field for all 32 slots:
 
 | Array | Base | Purpose |
 |-------|------|---------|
@@ -674,7 +677,7 @@ The mapping table `ensure_stage_bank_table` in the fixed bank handles all stage-
 
 ## Debug Features
 
-Three debug features are present in the retail ROM, activated by player 2 controller input:
+Four debug features are present in the retail ROM, activated by player 2 controller input:
 
 | P2 Input | Effect |
 |----------|--------|

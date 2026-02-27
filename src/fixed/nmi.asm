@@ -85,12 +85,12 @@ nmi_palette_copy_loop:  lda     $0600,x ; copy palette from $0600-$061F to PPU
         sty     PPUADDR                 ; second dummy write
 
 ; --- set scroll position for this frame ---
-nmi_scroll_setup:  lda     screen_mode  ; game mode $02 = stage select screen
+nmi_scroll_setup:  lda     screen_mode  ; game mode $02 = auto-scroll (Gemini)
         cmp     #$02                    ; (uses horizontal-only scroll from $5F)
-        bne     nmi_scroll_mode_check   ; not stage select → use gameplay scroll
+        bne     nmi_scroll_mode_check   ; not auto-scroll → use gameplay scroll
         lda     PPUSTATUS               ; reset PPU latch
-        lda     $5F                     ; PPUSCROLL X = $5F (stage select scroll)
-        sta     PPUSCROLL               ; write X scroll for stage select
+        lda     $5F                     ; PPUSCROLL X = $5F (auto-scroll X position)
+        sta     PPUSCROLL               ; write X scroll for auto-scroll mode
         lda     #$00                    ; PPUSCROLL Y = 0
         sta     PPUSCROLL               ; write Y scroll = 0
         beq     nmi_restore_rendering   ; → restore rendering
@@ -159,7 +159,7 @@ nmi_channel_next:  inx                  ; advance to next channel (+4 bytes)
         sta     $7C                     ; save to $7C ($7C/$7D = interrupted PC)
         lda     #$C1                    ; load $C1 (high byte of fake return)
         sta     $0107,x                 ; overwrite stack return addr high byte
-        lda     #$21                    ; load $21 (low byte → RTI resumes at $C122)
+        lda     #$21                    ; load $21 (low byte → RTI resumes at $C121)
         sta     $0106,x                 ; overwrite stack return addr low byte
         pla                             ; begin register restore
         tay                             ; restore Y

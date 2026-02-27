@@ -141,7 +141,7 @@ Highlights:
 
 **Cooperative multitasking.** The game runs a stack-based coroutine scheduler in the fixed bank. Game logic calls `task_yield` to surrender control each frame. The NMI handler processes rendering, then patches the return address on the stack to route through the sound driver before resuming mainline code — avoiding bank-switch conflicts when NMI interrupts mid-swap.
 
-**Entity system.** 32 entity slots using 20+ parallel arrays at $0300-$05FF with $20 stride. Slot 0 is the player, slots $01-$0F are weapons/projectiles, $10-$1F are enemies/items/bosses. The `ent_routine` index encodes both the target bank and routine offset — values $00-$9F dispatch from bank $1D, $A0-$DF from the Robot Master banks ($04-$07), $E0-$FF from the fortress boss bank ($12). One pointer table, three bank groups.
+**Entity system.** 32 entity slots using 24 parallel arrays at $0300-$05FF with $20 stride. Slot 0 is the player, slots $01-$0F are weapons/projectiles, $10-$1F are enemies/items/bosses. The `ent_routine` index encodes both the target bank and routine offset — values $00-$9F dispatch from bank $1D, $A0-$DF from the Robot Master banks ($04-$07), $E0-$FF from the fortress boss bank ($12). One pointer table, three bank groups.
 
 **IRQ scanline splits.** 18 IRQ handler configurations implement per-scanline screen effects: gameplay status bar, horizontal/vertical scroll splits, water wave distortion, screen wipes, stage select grid rendering, and mid-frame CHR bank swaps. Handlers chain through the MMC3 scanline counter for multi-split frames.
 
