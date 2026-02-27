@@ -1,6 +1,6 @@
 # Mega Man 3 (U) — ca65 Disassembly
 
-A byte-perfect, fully annotated disassembly of **Mega Man 3** (NES, US release) targeting the [ca65](https://cc65.github.io/doc/ca65.html) assembler. Every instruction line across all 20 code banks has an inline comment. Data banks have section headers, record boundaries, and enemy name annotations. An automated 25-category health check verifies comment accuracy against the actual instructions.
+A byte-perfect, fully annotated disassembly of **Mega Man 3** (NES, US release) targeting the [ca65](https://cc65.github.io/doc/ca65.html) assembler. Every instruction line across all 20 code banks has an inline comment. Data banks have section headers, record boundaries, and enemy name annotations.
 
 Built with [Claude Code](https://claude.com/claude-code) — starting from raw da65 output through label renaming, constant extraction, and full annotation.
 
@@ -135,17 +135,19 @@ Inline comments align to column 40. Automated health checks were run during this
 
 ## Engine Notes
 
+For a comprehensive reference covering the frame lifecycle, entity system, player state machine, collision, scrolling, PPU rendering, bank switching, sound driver, IRQ effects, and stage data format, see **[ENGINE.md](ENGINE.md)**.
+
+Highlights:
+
 **Cooperative multitasking.** The game runs a stack-based coroutine scheduler in the fixed bank. Game logic calls `task_yield` to surrender control each frame. The NMI handler processes rendering, then patches the return address on the stack to route through the sound driver before resuming mainline code — avoiding bank-switch conflicts when NMI interrupts mid-swap.
 
-**Entity system.** 32 entity slots using 18 parallel arrays at $0300-$05FF with $20 stride. Slot 0 is the player, slots $01-$0F are weapons/projectiles, $10-$1F are enemies/items/bosses. The `ent_hp` field doubles as a lifetime timer for projectiles. The `ent_routine` index encodes both the target bank and routine offset — values $00-$9F dispatch from bank $1D, $A0-$DF from the Robot Master banks ($04-$07), $E0-$FF from the fortress boss bank ($12). One pointer table, three bank groups.
+**Entity system.** 32 entity slots using 20+ parallel arrays at $0300-$05FF with $20 stride. Slot 0 is the player, slots $01-$0F are weapons/projectiles, $10-$1F are enemies/items/bosses. The `ent_routine` index encodes both the target bank and routine offset — values $00-$9F dispatch from bank $1D, $A0-$DF from the Robot Master banks ($04-$07), $E0-$FF from the fortress boss bank ($12). One pointer table, three bank groups.
 
-**Mixed code+data banks.** Stage banks ($00-$08) pack both level layout data and stage-specific code in the same 8 KB window. Enemy spawn tables always sit at offset $0E00 ($AE00 CPU). The per-stage bank mapping table handles shared banks — bank $0D serves three different stages (Doc Shadow, Doc Snake, and Wily 1).
-
-**IRQ scanline splits.** Multiple IRQ handler groups implement per-scanline screen effects: gameplay status bar, horizontal/vertical scroll splits, water wave distortion, screen wipes, stage select grid rendering, and mid-frame CHR bank swaps. Each screen mode chains its own custom split configuration through the MMC3 scanline counter.
+**IRQ scanline splits.** 18 IRQ handler configurations implement per-scanline screen effects: gameplay status bar, horizontal/vertical scroll splits, water wave distortion, screen wipes, stage select grid rendering, and mid-frame CHR bank swaps. Handlers chain through the MMC3 scanline counter for multi-split frames.
 
 **22 player states.** Beyond the standard ground/airborne/slide/ladder states, the engine has dedicated states for Top Spin recoil bounce, Hard Knuckle fire freeze, Doc Flash Time Stopper death, vertical scroll transitions, warp tube sequences, boss intro freeze, and two scripted auto-walk sequences for the ending.
 
-**Cross-track music data sharing.** The sound data in bank $17 is not 13 isolated tracks — it's a continuous stream where track headers serve as entry points into a shared pool of channel sequences. The driver's loop (`$0E`) and jump (`$0F`) commands reference absolute addresses, so one track's channels can live inside another track's address range. Snake Man's entire stage theme is 62 bytes; its melody loops back into Top Man's data, and its percussion channel jumps into Spark Man's. Wily 3-4 is even smaller at 53 bytes — effectively a remix header that points 3 of its 4 channels into Wily 5-6's data. Shadow Man (75 bytes) and the Ending theme follow the same pattern. The only clean boundary between adjacent tracks is Gemini Man / Hard Man.
+**Cross-track music data sharing.** The sound data in bank $17 is not 13 isolated tracks — it's a continuous stream where track headers serve as entry points into a shared pool of channel sequences. Snake Man's melody loops into Top Man's data, Wily 3-4 is a 53-byte remix header pointing into Wily 5-6's data.
 
 **Debug code in retail ROM.** Player 2 controller input activates debug features: P2 Right grants super jump + pit immunity, P2 Up enables slow-motion, P2 A freezes all entities, P2 Left latches permanent rightward movement.
 

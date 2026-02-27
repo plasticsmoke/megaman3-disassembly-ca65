@@ -24,6 +24,9 @@ src/fixed/reset_bankswitch.asm
 # Tools (one-off conversion scripts, not part of the build)
 tools/
 
+# Process notes (not part of the project)
+disassembly_process.md
+
 # Python
 __pycache__/
 *.pyc
