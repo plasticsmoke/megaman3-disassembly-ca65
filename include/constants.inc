@@ -211,7 +211,7 @@ ENT_FLAG_HFLIP   = $40   ; bit 6 — horizontal flip (mirror sprite)
 ; =============================================================================
 ; Health / Energy Bar
 ; =============================================================================
-HEALTH_FULL      = $9C   ; full HP / weapon energy (28 units × 4 sub-units)
+HEALTH_FULL      = $9C   ; full HP / weapon energy ($80 flag + 28 HP units)
 
 ; =============================================================================
 ; Sound Commands
