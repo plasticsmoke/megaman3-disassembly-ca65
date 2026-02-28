@@ -12,7 +12,7 @@ ROM hacking reference for Mega Man 3 (U). Every address in this document is a CP
 | Enemy HP | Bank $00, $A400 | 256 bytes indexed by global enemy ID; $FF = invincible |
 | Player starting HP | Fixed bank `game_loop.asm:135` | `lda #HEALTH_FULL` → `sta player_hp` |
 | Player starting lives | Fixed bank `game_loop.asm:30` | `lda #$02` → `sta lives` (displays as 3) |
-| Boss HP constant | `include/constants.inc` | `HEALTH_FULL = $9C` (28 bars x 4 sub-units = 156) |
+| Boss HP constant | `include/constants.inc` | `HEALTH_FULL = $9C` ($80 flag + 28 HP units) |
 | Stage-to-bank mapping | Fixed bank `ppu_utils.asm:723` | `ensure_stage_bank_table` (23 entries) |
 | Stage music | Fixed bank `game_loop.asm:615` | `frame_loop_stage_music_table` (18 entries) |
 | Enemy spawn positions | Per-stage bank, $AB00-$AEFF | 4 parallel arrays: screen/X/Y/enemy ID |
@@ -224,7 +224,9 @@ HP = $FF means invincible (immune to all damage).
 
 | ID | Entity | HP |
 |----|--------|-----|
-| $50-$56 | Robot Master intros (Needle through Spark) | $FF |
+| $50-$51 | Robot Master intros (Needle, Magnet) | $FF |
+| $52-$53 | Robot Master intros (Gemini, Hard) | $1C (28) |
+| $54-$56 | Robot Master intros (Top, Snake, Spark) | $FF |
 | $57 | Komasaburo (spinning top) | 10 |
 | $58-$5B | Tama segments | $FF/0 |
 | $5C | Giant Springer | 8 |
@@ -441,7 +443,7 @@ Two bytes per room:
 
 ### Collision Table ($BF00)
 
-256 bytes, one per metatile index. Upper nibble = collision type:
+256 bytes, one per CHR tile index (sub-tile). Upper nibble = collision type:
 
 | Value | Constant | Type |
 |-------|----------|------|
@@ -643,7 +645,7 @@ Byte 0:  type/priority
          $01-$7F    = SFX priority (higher = overrides lower-priority SFX)
          Bit 7 set  = chain flag (linked SFX follows)
 
-Music: bytes 1-8 = 4 channel pointer pairs (hi/lo for Pulse1, Triangle, Pulse2, Noise)
+Music: bytes 1-8 = 4 channel pointer pairs (hi/lo for Pulse1, Pulse2, Triangle, Noise)
 SFX:   sequence data begins immediately after priority byte
 ```
 
