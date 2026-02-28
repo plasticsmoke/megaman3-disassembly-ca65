@@ -40,7 +40,7 @@
 ;       $D0=Hard Man  $D2=Spark Man  $D4=Snake Man  $D6=Gemini Man
 ;     Fortress bosses ($E0-$F0):
 ;       $E0=Yellow Devil  $E3=Wily Machine A  $E5=Wily Machine B
-;       $E7=Gamma B  $EA=Gamma F  $ED=Wily Machine C  $F0=Kamegoro Maker
+;       $E8=Gamma B  $E9=Gamma F  $ED=Wily Machine C  $F0=Kamegoro Maker
 ;     Index $00=inactive, $01/$09/$0B/$0C=internal/projectile, $00 damage.
 ;
 ; 2) STAGE DATA ($AA00-$BFFF):
@@ -460,7 +460,7 @@ spark_damage_table:
 ; =============================================================================
 ; SHADOW BLADE DAMAGE TABLE ($A900-$A9FF) — weapon_id $0A
 ; =============================================================================
-; Throwing star. Strong vs Spark Man (weakness: 4), Doc Flash (weakness: 7).
+; Throwing star. Strong vs Spark Man (weakness: 4). Effective vs Magnet Man (7).
 ; Good all-around weapon — deals 1-4 damage to most bosses.
 ; ===========================================================================
 shadow_damage_table:
