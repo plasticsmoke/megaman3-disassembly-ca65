@@ -9,6 +9,7 @@ ROM hacking reference for Mega Man 3 (U). Every address in this document is a CP
 | Want to change... | Location | Notes |
 |-------------------|----------|-------|
 | Weapon damage vs enemies | Bank $0A, $A000-$A9FF | 10 tables x 256 bytes, indexed by `ent_routine` |
+| Enemy contact damage | Bank $0A, $A000 | 256 bytes indexed by `ent_routine`; value = HP bars |
 | Enemy HP | Bank $00, $A400 | 256 bytes indexed by global enemy ID; $FF = invincible |
 | Player starting HP | Fixed bank `game_loop.asm:135` | `lda #HEALTH_FULL` → `sta player_hp` |
 | Player starting lives | Fixed bank `game_loop.asm:30` | `lda #$02` → `sta lives` (displays as 3) |
@@ -168,90 +169,96 @@ Complete mapping of global enemy IDs ($00-$8F) used in spawn tables ($AE00) and 
 
 **Standard Enemies ($00-$3F):**
 
-| ID | Enemy | HP | ID | Enemy | HP |
-|----|-------|----|----|-------|-----|
-| $00 | Dada | 1 | $20 | Bolton & Nutton | 1 |
-| $01 | Potton | 1 | $21 | Wanaan | $FF |
-| $02 | New Shotman | 3 | $22 | Needle Press | $FF |
-| $03 | Hammer Joe | 8 | $23 | Needle Press (variant) | $FF |
-| $04 | Bubukan | 4 | $24 | Elec'n | 1 |
-| $05 | Jamacy | 1 | $25 | Magnet Pull | $FF |
-| $06 | Bomb Flier | 3 | $26 | Mechakkero | 1 |
-| $07 | (projectile) | 3 | $27 | Top Man Platform | $FF |
-| $08 | Yambow | 3 | $28 | (no-op) | 1 |
-| $09 | Metall DX | 1 | $29 | (no-op) | 1 |
-| $0A | Cannon | 3 | $2A | Chibee | 1 |
-| $0B | Cloud Platform | $FF | $2B | Block Breaker | 1 |
-| $0C | Giant Metall Met | 1 | $2C | Penpen | 1 |
-| $0D | Giant Metall Met | 1 | $2D | Electric Gabyoall | $FF |
-| $0E | Gyoraibo | 2 | $2E | (no-op) | 1 |
-| $0F | Mag Fly | 1 | $2F | Block Breaker | 6 |
-| $10 | Block Breaker | 2 | $30 | Block Breaker | 1 |
-| $11 | Junk Golem | 6 | $31 | (no-op) | $FF |
-| $12 | Pickelman Bull | 3 | $32 | Pole | $FF |
-| $13 | Bikky | 6 | $33 | Holograph | 28 |
-| $14 | Giant Metall | $FF | $34 | Needle Press | $FF |
-| $15 | Jamacy | 1 | $35 | (no-op) | $FF |
-| $16 | Mag Force | $FF | $36 | Peterchy | 3 |
-| $17 | Junk Block Thrown | 6 | $37 | Walking Bomb | 1 |
-| $18 | Nitron | 1 | $38 | Parasyu | 3 |
-| $19 | Pole | 1 | $39 | Hologran | 3 |
-| $1A | Gyoraibo | 2 | $3A | Hologran | 3 |
-| $1B | Hari Harry | 6 | $3B | Bomber Pepe | 6 |
-| $1C | Penpen Maker | 10 | $3C | Metall DX (walk) | 1 |
-| $1D | Returning Monking | 8 | $3D | Magnet Push | $FF |
-| $1E | Block Breaker | 1 | $3E | Proto Man | 28 |
-| $1F | Have 'Su' Bee | 3 | $3F | (no-op) | $FF |
+| ID | Enemy | HP | Dmg | ID | Enemy | HP | Dmg |
+|----|-------|----|-----|----|-------|----|-----|
+| $00 | Dada | 1 | 2 | $20 | Bolton & Nutton | 1 | 2 |
+| $01 | Potton | 1 | 2 | $21 | Wanaan | $FF | 4 |
+| $02 | New Shotman | 3 | 4 | $22 | Needle Press | $FF | 4 |
+| $03 | Hammer Joe | 8 | 4 | $23 | Needle Press (variant) | $FF | 4 |
+| $04 | Bubukan | 4 | 4 | $24 | Elec'n | 1 | 4 |
+| $05 | Jamacy | 1 | 2 | $25 | Magnet Pull | $FF | — |
+| $06 | Bomb Flier | 3 | 2 | $26 | Mechakkero | 1 | 3 |
+| $07 | (projectile) | 3 | — | $27 | Top Man Platform | $FF | — |
+| $08 | Yambow | 3 | 3 | $28 | (no-op) | 1 | — |
+| $09 | Metall DX | 1 | 4 | $29 | (no-op) | 1 | — |
+| $0A | Cannon | 3 | 6 | $2A | Chibee | 1 | 3 |
+| $0B | Cloud Platform | $FF | — | $2B | Block Breaker | 1 | 8 |
+| $0C | Giant Metall Met | 1 | 2 | $2C | Penpen | 1 | 4 |
+| $0D | Giant Metall Met | 1 | 2 | $2D | Electric Gabyoall | $FF | 4* |
+| $0E | Gyoraibo | 2 | 6 | $2E | (no-op) | 1 | — |
+| $0F | Mag Fly | 1 | 4 | $2F | Block Breaker | 6 | 3 |
+| $10 | Block Breaker | 2 | 2 | $30 | Block Breaker | 1 | 2 |
+| $11 | Junk Golem | 6 | 4 | $31 | (no-op) | $FF | — |
+| $12 | Pickelman Bull | 3 | 6 | $32 | Pole | $FF | 2 |
+| $13 | Bikky | 6 | 8 | $33 | Holograph | 28 | 6 |
+| $14 | Giant Metall | $FF | — | $34 | Needle Press | $FF | 4 |
+| $15 | Jamacy | 1 | 2 | $35 | (no-op) | $FF | — |
+| $16 | Mag Force | $FF | — | $36 | Peterchy | 3 | 4 |
+| $17 | Junk Block Thrown | 6 | 4 | $37 | Walking Bomb | 1 | 4 |
+| $18 | Nitron | 1 | 4 | $38 | Parasyu | 3 | 4 |
+| $19 | Pole | 1 | 1 | $39 | Hologran | 3 | 3 |
+| $1A | Gyoraibo | 2 | 6 | $3A | Hologran | 3 | 3 |
+| $1B | Hari Harry | 6 | 6 | $3B | Bomber Pepe | 6 | 6 |
+| $1C | Penpen Maker | 10 | 8 | $3C | Metall DX (walk) | 1 | 4 |
+| $1D | Returning Monking | 8 | 3 | $3D | Magnet Push | $FF | — |
+| $1E | Block Breaker | 1 | 2 | $3E | Proto Man | 28 | 4 |
+| $1F | Have 'Su' Bee | 3 | 6 | $3F | (no-op) | $FF | — |
 
-HP = $FF means invincible (immune to all damage).
+HP = $FF means invincible (immune to all damage). Dmg = contact damage in HP bars from `contact_damage_table` (bank $0A, $A000), indexed by `ent_routine`. — = non-combat entity (platform, projectile, or no-op).
+
+*Electric Gabyoall: standard table entry is $00 at its init routine ($3E); effective damage (4) applied via AI-driven dual-hitbox collision using alternate routine indices ($78/$79).
+
+Enemy names follow official Capcom Rockman 3 documentation. Pickelman Bull = "Picket Man" in English fan translations.
 
 **Doc Robot Entries ($40-$4F):**
 
-| ID | Entity | HP |
-|----|--------|-----|
-| $40-$46 | Doc Robot screen markers (no-op AI) | 3 |
-| $47 | Needle Press (B) | 28 |
-| $48 | Doc Robot (Flash Man) | 28 |
-| $49 | Doc Robot (Bubble Man) | 28 |
-| $4A | Doc Robot (Quick Man) | 28 |
-| $4B | Doc Robot (Wood Man) | 28 |
-| $4C | Doc Robot (Crash Man) | 28 |
-| $4D | Doc Robot (Air Man) | 28 |
-| $4E | Doc Robot (Metal Man) | 28 |
-| $4F | (unused) | $FF |
+| ID | Entity | HP | Dmg |
+|----|--------|-----|-----|
+| $40-$46 | Doc Robot screen markers (no-op AI) | 3 | — |
+| $47 | Needle Press (B) | 28 | 4 |
+| $48 | Doc Robot (Flash Man) | 28 | 4 |
+| $49 | Doc Robot (Bubble Man) | 28 | 4 |
+| $4A | Doc Robot (Quick Man) | 28 | 8 |
+| $4B | Doc Robot (Wood Man) | 28 | 8 |
+| $4C | Doc Robot (Crash Man) | 28 | 4 |
+| $4D | Doc Robot (Air Man) | 28 | 8 |
+| $4E | Doc Robot (Metal Man) | 28 | 6 |
+| $4F | (unused) | $FF | — |
+
+Doc Robot damage values are from combat routines ($A0-$B3), not init routines. The specific Doc Robot form loaded depends on which AI bank ($04 or $05) is active for that stage.
 
 **Robot Master Intros, Tama, Items ($50-$67):**
 
-| ID | Entity | HP |
-|----|--------|-----|
-| $50-$51 | Robot Master intros (Needle, Magnet) | $FF |
-| $52-$53 | Robot Master intros (Gemini, Hard) | $1C (28) |
-| $54-$56 | Robot Master intros (Top, Snake, Spark) | $FF |
-| $57 | Komasaburo (spinning top) | 10 |
-| $58-$5B | Tama segments | $FF/0 |
-| $5C | Giant Springer | 8 |
-| $5D-$5E | Tama segments | 8/1 |
-| $5F | (Tama-related) | 0 |
-| $60-$61 | Item Pickup (small/large) | 2 |
-| $62 | Komasaburo (variant) | 6 |
-| $63 | Surprise Box | 8 |
-| $64-$65 | Item Pickup | 1 |
-| $66-$67 | (unused) | 0 |
+| ID | Entity | HP | Dmg |
+|----|--------|-----|-----|
+| $50-$51 | Robot Master intros (Needle, Magnet) | $FF | — |
+| $52-$53 | Robot Master intros (Gemini, Hard) | $1C (28) | — |
+| $54-$56 | Robot Master intros (Top, Snake, Spark) | $FF | — |
+| $57 | Komasaburo (spinning top) | 10 | 8 |
+| $58-$5B | Tama segments | $FF/0 | — |
+| $5C | Giant Springer | 8 | 6 |
+| $5D-$5E | Tama segments | 8/1 | — |
+| $5F | (Tama-related) | 0 | — |
+| $60-$61 | Item Pickup (small/large) | 2 | — |
+| $62 | Komasaburo (variant) | 6 | 8 |
+| $63 | Surprise Box | 8 | — |
+| $64-$65 | Item Pickup | 1 | — |
+| $66-$67 | (unused) | 0 | — |
 
 **Robot Masters ($68-$6F):**
 
-| ID | Boss | AI routine |
-|----|------|-----------|
-| $68 | Needle Man | $90 |
-| $69 | Magnet Man | $91 |
-| $6A | Gemini Man | $92 |
-| $6B | Hard Man | $93 |
-| $6C | Top Man | $94 |
-| $6D | Snake Man | $95 |
-| $6E | Spark Man | $96 |
-| $6F | Shadow Man | $97 |
+| ID | Boss | AI routine | Dmg |
+|----|------|-----------|-----|
+| $68 | Needle Man | $90 | 4 |
+| $69 | Magnet Man | $91 | 6 |
+| $6A | Gemini Man | $92 | 6 |
+| $6B | Hard Man | $93 | 6 |
+| $6C | Top Man | $94 | 6 |
+| $6D | Snake Man | $95 | 6 |
+| $6E | Spark Man | $96 | 4 |
+| $6F | Shadow Man | $97 | 4 |
 
-Robot Masters have $FF in the health table; actual HP (28) is set by their AI init routines.
+Robot Masters have $FF in the health table; actual HP (28) is set by their AI init routines. Damage values are from combat routines ($C0-$D6).
 
 **Boss Projectiles & Special ($70-$7F):**
 
@@ -267,17 +274,19 @@ Robot Masters have $FF in the health table; actual HP (28) is set by their AI in
 
 **Fortress Bosses ($80-$8F):**
 
-| ID | Entity | HP | AI routine |
-|----|--------|-----|-----------|
-| $80 | Holograph / Kamegoro init | 0 | $EA |
-| $81 | Yellow Devil | 28 | $E0 |
-| $82 | Wily Machine | 28 | $E3 |
-| $83 | Gamma | 28 | $E5 |
-| $84 | Break Man | 0 | $ED |
-| $85-$89 | (unused) | 0 | $00 |
-| $8A | Kamegoro Maker | 0 | $EB |
-| $8B-$8D | Kamegoro sub-entities | 0 | $EC |
-| $8E-$8F | (unused) | 0 | $00 |
+| ID | Entity | HP | AI routine | Dmg |
+|----|--------|-----|-----------|-----|
+| $80 | Holograph / Kamegoro init | 0 | $EA | — |
+| $81 | Yellow Devil | 28 | $E0 | 8 |
+| $82 | Wily Machine | 28 | $E3 | 8 |
+| $83 | Gamma | 28 | $E5 | 16 |
+| $84 | Break Man | 0 | $ED | — |
+| $85-$89 | (unused) | 0 | $00 | — |
+| $8A | Kamegoro Maker | 0 | $EB | 8 |
+| $8B-$8D | Kamegoro sub-entities | 0 | $EC | — |
+| $8E-$8F | (unused) | 0 | $00 | — |
+
+Gamma's contact damage (16) is the highest in the game — over half the player's HP in a single hit.
 
 ---
 
