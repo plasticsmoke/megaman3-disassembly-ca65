@@ -9,17 +9,19 @@
 ; addresses $C000+ temporarily swap in bank $18 to read from there.
 ;
 ; Contains music sequence data and sound effect definitions for the NES APU
-; driver. The sound pointer table in bank $16 at $8A40 indexes music tracks
-; by ID. Tracks 0-5 begin in bank $16 ($8A39-$9FFF); tracks 6+ overflow
-; into this bank ($A000+). Each track consists of channel sub-sequences
-; with note data, duration, instrument selection, and loop markers.
+; driver. The sound pointer table in bank $16 at $8A44 indexes all sound IDs.
+; Sound IDs $00-$04 (Title Screen through Hard Man) have data in bank $16
+; ($8C9D-$9FFF); IDs $05-$11 continue into this bank ($A000-$BFFF).
+; ID $12 (Ending) and SFX/jingles ($13+) point to bank $18 via read_ptr.
+; Each track consists of channel sub-sequences with note data, duration,
+; instrument selection, and loop markers.
 ;
-; Key music track pointers (interleaved table in bank $16 at $8A3F):
-;   Track $06 → $A0BE    Track $07 → $A414    Track $08 → $A7C1
-;   Track $09 → $AAC2    Track $0A → $ADE5    Track $0B → $B123
-;   Track $0C → $B2CB    Track $0D → $B416    Track $0E → $B5F6
-;   Track $0F → $B82B    Track $10 → $B91E    Track $11 → $BE97
-;   Track $12 → $BFCF
+; Music track pointers (interleaved table in bank $16 at $8A44):
+;   Track $05 → $A0BE    Track $06 → $A414    Track $07 → $A7C1
+;   Track $08 → $AAC2    Track $09 → $ADE5    Track $0A → $B123
+;   Track $0B → $B2CB    Track $0C → $B416    Track $0D → $B5F6
+;   Track $0E → $B82B    Track $0F → $B91E    Track $10 → $BE97
+;   Track $11 → $BFCF
 ;
 ; Called every NMI frame via play_sounds in the fixed bank, which swaps
 ; banks $16/$17 into the $8000-$BFFF window.
@@ -70,8 +72,8 @@
         .byte   $63,$63,$6F,$63,$6F,$63,$68,$6F ; note data
         .byte   $6F,$6F,$63,$6F,$63,$6F,$68,$63 ; note data
         .byte   $63,$63,$6F,$68,$68,$60,$68,$60 ; note data w/ rests
-; --- Track $06: Needle Man stage ($A0BE) ---
-        .byte   $68,$68,$16,$A0,$4E,$17,$00,$A0 ; Track $06 header: $00=music (Needle Man stage)
+; --- Track $05: Top Man stage ($A0BE) ---
+        .byte   $68,$68,$16,$A0,$4E,$17,$00,$A0 ; Track $05 header: $00=music (Top Man stage)
         .byte   $C7,$A1,$D1,$A2,$E1,$A3,$80,$0A ; ch3 ptr lo → $A0C7
         .byte   $FD,$05,$02,$66,$06,$E6,$07,$09 ; cmd: set tempo $02,$66
         .byte   $18,$40,$08,$1D,$09,$02,$04,$08 ; cmd: set duty 25%
@@ -106,7 +108,7 @@
         .byte   $A9,$84,$86,$89,$86,$80,$02,$A6 ; cmd: set dotted note
         .byte   $84,$86,$01,$89,$01,$89,$82,$80 ; cmd: toggle bit 6
         .byte   $83,$80,$84,$80,$85,$16,$A0,$F0 ; cmd: end channel
-        .byte   $17,$06,$E6,$07,$09,$18,$40,$08 ; --- Track $06: Needle Man stage ch2 (Pulse 1) ---
+        .byte   $17,$06,$E6,$07,$09,$18,$40,$08 ; --- Track $05: Top Man stage ch2 (Pulse 1) ---
         .byte   $1D,$09,$02,$0C,$03,$04,$00,$95 ; cmd: set detune $02
         .byte   $94,$92,$02,$B7,$95,$94,$92,$02 ; cmd: set dotted note
         .byte   $B7,$98,$99,$12,$00,$A1,$F5,$92 ; cmd: loop end G0 fl=$00 → $A1F5
@@ -140,7 +142,7 @@
         .byte   $0C,$03,$09,$03,$07,$0A,$18,$00 ; cmd: loop start G2 ct=$03
         .byte   $08,$00,$80,$03,$8E,$80,$8F,$80 ; cmd: set pitch ofs $00
         .byte   $90,$80,$91,$0C,$00,$16,$A1,$F7 ; cmd: loop start G2 ct=$00
-        .byte   $17,$06,$D2,$07,$08,$08,$02,$09 ; --- Track $06: Needle Man stage ch1 (Pulse 2) ---
+        .byte   $17,$06,$D2,$07,$08,$08,$02,$09 ; --- Track $05: Top Man stage ch1 (Pulse 2) ---
         .byte   $03,$04,$00,$89,$88,$86,$02,$AB ; cmd: NOP $00
         .byte   $89,$88,$86,$02,$AB,$8C,$8D,$12 ; cmd: set dotted note
         .byte   $00,$A3,$01,$86,$84,$0E,$01,$A2 ; cmd: loop/jmp G0 ct=$01 → $A2E9
@@ -160,7 +162,7 @@
         .byte   $8B,$0E,$0F,$A3,$66,$04,$00,$90 ; cmd: loop/jmp G0 ct=$0F → $A366
         .byte   $0E,$07,$A3,$6D,$80,$8E,$80,$8F ; cmd: loop/jmp G0 ct=$07 → $A36D
         .byte   $80,$90,$80,$91,$16,$A3,$03,$17 ; cmd: end channel
-        .byte   $06,$BE,$07,$0B,$08,$0C,$E0,$E0 ; --- Track $06: Needle Man stage ch0 (Triangle) ---
+        .byte   $06,$BE,$07,$0B,$08,$0C,$E0,$E0 ; --- Track $05: Top Man stage ch0 (Triangle) ---
         .byte   $E0,$C0,$68,$68,$68,$68,$68,$68 ; note data w/ rests
         .byte   $68,$68,$04,$00,$04,$00,$85,$80 ; cmd: NOP $00
         .byte   $88,$80,$85,$85,$88,$80,$12,$00 ; cmd: loop end G0 fl=$00 → $A3AE
@@ -178,8 +180,8 @@
         .byte   $12,$00,$A4,$08,$85,$85,$88,$85 ; cmd: loop end G0 fl=$00 → $A408
         .byte   $85,$85,$88,$80,$0E,$01,$A3,$EE ; cmd: loop/jmp G0 ct=$01 → $A3EE
         .byte   $88,$85,$88,$85,$88,$85,$88,$85 ; note data
-; --- Track $07: Magnet Man stage ($A414) ---
-        .byte   $16,$A3,$94,$17,$00,$A4,$1D,$A5 ; Track $07 header: $00=music (Magnet Man stage)
+; --- Track $06: Snake Man stage ($A414) ---
+        .byte   $16,$A3,$94,$17,$00,$A4,$1D,$A5 ; Track $06 header: $00=music (Snake Man stage)
         .byte   $7D,$A6,$7D,$A7,$61,$05,$02,$00 ; ch2 ptr lo → $A57D
         .byte   $06,$73,$07,$0A,$08,$00,$09,$01 ; cmd: set dur mul $73
         .byte   $04,$08,$73,$93,$73,$93,$73,$93 ; cmd: NOP $08
@@ -224,7 +226,7 @@
         .byte   $07,$0B,$08,$1C,$02,$86,$66,$80 ; cmd: set octave 3
         .byte   $66,$60,$86,$88,$89,$86,$02,$8E ; cmd: set dotted note
         .byte   $6E,$80,$6D,$60,$08,$17,$07,$09 ; cmd: set pitch ofs $17
-        .byte   $CD,$16,$A4,$38,$17,$06,$73,$07 ; --- Track $07: Magnet Man stage ch2 (Pulse 1) ---
+        .byte   $CD,$16,$A4,$38,$17,$06,$73,$07 ; --- Track $06: Snake Man stage ch2 (Pulse 1) ---
         .byte   $0A,$08,$00,$09,$01,$04,$08,$6C ; cmd: set pitch ofs $00
         .byte   $8C,$6C,$8C,$6C,$8C,$6C,$8C,$8D ; note data
         .byte   $8D,$0E,$01,$A5,$85,$04,$00,$18 ; cmd: loop/jmp G0 ct=$01 → $A585
@@ -256,7 +258,7 @@
         .byte   $A9,$69,$6B,$CD,$07,$09,$06,$C8 ; cmd: set octave 1
         .byte   $02,$01,$B2,$02,$01,$92,$71,$70 ; cmd: set dotted note
         .byte   $6F,$6E,$6D,$6B,$69,$02,$AE,$8D ; cmd: set dotted note
-        .byte   $CD,$16,$A5,$95,$17,$06,$6E,$08 ; --- Track $07: Magnet Man stage ch1 (Pulse 2) ---
+        .byte   $CD,$16,$A5,$95,$17,$06,$6E,$08 ; --- Track $06: Snake Man stage ch1 (Pulse 2) ---
         .byte   $02,$09,$03,$04,$00,$66,$86,$66 ; cmd: set detune $03
         .byte   $86,$66,$86,$66,$86,$85,$85,$0E ; cmd: loop/jmp G0 ct=$01 → $A683
         .byte   $01,$A6,$83,$04,$00,$04,$00,$06 ; cmd: NOP $00
@@ -285,7 +287,7 @@
         .byte   $82,$62,$80,$62,$60,$02,$82,$62 ; cmd: set dotted note
         .byte   $80,$62,$60,$02,$81,$61,$80,$6B ; cmd: set dotted note
         .byte   $60,$8D,$8B,$88,$8B,$16,$A6,$93 ; cmd: end channel
-        .byte   $17,$06,$C8,$07,$0A,$08,$0C,$04 ; --- Track $07: Magnet Man stage ch0 (Triangle) ---
+        .byte   $17,$06,$C8,$07,$0A,$08,$0C,$04 ; --- Track $06: Snake Man stage ch0 (Triangle) ---
         .byte   $00,$68,$68,$60,$68,$68,$60,$68 ; note data w/ rests
         .byte   $68,$60,$68,$68,$60,$68,$60,$68 ; note data w/ rests
         .byte   $60,$0E,$01,$A7,$67,$04,$00,$04 ; cmd: loop/jmp G0 ct=$01 → $A767
@@ -297,8 +299,8 @@
         .byte   $07,$A7,$93,$04,$00,$63,$6F,$8D ; cmd: NOP $00
         .byte   $68,$6F,$8D,$63,$6F,$8D,$68,$6F ; note data
         .byte   $8D,$0E,$07,$A7,$AB,$16,$A7,$7D ; cmd: loop/jmp G0 ct=$07 → $A7AB
-; --- Track $08: Gemini Man stage ($A7C1) ---
-        .byte   $17,$00,$A7,$CA,$A8,$99,$A9,$39 ; Track $08 header: $00=music (Gemini Man stage)
+; --- Track $07: Spark Man stage ($A7C1) ---
+        .byte   $17,$00,$A7,$CA,$A8,$99,$A9,$39 ; Track $07 header: $00=music (Spark Man stage)
         .byte   $AA,$6A,$05,$02,$00,$06,$C8,$07 ; ch0 (Triangle) ptr hi
         .byte   $0B,$09,$01,$18,$80,$08,$0B,$04 ; cmd: set detune $01
         .byte   $00,$02,$BB,$7B,$7E,$03,$AB,$02 ; cmd: set dotted note
@@ -325,7 +327,7 @@
         .byte   $01,$A8,$42,$18,$C0,$08,$0A,$09 ; cmd: set duty 75%
         .byte   $00,$06,$C8,$77,$60,$77,$60,$77 ; cmd: set dur mul $C8
         .byte   $77,$60,$77,$B7,$B8,$16,$A8,$06 ; cmd: end channel
-        .byte   $17,$06,$FF,$09,$01,$07,$0C,$08 ; --- Track $08: Gemini Man stage ch2 (Pulse 1) ---
+        .byte   $17,$06,$FF,$09,$01,$07,$0C,$08 ; --- Track $07: Spark Man stage ch2 (Pulse 1) ---
         .byte   $0D,$18,$40,$04,$08,$12,$08,$A8 ; cmd: set duty 25%
         .byte   $B1,$6A,$6B,$6A,$68,$0E,$1E,$A8 ; cmd: loop/jmp G0 ct=$1E → $A8A3
         .byte   $A3,$68,$6A,$6B,$6F,$74,$76,$77 ; note data
@@ -345,7 +347,7 @@
         .byte   $B0,$0E,$01,$A8,$FA,$07,$09,$08 ; cmd: loop/jmp G0 ct=$01 → $A8FA
         .byte   $0A,$09,$01,$66,$60,$66,$60,$66 ; cmd: set detune $01
         .byte   $66,$60,$66,$A6,$A7,$16,$A8,$B9 ; cmd: end channel
-        .byte   $17,$06,$C8,$08,$02,$09,$03,$04 ; --- Track $08: Gemini Man stage ch1 (Pulse 2) ---
+        .byte   $17,$06,$C8,$08,$02,$09,$03,$04 ; --- Track $07: Spark Man stage ch1 (Pulse 2) ---
         .byte   $00,$68,$60,$68,$68,$0E,$03,$A9 ; cmd: loop/jmp G0 ct=$03 → $A93F
         .byte   $3F,$04,$00,$61,$60,$61,$61,$0E ; cmd: NOP $00
         .byte   $03,$A9,$49,$04,$00,$64,$60,$64 ; cmd: NOP $00
@@ -383,7 +385,7 @@
         .byte   $68,$60,$68,$68,$0E,$01,$AA,$4E ; cmd: loop/jmp G0 ct=$01 → $AA4E
         .byte   $0F,$01,$AA,$02,$6B,$60,$6B,$60 ; cmd: loop/jmp G1 ct=$01 → $AA02
         .byte   $6B,$6B,$60,$6B,$AB,$AC,$16,$A9 ; cmd: end channel
-        .byte   $C2,$17,$06,$C8,$07,$0C,$08,$0C ; --- Track $08: Gemini Man stage ch0 (Triangle) ---
+        .byte   $C2,$17,$06,$C8,$07,$0C,$08,$0C ; --- Track $07: Spark Man stage ch0 (Triangle) ---
         .byte   $04,$00,$63,$60,$6F,$6F,$0E,$1B ; cmd: NOP $00
         .byte   $AA,$70,$63,$6F,$6D,$6F,$68,$6F ; note data
         .byte   $6D,$6F,$6C,$68,$63,$6C,$68,$63 ; note data
@@ -394,8 +396,8 @@
         .byte   $6D,$60,$0E,$06,$AA,$9A,$68,$60 ; cmd: loop/jmp G0 ct=$06 → $AA9A
         .byte   $68,$60,$68,$68,$60,$68,$6C,$6A ; note data w/ rests
         .byte   $68,$63,$6C,$6A,$68,$63,$16,$AA ; cmd: end channel
-; --- Track $09: Hard Man stage ($AAC2) ---
-        .byte   $8A,$17,$00,$AA,$CB,$AC,$02,$AD ; Track $09 header: $00=music (Hard Man stage)
+; --- Track $08: Shadow Man stage ($AAC2) ---
+        .byte   $8A,$17,$00,$AA,$CB,$AC,$02,$AD ; Track $08 header: $00=music (Shadow Man stage)
         .byte   $1C,$AD,$A6,$0A,$03,$04,$00,$18 ; ch1 ptr lo → $AD1C
         .byte   $40,$08,$0B,$05,$02,$2E,$06,$FF ; cmd: set pitch ofs $0B
         .byte   $07,$0B,$7F,$7C,$7F,$03,$69,$6C ; cmd: set octave 3
@@ -435,7 +437,7 @@
         .byte   $60,$80,$6E,$B5,$B3,$B2,$02,$90 ; cmd: set dotted note
         .byte   $70,$60,$02,$8E,$6E,$60,$6A,$60 ; cmd: set dotted note
         .byte   $AE,$B0,$0E,$01,$AB,$BD,$16,$AA ; cmd: loop/jmp G0 ct=$01 → $ABBD
-        .byte   $CD,$17,$04,$00,$18,$00,$06,$FF ; --- Track $09: Hard Man stage ch2 (Pulse 1) ---
+        .byte   $CD,$17,$04,$00,$18,$00,$06,$FF ; --- Track $08: Shadow Man stage ch2 (Pulse 1) ---
         .byte   $07,$0B,$08,$0B,$09,$00,$73,$70 ; cmd: set octave 3
         .byte   $73,$75,$78,$76,$77,$78,$60,$7C ; note data w/ rests
         .byte   $60,$7F,$60,$03,$69,$60,$6A,$90 ; cmd: toggle bit 3
@@ -470,7 +472,7 @@
         .byte   $99,$7A,$60,$80,$77,$BE,$BC,$BA ; note data w/ rests
         .byte   $02,$99,$73,$60,$02,$96,$76,$60 ; cmd: set dotted note
         .byte   $76,$60,$B8,$B8,$0E,$01,$AC,$D6 ; cmd: loop/jmp G0 ct=$01 → $ACD6
-        .byte   $16,$AC,$02,$17,$04,$00,$06,$F0 ; --- Track $09: Hard Man stage ch1 (Pulse 2) ---
+        .byte   $16,$AC,$02,$17,$04,$00,$06,$F0 ; --- Track $08: Shadow Man stage ch1 (Pulse 2) ---
         .byte   $08,$02,$09,$01,$0D,$50,$E0,$95 ; cmd: set pitch ofs $02
         .byte   $80,$95,$80,$95,$80,$95,$80,$04 ; cmd: NOP $00
         .byte   $00,$B0,$B3,$D5,$80,$96,$95,$01 ; cmd: toggle bit 6
@@ -487,7 +489,7 @@
         .byte   $60,$73,$60,$70,$73,$60,$02,$95 ; cmd: set dotted note
         .byte   $75,$60,$75,$60,$80,$76,$60,$76 ; note data w/ rests
         .byte   $60,$73,$76,$80,$B8,$B8,$0F,$01 ; cmd: loop/jmp G1 ct=$01 → $AD71
-        .byte   $AD,$71,$16,$AD,$1C,$17,$04,$00 ; --- Track $09: Hard Man stage ch0 (Triangle) ---
+        .byte   $AD,$71,$16,$AD,$1C,$17,$04,$00 ; --- Track $08: Shadow Man stage ch0 (Triangle) ---
         .byte   $06,$FF,$07,$0A,$08,$0C,$E0,$E0 ; cmd: set dur mul $FF
         .byte   $04,$00,$63,$60,$63,$60,$68,$63 ; cmd: NOP $00
         .byte   $60,$63,$80,$63,$60,$68,$60,$63 ; note data w/ rests
@@ -495,8 +497,8 @@
         .byte   $0E,$07,$AD,$C5,$04,$00,$63,$60 ; cmd: loop/jmp G0 ct=$07 → $ADC5
         .byte   $63,$60,$68,$63,$60,$63,$80,$63 ; note data w/ rests
         .byte   $60,$68,$60,$63,$60,$0E,$07,$AD ; cmd: loop/jmp G0 ct=$07 → $ADCC
-; --- Track $0A: Top Man stage ($ADE5) ---
-        .byte   $CC,$16,$AD,$A6,$17,$00,$AD,$EE ; Track $0A header: $00=music (Top Man stage)
+; --- Track $09: Wily Fortress 1-2 ($ADE5) ---
+        .byte   $CC,$16,$AD,$A6,$17,$00,$AD,$EE ; Track $09 header: $00=music (Wily Fortress 1-2)
         .byte   $AE,$DF,$AF,$A1,$B0,$F1,$0A,$0B ; ch2 (Pulse 1) ptr hi
         .byte   $05,$01,$EB,$06,$FA,$07,$0A,$08 ; cmd: set tempo $01,$EB
         .byte   $1D,$18,$80,$76,$74,$76,$78,$76 ; cmd: set duty 50%
@@ -527,7 +529,7 @@
         .byte   $AE,$C7,$AD,$0E,$02,$AE,$B1,$6D ; cmd: loop/jmp G0 ct=$02 → $AEB1
         .byte   $60,$6B,$6A,$6B,$60,$6A,$68,$6A ; note data w/ rests
         .byte   $60,$68,$66,$68,$60,$66,$65,$66 ; note data w/ rests
-        .byte   $60,$68,$6A,$16,$AE,$0C,$17,$06 ; --- Track $0A: Top Man stage ch2 (Pulse 1) ---
+        .byte   $60,$68,$6A,$16,$AE,$0C,$17,$06 ; --- Track $09: Wily Fortress 1-2 ch2 (Pulse 1) ---
         .byte   $FA,$07,$0C,$08,$1D,$18,$C0,$72 ; cmd: set octave 4
         .byte   $71,$72,$74,$72,$74,$76,$74,$76 ; note data
         .byte   $78,$76,$78,$79,$78,$79,$7D,$04 ; cmd: NOP $08
@@ -552,7 +554,7 @@
         .byte   $AF,$74,$08,$1D,$09,$01,$00,$03 ; cmd: set pitch ofs $1D
         .byte   $6F,$71,$73,$74,$76,$78,$7A,$7B ; note data
         .byte   $7D,$7F,$03,$68,$6A,$16,$AE,$F7 ; cmd: toggle bit 3
-        .byte   $17,$06,$C8,$08,$00,$09,$02,$02 ; --- Track $0A: Top Man stage ch1 (Pulse 2) ---
+        .byte   $17,$06,$C8,$08,$00,$09,$02,$02 ; --- Track $09: Wily Fortress 1-2 ch1 (Pulse 2) ---
         .byte   $8A,$02,$88,$02,$86,$02,$83,$65 ; cmd: set dotted note
         .byte   $60,$68,$60,$04,$00,$09,$02,$6A ; cmd: NOP $00
         .byte   $02,$80,$02,$8A,$6A,$8A,$6A,$02 ; cmd: set dotted note
@@ -594,14 +596,14 @@
         .byte   $02,$80,$02,$92,$6D,$90,$72,$02 ; cmd: set dotted note
         .byte   $80,$72,$60,$80,$72,$60,$02,$92 ; cmd: set dotted note
         .byte   $72,$92,$8C,$8B,$89,$16,$AF,$B3 ; cmd: end channel
-        .byte   $17,$06,$FF,$07,$0C,$08,$0C,$02 ; --- Track $0A: Top Man stage ch0 (Triangle) ---
+        .byte   $17,$06,$FF,$07,$0C,$08,$0C,$02 ; --- Track $09: Wily Fortress 1-2 ch0 (Triangle) ---
         .byte   $8C,$02,$8C,$02,$8C,$02,$8C,$68 ; cmd: set dotted note
         .byte   $68,$68,$68,$04,$00,$06,$C8,$07 ; cmd: NOP $00
         .byte   $0A,$04,$00,$65,$6D,$6D,$60,$68 ; cmd: NOP $00
         .byte   $6D,$6D,$65,$6D,$6D,$65,$6D,$68 ; note data
         .byte   $6C,$6D,$6F,$0E,$1B,$B1,$09,$16 ; cmd: loop/jmp G0 ct=$1B → $B109
-; --- Track $0B: Snake Man stage ($B123) ---
-        .byte   $B1,$03,$17,$00,$B1,$2C,$B1,$D6 ; Track $0B header: $00=music (Snake Man stage)
+; --- Track $0A: Wily Fortress 3-4 ($B123) ---
+        .byte   $B1,$03,$17,$00,$B1,$2C,$B1,$D6 ; Track $0A header: $00=music (Wily Fortress 3-4)
         .byte   $B2,$5A,$B2,$A3,$0A,$02,$05,$02 ; ch1 (Pulse 2) ptr hi
         .byte   $00,$06,$C8,$07,$0C,$08,$1D,$09 ; cmd: set dur mul $C8
         .byte   $01,$18,$40,$04,$00,$7D,$7B,$03 ; cmd: set duty 25%
@@ -623,7 +625,7 @@
         .byte   $B6,$08,$1D,$76,$79,$01,$D9,$08 ; cmd: set pitch ofs $1D
         .byte   $14,$02,$01,$B9,$08,$1D,$78,$60 ; cmd: set dotted note
         .byte   $01,$D8,$08,$14,$01,$D8,$0E,$01 ; cmd: toggle bit 6
-        .byte   $B1,$87,$16,$B1,$4B,$17,$06,$C8 ; --- Track $0B: Snake Man stage ch2 (Pulse 1) ---
+        .byte   $B1,$87,$16,$B1,$4B,$17,$06,$C8 ; --- Track $0A: Wily Fortress 3-4 ch2 (Pulse 1) ---
         .byte   $07,$0C,$08,$1D,$18,$80,$09,$01 ; cmd: set octave 4
         .byte   $04,$00,$79,$78,$7D,$7B,$0E,$02 ; cmd: NOP $00
         .byte   $B1,$E0,$7D,$7B,$79,$78,$04,$08 ; cmd: NOP $08
@@ -640,7 +642,7 @@
         .byte   $0E,$0F,$B2,$3D,$04,$00,$96,$0E ; cmd: loop/jmp G0 ct=$0F → $B23D
         .byte   $07,$B2,$44,$04,$00,$95,$0E,$07 ; cmd: NOP $00
         .byte   $B2,$4B,$0F,$01,$B2,$2D,$16,$B1 ; cmd: loop/jmp G1 ct=$01 → $B22D
-        .byte   $EE,$17,$06,$DC,$08,$00,$09,$03 ; --- Track $0B: Snake Man stage ch1 (Pulse 2) ---
+        .byte   $EE,$17,$06,$DC,$08,$00,$09,$03 ; --- Track $0A: Wily Fortress 3-4 ch1 (Pulse 2) ---
         .byte   $AA,$A8,$A6,$A5,$04,$00,$04,$00 ; cmd: NOP $00
         .byte   $8A,$0E,$1D,$B2,$66,$88,$88,$04 ; cmd: loop/jmp G0 ct=$1D → $B266
         .byte   $00,$86,$0E,$17,$B2,$6F,$04,$00 ; cmd: loop/jmp G0 ct=$17 → $B26F
@@ -649,13 +651,13 @@
         .byte   $88,$0E,$0F,$B2,$86,$04,$00,$86 ; cmd: loop/jmp G0 ct=$0F → $B286
         .byte   $0E,$0F,$B2,$8D,$04,$00,$85,$0E ; cmd: loop/jmp G0 ct=$0F → $B28D
         .byte   $0F,$B2,$94,$0F,$01,$B2,$7D,$16 ; cmd: loop/jmp G1 ct=$01 → $B27D
-        .byte   $B2,$64,$17,$06,$C8,$07,$0A,$08 ; --- Track $0B: Snake Man stage ch0 (Triangle) ---
+        .byte   $B2,$64,$17,$06,$C8,$07,$0A,$08 ; --- Track $0A: Wily Fortress 3-4 ch0 (Triangle) ---
         .byte   $0C,$04,$00,$6C,$60,$6C,$6C,$0E ; cmd: NOP $00
         .byte   $03,$B2,$A9,$04,$00,$04,$00,$85 ; cmd: NOP $00
         .byte   $8C,$88,$8C,$65,$6D,$6F,$6D,$6A ; note data
         .byte   $6D,$6F,$6D,$0E,$17,$B2,$B5,$16 ; cmd: loop/jmp G0 ct=$17 → $B2B5
-; --- Track $0C: Spark Man stage ($B2CB) ---
-        .byte   $B2,$B3,$17,$00,$B2,$D4,$B3,$29 ; Track $0C header: $00=music (Spark Man stage)
+; --- Track $0B: Wily Fortress 5-6 ($B2CB) ---
+        .byte   $B2,$B3,$17,$00,$B2,$D4,$B3,$29 ; Track $0B header: $00=music (Wily Fortress 5-6)
         .byte   $B3,$87,$B3,$D2,$05,$02,$00,$06 ; ch1 (Pulse 2) ptr hi
         .byte   $96,$07,$0C,$08,$12,$18,$40,$04 ; cmd: set octave 4
         .byte   $08,$89,$8A,$8C,$8D,$0E,$05,$B2 ; cmd: loop/jmp G0 ct=$05 → $B2DF
@@ -667,7 +669,7 @@
         .byte   $00,$07,$0C,$99,$98,$99,$80,$0E ; cmd: set octave 4
         .byte   $0D,$B3,$0F,$04,$00,$9C,$9B,$99 ; cmd: NOP $00
         .byte   $98,$0E,$01,$B3,$1B,$16,$B2,$F1 ; cmd: loop/jmp G0 ct=$01 → $B31B
-        .byte   $17,$06,$96,$07,$0C,$08,$1A,$18 ; --- Track $0C: Spark Man stage ch2 (Pulse 1) ---
+        .byte   $17,$06,$96,$07,$0C,$08,$1A,$18 ; --- Track $0B: Wily Fortress 5-6 ch2 (Pulse 1) ---
         .byte   $40,$04,$00,$9E,$9F,$03,$88,$89 ; cmd: NOP $00
         .byte   $0E,$05,$B3,$31,$06,$FF,$E8,$04 ; cmd: loop/jmp G0 ct=$05 → $B331
         .byte   $08,$04,$08,$04,$08,$09,$01,$06 ; cmd: NOP $08
@@ -678,7 +680,7 @@
         .byte   $CB,$CA,$C9,$CB,$13,$08,$B3,$7B ; cmd: loop end G1 fl=$08 → $B37B
         .byte   $04,$08,$90,$0E,$07,$B3,$70,$0F ; cmd: NOP $08
         .byte   $01,$B3,$60,$8D,$89,$88,$84,$8D ; note data w/ rests
-        .byte   $89,$88,$84,$16,$B3,$3F,$17,$06 ; --- Track $0C: Spark Man stage ch1 (Pulse 2) ---
+        .byte   $89,$88,$84,$16,$B3,$3F,$17,$06 ; --- Track $0B: Wily Fortress 5-6 ch1 (Pulse 2) ---
         .byte   $FA,$08,$00,$09,$03,$ED,$E9,$EF ; cmd: set pitch ofs $00
         .byte   $E8,$04,$00,$06,$E6,$CD,$CD,$CD ; cmd: NOP $00
         .byte   $CD,$C9,$C9,$C9,$C9,$C6,$C6,$C6 ; note data
@@ -688,7 +690,7 @@
         .byte   $B3,$B3,$04,$00,$A8,$0E,$07,$B3 ; cmd: NOP $00
         .byte   $BA,$ED,$E6,$C9,$CB,$ED,$ED,$E6 ; note data
         .byte   $C9,$CB,$AD,$AD,$AD,$AD,$16,$B3 ; cmd: end channel
-        .byte   $91,$17,$06,$FF,$07,$0C,$08,$0C ; --- Track $0C: Spark Man stage ch0 (Triangle) ---
+        .byte   $91,$17,$06,$FF,$07,$0C,$08,$0C ; --- Track $0B: Wily Fortress 5-6 ch0 (Triangle) ---
         .byte   $04,$00,$06,$64,$8C,$80,$8C,$8C ; cmd: NOP $00
         .byte   $00,$6D,$6D,$6D,$00,$8C,$8C,$8C ; cmd: toggle legato
         .byte   $0E,$03,$B3,$D8,$04,$00,$06,$FF ; cmd: loop/jmp G0 ct=$03 → $B3D8
@@ -696,8 +698,8 @@
         .byte   $8D,$8F,$0E,$0F,$B3,$F0,$04,$00 ; cmd: loop/jmp G0 ct=$0F → $B3F0
         .byte   $06,$64,$8C,$00,$6D,$6D,$6D,$00 ; cmd: set dur mul $64
         .byte   $8C,$8C,$8F,$8C,$8C,$8C,$0E,$07 ; cmd: loop/jmp G0 ct=$07 → $B3FE
-; --- Track $0D: Shadow Man stage ($B416) ---
-        .byte   $B3,$FE,$16,$B3,$EC,$17,$00,$B4 ; Track $0D header: $00=music (Shadow Man stage)
+; --- Track $0C: Wily Fortress Map ($B416) ---
+        .byte   $B3,$FE,$16,$B3,$EC,$17,$00,$B4 ; Track $0C header: $00=music (Wily Fortress Map)
         .byte   $1F,$B4,$F6,$B5,$59,$B5,$A5,$05 ; ch3 ptr lo → $B41F
         .byte   $02,$2E,$0A,$03,$06,$A0,$07,$0A ; cmd: loop start G0 ct=$03
         .byte   $18,$80,$08,$16,$09,$01,$04,$08 ; cmd: set duty 50%
@@ -725,7 +727,7 @@
         .byte   $6D,$08,$11,$01,$AB,$08,$05,$CB ; cmd: set pitch ofs $11
         .byte   $06,$96,$08,$00,$01,$8B,$06,$FF ; cmd: set dur mul $96
         .byte   $08,$00,$6B,$6D,$08,$11,$AE,$B1 ; cmd: set pitch ofs $00
-        .byte   $B2,$B4,$16,$B4,$38,$17,$06,$FF ; --- Track $0D: Shadow Man stage ch2 (Pulse 1) ---
+        .byte   $B2,$B4,$16,$B4,$38,$17,$06,$FF ; --- Track $0C: Wily Fortress Map ch2 (Pulse 1) ---
         .byte   $07,$0C,$18,$40,$09,$02,$08,$18 ; cmd: set octave 4
         .byte   $ED,$F4,$F3,$EF,$04,$08,$04,$08 ; cmd: NOP $08
         .byte   $06,$C8,$18,$80,$08,$16,$09,$00 ; cmd: set dur mul $C8
@@ -738,7 +740,7 @@
         .byte   $28,$04,$00,$80,$9E,$03,$68,$60 ; cmd: NOP $00
         .byte   $61,$60,$88,$69,$60,$66,$60,$61 ; note data w/ rests
         .byte   $60,$0E,$07,$B5,$41,$16,$B5,$04 ; cmd: loop/jmp G0 ct=$07 → $B541
-        .byte   $17,$06,$FF,$08,$02,$09,$02,$ED ; --- Track $0D: Shadow Man stage ch1 (Pulse 2) ---
+        .byte   $17,$06,$FF,$08,$02,$09,$02,$ED ; --- Track $0C: Wily Fortress Map ch1 (Pulse 2) ---
         .byte   $F4,$F3,$EF,$04,$00,$08,$02,$06 ; cmd: NOP $00
         .byte   $B4,$09,$03,$04,$00,$61,$61,$60 ; cmd: set detune $03
         .byte   $62,$62,$60,$63,$63,$60,$62,$62 ; note data w/ rests
@@ -747,7 +749,7 @@
         .byte   $8D,$8B,$8D,$80,$8D,$8B,$8D,$0E ; cmd: loop/jmp G0 ct=$07 → $B585
         .byte   $07,$B5,$85,$04,$00,$92,$92,$90 ; cmd: NOP $00
         .byte   $92,$80,$92,$90,$92,$0E,$07,$B5 ; cmd: loop/jmp G0 ct=$07 → $B593
-        .byte   $93,$16,$B5,$63,$17,$06,$FF,$07 ; --- Track $0D: Shadow Man stage ch0 (Triangle) ---
+        .byte   $93,$16,$B5,$63,$17,$06,$FF,$07 ; --- Track $0C: Wily Fortress Map ch0 (Triangle) ---
         .byte   $0C,$08,$19,$C8,$C0,$E0,$04,$00 ; cmd: set pitch ofs $19
         .byte   $08,$0C,$06,$C8,$A5,$0E,$05,$B5 ; cmd: set pitch ofs $0C
         .byte   $AE,$04,$00,$68,$0E,$07,$B5,$B9 ; cmd: NOP $00
@@ -757,8 +759,8 @@
         .byte   $01,$B5,$C6,$06,$C8,$04,$00,$65 ; cmd: set dur mul $C8
         .byte   $60,$65,$6E,$68,$65,$6E,$65,$65 ; note data w/ rests
         .byte   $60,$65,$60,$68,$65,$8E,$0E,$0F ; cmd: loop/jmp G0 ct=$0F → $B5DD
-; --- Track $0E: Wily Castle 1-2 ($B5F6) ---
-        .byte   $B5,$DD,$16,$B5,$C0,$17,$00,$B5 ; Track $0E header: $00=music (Wily Castle 1-2)
+; --- Track $0D: Boss Battle ($B5F6) ---
+        .byte   $B5,$DD,$16,$B5,$C0,$17,$00,$B5 ; Track $0D header: $00=music (Boss Battle)
         .byte   $FF,$B6,$CC,$B7,$89,$B7,$E5,$05 ; ch3 ptr lo → $B5FF
         .byte   $02,$66,$06,$C8,$07,$0C,$09,$01 ; cmd: set dur mul $C8
         .byte   $18,$80,$08,$1C,$03,$6E,$6B,$68 ; cmd: set duty 50%
@@ -785,7 +787,7 @@
         .byte   $00,$06,$64,$7C,$60,$7C,$60,$03 ; cmd: set dur mul $64
         .byte   $70,$64,$60,$64,$60,$70,$60,$64 ; note data w/ rests
         .byte   $64,$60,$64,$60,$0E,$01,$B6,$AD ; cmd: loop/jmp G0 ct=$01 → $B6AD
-        .byte   $16,$B6,$45,$17,$06,$C8,$07,$0C ; --- Track $0E: Wily Castle 1-2 ch2 (Pulse 1) ---
+        .byte   $16,$B6,$45,$17,$06,$C8,$07,$0C ; --- Track $0D: Boss Battle ch2 (Pulse 1) ---
         .byte   $18,$40,$08,$22,$09,$01,$7D,$03 ; cmd: set duty 25%
         .byte   $71,$65,$71,$62,$6E,$62,$6E,$03 ; cmd: toggle bit 3
         .byte   $77,$03,$6B,$03,$77,$03,$6B,$03 ; cmd: toggle bit 3
@@ -809,7 +811,7 @@
         .byte   $16,$6B,$60,$6B,$60,$77,$6B,$60 ; note data w/ rests
         .byte   $6B,$60,$77,$60,$6B,$6B,$60,$6B ; note data w/ rests
         .byte   $60,$0E,$01,$B7,$67,$16,$B7,$29 ; cmd: loop/jmp G0 ct=$01 → $B767
-        .byte   $17,$06,$DC,$08,$00,$09,$03,$E0 ; --- Track $0E: Wily Castle 1-2 ch1 (Pulse 2) ---
+        .byte   $17,$06,$DC,$08,$00,$09,$03,$E0 ; --- Track $0D: Boss Battle ch1 (Pulse 2) ---
         .byte   $E0,$89,$89,$02,$C0,$89,$89,$02 ; cmd: set dotted note
         .byte   $C0,$04,$00,$04,$00,$89,$0E,$1F ; cmd: NOP $00
         .byte   $B7,$9B,$04,$00,$87,$0E,$07,$B7 ; cmd: NOP $00
@@ -820,7 +822,7 @@
         .byte   $C2,$04,$00,$09,$03,$64,$60,$64 ; cmd: NOP $00
         .byte   $60,$70,$64,$60,$64,$60,$70,$60 ; note data w/ rests
         .byte   $64,$64,$60,$64,$60,$0E,$01,$B7 ; cmd: loop/jmp G0 ct=$01 → $B7C9
-        .byte   $C9,$16,$B7,$99,$17,$07,$0C,$08 ; --- Track $0E: Wily Castle 1-2 ch0 (Triangle) ---
+        .byte   $C9,$16,$B7,$99,$17,$07,$0C,$08 ; --- Track $0D: Boss Battle ch0 (Triangle) ---
         .byte   $0C,$E0,$E0,$06,$0A,$86,$86,$02 ; cmd: set dur mul $0A
         .byte   $C0,$86,$86,$02,$C0,$04,$00,$06 ; cmd: set dotted note
         .byte   $FF,$07,$0A,$04,$00,$63,$6E,$66 ; cmd: set octave 2
@@ -829,8 +831,8 @@
         .byte   $FB,$04,$00,$68,$60,$68,$60,$68 ; cmd: NOP $00
         .byte   $68,$60,$68,$60,$68,$60,$68,$68 ; note data w/ rests
         .byte   $60,$68,$60,$0E,$01,$B8,$11,$16 ; cmd: loop/jmp G0 ct=$01 → $B811
-; --- Track $0F: Wily Castle 3-4 ($B82B) ---
-        .byte   $B7,$F5,$17,$00,$B8,$34,$B8,$95 ; Track $0F header: $00=music (Wily Castle 3-4)
+; --- Track $0E: Password Screen ($B82B) ---
+        .byte   $B7,$F5,$17,$00,$B8,$34,$B8,$95 ; Track $0E header: $00=music (Password Screen)
         .byte   $B8,$E9,$B9,$1D,$0A,$05,$05,$02 ; ch1 (Pulse 2) ptr hi
         .byte   $00,$06,$50,$07,$0C,$08,$1C,$09 ; cmd: set dur mul $50
         .byte   $01,$18,$80,$04,$28,$04,$28,$B2 ; cmd: set duty 50%
@@ -843,7 +845,7 @@
         .byte   $8E,$92,$80,$95,$A0,$8E,$92,$80 ; note data w/ rests
         .byte   $01,$95,$01,$B5,$00,$53,$55,$00 ; cmd: toggle bit 6
         .byte   $53,$B2,$90,$92,$80,$8D,$8E,$80 ; note data w/ rests
-        .byte   $90,$16,$B8,$43,$17,$06,$50,$07 ; --- Track $0F: Wily Castle 3-4 ch2 (Pulse 1) ---
+        .byte   $90,$16,$B8,$43,$17,$06,$50,$07 ; --- Track $0E: Password Screen ch2 (Pulse 1) ---
         .byte   $0B,$08,$1C,$09,$01,$18,$40,$04 ; cmd: set pitch ofs $1C
         .byte   $28,$04,$28,$AE,$80,$AE,$80,$AD ; cmd: NOP $28
         .byte   $80,$AD,$80,$A9,$80,$A9,$80,$AD ; note data w/ rests
@@ -854,14 +856,14 @@
         .byte   $B8,$A1,$A9,$8E,$B2,$8E,$A0,$8E ; note data w/ rests
         .byte   $A0,$8E,$00,$A0,$00,$AE,$8E,$8D ; cmd: toggle legato
         .byte   $80,$8D,$8D,$80,$8D,$16,$B8,$9F ; cmd: end channel
-        .byte   $17,$06,$C8,$08,$02,$07,$0C,$09 ; --- Track $0F: Wily Castle 3-4 ch1 (Pulse 2) ---
+        .byte   $17,$06,$C8,$08,$02,$07,$0C,$09 ; --- Track $0E: Password Screen ch1 (Pulse 2) ---
         .byte   $02,$04,$20,$04,$20,$A2,$80,$A2 ; cmd: NOP $20
         .byte   $80,$A6,$80,$A6,$80,$A7,$80,$A7 ; note data w/ rests
         .byte   $80,$A9,$80,$A9,$80,$AB,$80,$AB ; note data w/ rests
         .byte   $80,$A9,$80,$A9,$80,$A7,$80,$A7 ; note data w/ rests
         .byte   $80,$A9,$87,$A6,$84,$0E,$01,$B8 ; cmd: loop/jmp G0 ct=$01 → $B8F3
-; --- Track $10: Wily Castle 5-6 ($B91E) ---
-        .byte   $F3,$16,$B8,$F1,$17,$17,$00,$B9 ; Track $10 header: $00=music (Wily Castle 5-6)
+; --- Track $0F: Continue Screen ($B91E) ---
+        .byte   $F3,$16,$B8,$F1,$17,$17,$00,$B9 ; Track $0F header: $00=music (Continue Screen)
         .byte   $27,$BA,$D2,$BC,$46,$BD,$9A,$05 ; ch3 ptr lo → $B927
         .byte   $01,$C7,$06,$FF,$07,$0F,$18,$40 ; cmd: set dur mul $FF
         .byte   $08,$16,$09,$00,$E0,$0A,$05,$03 ; cmd: set pitch ofs $16
@@ -916,7 +918,7 @@
         .byte   $0C,$02,$8A,$02,$8A,$6A,$6A,$02 ; cmd: set dotted note
         .byte   $8A,$02,$8A,$6A,$6A,$00,$56,$51 ; cmd: set dotted note
         .byte   $4D,$4A,$45,$41,$0C,$00,$16,$B9 ; cmd: loop start G2 ct=$00
-        .byte   $88,$17,$06,$C8,$07,$06,$18,$40 ; --- Track $10: Wily Castle 5-6 ch2 (Pulse 1) ---
+        .byte   $88,$17,$06,$C8,$07,$06,$18,$40 ; --- Track $0F: Continue Screen ch2 (Pulse 1) ---
         .byte   $08,$11,$09,$00,$E0,$03,$EE,$F1 ; cmd: set pitch ofs $11
         .byte   $EE,$F1,$07,$09,$06,$64,$08,$16 ; cmd: set octave 1
         .byte   $8E,$02,$8E,$8E,$8E,$01,$AE,$01 ; cmd: set dotted note
@@ -962,7 +964,7 @@
         .byte   $00,$08,$00,$07,$0C,$06,$B4,$02 ; cmd: set pitch ofs $00
         .byte   $96,$02,$96,$76,$76,$02,$96,$02 ; cmd: set dotted note
         .byte   $96,$76,$76,$00,$56,$51,$4D,$4A ; cmd: toggle legato
-        .byte   $45,$41,$16,$BA,$F5,$17,$06,$E6 ; --- Track $10: Wily Castle 5-6 ch1 (Pulse 2) ---
+        .byte   $45,$41,$16,$BA,$F5,$17,$06,$E6 ; --- Track $0F: Continue Screen ch1 (Pulse 2) ---
         .byte   $08,$0E,$09,$02,$03,$6A,$6A,$86 ; cmd: set pitch ofs $0E
         .byte   $6A,$6A,$86,$60,$6A,$60,$6A,$00 ; cmd: toggle legato
         .byte   $6A,$6A,$6A,$00,$86,$08,$02,$06 ; cmd: toggle legato
@@ -1005,7 +1007,7 @@
         .byte   $BE,$B9,$02,$8B,$02,$92,$02,$B7 ; cmd: set dotted note
         .byte   $B2,$97,$60,$97,$60,$77,$77,$97 ; note data w/ rests
         .byte   $60,$97,$60,$77,$77,$97,$16,$BC ; cmd: end channel
-        .byte   $80,$17,$08,$0C,$07,$0C,$06,$96 ; --- Track $10: Wily Castle 5-6 ch0 (Triangle) ---
+        .byte   $80,$17,$08,$0C,$07,$0C,$06,$96 ; --- Track $0F: Continue Screen ch0 (Triangle) ---
         .byte   $6C,$68,$65,$68,$6C,$68,$65,$68 ; note data
         .byte   $63,$68,$63,$68,$6C,$68,$85,$04 ; cmd: NOP $00
         .byte   $00,$68,$6F,$68,$6F,$63,$63,$6F ; note data
@@ -1036,10 +1038,10 @@
         .byte   $6F,$63,$6A,$6F,$63,$68,$6F,$06 ; cmd: set dur mul $FF
         .byte   $FF,$8D,$0E,$07,$BE,$59,$02,$88 ; cmd: loop/jmp G0 ct=$07 → $BE59
         .byte   $02,$88,$68,$68,$02,$88,$02,$88 ; cmd: set dotted note
-; --- Track $11: Title Screen ($BE97) ---
-        .byte   $68,$68,$88,$16,$BD,$D6,$17,$00 ; Track $11 header: $00=music (Title Screen)
+; --- Track $10: Stage Select ($BE97) ---
+        .byte   $68,$68,$88,$16,$BD,$D6,$17,$00 ; Track $10 header: $00=music (Stage Select)
         .byte   $BE,$A0,$BE,$EF,$BF,$25,$BF,$AD ; ch3 (Noise/DPCM) ptr hi
-        .byte   $0A,$03,$05,$01,$55,$06,$AA,$07 ; --- Track $11: Title Screen ch3 (Noise/DPCM) ---
+        .byte   $0A,$03,$05,$01,$55,$06,$AA,$07 ; --- Track $10: Stage Select ch3 (Noise/DPCM) ---
         .byte   $0C,$08,$06,$09,$01,$18,$40,$04 ; cmd: set pitch ofs $06
         .byte   $00,$04,$00,$7E,$7E,$7C,$7E,$60 ; cmd: NOP $00
         .byte   $03,$69,$60,$68,$60,$64,$60,$66 ; cmd: toggle bit 3
@@ -1048,14 +1050,14 @@
         .byte   $00,$8D,$4B,$49,$01,$A6,$01,$86 ; cmd: toggle legato
         .byte   $6D,$75,$74,$70,$60,$02,$92,$6D ; cmd: set dotted note
         .byte   $72,$70,$6B,$60,$AD,$46,$48,$69 ; note data w/ rests
-        .byte   $68,$66,$64,$16,$BE,$AF,$17,$06 ; --- Track $11: Title Screen ch2 (Pulse 1) ---
+        .byte   $68,$66,$64,$16,$BE,$AF,$17,$06 ; --- Track $10: Stage Select ch2 (Pulse 1) ---
         .byte   $AA,$07,$0C,$08,$06,$04,$00,$04 ; cmd: set octave 4
         .byte   $00,$09,$00,$0C,$00,$7E,$7E,$03 ; cmd: set detune $00
         .byte   $70,$66,$6D,$66,$6B,$66,$60,$12 ; cmd: loop end G0 fl=$08 → $BF16
         .byte   $08,$BF,$16,$66,$70,$66,$6D,$66 ; note data
         .byte   $6B,$66,$0E,$03,$BE,$F7,$66,$68 ; cmd: loop/jmp G0 ct=$03 → $BEF7
         .byte   $66,$0C,$FE,$09,$01,$69,$68,$66 ; cmd: loop start G2 ct=$FE
-        .byte   $64,$16,$BE,$F5,$17,$06,$C8,$08 ; --- Track $11: Title Screen ch1 (Pulse 2) ---
+        .byte   $64,$16,$BE,$F5,$17,$06,$C8,$08 ; --- Track $10: Stage Select ch1 (Pulse 2) ---
         .byte   $00,$09,$03,$04,$00,$04,$00,$66 ; cmd: set detune $03
         .byte   $66,$08,$0E,$06,$E6,$72,$08,$00 ; cmd: set pitch ofs $0E
         .byte   $06,$C8,$66,$60,$66,$08,$0E,$06 ; cmd: set dur mul $C8
@@ -1072,14 +1074,14 @@
         .byte   $0E,$06,$E6,$72,$08,$00,$06,$C8 ; cmd: set dur mul $E6
         .byte   $62,$0E,$01,$BF,$63,$64,$64,$08 ; cmd: loop/jmp G0 ct=$01 → $BF63
         .byte   $0E,$06,$E6,$72,$08,$00,$06,$C8 ; cmd: set dur mul $E6
-        .byte   $64,$16,$BF,$2B,$17,$06,$C8,$07 ; --- Track $11: Title Screen ch0 (Triangle) ---
+        .byte   $64,$16,$BF,$2B,$17,$06,$C8,$07 ; --- Track $10: Stage Select ch0 (Triangle) ---
         .byte   $0A,$08,$0C,$04,$00,$04,$00,$66 ; cmd: set pitch ofs $0C
         .byte   $66,$6C,$66,$60,$66,$6C,$66,$60 ; note data w/ rests
         .byte   $66,$6C,$66,$66,$66,$6C,$66,$0E ; cmd: loop/jmp G0 ct=$03 → $BFB5
-; --- Track $12: Ending ($BFCF) ---
-        .byte   $03,$BF,$B5,$16,$BF,$B3,$17,$00 ; Track $12 header: $00=music (Ending)
+; --- Track $11: Proto Man Whistle ($BFCF) ---
+        .byte   $03,$BF,$B5,$16,$BF,$B3,$17,$00 ; Track $11 header: $00=music (Proto Man Whistle)
         .byte   $BF,$D8,$C0,$1A,$C0,$1B,$C0,$1C ; ch3 (Noise/DPCM) ptr hi
-        .byte   $0A,$FE,$05,$01,$11,$06,$C8,$07 ; --- Track $12: Ending ch3 (Noise/DPCM) ---
+        .byte   $0A,$FE,$05,$01,$11,$06,$C8,$07 ; --- Track $11: Proto Man Whistle ch3 (Noise/DPCM) ---
         .byte   $0C,$08,$26,$18,$80,$09,$03,$00 ; cmd: set pitch ofs $26
         .byte   $03,$8A,$8D,$04,$48,$2D,$0D,$28 ; cmd: toggle bit 3
         .byte   $2F,$4F,$02,$8F,$00,$01,$AF,$8D ; cmd: set dotted note

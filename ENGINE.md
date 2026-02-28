@@ -486,47 +486,154 @@ OAM allocation is controlled by `oam_ptr` ($97):
 
 ### Palette Buffer
 
-`$0600-$061F` holds the 32-byte working palette (4 background + 4 sprite palettes). Gameplay code modifies this buffer and sets `palette_dirty`; the NMI uploads it to the PPU.
+`$0600-$061F` holds the 32-byte working palette (4 background + 4 sprite palettes). Gameplay code modifies this buffer and sets `palette_dirty`; the NMI uploads it to the PPU. See the Palette System section below for full details.
+
+---
+
+## Palette System
+
+**Source**: `src/fixed/ppu_utils.asm` (fade routines, stage load), `src/fixed/nmi.asm` (upload), `src/bank01_stage_magnet.asm` (sprite palette table), `src/bank09_per_frame.asm` (palette animation)
+
+### Buffer Layout
+
+The 32-byte palette buffer at `$0600-$061F` maps directly to NES PPU palette RAM at `$3F00-$3F1F`:
+
+```
+$0600-$060F: BG palettes (4 sub-palettes x 4 colors)
+  $0600-$0603: BG 0    $0604-$0607: BG 1
+  $0608-$060B: BG 2    $060C-$060F: BG 3
+
+$0610-$061F: Sprite palettes (4 sub-palettes x 4 colors)
+  $0610-$0613: SP 0 — player body (default: $0F,$0F,$2C,$11 = blue)
+  $0614-$0617: SP 1 — player weapon (changes per weapon selection)
+  $0618-$061B: SP 2 — enemy palette 1 (per-room, from bank $01 $A030)
+  $061C-$061F: SP 3 — enemy palette 2 (per-room, from bank $01 $A030)
+```
+
+A **working copy** at `$0620-$063F` holds the target palette that fade routines blend toward. Code generally writes to both buffers simultaneously.
+
+### Palette Sources
+
+**BG palettes** (`$0600-$060F`): Stored per-stage at offset `$AA82` within each stage's PRG bank (after the 2-byte CHR indices at `$AA80-$AA81`). Loaded during `load_room`. Also stored in bank `$18` for menus, bank `$0B` for intro, bank `$0C` for game over.
+
+**Sprite palettes SP0/SP1** (`$0610-$0617`): Player default loaded from `load_stage_default_palette_table` (ppu_utils.asm line 693), a hardcoded 8-byte table in the fixed bank. SP1 changes when the player selects a weapon — the weapon palette table in bank `$02` (line 942) has 3 color bytes per weapon, copied to `$0611-$0613`.
+
+**Sprite palettes SP2/SP3** (`$0618-$061F`): Set per-room by bank `$01`'s table at `$A030`. Each room's CHR/palette param (from `$AA60` in the stage bank) is multiplied by 8 to index into this table. This allows different rooms within a stage to have different enemy colors.
+
+### Fade System
+
+Two fade mechanisms exist:
+
+**Blocking fade** (`fade_palette_out` / `fade_palette_in`): Used for stage transitions. Operates on all 32 bytes (BG + sprite). Works by copying the working palette (`$0620`) to the active buffer (`$0600`), then subtracting a brightness value from every color entry. NES palette values encode brightness in the upper nibble (`$0x`=darkest, `$3x`=brightest), so subtracting `$10` per step reduces brightness by one level. Values below `$0F` clamp to `$0F` (black). Each step waits 4 frames via `task_yield`. A full fade is 4 steps × 4 frames = 16 frames.
+
+**Per-frame incremental fade** (`palette_fade_tick`): Used for smooth in-game transitions. Driven by three zero-page variables: `$1C` (active flag), `$1D` (current subtract amount), `$1E` (step delta added every 4th frame). Only affects BG palettes (`$0600-$060F`), not sprite palettes. Endpoint detection: `$1D` reaching `$F0` signals fade-out complete, `$50` signals fade-in complete.
+
+### Palette Animation
+
+Bank `$09` runs a 4-slot palette animation system (`palette_anim_update`, per_frame.asm line 625) that cycles 3 BG palette colors per slot based on animation definitions. This creates effects like water shimmer and lava glow. Skipped during pause or active fade.
 
 ---
 
 ## Sprite Animation Engine
 
-**Source**: `src/fixed/sprites.asm`
+**Source**: `src/fixed/sprites.asm`, `src/bank1A_1B_oam_sequences.asm`, `src/bank19_sprite_offsets.asm`, `src/bank14_sprite_offsets_alt.asm`
 
-### OAM Build Loop
+The sprite system transforms entity state into OAM entries through a 4-bank pipeline: animation sequences (banks `$1A`/`$1B`) define frame lists, sprite definitions within those banks specify tile arrangements, and position offset tables (banks `$19`/`$14`) provide per-tile XY offsets. The fixed bank orchestrates the pipeline, switching PRG banks twice per entity — once for animation data, once for position offsets.
 
-The sprite engine iterates all 32 entity slots each frame. To distribute OAM priority fairly (the NES draws lower-numbered sprites on top), it **alternates iteration direction**: forward on even frames, backward on odd frames.
+### OAM Buffer
 
-For each active entity:
-1. Check visibility (off-screen culling, invisible flag).
-2. Look up animation sequence from `ent_anim_id` (bit 7 selects bank `$1A` vs `$1B`).
-3. Advance animation timer. On timer expiry, advance to next frame. If frame ID = 0, deactivate entity.
-4. Read sprite definition: sprite count, position offset table index, CHR tile + attribute pairs.
-5. Apply facing (H-flip), damage flash (palette swap on `ent_anim_frame` bit 7).
-6. Write OAM entries to the `$0200` buffer.
+The `$0200-$02FF` buffer holds 64 hardware sprites (4 bytes each: Y position, tile index, attribute, X position). DMA-transferred to PPU OAM every NMI.
+
+- `$0200-$022F` (sprites 0-11): Reserved for overlay sprites when `$72` is active (boss name display)
+- `$0230+` (sprites 12+): Entity sprites, starting at the `oam_ptr` (`$97`) cursor
+
+Before rendering, `prepare_oam_buffer` writes `$F8` (off-screen) to the Y byte of all unused OAM slots from `oam_ptr` to end of buffer.
+
+### OAM Priority Fairness
+
+The NES draws lower-numbered OAM entries on top. Since entities fill OAM sequentially from `oam_ptr`, entities processed first get lower indices (higher priority). The engine **alternates iteration direction each frame**: forward (slots 0→31) on even frames, backward (31→0) on odd frames. Energy bar drawing also alternates. This distributes sprite priority evenly over time, preventing permanent flickering bias toward any entity.
+
+### Rendering Pipeline
+
+For each active entity (`ent_status` bit 7 set):
+
+**1. Screen culling** (`process_entity_display`): Converts world coordinates to screen coordinates. Entities with world positioning (`ent_flags` bit 4) compute screen X as `ent_x_px - camera_x_lo` with page comparison. Off-screen entities are deactivated (or kept alive within a 72-pixel margin if `ent_flags` bit 3 is set). Screen position stored in `$12` (Y) and `$13` (X).
+
+**2. Bank selection** (`setup_sprite_render`): Reads `ent_flags` bit 6 for H-flip state → `$10` (EOR mask) and `$11` (0 or 1 offset). Selects PRG bank for animation data:
+- `ent_anim_id` bit 7 clear: bank `$1A`
+- `ent_anim_id` bit 7 set: bank `$1B` (ID masked to 7-bit)
+- Boss slots ($10-$1F) when boss is active: bank `$15` (weapon sprites)
+
+**3. Animation tick**: Compares tick counter (`ent_anim_frame & $7F`) against `tick_speed` (sequence byte 1). On match, tick resets to 0 (preserving bit 7) and frame index advances. When frame index reaches `frame_count`, it wraps to 0 — all animations loop. There is no "play once" mode; the only way to end an animation is a frame with sprite definition ID `$00`, which deactivates the entity.
+
+**4. Damage flash check**: If `ent_anim_frame` bit 7 is set, the entity blinks: drawn for 4 frames, invisible for 4 frames (`frame_counter AND #$04`). The animation continues ticking underneath — only the OAM write is suppressed. This is pure visibility toggling, not a palette change.
+
+**5. Sprite definition lookup** (`write_entity_oam`): Current frame index selects a sprite definition ID from the sequence. The definition pointer is resolved from tables at `$8100`/`$8200` within the banked window.
+
+**6. Position offset resolution**: Sprite definition byte 0 bit 7 selects the offset PRG bank (`$19` default, `$14` alternate). Byte 1 (position offset table index) plus `$11` (0 or 1 for normal/flipped) indexes into the `$BE00`/`$BF00` pointer tables. The offset pointer is pre-decremented by 2 so that the Y index tracking tile/attribute pairs in the definition simultaneously indexes the correct Y/X offset pair.
+
+**7. OAM assembly loop**: For each hardware sprite in the definition, reads tile ID and attribute from the definition, Y and X offsets from the offset table, computes final positions relative to `$12`/`$13`, applies H-flip EOR to the attribute, and writes 4 bytes to the OAM buffer. Sprites that overflow in Y or X are hidden at Y=`$F8`.
 
 ### Animation Sequence Format
 
-Pointed to by the animation ID lookup tables in banks `$1A`/`$1B`:
+Pointer tables at `$8000-$807F` (low) and `$8080-$80FF` (high) in banks `$1A`/`$1B`/`$15`. 128 entries per bank.
 
 ```
-Byte 0: total frames in sequence
-Byte 1: ticks per frame (duration)
-Byte 2+: sprite definition IDs per frame (0 = deactivate entity)
+Byte 0: frame_count (number of frames minus 1; $00 = single static frame)
+Byte 1: tick_speed  (game ticks per frame before advancing)
+Byte 2+: sprite_def_IDs[frame_count+1]  (one per frame; $00 = deactivate entity)
 ```
 
 ### Sprite Definition Format
 
+Pointer tables at `$8100-$81FF` (low) and `$8200-$82FF` (high). 256 entries per bank.
+
 ```
-Byte 0: sprite count (bit 7: use CHR bank $14 instead of $19)
-Byte 1: position offset table index
-Byte 2+: pairs of [CHR tile, OAM attribute]
+Byte 0: sprite_count | bank_flag
+          Bits 0-6 = hardware sprite count (0-based loop counter, so $09 = 10 sprites)
+          Bit 7    = offset bank select: 0 = bank $19 (default), 1 = bank $14 (alternate)
+Byte 1: position_offset_table_index
+          Indexes into $BE00/$BF00 pointer tables in the selected offset bank
+Byte 2+: (tile_id, attribute) pairs, one per hardware sprite
+          tile_id  = CHR tile index in the sprite pattern table
+          attribute = bits 0-1: palette, bit 5: behind-BG priority, bit 6: H-flip, bit 7: V-flip
 ```
+
+### Position Offset Format
+
+Banks `$19` and `$14` share identical layout: offset data at `$A000-$BDFF`, pointer table low bytes at `$BE00-$BEFF`, high bytes at `$BF00-$BFFF`.
+
+Each record is a sequence of signed byte pairs (Y offset, X offset), one pair per hardware sprite. Normal and H-flipped versions are stored as consecutive pointer table entries — the engine adds 0 or 1 to the index to select between them. Pre-computed flipped offsets avoid runtime negation.
+
+### H-Flip Mechanism
+
+Horizontal flipping uses two complementary mechanisms:
+
+1. **Pre-mirrored position offsets**: The offset table index points to a pair of records (normal at index N, flipped at N+1). `ent_flags` bit 6 adds 0 or 1 to select the correct record. The flipped record has mirrored X offsets.
+
+2. **Attribute EOR**: Each tile's OAM attribute is XORed with `$40` (the NES H-flip bit) when `ent_flags` bit 6 is set. This flips individual tiles while the mirrored offsets reposition them correctly.
 
 ### Energy Bars
 
-`draw_energy_bars` renders up to 3 energy bar displays (player HP, boss HP, weapon ammo). Each bar is 7 sprites tall, 4 energy units per segment. Bar fill tiles: empty = `$6B`, 1/4 = `$6A`, 2/4 = `$69`, 3/4 = `$68`, full = `$67`.
+`draw_energy_bars` renders up to 3 HUD energy meters (player HP, weapon ammo, boss HP). Each bar is 7 sprites tall (Y from `$48` down to `$10`, 8 pixels apart). Fill level selects from 5 tiles: `$6B` (empty), `$6A` (1/4), `$69` (2/4), `$68` (3/4), `$67` (full). Drawing direction alternates each frame for OAM priority fairness.
+
+### Cross-Bank Data Flow
+
+```
+FIXED BANK ($C000)              BANKED $8000              BANKED $A000
+sprites.asm                     ($1A/$1B/$15)             ($19/$14)
+────────────────                ─────────────             ─────────────
+update_entity_sprites
+  ├─ screen cull → $12/$13
+  ├─ bank-switch $8000 ────────→ anim seq ptr tables
+  │   animation tick   ────────→ seq data ($8300+)
+  │   sprite def ptr   ────────→ def ptr tables ($8100/$8200)
+  │   read definition  ────────→ def data ($854E+)
+  │
+  └─ bank-switch $A000 ──────────────────────────→ offset ptr ($BE00/$BF00)
+      OAM assembly loop ─────────────────────────→ Y/X offsets ($A000+)
+      write $0200-$02FF
+```
 
 ---
 
@@ -546,18 +653,24 @@ A race-condition flag (`$F6`) is set during bank switching and cleared after. Th
 
 ### CHR Bank Switching
 
-Six CHR bank shadow registers at `$E8-$ED`:
+Six CHR bank shadow registers at `$E8-$ED` map to MMC3 registers R0-R5. With CHR A12 inversion off and BG at PPU `$0000` / sprites at PPU `$1000`:
 
-| Register | MMC3 Reg | Window | Size |
-|----------|----------|--------|------|
-| `$E8` | R0 | BG tiles 1 | 2 KB |
-| `$E9` | R1 | BG tiles 2 | 2 KB |
-| `$EA` | R2 | Sprite tiles 1 | 1 KB |
-| `$EB` | R3 | Sprite tiles 2 | 1 KB |
-| `$EC` | R4 | Sprite tiles 3 | 1 KB |
-| `$ED` | R5 | Sprite tiles 4 | 1 KB |
+| Register | MMC3 Reg | PPU Range | Size | Purpose |
+|----------|----------|-----------|------|---------|
+| `$E8` | R0 | `$0000-$07FF` | 2 KB | BG tiles (left half) |
+| `$E9` | R1 | `$0800-$0FFF` | 2 KB | BG tiles (right half) |
+| `$EA` | R2 | `$1000-$13FF` | 1 KB | Sprite tiles `$00-$3F` (Mega Man body) |
+| `$EB` | R3 | `$1400-$17FF` | 1 KB | Sprite tiles `$40-$7F` (Mega Man weapons) |
+| `$EC` | R4 | `$1800-$1BFF` | 1 KB | Sprite tiles `$80-$BF` (per-room enemies) |
+| `$ED` | R5 | `$1C00-$1FFF` | 1 KB | Sprite tiles `$C0-$FF` (per-room enemies) |
 
-Mainline code writes to the shadow registers and sets a dirty flag (`$1B = $FF`). The NMI handler calls `select_CHR_banks` to write all 6 values to MMC3.
+Game code writes to shadow registers, then calls `update_CHR_banks` which sets the dirty flag (`$1B = $FF`). The NMI handler calls `select_CHR_banks` — if `$1B` is nonzero, it clears the flag and writes all 6 values to MMC3 hardware via the R0-R5 bank select/data register pair.
+
+**Stage initialization** (`load_stage`): Sets `$E8`/`$E9` from stage data at `$AA80`/`$AA81` (per-stage BG tileset). Resets `$EA`/`$EB` to pages 0/1 (shared Mega Man sprites). `$EC`/`$ED` are set per-room.
+
+**Per-room switching**: Each room's CHR/palette param (from `$AA60`) indexes bank `$01`'s table at `$A200`, which provides the `$EC`/`$ED` values for that room's enemy sprites. This allows different enemies to appear in different rooms within the same stage.
+
+**Mid-frame CHR swaps**: Two IRQ handlers (`irq_chr_split_swap` mode `$10`, `irq_chr_swap_only` mode `$11`) write to `$E8`/`$E9` and immediately apply via `select_CHR_banks` mid-scanline, then either restore originals or set up values for NMI to restore next frame. This enables split-screen effects with different BG tilesets above and below the split line.
 
 ---
 
@@ -565,7 +678,7 @@ Mainline code writes to the shadow registers and sets a dirty flag (`$1B = $FF`)
 
 **Source**: `src/bank16_sound_driver.asm` (code), `src/bank17_sound_data.asm` (data)
 
-The sound driver runs in banks `$16`/`$17`, called every frame via the NMI stack-patching trampoline.
+The sound driver occupies banks `$16` (code at `$8000`) and `$17` (data at `$A000`), called every frame via the NMI stack-patching trampoline. It runs 8 simultaneous channels — 4 music and 4 SFX — mapped to the 4 NES APU voices (Pulse 1, Pulse 2, Triangle, Noise). The driver uses two completely separate command languages for the global music stream vs per-channel sequences, has a full ADSR envelope system with 8-byte instrument definitions, and implements both pitch vibrato and volume tremolo — an unusual combination for an NES driver.
 
 ### Sound Submission
 
@@ -585,15 +698,114 @@ To play a sound, game code calls `submit_sound_ID` which writes to a circular bu
 4. Call `sound_driver_tick` (main driver update).
 5. Restore original PRG banks.
 
-### Envelope System
+### Driver Tick (per frame)
 
-4 sound envelope channels at `$80-$8F` (shared with scheduler task slots):
+`sound_driver_update` runs once per frame:
+
+1. Check bit 0 of `snd_flags` (`$C0`). If set, driver is paused — exit immediately.
+2. If the global data pointer (`$D0/$D1`) is non-null, parse the global music stream for channel enable/duration/tempo/transpose commands.
+3. Update the fractional tempo accumulator: add `snd_tempo_hi` (`$CA`) to `snd_tempo_accum` (`$C8`); carry propagates into `snd_tempo_ticks` (`$C7`). This produces the number of logical ticks elapsed this frame.
+4. Loop X from 3 down to 0 (4 channels). For each: if the music channel is active (per `snd_channel_mask`), call `process_music_channel`. Then, unless SFX are muted (bit 1 of `snd_flags`), call `process_sfx_channel`.
+5. If `snd_fade_rate` (`$CC`) is nonzero, advance the global volume fade.
+
+### Tempo System
+
+The driver uses an **8.8 fixed-point tempo accumulator**. Each frame, `snd_tempo_hi` (fractional part) is added to an accumulator, and the carry feeds into `snd_tempo_ticks` (integer ticks). The default tempo `$01.$99` produces approximately 1.6 ticks per frame — sometimes 1 tick, sometimes 2 — but the long-term average is precise. This avoids the tempo quantization problem that simpler NES drivers have, where only integer tick rates are possible.
+
+Note duration countdown subtracts `snd_tempo_ticks` each frame, so both music and SFX are tied to the same tempo clock.
+
+### Dual Command Languages
+
+The driver has two completely separate command encodings:
+
+**Global music stream** (`parse_music_data`): Reads bitfield-encoded command bytes where each bit indicates a parameter follows:
+- Bit 7: end-of-data (optionally chains to another sound via `$D7`)
+- Bit 0: pointer redirect (reads a new 16-bit address)
+- Bit 1: duration multiplier
+- Bit 2: transpose offset
+- After flag processing: note duration (multiplied by the duration multiplier) + 4-bit channel enable mask
+
+**Per-channel SFX sequences** (`sfx_dispatch_command`): Bytes `$00-$18` are commands dispatched through a 25-entry jump table; bytes `$20+` are packed note+duration values. Key commands:
+
+| Range | Function |
+|-------|----------|
+| `$04` | Set tempo (2-byte arg: lo + hi for the fractional accumulator) |
+| `$05` | Set duration multiplier |
+| `$06` | Set octave (low nibble of control flags) |
+| `$07` | Set global pitch offset (`snd_pitch_offset` / `$CB`) |
+| `$08` | Set per-channel detune |
+| `$09-$0C` | Loop group start (4 independent nested counters) |
+| `$12-$15` | Loop group end (decrement + conditional jump) |
+| `$16` | Unconditional jump (16-bit address) |
+| `$17` | End channel (silence + clear pointer) |
+| `$18` | Set duty cycle bits |
+
+The **4 nested loop groups** per channel allow complex repeated musical structures (e.g., "repeat phrase A 4 times, with phrase B repeated 3 times inside each A") without flattening the data.
+
+### Packed Note+Duration Encoding
+
+SFX note bytes encode both pitch and duration in a single byte. The top 3 bits select a duration scale (powers of 2: `$02, $04, $08, $10, $20, $40, $80`), and the bottom 5 bits encode the note index within the current octave. A dotted-note flag (set by command `$02`) multiplies the duration by 1.5. An alternate duration table provides the x1.5 variants directly: `$03, $06, $0C, $18, $30, $60, $C0`.
+
+### Instrument Definitions (8 bytes)
+
+Each instrument is an 8-byte record. The instrument pointer is computed as `base + (index - 1) * 8` from the sound data region.
+
+| Byte | Purpose |
+|------|---------|
+| 0 | Attack rate (index into 32-entry non-linear volume curve) |
+| 1 | Decay rate (same curve) |
+| 2 | Sustain level |
+| 3 | Release rate (same curve; 0 = hold indefinitely) |
+| 4 | Vibrato speed (bit 7 = force phase reset on note start) |
+| 5 | Vibrato depth (pitch) |
+| 6 | Tremolo depth (volume) |
+| 7 | Triangle linear counter value |
+
+### ADSR Envelope
+
+The volume envelope is a **5-phase state machine** per channel: attack, decay, sustain, release, and hold. Internal volume ranges from `$00` to `$F0`. Attack/decay/release rates are indices into a 32-entry non-linear curve table where gaps widen at higher values (`$00, $01, $02, ... $0C, $0E, $0F, $10, $12, ... $28, $30, $3C, $50, $7E, $7F, $FE, $FF`), giving exponential-feeling ramps. Rate 0 = no change, rate 31 = instant.
+
+The final volume output path: internal envelope → compare with fade level (take minimum) → right-shift 4 to get 4-bit APU volume → apply tremolo attenuation → write to APU register.
+
+### Pitch System
+
+A 96-entry frequency period table covers the full chromatic range. Note indices are clamped to 0-95. Three levels of transpose stack:
+- Global transpose (`$D2`, set by music stream)
+- Master pitch offset (`snd_pitch_offset` / `$CB`, set by command `$07`)
+- Per-channel detune (`$0734,x`, set by command `$08`)
+
+**Vibrato**: A phase accumulator adds the instrument's vibrato speed each frame. On overflow, the direction bit toggles. Vibrato depth is multiplied by phase, shifted right 4, and added/subtracted from the base frequency.
+
+**Portamento**: The slide rate (`$0718,x`) is added to the current frequency each frame. When the frequency reaches the target note, it clamps to the exact target value and stops.
+
+### SFX Priority
+
+Sound ID type byte determines behavior:
+- `$00` = music track (initializes 4 channel pointers from the track header)
+- `$01-$7F` = SFX priority level (higher overrides lower; rejected if current priority is higher)
+- Bit 7 = **chain flag**: when the current SFX ends, automatically start the sound stored at `$D7`
+
+SFX and music run in parallel on the same APU channels. When an SFX note triggers, it invalidates the frequency cache for the corresponding music channel (`$077C,y = $FF`), forcing a full register rewrite when music resumes.
+
+### Transparent Cross-Bank Reads
+
+Sound data spans three banks, unified by `read_ptr`:
+
+- `$8000-$9FFF`: bank `$16` (driver code — also contains track data for sound IDs `$00-$04`)
+- `$A000-$BFFF`: bank `$17` (track data for sound IDs `$05-$11`)
+- `$C000+` (logical): bank `$18` (sound ID `$12` + all SFX/jingles)
+
+When `read_ptr` receives an address >= `$C000`, it subtracts `$20` from the high byte (remapping `$C0xx` to `$A0xx`), temporarily swaps bank `$18` into the `$A000` window via MMC3, reads one byte, restores bank `$17`, and adds `$20` back. The caller never knows a bank switch occurred.
+
+### MMC3 Register Overlay
+
+The first 3 bytes of bank `$16` (`$8000-$8002`) serve a dual purpose. As code, they form a `JMP` instruction (opcode `$4C`) used as the driver's entry point. As addresses, `$8000` and `$8001` are the MMC3 bank select and bank data registers. The driver writes bank numbers directly to these code bytes for bank switching — a self-referential trick that avoids needing separate register address constants.
+
+### NMI Envelope Timers
+
+4 envelope timer channels at `$80-$8F` (shared with scheduler task slots):
 - State `$01` = counting down (NMI decrements timer each frame)
 - State `$04` = release (timer expired)
-
-### Cross-Track Data Sharing
-
-The music data in bank `$17` is not 13 isolated tracks. Track headers are entry points into a shared pool of channel sequences. The driver's loop and jump commands use absolute addresses, so one track's channels can reference data inside another track's address range. Snake Man's melody loops into Top Man's data. Wily 3-4 is a 53-byte remix header pointing 3 of its 4 channels into Wily 5-6's data.
 
 ---
 
@@ -632,6 +844,8 @@ Gemini Man's stage uses IRQ modes `$09/$0A` to create water wave distortion. Thr
 
 ## Stage Data Format
 
+**Source**: `src/fixed/camera.asm` (metatile rendering, room transitions), `src/fixed/ppu_utils.asm` (`load_room`), `src/fixed/collision.asm` (tile collision)
+
 Each stage occupies one 8 KB bank at `$A000-$BFFF`. The stage bank index equals the stage ID for Robot Master stages (`$00-$07`).
 
 ### Bank Layout
@@ -641,27 +855,106 @@ Each stage occupies one 8 KB bank at `$A000-$BFFF`. The stage bank index equals 
 | `$A000-$A5FF` | Global enemy property tables (bank `$00` only, shared across all stages) |
 | `$A600-$A7FF` | Enemy velocity lookup tables (bank `$00` only) |
 | `$A800-$A9FF` | Boss AI local data / stage-specific code |
-| `$AA00-$AA3F` | Screen metatile column grid + room pointer table |
-| `$AA40+` | Room table: 1 byte per room |
+| `$AA00-$AA3F` | Screen column ID table (1 byte per screen page) |
+| `$AA40-$AA5F` | Room config table (1 byte per room) |
+| `$AA60-$AA7F` | Room pointer table (2 bytes per room: CHR/palette param + layout index) |
+| `$AA80-$AA81` | BG CHR bank indices for `$E8`/`$E9` |
+| `$AA82-$AAFF` | Screen layout data (20 bytes per entry) |
 | `$AB00-$ABFF` | Enemy spawn: screen numbers (`$FF` terminated) |
 | `$AC00-$ACFF` | Enemy spawn: X positions |
 | `$AD00-$ADFF` | Enemy spawn: Y positions |
 | `$AE00-$AEFF` | Enemy spawn: global enemy IDs |
 | `$AF00-$B6FF` | Metatile column definitions (64 bytes per column) |
-| `$B700-$BAFF` | Metatile CHR tile definitions (4 bytes per metatile: 2x2 pattern tiles) |
-| `$BB00-$BEFF` | Metatile attribute data (palette assignments) |
-| `$BF00-$BFFF` | Collision attribute table |
+| `$B700-$BAFF` | Metatile sub-tile indices (4 bytes per metatile) |
+| `$BB00-$BEFF` | CHR tile lookup planes (4 × 256-byte tables) |
+| `$BF00-$BFFF` | Collision/attribute table (1 byte per sub-tile index) |
 
-### Room Table Format
+### Room Table
 
-Each room is 1 byte at `$AA40 + room_index`:
-- Bits 7-6: vertical connection type (00=none, 01=up, 10=down, 11=both)
-- Bit 5: horizontal scroll enabled
-- Bits 4-0: screen count
+Each room has a config byte at `$AA40 + room_index`:
 
-### Metatile System
+```
+Bit 7:     Vertical connection up
+Bit 6:     Vertical connection down
+Bit 5:     Horizontal scroll enabled
+Bits 4-0:  Screen count (0 = single screen, N = N+1 screens)
+```
 
-Each screen is 16 columns wide (256 pixels). Each column is 15 metatiles tall (240 pixels). Each metatile is 16x16 pixels, composed of four 8x8 CHR tiles in a 2x2 grid. The collision attribute table at `$BF00` maps each metatile to a collision type (upper nibble).
+Each room also has 2 bytes at `$AA60 + room_index * 2`:
+- **Byte 0**: CHR/palette param — indexes bank `$01` tables at `$A200` (sprite CHR) and `$A030` (sprite palettes)
+- **Byte 1**: Layout index — multiplied by 20 to offset into screen layout data at `$AA82`
+
+Each layout entry is 20 bytes: 16 metatile column IDs (one per 32-pixel column of the screen) + 4 screen connection bytes (up/down/left/right, where bit 7 = scroll vs warp and bits 0-6 = target screen).
+
+### Metatile Rendering Pipeline
+
+The metatile system has **three levels of indirection** from screen to CHR tiles:
+
+**Level 1 — Screen to column IDs**: `$AA00,y` (where Y = screen page) stores a metatile column ID. Different screens can share the same column ID to create repeated patterns.
+
+**Level 2 — Column to metatile indices**: `$AF00 + (column_ID × 64)` gives a 64-byte block: an 8×8 grid of metatile indices (8 columns × 8 rows of 32×32 pixel metatiles). Grid position encoded as `$28 = (row × 8) + column`.
+
+**Level 3 — Metatile to sub-tile indices**: `$B700 + (metatile_index × 4)` gives 4 sub-tile indices (top-left, top-right, bottom-left, bottom-right quadrants of the 32×32 metatile).
+
+**Level 4 — Sub-tile to CHR tiles**: Each sub-tile index selects from four parallel 256-byte lookup tables that produce 4 CHR tile IDs (a 2×2 grid of 8×8 pixel tiles):
+
+```
+$BB00,y = top-left CHR tile
+$BC00,y = top-right CHR tile
+$BD00,y = bottom-left CHR tile
+$BE00,y = bottom-right CHR tile
+```
+
+The result is a 4×4 grid of CHR tile IDs (16 total) stored in the `$06C0` buffer, representing one complete 32×32 pixel metatile.
+
+```
+Screen page ($F9)
+    │
+    ▼
+$AA00,y ──→ column_ID ──→ $AF00 + (ID × 64) ──→ metatile_index
+    │
+    ▼
+$B700 + (metatile × 4) ──→ 4 sub-tile indices
+    │
+    ▼
+$BB00/$BC00/$BD00/$BE00 ──→ 16 CHR tile IDs ──→ $06C0 buffer ──→ PPU nametable
+```
+
+### Collision and Attributes
+
+`$BF00` is a 256-byte table indexed by **sub-tile index** (the values from Level 3). Each byte serves dual purpose:
+
+- **Upper nibble** (bits 7-4): collision type
+
+| Value | Constant | Meaning |
+|-------|----------|---------|
+| `$00` | `TILE_AIR` | Passthrough |
+| `$10` | `TILE_SOLID` | Solid ground |
+| `$20` | `TILE_LADDER` | Climbable |
+| `$30` | `TILE_DAMAGE` | Damage (lava/fire) |
+| `$40` | `TILE_LADDER_TOP` | Ladder grab point |
+| `$50` | `TILE_SPIKES` | Instant kill |
+| `$70` | `TILE_DISAPPEAR` | Breakable block |
+
+- **Lower 2 bits**: palette index for NES attribute table generation
+
+During `metatile_to_chr_tiles`, the palette bits from all 4 quadrants are accumulated into a single NES attribute byte (2 bits per quadrant), then merged into the attribute cache at `$0640` using left/right or top/bottom masks depending on scroll direction.
+
+### Scroll Column Rendering
+
+When camera scrolling crosses an 8-pixel tile boundary, the engine renders a new metatile column:
+
+1. Advance nametable column pointer `$24` (wraps 0-31 across the NES's 32-column nametable)
+2. When `$24` wraps past 0 or 31, advance metatile column base `$29`
+3. Iterate 8 metatile rows, calling `metatile_to_chr_tiles` for each
+4. Build 30 tile IDs + attribute updates into the `$0780` PPU buffer
+5. NMI transfers the buffer to VRAM during VBlank
+
+### Room Transitions
+
+**Horizontal**: Triggered when player X >= `$E5` on a scrolling room with the next room also scrolling-enabled. `fast_scroll_right` scrolls at 4 pixels/frame, rendering columns as they come into view, until `camera_x_lo` wraps. Then `load_room` initializes the new room's column IDs and CHR/palette.
+
+**Vertical**: Triggered when player falls off bottom (Y >= `$E8`) or climbs off top (Y < `$09` on ladder). The engine scans `$AA40` entries for matching vertical connection bits, toggles NES mirroring (V-mirror during vertical transitions, H-mirror during horizontal), and scrolls `$FA` (fine Y) by 3 pixels/frame while rendering PPU row updates (32 tiles + 8 attribute bytes per row).
 
 ### Stage-to-Bank Mapping
 

@@ -6,6 +6,10 @@ Built with [Claude Code](https://claude.com/claude-code) — starting from raw d
 
 Anyone familiar with Mega Man 3's internals, NES development, or MMC3 mapper conventions is welcome to double-check the annotations and file corrections or improvements.
 
+**[ENGINE.md](ENGINE.md)** — How the engine works: frame lifecycle, entity system, player states, collision, scrolling, PPU rendering, bank switching, sound driver, IRQ effects, stage data format.
+
+**[DATA_REFERENCE.md](DATA_REFERENCE.md)** — Where the data lives: table addresses, byte formats, enemy IDs, weapon damage values, music track IDs. ROM hacking reference.
+
 ## Building
 
 Requires ca65/ld65 (from [cc65](https://cc65.github.io/)) and GNU Make.
@@ -135,7 +139,7 @@ Inline comments align to column 40. Automated health checks were run during this
 
 ## Engine Notes
 
-For a comprehensive reference covering the frame lifecycle, entity system, player state machine, collision, scrolling, PPU rendering, bank switching, sound driver, IRQ effects, and stage data format, see **[ENGINE.md](ENGINE.md)**.
+For a comprehensive reference covering the frame lifecycle, entity system, player state machine, collision, scrolling, PPU rendering, bank switching, sound driver, IRQ effects, and stage data format, see **[ENGINE.md](ENGINE.md)**. For data table locations, formats, and ROM hacking reference, see **[DATA_REFERENCE.md](DATA_REFERENCE.md)**.
 
 Highlights:
 
@@ -147,7 +151,7 @@ Highlights:
 
 **22 player states.** Beyond the standard ground/airborne/slide/ladder states, the engine has dedicated states for Top Spin recoil bounce, Hard Knuckle fire freeze, Doc Flash Time Stopper death, vertical scroll transitions, warp tube sequences, boss intro freeze, and two scripted auto-walk sequences for the ending.
 
-**Cross-track music data sharing.** The sound data in bank $17 is not 13 isolated tracks — it's a continuous stream where track headers serve as entry points into a shared pool of channel sequences. Snake Man's melody loops into Top Man's data, Wily 3-4 is a 53-byte remix header pointing into Wily 5-6's data.
+**Continuous music data.** The sound data in bank $17 is a continuous stream where track headers serve as entry points into channel sequences. The driver's loop and jump commands use absolute addresses, so adjacent tracks' data flows without gaps from $A000 to $BFFF.
 
 **Debug code in retail ROM.** Player 2 controller input activates debug features: P2 Right grants super jump + pit immunity, P2 Up enables slow-motion, P2 A freezes all entities, P2 Left latches permanent rightward movement.
 
