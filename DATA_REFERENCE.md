@@ -208,7 +208,27 @@ HP = $FF means invincible (immune to all damage). Dmg = contact damage in HP bar
 
 *Electric Gabyoall: standard table entry is $00 at its init routine ($3E); effective damage (4) applied via AI-driven dual-hitbox collision using alternate routine indices ($78/$79).
 
-Enemy names follow official Capcom Rockman 3 documentation. Pickelman Bull = "Picket Man" in English fan translations.
+Enemy names follow official Capcom Rockman 3 documentation. Pickelman Bull = "Picket Man" in English fan translations. All damage values verified against the [Mega Man Knowledge Base](https://megaman.fandom.com/wiki/List_of_Mega_Man_3_enemies).
+
+**Projectile Damage:**
+
+Enemies that fire projectiles spawn separate entities with their own `ent_routine` and damage from the same `contact_damage_table`. Listed below are only enemies with ranged attacks distinct from their contact damage.
+
+| Source Enemy | Projectile | Routine | Dmg |
+|-------------|-----------|---------|-----|
+| Potton | Copipi bomb | $04 | 4 |
+| New Shotman | Bullets (horiz / falling) | $1B / $0C | 2 |
+| Hammer Joe | Thrown hammer | $2D | 2 |
+| Metall DX | Bullets (3-round burst) | $0F | 2 |
+| Cannon | Arcing shell | $13 | 2 |
+| Gyoraibo | Torpedo | $29 / $45 | 2 |
+| Nitron | Falling bomb | $26 | 2 |
+| Hari Harry | Needle spread (5 bullets) | $36 | 2 |
+| Junk Golem | Thrown junk block | $24 | 4 |
+| Have 'Su' Bee | Dropped beehive | $2F | 2 |
+| Bomber Pepe | Egg bomb | $1D | 3 |
+
+Most projectile routines are shared: $0F (linear) is used by both Metall DX and fortress turrets; $0C (falling) by New Shotman and other droppers. To change a specific enemy's projectile damage, find its routine index above and edit `contact_damage_table` at that offset in bank $0A.
 
 **Doc Robot Entries ($40-$4F):**
 
