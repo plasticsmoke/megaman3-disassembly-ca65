@@ -230,22 +230,26 @@ Enemies that fire projectiles spawn separate entities with their own `ent_routin
 
 Most projectile routines are shared: $0F (linear) is used by both Metall DX and fortress turrets; $0C (falling) by New Shotman and other droppers. To change a specific enemy's projectile damage, find its routine index above and edit `contact_damage_table` at that offset in bank $0A.
 
-**Doc Robot Entries ($40-$4F):**
+**Doc Robot Screen Markers & Robot Masters ($40-$4F):**
 
 | ID | Entity | HP | Dmg |
 |----|--------|-----|-----|
 | $40-$46 | Doc Robot screen markers (no-op AI) | 3 | — |
-| $47 | Needle Press (B) | 28 | 4 |
-| $48 | Doc Robot (Flash Man) | 28 | 4 |
-| $49 | Doc Robot (Bubble Man) | 28 | 4 |
-| $4A | Doc Robot (Quick Man) | 28 | 8 |
-| $4B | Doc Robot (Wood Man) | 28 | 8 |
-| $4C | Doc Robot (Crash Man) | 28 | 4 |
-| $4D | Doc Robot (Air Man) | 28 | 8 |
-| $4E | Doc Robot (Metal Man) | 28 | 6 |
+| $47 | Needle Man | 28 | 4 |
+| $48 | Magnet Man | 28 | 6 |
+| $49 | Gemini Man | 28 | 6 |
+| $4A | Hard Man | 28 | 6 |
+| $4B | Top Man | 28 | 6 |
+| $4C | Snake Man | 28 | 6 |
+| $4D | Spark Man | 28 | 4 |
+| $4E | Shadow Man | 28 | 4 |
 | $4F | (unused) | $FF | — |
 
-Doc Robot damage values are from combat routines ($A0-$B3), not init routines. The specific Doc Robot form loaded depends on which AI bank ($04 or $05) is active for that stage.
+$47-$4E are the eight Robot Master bosses, each spawned in its own stage
+(and all eight again in the Wily 4 rematch hub). Routine indices $58-$5F →
+`main_robot_master_intro` (bank $1C/$1D $B853), which runs the drop-in intro
+and then morphs the entity to its fight AI ($C0-$D6, banks $06/$07). Damage
+values are from the fight AI combat routines.
 
 **Robot Master Intros, Tama, Items ($50-$67):**
 
@@ -254,31 +258,37 @@ Doc Robot damage values are from combat routines ($A0-$B3), not init routines. T
 | $50-$51 | Robot Master intros (Needle, Magnet) | $FF | — |
 | $52-$53 | Robot Master intros (Gemini, Hard) | $1C (28) | — |
 | $54-$56 | Robot Master intros (Top, Snake, Spark) | $FF | — |
-| $57 | Komasaburo (spinning top) | 10 | 8 |
+| $57 | Giant Met (Doc Needle mid-boss, bank $12 AI) | 10 | 8 |
 | $58-$5B | Tama segments | $FF/0 | — |
 | $5C | Giant Springer | 8 | 6 |
-| $5D-$5E | Tama segments | 8/1 | — |
-| $5F | (Tama-related) | 0 | — |
-| $60-$61 | Item Pickup (small/large) | 2 | — |
-| $62 | Komasaburo (variant) | 6 | 8 |
+| $5D | Tama segment | 8 | — |
+| $5E | Kamegoro Maker (Wily 1 boss) | 1 | 8 |
+| $5F | Kamegoro-room current spawner (Wily 1) | 0 | — |
+| $60-$61 | Petit Snakey (idle right/left) | 2 | — |
+| $62 | Komasaburo | 6 | 8 |
 | $63 | Surprise Box | 8 | — |
 | $64-$65 | Item Pickup | 1 | — |
 | $66-$67 | (unused) | 0 | — |
 
-**Robot Masters ($68-$6F):**
+**Doc Robots ($68-$6F):**
 
 | ID | Boss | AI routine | Dmg |
 |----|------|-----------|-----|
-| $68 | Needle Man | $90 | 4 |
-| $69 | Magnet Man | $91 | 6 |
-| $6A | Gemini Man | $92 | 6 |
-| $6B | Hard Man | $93 | 6 |
-| $6C | Top Man | $94 | 6 |
-| $6D | Snake Man | $95 | 6 |
-| $6E | Spark Man | $96 | 4 |
-| $6F | Shadow Man | $97 | 4 |
+| $68 | Doc Robot (Flash Man) | $90 | 4 |
+| $69 | Doc Robot (Bubble Man) | $91 | 4 |
+| $6A | Doc Robot (Quick Man) | $92 | 8 |
+| $6B | Doc Robot (Wood Man) | $93 | 8 |
+| $6C | Doc Robot (Crash Man) | $94 | 4 |
+| $6D | Doc Robot (Air Man) | $95 | 8 |
+| $6E | Doc Robot (Metal Man) | $96 | 6 |
+| $6F | Doc Robot (Heat Man) | $97 | 4 |
 
-Robot Masters have $FF in the health table; actual HP (28) is set by their AI init routines. Damage values are from combat routines ($C0-$D6).
+$68-$6F are the Doc Robot fights, spawned in pairs per Doc stage
+(Doc Needle: Crash+Air, Doc Gemini: Flash+Bubble, Doc Spark: Quick+Metal,
+Doc Shadow: Wood+Heat). Routine indices $90-$97 → `main_doc_robot_intro`
+(bank $1C/$1D $B6E8), which runs the shutter intro and morphs the entity
+to the MM2-boss fight AI ($A0-$B3, banks $04/$05). HP (28) is set by the
+intro routine; damage values are from the fight AI combat routines.
 
 **Boss Projectiles & Special ($70-$7F):**
 
@@ -287,26 +297,29 @@ Robot Masters have $FF in the health table; actual HP (28) is set by their AI in
 | $70 | (boss projectile) | 0 |
 | $71 | (boss projectile) | 10 |
 | $72-$76 | (boss projectiles) | 0 |
-| $77 | Gamma Fist | 0 |
+| $77 | Tama (Top Man stage cat mid-boss, `init_tama`) | 0 |
 | $78 | Proto Man (Gemini cutscene) | 0 |
-| $79-$7D | (unused) | 0 |
-| $7E-$7F | (fortress entity init) | 0 |
+| $79-$7D | Gamma + body parts (Wily 6; $7A = main, routine $E7) | 0 |
+| $7E-$7F | Gamma arena hazard entities (routine $EA) | 0 |
 
 **Fortress Bosses ($80-$8F):**
 
 | ID | Entity | HP | AI routine | Dmg |
 |----|--------|-----|-----------|-----|
-| $80 | Holograph / Kamegoro init | 0 | $EA | — |
+| $80 | Gamma arena hazard entity | 0 | $EA | — |
 | $81 | Yellow Devil | 28 | $E0 | 8 |
-| $82 | Wily Machine | 28 | $E3 | 8 |
-| $83 | Gamma | 28 | $E5 | 16 |
+| $82 | Wily Machine (phase A) | 28 | $E3 | 8 |
+| $83 | Wily Machine (phase B) | 28 | $E5 | 4 |
 | $84 | Break Man | 0 | $ED | — |
-| $85-$89 | (unused) | 0 | $00 | — |
-| $8A | Kamegoro Maker | 0 | $EB | 8 |
-| $8B-$8D | Kamegoro sub-entities | 0 | $EC | — |
+| $85-$89 | Wily Machine parts / landing dust | 0 | $00 | — |
+| $8A | Rematch teleporter | 0 | $EB | — |
+| $8B-$8D | Rematch teleporters | 0 | $EC | — |
 | $8E-$8F | (unused) | 0 | $00 | — |
 
-Gamma's contact damage (16) is the highest in the game — over half the player's HP in a single hit.
+Gamma is entity $7A (spawned in Wily 6, intro routine $E7); its main-phase
+contact damage of 16 (combat routine $E8) is the highest in the game — over
+half the player's HP in a single hit. The Kamegoro Maker boss is entity $5E
+(Wily 1, routine $F0) in the table above.
 
 ---
 
@@ -603,9 +616,28 @@ Layout IDs come in pairs: even = normal, odd = horizontally flipped.
 
 The 7-bit index (ID AND $7F) is used for table lookup. During boss fights (`boss_active` != 0), enemy/boss slots ($10-$1F) override to bank $15, providing boss-specific sprite data independent of the stage's animation banks.
 
-### Weapon Sprites (Bank $15)
+### Boss Sprites (Bank $15)
 
 Same format as banks $1A/$1B. Contains animation sequences and sprite definitions used during boss fights. Selected automatically for enemy/boss slots ($10-$1F) when `boss_active` is set, providing boss-specific sprite data independent of the stage's animation banks ($1A/$1B).
+
+Because of this override, boss animation IDs form a **separate namespace**
+that reuses the same numbers as regular-enemy animations (e.g. anim $26 is
+Hammer Joe via bank $1A but Needle Man's standing pose via bank $15). The
+Robot Master body animations form consecutive blocks in bank $15:
+
+| IDs | Boss | IDs | Boss |
+|-----|------|-----|------|
+| $1E-$21 | Magnet Man | $36-$3C | Spark Man |
+| $22-$25 | Snake Man | $3D-$43 | Shadow Man |
+| $26-$2A | Needle Man | $44-$49 | Top Man |
+| $2B-$30 | Hard Man | $01-$1D | Doc Robot body poses |
+| $32-$35 | Gemini Man | $58-$7F | boss projectiles / fortress bosses |
+
+Boss-fight CHR context comes from the boss room's `chr_param` (identical to
+the Wily 4 refight table at $DEAE in the fixed bank): needle $25, magnet $23,
+gemini $27, hard $24, top $2A, snake $26, spark $28, shadow $29. All Doc
+Robot rooms use param $0F (R4=$20, R5=$21); the intro code then swaps R5 to
+$21/$22 and SP3 per master (`doc_robot_intro_*` tables, bank $1C/$1D).
 
 ---
 

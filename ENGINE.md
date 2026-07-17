@@ -562,7 +562,12 @@ For each active entity (`ent_status` bit 7 set):
 **2. Bank selection** (`setup_sprite_render`): Reads `ent_flags` bit 6 for H-flip state → `$10` (EOR mask) and `$11` (0 or 1 offset). Selects PRG bank for animation data:
 - `ent_anim_id` bit 7 clear: bank `$1A`
 - `ent_anim_id` bit 7 set: bank `$1B` (ID masked to 7-bit)
-- Boss slots ($10-$1F) when boss is active: bank `$15` (weapon sprites)
+- Boss slots ($10-$1F) when boss is active: bank `$15` (boss sprites)
+
+The bank `$15` override makes boss animation IDs a separate namespace: the
+same 7-bit ID resolves to entirely different sprite data during a boss fight
+(e.g. anim `$26` = Hammer Joe via bank `$1A`, Needle Man's standing pose via
+bank `$15`). See DATA_REFERENCE §7 for the boss anim ID blocks.
 
 **3. Animation tick**: Compares tick counter (`ent_anim_frame & $7F`) against `tick_speed` (sequence byte 1). On match, tick resets to 0 (preserving bit 7) and frame index advances. When frame index reaches `frame_count`, it wraps to 0 — all animations loop. There is no "play once" mode; the only way to end an animation is a frame with sprite definition ID `$00`, which deactivates the entity.
 

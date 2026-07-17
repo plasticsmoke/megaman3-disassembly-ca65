@@ -89,16 +89,16 @@ main_wily_machine_C:
         jmp     teleporter_fall         ; teleporter fall handler
 main_kamegoro_maker:
                                         ; $E8 cmd 0:
-        jmp     kamegoro_current_init   ; Kamegoro Maker init
+        jmp     kamegoro_maker_init   ; Kamegoro Maker init
                                         ; $E8 cmd 1:
-        jmp     kamegoro_current_phase_init ; Kamegoro current phase init
+        jmp     kamegoro_maker_phase_init ; Kamegoro Maker phase init
                                         ; $E8 cmd 2:
-        jmp     holograph_block_init    ; holograph block init
-main_kamegoro_current:
+        jmp     kamegoro_room_block_init    ; Kamegoro room block init
+main_kamegoro_spawner:
                                         ; $E9 cmd 0:
-        jmp     holograph_main_init     ; holograph main init
+        jmp     kamegoro_spawner_init     ; Kamegoro current spawner init
                                         ; $E9 cmd 1:
-        jmp     holograph_current_dir_init ; holograph direction init
+        jmp     kamegoro_room_current_dir_init ; water current direction init
 main_holograph:
                                         ; $EA cmd 0:
         jmp     holograph_boss_init     ; holograph boss init
@@ -116,7 +116,7 @@ main_holograph:
         jmp     wily_machine_c_block_y_update ; block Y position update
 main_giant_met:
                                         ; $EB cmd 0:
-        jmp     kamegoro_maker_init     ; Giant Met / Kamegoro init
+        jmp     giant_met_init     ; Giant Met init (Doc Needle mid-boss)
 
 yellow_devil_noop:  rts
 
@@ -2152,16 +2152,16 @@ wily_machine_c_block_jump:  lda     #$A3 ; Y velocity sub = $A3
 wily_machine_c_block_end:  rts
 
 wily_machine_c_pal_table:  .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
-kamegoro_maker_init:  lda     ent_hitbox,x ; save hitbox
+giant_met_init:  lda     ent_hitbox,x ; save hitbox
         pha                             ; preserve on stack
         lda     #$00                    ; disable hitbox temporarily
         sta     ent_hitbox,x            ; clear contact damage
         jsr     entity_ai_dispatch      ; run collision + animation
         pla                             ; restore original hitbox
         sta     ent_hitbox,x            ; put hitbox back
-        bcs     kamegoro_maker_mode_check ; if still alive, skip init
+        bcs     giant_met_mode_check ; if still alive, skip init
         lda     ent_hp,x                ; check if HP depleted
-        bne     kamegoro_maker_mode_check ; if HP > 0, skip death
+        bne     giant_met_mode_check ; if HP > 0, skip death
         sta     game_mode               ; reset game mode (death)
         sta     ent_hitbox,x            ; disable hitbox on death
         lda     #$02                    ; spawn 3 explosion effects
@@ -2170,8 +2170,8 @@ kamegoro_maker_init:  lda     ent_hitbox,x ; save hitbox
         sta     $02                     ; store in temp
         lda     ent_y_px,x              ; base Y position for spawns
         sta     $03                     ; store in temp
-kamegoro_maker_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
-        bcs     kamegoro_maker_spawn_end ; no free slot, exit
+giant_met_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
+        bcs     giant_met_spawn_end ; no free slot, exit
         lda     #$71                    ; explosion entity type $71
         jsr     init_child_entity       ; spawn explosion child
         lda     #$00                    ; clear child timer
@@ -2185,43 +2185,43 @@ kamegoro_maker_spawn_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
         ldx     $01                     ; use counter as index
         lda     $02                     ; base X position
         clc                             ; prepare for X offset add
-        adc     kamegoro_maker_param_e,x ; add X offset from table
+        adc     giant_met_param_e,x ; add X offset from table
         sta     ent_x_px,y              ; set child X position
         lda     $03                     ; base Y position
         clc                             ; prepare for Y offset add
-        adc     kamegoro_maker_param_f,x ; add Y offset from table
+        adc     giant_met_param_f,x ; add Y offset from table
         sta     ent_y_px,y              ; set child Y position
         ldx     $0F                     ; restore parent slot
         dec     $01                     ; decrement spawn counter
-        bpl     kamegoro_maker_spawn_loop ; loop until all 3 spawned
+        bpl     giant_met_spawn_loop ; loop until all 3 spawned
         ldy     #$0F                    ; 16 palette bytes
-kamegoro_maker_pal_loop:  lda     kamegoro_maker_pal_table,y ; load boss palette color
+giant_met_pal_loop:  lda     giant_met_pal_table,y ; load boss palette color
         sta     $0600,y                 ; write to palette buffer
         dey                             ; next palette byte
-        bpl     kamegoro_maker_pal_loop ; loop all 16 colors
+        bpl     giant_met_pal_loop ; loop all 16 colors
         sty     palette_dirty           ; flag palette for upload
-kamegoro_maker_spawn_end:  rts
+giant_met_spawn_end:  rts
 
-kamegoro_maker_mode_check:  lda     game_mode ; check current game mode
+giant_met_mode_check:  lda     game_mode ; check current game mode
         cmp     #$03                    ; mode < 3?
-        bcc     kamegoro_maker_spawn_end ; not ready yet, return
+        bcc     giant_met_spawn_end ; not ready yet, return
         lda     ent_var1,x              ; check spawn delay timer
-        beq     kamegoro_maker_phase_check ; 0 = ready for new phase
+        beq     giant_met_phase_check ; 0 = ready for new phase
         dec     ent_var1,x              ; count down spawn delay
-        bne     kamegoro_maker_jump     ; still counting, apply gravity
+        bne     giant_met_jump     ; still counting, apply gravity
         lda     ent_var2,x              ; check burst spawn counter
-        beq     kamegoro_maker_jump     ; no more bursts, gravity
+        beq     giant_met_jump     ; no more bursts, gravity
         dec     ent_var2,x              ; decrement burst counter
-        beq     kamegoro_maker_jump     ; done bursting, gravity
+        beq     giant_met_jump     ; done bursting, gravity
         lda     #$1E                    ; 30-frame delay between spawns
         sta     ent_var1,x              ; reset spawn delay
-        jmp     kamegoro_maker_spawn_main ; spawn Kamegoro entity
+        jmp     giant_met_spawn_main ; spawn Kamegoro entity
 
-kamegoro_maker_jump:  jmp     kamegoro_maker_gravity
+giant_met_jump:  jmp     giant_met_gravity
 
-kamegoro_maker_phase_check:  lda     ent_status,x ; get sub-phase
+giant_met_phase_check:  lda     ent_status,x ; get sub-phase
         and     #$0F                    ; check low nibble
-        bne     kamegoro_maker_timer_start ; already initialized
+        bne     giant_met_timer_start ; already initialized
         inc     ent_status,x            ; advance to phase 1
         sta     ent_yvel,x              ; clear Y velocity (A=0)
         lda     #$80                    ; Y velocity sub = $80
@@ -2230,8 +2230,8 @@ kamegoro_maker_phase_check:  lda     ent_status,x ; get sub-phase
         sta     ent_facing,x            ; set initial direction
         lda     #$F0                    ; timer = 240 frames
         sta     ent_timer,x             ; set movement duration
-kamegoro_maker_timer_start:  lda     ent_timer,x ; check movement timer
-        bne     kamegoro_maker_movement ; timer active, keep moving
+giant_met_timer_start:  lda     ent_timer,x ; check movement timer
+        bne     giant_met_movement ; timer active, keep moving
         lda     ent_facing,x            ; get direction flags
         eor     #$0C                    ; toggle up/down bits
         and     #$0C                    ; isolate direction bits
@@ -2241,43 +2241,43 @@ kamegoro_maker_timer_start:  lda     ent_timer,x ; check movement timer
         sta     $E5                     ; store new RNG value
         and     #$03                    ; random 0-3
         tay                             ; use random value as index
-        lda     kamegoro_maker_timer_table,y ; look up timer duration
+        lda     giant_met_timer_table,y ; look up timer duration
         sta     ent_timer,x             ; set new movement timer
         lda     #$00                    ; reset camera X
         sta     camera_x_lo             ; lock scroll position
-kamegoro_maker_movement:  lda     ent_facing,x ; get direction flags
+giant_met_movement:  lda     ent_facing,x ; get direction flags
         and     #$04                    ; test bit 2 (down flag)
-        bne     kamegoro_maker_move_down ; if set, move down
+        bne     giant_met_move_down ; if set, move down
         jsr     move_sprite_up          ; move maker upward
         lda     #$48                    ; upper Y limit = $48
         cmp     ent_y_px,x              ; reached top boundary?
-        bcc     kamegoro_maker_timer_dec ; no, keep moving
+        bcc     giant_met_timer_dec ; no, keep moving
         sta     ent_y_px,x              ; clamp to upper limit
-        bcs     kamegoro_maker_facing   ; reverse direction
-kamegoro_maker_move_down:  jsr     move_sprite_down ; move maker downward
+        bcs     giant_met_facing   ; reverse direction
+giant_met_move_down:  jsr     move_sprite_down ; move maker downward
         lda     #$80                    ; lower Y limit = $80
         cmp     ent_y_px,x              ; reached bottom boundary?
-        bcs     kamegoro_maker_timer_dec ; no, keep moving
+        bcs     giant_met_timer_dec ; no, keep moving
         sta     ent_y_px,x              ; clamp to lower limit
-kamegoro_maker_facing:  lda     ent_facing,x ; get current direction
+giant_met_facing:  lda     ent_facing,x ; get current direction
         eor     #$0C                    ; toggle up/down bits
         sta     ent_facing,x            ; reverse vertical dir
-kamegoro_maker_timer_dec:  dec     ent_timer,x ; count down timer
-        bne     kamegoro_maker_gravity  ; timer not zero, continue
+giant_met_timer_dec:  dec     ent_timer,x ; count down timer
+        bne     giant_met_gravity  ; timer not zero, continue
         lda     #$1E                    ; 30-frame spawn delay
         sta     ent_var1,x              ; set delay before spawn
         lda     $E4                     ; RNG seed
         adc     $E6                     ; advance RNG state
         sta     $E4                     ; store updated RNG
         and     #$01                    ; random 0 or 1
-        beq     kamegoro_maker_var2_init ; 0 = spawn Kamegoro turtle
-        jsr     kamegoro_maker_spawn_pellet ; 1 = spawn pellet spread
-        jmp     kamegoro_maker_gravity  ; skip turtle spawn path
+        beq     giant_met_var2_init ; 0 = spawn Kamegoro turtle
+        jsr     giant_met_spawn_pellet ; 1 = spawn pellet spread
+        jmp     giant_met_gravity  ; skip turtle spawn path
 
-kamegoro_maker_var2_init:  lda     #$03 ; 3 burst spawns
+giant_met_var2_init:  lda     #$03 ; 3 burst spawns
         sta     ent_var2,x              ; set burst counter
-        jsr     kamegoro_maker_spawn_main ; spawn first Kamegoro
-kamegoro_maker_gravity:  lda     ent_y_px,x ; get Y position
+        jsr     giant_met_spawn_main ; spawn first Kamegoro
+giant_met_gravity:  lda     ent_y_px,x ; get Y position
         sec                             ; subtract $D0 offset
         sbc     #$D0                    ; subtract screen base offset
         clc                             ; adjust for screen bounds
@@ -2285,10 +2285,10 @@ kamegoro_maker_gravity:  lda     ent_y_px,x ; get Y position
         sta     $5E                     ; store offscreen check result
         rts                             ; return after gravity update
 
-kamegoro_maker_spawn_pellet:  lda     #$02 ; spawn 3 pellets
+giant_met_spawn_pellet:  lda     #$02 ; spawn 3 pellets
         sta     $01                     ; loop counter (0-2)
-kamegoro_maker_pellet_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
-        bcs     kamegoro_maker_pellet_end ; no free slot, exit
+giant_met_pellet_loop:  jsr     find_enemy_freeslot_y ; find free enemy slot
+        bcs     giant_met_pellet_end ; no free slot, exit
         lda     #$6F                    ; pellet entity type $6F
         jsr     init_child_entity       ; spawn pellet child
         lda     #$80                    ; contact damage, no HP box
@@ -2309,21 +2309,21 @@ kamegoro_maker_pellet_loop:  jsr     find_enemy_freeslot_y ; find free enemy slo
         sta     ent_facing,y            ; pellets fire leftward
         stx     temp_00                 ; save parent slot
         ldx     $01                     ; use counter as param index
-        lda     kamegoro_maker_param_a,x ; X velocity sub-pixel
+        lda     giant_met_param_a,x ; X velocity sub-pixel
         sta     ent_xvel_sub,y          ; set pellet X vel sub
-        lda     kamegoro_maker_param_b,x ; X velocity whole pixel
+        lda     giant_met_param_b,x ; X velocity whole pixel
         sta     ent_xvel,y              ; set pellet X velocity
-        lda     kamegoro_maker_param_c,x ; Y velocity sub-pixel
+        lda     giant_met_param_c,x ; Y velocity sub-pixel
         sta     ent_yvel_sub,y          ; set pellet Y vel sub
-        lda     kamegoro_maker_param_d,x ; Y velocity whole pixel
+        lda     giant_met_param_d,x ; Y velocity whole pixel
         sta     ent_yvel,y              ; set pellet Y velocity
         ldx     temp_00                 ; restore parent slot
         dec     $01                     ; decrement pellet counter
-        bpl     kamegoro_maker_pellet_loop ; loop until all 3 spawned
-kamegoro_maker_pellet_end:  rts
+        bpl     giant_met_pellet_loop ; loop until all 3 spawned
+giant_met_pellet_end:  rts
 
-kamegoro_maker_spawn_main:  jsr     find_enemy_freeslot_y ; find free enemy slot
-        bcs     kamegoro_maker_pellet_end ; no slot available, return
+giant_met_spawn_main:  jsr     find_enemy_freeslot_y ; find free enemy slot
+        bcs     giant_met_pellet_end ; no slot available, return
         lda     #$1D                    ; Kamegoro entity type $1D
         jsr     init_child_entity       ; spawn Kamegoro turtle
         lda     #$C0                    ; contact dmg + HP bar visible
@@ -2350,21 +2350,21 @@ kamegoro_maker_spawn_main:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sta     ent_hp,y                ; turtle takes 1 hit
         rts                             ; return after Kamegoro spawn
 
-kamegoro_maker_timer_table:  .byte   $1E,$3C,$3C,$5A
-kamegoro_maker_param_a:  .byte   $B5,$00,$B5
-kamegoro_maker_param_b:  .byte   $00,$01,$00
-kamegoro_maker_param_c:  .byte   $4B,$00,$B5
-kamegoro_maker_param_d:  .byte   $FF,$00,$00
-kamegoro_maker_param_e:  .byte   $00,$F0,$10
-kamegoro_maker_param_f:  .byte   $00,$10,$10
-kamegoro_maker_pal_table:  .byte   $0F,$20,$27,$17,$0F,$03,$12,$0F
+giant_met_timer_table:  .byte   $1E,$3C,$3C,$5A
+giant_met_param_a:  .byte   $B5,$00,$B5
+giant_met_param_b:  .byte   $00,$01,$00
+giant_met_param_c:  .byte   $4B,$00,$B5
+giant_met_param_d:  .byte   $FF,$00,$00
+giant_met_param_e:  .byte   $00,$F0,$10
+giant_met_param_f:  .byte   $00,$10,$10
+giant_met_pal_table:  .byte   $0F,$20,$27,$17,$0F,$03,$12,$0F
         .byte   $0F,$2B,$1B,$0B,$0F,$22,$12,$02
-kamegoro_current_init:  lda     ent_status,x ; get sub-phase counter
+kamegoro_maker_init:  lda     ent_status,x ; get sub-phase counter
         and     #$0F                    ; isolate low nibble
-        bne     kamegoro_current_phase_check ; already initialized
+        bne     kamegoro_maker_phase_check ; already initialized
         lda     #$09                    ; PSTATE_BOSS_WAIT
         cmp     player_state            ; player already waiting?
-        beq     kamegoro_current_hp_check ; skip if already in boss wait
+        beq     kamegoro_maker_hp_check ; skip if already in boss wait
         sta     player_state            ; freeze player for boss intro
         lda     #$80                    ; enable boss HP bar display
         sta     boss_hp_display         ; show boss HP bar
@@ -2373,104 +2373,104 @@ kamegoro_current_init:  lda     ent_status,x ; get sub-phase counter
         sta     $B3                     ; set max boss HP ($0E = 14)
         lda     #MUSIC_BOSS             ; play boss music
         jsr     submit_sound_ID_D9      ; if not already playing
-kamegoro_current_hp_check:  lda     boss_hp_display ; check HP bar fill status
+kamegoro_maker_hp_check:  lda     boss_hp_display ; check HP bar fill status
         cmp     #HEALTH_FULL            ; fully filled?
-        bne     kamegoro_current_return ; still filling, wait
-        jsr     kamegoro_current_death_counter ; randomize movement params
+        bne     kamegoro_maker_return ; still filling, wait
+        jsr     kamegoro_maker_death_counter ; randomize movement params
         inc     ent_status,x            ; advance to active phase
-kamegoro_current_phase_check:  lda     ent_status,x ; get current status
+kamegoro_maker_phase_check:  lda     ent_status,x ; get current status
         and     #$02                    ; check bit 1 (death phase)
-        bne     kamegoro_current_return ; not in death phase
+        bne     kamegoro_maker_return ; not in death phase
         lda     ent_anim_id,x           ; get animation ID
         cmp     #$4F                    ; shell-open anim $4F?
-        beq     kamegoro_current_anim_check ; check if anim finished
+        beq     kamegoro_maker_anim_check ; check if anim finished
         lda     ent_var1,x              ; check death flag
-        bne     kamegoro_current_death_init ; nonzero = children active
+        bne     kamegoro_maker_death_init ; nonzero = children active
         lda     ent_var2,x              ; check spawn count
         cmp     #$05                    ; spawned 5 or more?
-        bcs     kamegoro_current_status_inc ; max spawns reached
+        bcs     kamegoro_maker_status_inc ; max spawns reached
         lda     ent_timer,x             ; check movement timer
-        bne     kamegoro_current_movement ; timer expired, open shell
+        bne     kamegoro_maker_movement ; timer expired, open shell
         lda     #$4F                    ; shell-open animation $4F
         jsr     reset_sprite_anim       ; switch to opening anim
-kamegoro_current_anim_check:  lda     ent_anim_state,x ; check anim completion
+kamegoro_maker_anim_check:  lda     ent_anim_state,x ; check anim completion
         cmp     #$02                    ; state 2 = anim done
-        bne     kamegoro_current_return ; still animating, wait
-        jsr     kamegoro_current_spawn_entity ; spawn child from shell
+        bne     kamegoro_maker_return ; still animating, wait
+        jsr     kamegoro_maker_spawn_entity ; spawn child from shell
         inc     ent_var2,x              ; increment spawn counter
         lda     #$31                    ; closed-shell animation $31
         jsr     reset_sprite_anim       ; switch to closed anim
         inc     ent_var1,x              ; flag children alive
-kamegoro_current_movement:  lda     ent_facing,x ; check horizontal direction
+kamegoro_maker_movement:  lda     ent_facing,x ; check horizontal direction
         and     #FACING_RIGHT           ; test right-facing bit
-        beq     kamegoro_current_move_left_col ; 0 = facing left
+        beq     kamegoro_maker_move_left_col ; 0 = facing left
         ldy     #$20                    ; right collision box $20
         jsr     move_right_collide      ; move right with collision
-        jmp     kamegoro_current_move_check ; check for wall collision
+        jmp     kamegoro_maker_move_check ; check for wall collision
 
-kamegoro_current_move_left_col:  ldy     #$21 ; left collision box $21
+kamegoro_maker_move_left_col:  ldy     #$21 ; left collision box $21
         jsr     move_left_collide       ; move left with collision
-kamegoro_current_move_check:  bcc     kamegoro_current_timer_dec ; no collision, count down
+kamegoro_maker_move_check:  bcc     kamegoro_maker_timer_dec ; no collision, count down
         lda     ent_facing,x            ; hit wall, flip direction
         eor     #$03                    ; toggle left/right bits
         sta     ent_facing,x            ; reverse horizontal facing
-kamegoro_current_timer_dec:  dec     ent_timer,x ; count down move timer
+kamegoro_maker_timer_dec:  dec     ent_timer,x ; count down move timer
         rts                             ; return after timer tick
 
-kamegoro_current_status_inc:  inc     ent_status,x ; max spawns, advance phase
-kamegoro_current_return:  rts
+kamegoro_maker_status_inc:  inc     ent_status,x ; max spawns, advance phase
+kamegoro_maker_return:  rts
 
-kamegoro_current_death_init:  lda     #$00 ; start child scan
+kamegoro_maker_death_init:  lda     #$00 ; start child scan
         sta     temp_00                 ; clear live child count
         lda     #$80                    ; Kamegoro maker spawn ID $80
         sta     $01                     ; store for comparison
         ldy     #$1F                    ; scan slots $10-$1F
-kamegoro_current_death_loop:  lda     ent_status,y ; check if slot active
-        bmi     kamegoro_current_death_filter ; active, check spawn ID
-kamegoro_current_death_next:  dey
+kamegoro_maker_death_loop:  lda     ent_status,y ; check if slot active
+        bmi     kamegoro_maker_death_filter ; active, check spawn ID
+kamegoro_maker_death_next:  dey
         cpy     #$0F                    ; check slot $10
-        bne     kamegoro_current_death_loop ; loop all enemy slots
+        bne     kamegoro_maker_death_loop ; loop all enemy slots
         lda     temp_00                 ; get live child count
-        bne     kamegoro_current_death_anim ; children still alive
+        bne     kamegoro_maker_death_anim ; children still alive
         lda     #$00                    ; all children defeated
         sta     ent_var1,x              ; clear death flag
         lda     ent_var2,x              ; get total spawn count
         tay                             ; use spawn count as index
         lda     boss_hp_display         ; current HP bar value
         sec                             ; prepare for HP subtraction
-        sbc     kamegoro_current_timer_table,y ; subtract HP for this wave
+        sbc     kamegoro_maker_timer_table,y ; subtract HP for this wave
         sta     boss_hp_display         ; update HP display
         and     #$1F                    ; isolate HP value bits
-        bne     kamegoro_current_death_anim ; HP = 0 means boss dead
+        bne     kamegoro_maker_death_anim ; HP = 0 means boss dead
         jmp     entity_ai_defeat        ; trigger boss defeat
 
-kamegoro_current_death_anim:  lda     #$31 ; closed-shell animation
+kamegoro_maker_death_anim:  lda     #$31 ; closed-shell animation
         jsr     reset_sprite_anim       ; return to closed pose
-        jsr     kamegoro_current_death_counter ; re-randomize next timer
+        jsr     kamegoro_maker_death_counter ; re-randomize next timer
         rts                             ; return after shell reset
 
-kamegoro_current_death_filter:  lda     $01 ; get spawn ID to match
+kamegoro_maker_death_filter:  lda     $01 ; get spawn ID to match
         cmp     ent_spawn_id,y          ; is this a Kamegoro child?
-        bne     kamegoro_current_death_next ; no match, skip slot
+        bne     kamegoro_maker_death_next ; no match, skip slot
         inc     temp_00                 ; count this live child
-        jmp     kamegoro_current_death_next ; continue scanning slots
+        jmp     kamegoro_maker_death_next ; continue scanning slots
 
-kamegoro_current_death_counter:  lda     $E4 ; RNG seed
+kamegoro_maker_death_counter:  lda     $E4 ; RNG seed
         adc     $E5                     ; advance RNG
         sta     $E5                     ; store updated RNG
         and     #$03                    ; random 0-3
         tay                             ; use random value as index
-        lda     kamegoro_current_pos_table,y ; look up move timer value
+        lda     kamegoro_maker_pos_table,y ; look up move timer value
         sta     ent_timer,x             ; set movement timer
-        lda     kamegoro_current_spawn_table,y ; look up facing direction
+        lda     kamegoro_maker_spawn_table,y ; look up facing direction
         sta     ent_facing,x            ; set move direction
         rts                             ; return after timer/facing set
 
-kamegoro_current_pos_table:  .byte   $40,$A0,$70,$D0
-kamegoro_current_spawn_table:  .byte   $01,$02,$01,$02
-kamegoro_current_timer_table:  .byte   $01,$02,$03,$05,$08,$0A
-kamegoro_current_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
-        bcs     kamegoro_current_spawn_return ; no slot, return
+kamegoro_maker_pos_table:  .byte   $40,$A0,$70,$D0
+kamegoro_maker_spawn_table:  .byte   $01,$02,$01,$02
+kamegoro_maker_timer_table:  .byte   $01,$02,$03,$05,$08,$0A
+kamegoro_maker_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
+        bcs     kamegoro_maker_spawn_return ; no slot, return
         sty     temp_00                 ; save child slot index
         lda     ent_x_px,x              ; copy parent X pixel
         sta     ent_x_px,y              ; to child X pixel
@@ -2492,16 +2492,16 @@ kamegoro_current_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy 
         sta     ent_var2,y              ; child knows its wave index
         sta     $02                     ; save wave index to temp
         tay                             ; use as table index
-        lda     kamegoro_current_spawn_timer_a,y ; look up facing for wave
+        lda     kamegoro_maker_spawn_timer_a,y ; look up facing for wave
         ldy     temp_00                 ; restore child slot
         sta     ent_facing,y            ; set child facing
         ldy     $02                     ; reload wave index
-        lda     kamegoro_current_spawn_facing,y ; look up X vel sub for wave
+        lda     kamegoro_maker_spawn_facing,y ; look up X vel sub for wave
         ldy     temp_00                 ; restore child slot
         sta     ent_xvel_sub,y          ; set child X vel sub
         sta     ent_yvel_sub,y          ; same value for Y vel sub
         ldy     $02                     ; reload wave index
-        lda     kamegoro_current_spawn_timer_b,y ; look up velocity for wave
+        lda     kamegoro_maker_spawn_timer_b,y ; look up velocity for wave
         ldy     temp_00                 ; restore child slot
         sta     ent_xvel,y              ; set child X velocity
         sta     ent_yvel,y              ; same value for Y velocity
@@ -2509,141 +2509,141 @@ kamegoro_current_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy 
         jsr     init_child_entity       ; init child sprite/status
         lda     ent_facing,y            ; check child facing
         and     #FACING_RIGHT           ; test right-facing bit
-        bne     kamegoro_current_spawn_return ; facing right, keep H-flip
+        bne     kamegoro_maker_spawn_return ; facing right, keep H-flip
         lda     ent_flags,y             ; facing left, clear H-flip
         and     #$BF                    ; clear bit 6 (H-flip)
         sta     ent_flags,y             ; update child flags
-kamegoro_current_spawn_return:  rts
+kamegoro_maker_spawn_return:  rts
 
-kamegoro_current_spawn_timer_a:  .byte   $06,$05,$05,$06,$05,$06
-kamegoro_current_spawn_facing:  .byte   $80,$00,$80,$00,$00,$00
-kamegoro_current_spawn_timer_b:  .byte   $00,$01,$01,$02,$03,$04
-kamegoro_current_phase_init:  lda     ent_status,x ; get sub-phase
+kamegoro_maker_spawn_timer_a:  .byte   $06,$05,$05,$06,$05,$06
+kamegoro_maker_spawn_facing:  .byte   $80,$00,$80,$00,$00,$00
+kamegoro_maker_spawn_timer_b:  .byte   $00,$01,$01,$02,$03,$04
+kamegoro_maker_phase_init:  lda     ent_status,x ; get sub-phase
         and     #$0F                    ; isolate low nibble
-        bne     kamegoro_current_phase_status ; already initialized
+        bne     kamegoro_maker_phase_status ; already initialized
         sta     ent_var1,x              ; clear var1
         lda     #$78                    ; timer = 120 frames
         sta     ent_timer,x             ; set initial move timer
         inc     ent_status,x            ; advance to phase 1
-kamegoro_current_phase_status:  lda     ent_status,x ; get current status
+kamegoro_maker_phase_status:  lda     ent_status,x ; get current status
         and     #$02                    ; check bit 1 (launched)
-        beq     kamegoro_current_move_routine ; not launched, walk
-        jmp     kamegoro_current_launched ; handle launched/airborne
+        beq     kamegoro_maker_move_routine ; not launched, walk
+        jmp     kamegoro_maker_launched ; handle launched/airborne
 
-kamegoro_current_move_routine:  jsr     kamegoro_current_var1_spawn ; check if at spawn Y level
+kamegoro_maker_move_routine:  jsr     kamegoro_maker_var1_spawn ; check if at spawn Y level
         lda     ent_timer,x             ; check move timer
-        bne     kamegoro_current_timer_cmp ; timer active, keep moving
+        bne     kamegoro_maker_timer_cmp ; timer active, keep moving
         lda     ent_y_px,x              ; get current Y position
         cmp     #$68                    ; above floor level $68?
-        bcs     kamegoro_current_spawn_effect ; on floor, spawn effect
+        bcs     kamegoro_maker_spawn_effect ; on floor, spawn effect
         lda     #$78                    ; new timer = 120 frames
         sta     ent_timer,x             ; reset movement timer
-        bne     kamegoro_current_timer_dec_2 ; skip to timer decrement
-kamegoro_current_spawn_effect:  jsr     kamegoro_current_effect_spawn_2 ; spawn landing/turn effect
-        jsr     kamegoro_current_face_dir ; set facing toward player
+        bne     kamegoro_maker_timer_dec_2 ; skip to timer decrement
+kamegoro_maker_spawn_effect:  jsr     kamegoro_maker_effect_spawn_2 ; spawn landing/turn effect
+        jsr     kamegoro_maker_face_dir ; set facing toward player
         lda     #$FF                    ; timer = $FF (continuous)
         sta     ent_timer,x             ; set continuous movement
-kamegoro_current_timer_cmp:  cmp     #$FF ; $FF = continuous mode?
-        beq     kamegoro_current_move_dir ; skip decrement if $FF
-kamegoro_current_timer_dec_2:  dec     ent_timer,x ; count down move timer
-kamegoro_current_move_dir:  lda     ent_facing,x ; check facing direction
+kamegoro_maker_timer_cmp:  cmp     #$FF ; $FF = continuous mode?
+        beq     kamegoro_maker_move_dir ; skip decrement if $FF
+kamegoro_maker_timer_dec_2:  dec     ent_timer,x ; count down move timer
+kamegoro_maker_move_dir:  lda     ent_facing,x ; check facing direction
         and     #FACING_RIGHT           ; test right-facing bit
-        beq     kamegoro_current_move_left ; 0 = facing left
+        beq     kamegoro_maker_move_left ; 0 = facing left
         ldy     #$0C                    ; collision box $0C
         jsr     move_right_collide      ; move right with collision
-        jmp     kamegoro_current_collision ; check wall collision
+        jmp     kamegoro_maker_collision ; check wall collision
 
-kamegoro_current_move_left:  ldy     #$0D ; collision box $0D
+kamegoro_maker_move_left:  ldy     #$0D ; collision box $0D
         jsr     move_left_collide       ; move left with collision
-kamegoro_current_collision:  bcc     kamegoro_current_vert_check ; no wall hit, check vert
+kamegoro_maker_collision:  bcc     kamegoro_maker_vert_check ; no wall hit, check vert
         lda     ent_facing,x            ; hit wall, flip direction
         eor     #$03                    ; toggle left/right bits
         sta     ent_facing,x            ; reverse horizontal facing
         and     #$0C                    ; check vertical bits
-        bne     kamegoro_current_return_end ; has vert direction, done
+        bne     kamegoro_maker_return_end ; has vert direction, done
         lda     ent_facing,x            ; no vert direction yet
         ora     #$08                    ; set upward bit
         sta     ent_facing,x            ; add climb after wall hit
         rts                             ; done after wall reversal
 
-kamegoro_current_vert_check:  lda     ent_facing,x ; check vertical direction
+kamegoro_maker_vert_check:  lda     ent_facing,x ; check vertical direction
         and     #$0C                    ; isolate vert bits (up/down)
-        beq     kamegoro_current_return_end ; no vert movement, done
+        beq     kamegoro_maker_return_end ; no vert movement, done
         and     #$04                    ; test bit 2 (down flag)
-        beq     kamegoro_current_facing_check ; 0 = moving up
+        beq     kamegoro_maker_facing_check ; 0 = moving up
         lda     ent_timer,x             ; check if continuous mode
         cmp     #$FF                    ; timer $FF = continuous?
-        beq     kamegoro_current_anim_type2 ; use alt anim in continuous
+        beq     kamegoro_maker_anim_type2 ; use alt anim in continuous
         lda     #$5E                    ; normal crawl-down anim
-        bne     kamegoro_current_anim_set ; always branch (A != 0)
-kamegoro_current_anim_type2:  lda     #$62 ; continuous crawl-down anim
-kamegoro_current_anim_set:  sta     ent_anim_id,x ; set animation ID
+        bne     kamegoro_maker_anim_set ; always branch (A != 0)
+kamegoro_maker_anim_type2:  lda     #$62 ; continuous crawl-down anim
+kamegoro_maker_anim_set:  sta     ent_anim_id,x ; set animation ID
         ldy     #$0E                    ; collision box $0E (down)
         jsr     move_down_collide       ; move down with collision
-        jmp     kamegoro_current_col_return ; check floor collision
+        jmp     kamegoro_maker_col_return ; check floor collision
 
-kamegoro_current_facing_check:  lda     ent_facing,x ; check facing for sprite flip
+kamegoro_maker_facing_check:  lda     ent_facing,x ; check facing for sprite flip
         and     #FACING_RIGHT           ; test right-facing bit
-        beq     kamegoro_current_flag_clear ; 0 = facing left
+        beq     kamegoro_maker_flag_clear ; 0 = facing left
         lda     ent_flags,x             ; facing right, clear H-flip
         and     #$BF                    ; clear bit 6
         sta     ent_flags,x             ; update flags (no H-flip)
-        bne     kamegoro_current_flag_check ; always branch (flags != 0)
-kamegoro_current_flag_clear:  lda     ent_flags,x ; facing left, set H-flip
+        bne     kamegoro_maker_flag_check ; always branch (flags != 0)
+kamegoro_maker_flag_clear:  lda     ent_flags,x ; facing left, set H-flip
         ora     #ENT_FLAG_HFLIP         ; set bit 6 (H-flip)
         sta     ent_flags,x             ; update flags (H-flipped)
-kamegoro_current_flag_check:  lda     ent_timer,x ; check if continuous mode
+kamegoro_maker_flag_check:  lda     ent_timer,x ; check if continuous mode
         cmp     #$FF                    ; timer $FF = continuous?
-        beq     kamegoro_current_anim_up ; use alt anim in continuous
+        beq     kamegoro_maker_anim_up ; use alt anim in continuous
         lda     #$60                    ; normal crawl-up anim
-        bne     kamegoro_current_anim_down ; always branch (A != 0)
-kamegoro_current_anim_up:  lda     #$64 ; continuous crawl-up anim
-kamegoro_current_anim_down:  sta     ent_anim_id,x ; set animation ID
+        bne     kamegoro_maker_anim_down ; always branch (A != 0)
+kamegoro_maker_anim_up:  lda     #$64 ; continuous crawl-up anim
+kamegoro_maker_anim_down:  sta     ent_anim_id,x ; set animation ID
         ldy     #$0F                    ; collision box $0F (up)
         jsr     move_up_collide         ; move up with collision
-kamegoro_current_col_return:  bcc     kamegoro_current_return_end ; no collision, done
+kamegoro_maker_col_return:  bcc     kamegoro_maker_return_end ; no collision, done
         lda     ent_facing,x            ; hit ceiling/floor
         eor     #$0C                    ; toggle up/down bits
         sta     ent_facing,x            ; reverse vertical direction
-kamegoro_current_return_end:  rts
+kamegoro_maker_return_end:  rts
 
-kamegoro_current_launched:  lda     ent_var3,x ; check if velocity set
-        bne     kamegoro_current_gravity ; already initialized
+kamegoro_maker_launched:  lda     ent_var3,x ; check if velocity set
+        bne     kamegoro_maker_gravity ; already initialized
         lda     ent_var2,x              ; get wave index
         tay                             ; use as table index
-        lda     kamegoro_current_spawn_id_table,y ; look up Y vel sub
+        lda     kamegoro_maker_spawn_id_table,y ; look up Y vel sub
         sta     ent_yvel_sub,x          ; set launch Y vel sub
-        lda     kamegoro_current_spawn_type,y ; look up Y velocity
+        lda     kamegoro_maker_spawn_type,y ; look up Y velocity
         sta     ent_yvel,x              ; set launch Y velocity
-        lda     kamegoro_current_facing_table,y ; look up X vel sub
+        lda     kamegoro_maker_facing_table,y ; look up X vel sub
         sta     ent_xvel_sub,x          ; set launch X vel sub
-        lda     kamegoro_current_speed_table,y ; look up X velocity
+        lda     kamegoro_maker_speed_table,y ; look up X velocity
         sta     ent_xvel,x              ; set launch X velocity
         inc     ent_var3,x              ; mark velocity initialized
-kamegoro_current_gravity:  ldy     #$0F ; collision box $0F
+kamegoro_maker_gravity:  ldy     #$0F ; collision box $0F
         jsr     move_vertical_gravity   ; apply gravity + move vert
         lda     $10                     ; get collision result
         and     #$10                    ; test TILE_SOLID bit
-        beq     kamegoro_current_move_dir_2 ; no solid tile, move horiz
-        jmp     kamegoro_current_status_dec ; landed, return to walking
+        beq     kamegoro_maker_move_dir_2 ; no solid tile, move horiz
+        jmp     kamegoro_maker_status_dec ; landed, return to walking
 
-kamegoro_current_move_dir_2:  lda     ent_facing,x ; check facing direction
+kamegoro_maker_move_dir_2:  lda     ent_facing,x ; check facing direction
         and     #FACING_RIGHT           ; test right-facing bit
-        beq     kamegoro_current_move_left_2 ; 0 = facing left
+        beq     kamegoro_maker_move_left_2 ; 0 = facing left
         ldy     #$0C                    ; collision box $0C
         jsr     move_right_collide      ; move right with collision
         lda     ent_flags,x             ; clear H-flip for right
         and     #$BF                    ; clear bit 6
         sta     ent_flags,x             ; update flags
-        jmp     kamegoro_current_col_end ; check for wall collision
+        jmp     kamegoro_maker_col_end ; check for wall collision
 
-kamegoro_current_move_left_2:  ldy     #$0D ; collision box $0D
+kamegoro_maker_move_left_2:  ldy     #$0D ; collision box $0D
         jsr     move_left_collide       ; move left with collision
         lda     ent_flags,x             ; set H-flip for left
         ora     #ENT_FLAG_HFLIP         ; set bit 6
         sta     ent_flags,x             ; update flags
-kamegoro_current_col_end:  bcc     kamegoro_current_vel_check ; no wall hit, check Y vel
-kamegoro_current_status_dec:  dec     ent_status,x ; wall/floor hit, end launch
+kamegoro_maker_col_end:  bcc     kamegoro_maker_vel_check ; no wall hit, check Y vel
+kamegoro_maker_status_dec:  dec     ent_status,x ; wall/floor hit, end launch
         lda     #$00                    ; clear var1
         sta     ent_var1,x              ; reset death flag
         sta     ent_var3,x              ; clear launch init flag
@@ -2652,75 +2652,75 @@ kamegoro_current_status_dec:  dec     ent_status,x ; wall/floor hit, end launch
         sta     ent_facing,x            ; reverse vert direction
         lda     ent_var2,x              ; get wave index
         tay                             ; use as table index
-        lda     kamegoro_current_spawn_facing,y ; look up walk vel sub
+        lda     kamegoro_maker_spawn_facing,y ; look up walk vel sub
         sta     ent_yvel_sub,x          ; restore Y vel sub
         sta     ent_xvel_sub,x          ; restore X vel sub
-        lda     kamegoro_current_spawn_timer_b,y ; look up walk velocity
+        lda     kamegoro_maker_spawn_timer_b,y ; look up walk velocity
         sta     ent_yvel,x              ; restore Y velocity
         sta     ent_xvel,x              ; restore X velocity
         rts                             ; return to walking mode
 
-kamegoro_current_vel_check:  lda     ent_yvel,x ; check Y velocity sign
-        bpl     kamegoro_current_return_final ; moving down, done
+kamegoro_maker_vel_check:  lda     ent_yvel,x ; check Y velocity sign
+        bpl     kamegoro_maker_return_final ; moving down, done
         lda     ent_y_px,x              ; get Y position
         cmp     #$20                    ; above screen top ($20)?
-        bcs     kamegoro_current_status_dec ; too high, end launch
-kamegoro_current_return_final:  rts
+        bcs     kamegoro_maker_status_dec ; too high, end launch
+kamegoro_maker_return_final:  rts
 
-kamegoro_current_spawn_id_table:  .byte   $A2,$4F,$B4,$44,$00,$9E
-kamegoro_current_spawn_type:  .byte   $01,$02,$02,$03,$04,$04
-kamegoro_current_facing_table:  .byte   $00,$80,$00,$80,$00,$80
-kamegoro_current_speed_table:  .byte   $01,$01,$02,$02,$03,$03
-kamegoro_current_var1_spawn:  lda     ent_var1,x ; check spawn trigger flag
-        bne     kamegoro_current_y_check ; already past spawn Y
+kamegoro_maker_spawn_id_table:  .byte   $A2,$4F,$B4,$44,$00,$9E
+kamegoro_maker_spawn_type:  .byte   $01,$02,$02,$03,$04,$04
+kamegoro_maker_facing_table:  .byte   $00,$80,$00,$80,$00,$80
+kamegoro_maker_speed_table:  .byte   $01,$01,$02,$02,$03,$03
+kamegoro_maker_var1_spawn:  lda     ent_var1,x ; check spawn trigger flag
+        bne     kamegoro_maker_y_check ; already past spawn Y
         lda     ent_y_px,x              ; get Y position
         cmp     #$45                    ; above spawn threshold $45?
-        bcc     kamegoro_current_spawn_ret_a ; not deep enough yet
-        jsr     kamegoro_current_effect_spawn ; spawn water splash effect
+        bcc     kamegoro_maker_spawn_ret_a ; not deep enough yet
+        jsr     kamegoro_maker_effect_spawn ; spawn water splash effect
         lda     ent_var2,x              ; get wave index
         tay                             ; use as table index
-        lda     kamegoro_current_spawn_facing,y ; look up vel sub for wave
+        lda     kamegoro_maker_spawn_facing,y ; look up vel sub for wave
         sta     ent_yvel_sub,x          ; set Y vel sub (slow down)
         sta     ent_xvel_sub,x          ; same for X vel sub
-        lda     kamegoro_current_spawn_timer_b,y ; look up velocity for wave
+        lda     kamegoro_maker_spawn_timer_b,y ; look up velocity for wave
         sta     ent_yvel,x              ; set Y velocity
         sta     ent_xvel,x              ; set X velocity
         inc     ent_var1,x              ; mark spawn Y reached
-kamegoro_current_spawn_ret_a:  rts
+kamegoro_maker_spawn_ret_a:  rts
 
-kamegoro_current_y_check:  lda     ent_y_px,x ; get Y position
+kamegoro_maker_y_check:  lda     ent_y_px,x ; get Y position
         cmp     #$45                    ; still below threshold $45?
-        bcs     kamegoro_current_spawn_ret_a ; yes, keep moving
-        jsr     kamegoro_current_effect_spawn ; spawn surface effect
+        bcs     kamegoro_maker_spawn_ret_a ; yes, keep moving
+        jsr     kamegoro_maker_effect_spawn ; spawn surface effect
         lda     #$00                    ; clear var1
         sta     ent_var1,x              ; reset spawn trigger
         sta     ent_var3,x              ; clear launch init flag
         inc     ent_status,x            ; advance to launched phase
         rts                             ; done, will launch next frame
 
-kamegoro_current_face_dir:  lda     ent_facing,x ; get facing direction
+kamegoro_maker_face_dir:  lda     ent_facing,x ; get facing direction
         and     #$0C                    ; isolate vert bits
-        beq     kamegoro_current_horiz_check ; no vert, check horizontal
+        beq     kamegoro_maker_horiz_check ; no vert, check horizontal
         lda     #$62                    ; vertical crawl-down anim
         sta     ent_anim_id,x           ; set animation ID
         rts                             ; return with vert anim set
 
-kamegoro_current_horiz_check:  lda     ent_facing,x ; get facing direction
+kamegoro_maker_horiz_check:  lda     ent_facing,x ; get facing direction
         and     #FACING_RIGHT           ; test right-facing bit
-        beq     kamegoro_current_facing_right ; 0 = facing left
+        beq     kamegoro_maker_facing_right ; 0 = facing left
         lda     ent_flags,x             ; facing right, clear H-flip
         and     #$BF                    ; clear bit 6
         sta     ent_flags,x             ; update flags
-        bne     kamegoro_current_anim_id_set ; always branch (flags != 0)
-kamegoro_current_facing_right:  lda     ent_flags,x ; facing left, set H-flip
+        bne     kamegoro_maker_anim_id_set ; always branch (flags != 0)
+kamegoro_maker_facing_right:  lda     ent_flags,x ; facing left, set H-flip
         ora     #ENT_FLAG_HFLIP         ; set bit 6 (H-flip)
         sta     ent_flags,x             ; update flags
-kamegoro_current_anim_id_set:  lda     #$64 ; horizontal crawl-up anim
+kamegoro_maker_anim_id_set:  lda     #$64 ; horizontal crawl-up anim
         sta     ent_anim_id,x           ; set animation ID
         rts                             ; return with horiz anim set
 
-kamegoro_current_effect_spawn:  jsr     find_enemy_freeslot_y ; find free enemy slot
-        bcs     kamegoro_current_effect_return ; no slot, return
+kamegoro_maker_effect_spawn:  jsr     find_enemy_freeslot_y ; find free enemy slot
+        bcs     kamegoro_maker_effect_return ; no slot, return
         sty     temp_00                 ; save child slot index
         lda     ent_x_px,x              ; copy parent X pixel
         sta     ent_x_px,y              ; to child X pixel
@@ -2738,11 +2738,11 @@ kamegoro_current_effect_spawn:  jsr     find_enemy_freeslot_y ; find free enemy 
         sta     ent_hp,y                ; no HP (visual only)
         lda     #$67                    ; splash effect type $67
         jsr     init_child_entity       ; spawn splash effect
-kamegoro_current_effect_return:  rts
+kamegoro_maker_effect_return:  rts
 
         .byte   $00,$00,$00,$00
-kamegoro_current_effect_spawn_2:  jsr     find_enemy_freeslot_y ; find free enemy slot
-        bcs     kamegoro_current_effect_ret_2 ; no slot, return
+kamegoro_maker_effect_spawn_2:  jsr     find_enemy_freeslot_y ; find free enemy slot
+        bcs     kamegoro_maker_effect_ret_2 ; no slot, return
         sty     temp_00                 ; save child slot index
         lda     ent_facing,x            ; copy parent facing
         sta     ent_facing,y            ; to child facing
@@ -2762,15 +2762,15 @@ kamegoro_current_effect_spawn_2:  jsr     find_enemy_freeslot_y ; find free enem
         jsr     init_child_entity       ; init child sprite/status
         lda     ent_facing,y            ; check child facing
         and     #FACING_RIGHT           ; test right-facing bit
-        bne     kamegoro_current_effect_ret_2 ; facing right, keep H-flip
+        bne     kamegoro_maker_effect_ret_2 ; facing right, keep H-flip
         lda     ent_flags,y             ; facing left, clear H-flip
         and     #$BF                    ; clear bit 6
         sta     ent_flags,y             ; update child flags
-kamegoro_current_effect_ret_2:  rts
+kamegoro_maker_effect_ret_2:  rts
 
-holograph_block_init:  lda     ent_status,x ; check sub-state
+kamegoro_room_block_init:  lda     ent_status,x ; check sub-state
         and     #$0F                    ; mask low nibble
-        bne     holograph_block_collision ; already initialized?
+        bne     kamegoro_room_block_collision ; already initialized?
         sta     ent_yvel,x              ; clear Y velocity
         sta     ent_var2,x              ; clear var2 (phase flag)
         lda     #$80                    ; half-pixel Y sub-velocity
@@ -2780,45 +2780,45 @@ holograph_block_init:  lda     ent_status,x ; check sub-state
         lda     #$F0                    ; 240 frame lifetime
         sta     ent_var1,x              ; set block lifetime
         inc     ent_status,x            ; advance to active state
-holograph_block_collision:  jsr     check_sprite_weapon_collision ; check if weapon hit block
-        bcs     holograph_block_damage  ; no hit — take damage path
+kamegoro_room_block_collision:  jsr     check_sprite_weapon_collision ; check if weapon hit block
+        bcs     kamegoro_room_block_damage  ; no hit — take damage path
         lda     #SFX_ENEMY_HIT          ; play enemy hit sound
         jsr     submit_sound_ID         ; queue the sound effect
         ldy     $10                     ; Y = weapon slot that hit
         lda     #$00                    ; deactivate the weapon
         sta     ent_status,y            ; destroy the weapon entity
-        jmp     holograph_block_death   ; block destroyed by weapon
+        jmp     kamegoro_room_block_death   ; block destroyed by weapon
 
-holograph_block_damage:  lda     ent_status,x ; check sub-state bits
+kamegoro_room_block_damage:  lda     ent_status,x ; check sub-state bits
         and     #$02                    ; bit 1 = oscillation phase
-        bne     holograph_block_facing  ; oscillation started?
+        bne     kamegoro_room_block_facing  ; oscillation started?
         jsr     move_sprite_up          ; move block upward
         dec     ent_timer,x             ; count down rise timer
-        bne     holograph_block_return  ; still rising?
+        bne     kamegoro_room_block_return  ; still rising?
         lda     #$02                    ; 2 frames per oscillation
         sta     ent_timer,x             ; set oscillation timer
         inc     ent_status,x            ; enter oscillation phase
-holograph_block_return:  rts
+kamegoro_room_block_return:  rts
 
-holograph_block_facing:  lda     ent_facing,x ; check oscillation direction
+kamegoro_room_block_facing:  lda     ent_facing,x ; check oscillation direction
         and     #$01                    ; bit 0 = down direction
-        bne     holograph_block_move_down ; moving down?
+        bne     kamegoro_room_block_move_down ; moving down?
         jsr     move_sprite_up          ; still moving up
-        jmp     holograph_block_timer_dec ; skip to timer decrement
+        jmp     kamegoro_room_block_timer_dec ; skip to timer decrement
 
-holograph_block_move_down:  jsr     move_sprite_down ; move block downward
-holograph_block_timer_dec:  dec     ent_timer,x ; count down oscillation
-        bne     holograph_block_var1_dec ; timer not expired?
+kamegoro_room_block_move_down:  jsr     move_sprite_down ; move block downward
+kamegoro_room_block_timer_dec:  dec     ent_timer,x ; count down oscillation
+        bne     kamegoro_room_block_var1_dec ; timer not expired?
         lda     ent_facing,x            ; get current direction
         eor     #$03                    ; toggle bits 0+1 (reverse)
         sta     ent_facing,x            ; flip oscillation direction
         lda     #$04                    ; 4 frames per direction
         sta     ent_timer,x             ; reset oscillation timer
-holograph_block_var1_dec:  dec     ent_var1,x ; count down lifetime
-        bne     holograph_block_var2_check ; still alive?
+kamegoro_room_block_var1_dec:  dec     ent_var1,x ; count down lifetime
+        bne     kamegoro_room_block_var2_check ; still alive?
         lda     #$90                    ; set active + child flags
         sta     ent_flags,x             ; prepare for death anim
-holograph_block_death:  lda     #$59    ; explosion anim ID
+kamegoro_room_block_death:  lda     #$59    ; explosion anim ID
         jsr     reset_sprite_anim       ; play explosion animation
         lda     #$00                    ; clear timer
         sta     ent_timer,x             ; reset timer for death
@@ -2826,99 +2826,99 @@ holograph_block_death:  lda     #$59    ; explosion anim ID
         sta     ent_routine,x           ; switch to death handler
         rts                             ; done, block is destroyed
 
-holograph_block_var2_check:  lda     ent_var2,x ; check phase flag
-        bne     holograph_block_var1_check ; not in flicker phase yet?
+kamegoro_room_block_var2_check:  lda     ent_var2,x ; check phase flag
+        bne     kamegoro_room_block_var1_check ; not in flicker phase yet?
         lda     ent_var1,x              ; check remaining lifetime
         cmp     #$02                    ; less than 2 frames left?
-        bcs     holograph_block_repeat_return ; still has time remaining
+        bcs     kamegoro_room_block_repeat_return ; still has time remaining
         lda     #$F2                    ; reset lifetime to 242
         sta     ent_var1,x              ; extend lifetime for flicker
         inc     ent_var2,x              ; enter flicker phase
-holograph_block_repeat_return:  rts
+kamegoro_room_block_repeat_return:  rts
 
-holograph_block_var1_check:  lda     ent_var1,x ; check remaining lifetime
+kamegoro_room_block_var1_check:  lda     ent_var1,x ; check remaining lifetime
         cmp     #$78                    ; past flicker threshold?
-        bcs     holograph_block_repeat_return ; not flickering yet
+        bcs     kamegoro_room_block_repeat_return ; not flickering yet
         lda     ent_flags,x             ; get entity flags
         eor     #$04                    ; toggle visibility bit
         sta     ent_flags,x             ; update visibility state
         rts                             ; done, flicker applied
 
-holograph_main_init:  lda     ent_status,x ; check sub-state
+kamegoro_spawner_init:  lda     ent_status,x ; check sub-state
         and     #$0F                    ; mask low nibble
-        bne     holograph_phase_check   ; already initialized?
-        jsr     holograph_timer_init    ; set spawn timer + position
+        bne     kamegoro_spawner_phase_check   ; already initialized?
+        jsr     kamegoro_spawner_timer_init    ; set spawn timer + position
         lda     #$3C                    ; 60 frame initial delay
         sta     ent_var3,x              ; set initial wait timer
         inc     ent_status,x            ; advance to waiting state
-holograph_phase_check:  lda     ent_status,x ; check sub-state
+kamegoro_spawner_phase_check:  lda     ent_status,x ; check sub-state
         and     #$02                    ; bit 1 = spawning active
-        bne     holograph_timer_dec     ; spawning started?
+        bne     kamegoro_spawner_timer_dec     ; spawning started?
         dec     ent_var3,x              ; count down initial delay
-        bne     holograph_return        ; still waiting?
+        bne     kamegoro_spawner_return        ; still waiting?
         inc     ent_status,x            ; delay done, start spawning
-holograph_timer_dec:  dec     ent_timer,x ; count down spawn timer
-        bne     holograph_var1_check    ; time to spawn?
-        jsr     holograph_spawn_entity  ; spawn a block/current
-        jsr     holograph_timer_init    ; reset timer + position
+kamegoro_spawner_timer_dec:  dec     ent_timer,x ; count down spawn timer
+        bne     kamegoro_spawner_var1_check    ; time to spawn?
+        jsr     kamegoro_spawner_spawn_entity  ; spawn a block/current
+        jsr     kamegoro_spawner_timer_init    ; reset timer + position
         lda     #$94                    ; active + child + visible
         sta     ent_flags,x             ; update spawner visibility
         dec     ent_var1,x              ; one fewer to spawn
         rts                             ; done, spawned one entity
 
-holograph_var1_check:  lda     ent_var1,x ; check spawn count
-        bne     holograph_return        ; all spawned?
+kamegoro_spawner_var1_check:  lda     ent_var1,x ; check spawn count
+        bne     kamegoro_spawner_return        ; all spawned?
         lda     ent_timer,x             ; get spawn timer
         cmp     #$3C                    ; less than 60 frames left?
-        bcs     holograph_return        ; still plenty of time
+        bcs     kamegoro_spawner_return        ; still plenty of time
         lda     #$90                    ; active + child flags
         sta     ent_flags,x             ; hide spawner (done spawning)
         inc     ent_var1,x              ; prevent re-entry
-holograph_return:  rts
+kamegoro_spawner_return:  rts
 
-holograph_timer_init:  lda     #$78     ; 120 frame spawn interval
+kamegoro_spawner_timer_init:  lda     #$78     ; 120 frame spawn interval
         sta     ent_timer,x             ; set spawn interval timer
         lda     $E4                     ; PRNG seed low
         adc     $E5                     ; add to high byte
         sta     $E5                     ; store updated PRNG high
         and     #$03                    ; mask to 0-3
         cmp     #$02                    ; value >= 2?
-        bcs     holograph_death_y_reset ; use vertical spawn path
+        bcs     kamegoro_spawner_death_y_reset ; use vertical spawn path
         tay                             ; use as table index
-        lda     holograph_spawn_param,y ; look up X offset
+        lda     kamegoro_spawner_spawn_param,y ; look up X offset
         sta     ent_x_px,x              ; set spawn X position
-        lda     holograph_spawn_type,y  ; look up spawn direction
+        lda     kamegoro_spawner_spawn_type,y  ; look up spawn direction
         sta     ent_facing,x            ; 1=right, 2=left
         lda     $E4                     ; advance PRNG
         adc     $E5                     ; add PRNG high byte
         sta     $E4                     ; store updated PRNG low
         and     #$0F                    ; mask to 0-15
         tay                             ; use as Y position index
-        lda     holograph_y_pos_table,y ; look up Y position
+        lda     kamegoro_spawner_y_pos_table,y ; look up Y position
         sta     ent_y_px,x              ; set spawn Y position
         rts                             ; done, horizontal spawn set
 
-holograph_death_y_reset:  lda     #$CC  ; Y = $CC (bottom of screen)
+kamegoro_spawner_death_y_reset:  lda     #$CC  ; Y = $CC (bottom of screen)
         sta     ent_y_px,x              ; set Y to bottom of screen
         lda     $E4                     ; advance PRNG
         adc     $E5                     ; add PRNG high byte
         sta     $E5                     ; store updated PRNG high
         and     #$0F                    ; mask to 0-15
         tay                             ; use as X position index
-        lda     holograph_y_pos_alt_table,y ; look up X position
+        lda     kamegoro_spawner_y_pos_alt_table,y ; look up X position
         sta     ent_x_px,x              ; set spawn X position
         lda     #$08                    ; facing = $08 (upward)
         sta     ent_facing,x            ; set upward movement
         rts                             ; done, vertical spawn set
 
-holograph_spawn_param:  .byte   $14,$EC
-holograph_spawn_type:  .byte   $01,$02
-holograph_y_pos_table:  .byte   $48,$58,$68,$78,$88,$98,$A8,$B8
+kamegoro_spawner_spawn_param:  .byte   $14,$EC
+kamegoro_spawner_spawn_type:  .byte   $01,$02
+kamegoro_spawner_y_pos_table:  .byte   $48,$58,$68,$78,$88,$98,$A8,$B8
         .byte   $88,$B8,$A8,$98,$88,$78,$68,$58
-holograph_y_pos_alt_table:  .byte   $28,$38,$48,$58,$68,$78,$88,$98
+kamegoro_spawner_y_pos_alt_table:  .byte   $28,$38,$48,$58,$68,$78,$88,$98
         .byte   $A8,$B8,$C8,$D8,$B8,$A8,$98,$88
-holograph_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
-        bcs     holograph_spawn_return  ; no free slot?
+kamegoro_spawner_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
+        bcs     kamegoro_spawner_spawn_return  ; no free slot?
         sty     temp_00                 ; save child slot index
         lda     ent_x_scr,x             ; copy parent screen
         sta     ent_x_scr,y             ; set child screen position
@@ -2930,7 +2930,7 @@ holograph_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         sta     ent_hitbox,y            ; set child hitbox size
         lda     ent_facing,x            ; check facing for type
         and     #$08                    ; bit 3 = vertical spawn
-        bne     holograph_spawn_facing  ; vertical current?
+        bne     kamegoro_spawner_spawn_facing  ; vertical current?
         lda     #$5D                    ; horiz block entity ID $5D
         jsr     init_child_entity       ; init as child entity
         lda     ent_facing,x            ; inherit parent facing
@@ -2939,14 +2939,14 @@ holograph_spawn_entity:  jsr     find_enemy_freeslot_y ; find free enemy slot
         tay                             ; use as offset index (0 or 1)
         lda     ent_x_px,x              ; parent X position
         clc                             ; prepare for addition
-        adc     holograph_spawn_param_2,y ; add directional offset
+        adc     kamegoro_spawner_spawn_param_2,y ; add directional offset
         ldy     temp_00                 ; restore child slot
         sta     ent_x_px,y              ; set child X position
         lda     ent_y_px,x              ; copy parent Y to child
         sta     ent_y_px,y              ; set child Y position
-        jmp     holograph_spawn_routine ; finish spawn setup
+        jmp     kamegoro_spawner_spawn_routine ; finish spawn setup
 
-holograph_spawn_facing:  lda     ent_facing,x ; copy facing to child
+kamegoro_spawner_spawn_facing:  lda     ent_facing,x ; copy facing to child
         sta     ent_facing,y            ; set child facing direction
         lda     #$5C                    ; vert current entity ID $5C
         jsr     init_child_entity       ; init as child entity
@@ -2956,7 +2956,7 @@ holograph_spawn_facing:  lda     ent_facing,x ; copy facing to child
         sec                             ; offset 24px upward
         sbc     #$18                    ; subtract 24px offset
         sta     ent_y_px,y              ; set child Y position
-holograph_spawn_routine:  lda     #$F4  ; current AI routine
+kamegoro_spawner_spawn_routine:  lda     #$F4  ; current AI routine
         sta     ent_routine,y           ; set child AI routine
         lda     ent_flags,y             ; get child flags
         ora     #$02                    ; set invincibility bit
@@ -2964,64 +2964,64 @@ holograph_spawn_routine:  lda     #$F4  ; current AI routine
         lda     #$02                    ; 2px/frame X speed
         sta     ent_xvel,y              ; set child X velocity
         sta     ent_yvel,y              ; 2px/frame Y speed
-holograph_spawn_return:  rts
+kamegoro_spawner_spawn_return:  rts
 
-holograph_spawn_param_2:  .byte   $E8,$18
-holograph_current_dir_init:  lda     ent_facing,x ; check direction bits
+kamegoro_spawner_spawn_param_2:  .byte   $E8,$18
+kamegoro_room_current_dir_init:  lda     ent_facing,x ; check direction bits
         and     #$08                    ; bit 3 = vertical current
-        beq     holograph_current_horiz ; horizontal current?
+        beq     kamegoro_room_current_horiz ; horizontal current?
         ldy     #$09                    ; Y = 9 (speed param)
         jsr     move_up_collide         ; move current upward
         lda     ent_y_px,x              ; check Y position
         cmp     #$48                    ; above screen top?
-        bcs     holograph_current_dist_check ; still on screen
-        jmp     holograph_current_hit_check ; off screen, despawn
+        bcs     kamegoro_room_current_dist_check ; still on screen
+        jmp     kamegoro_room_current_hit_check ; off screen, despawn
 
-holograph_current_horiz:  lda     ent_facing,x ; check horizontal dir
+kamegoro_room_current_horiz:  lda     ent_facing,x ; check horizontal dir
         and     #FACING_RIGHT           ; bit 0 = rightward
-        beq     holograph_current_move_left ; moving left?
+        beq     kamegoro_room_current_move_left ; moving left?
         ldy     #$08                    ; Y = 8 (speed param)
         jsr     move_right_collide      ; move current right
-        jmp     holograph_current_collision ; check for wall collision
+        jmp     kamegoro_room_current_collision ; check for wall collision
 
-holograph_current_move_left:  ldy     #$09 ; Y = 9 (speed param)
+kamegoro_room_current_move_left:  ldy     #$09 ; Y = 9 (speed param)
         jsr     move_left_collide       ; move current left
-holograph_current_collision:  bcc     holograph_current_dist_check ; hit solid tile?
-holograph_current_hit_check:  lda     ent_facing,x ; check direction type
+kamegoro_room_current_collision:  bcc     kamegoro_room_current_dist_check ; hit solid tile?
+kamegoro_room_current_hit_check:  lda     ent_facing,x ; check direction type
         and     #$08                    ; bit 3 = vertical
-        beq     holograph_current_status_clear ; horizontal — despawn
-holograph_current_status_clear:  lda     #$00 ; deactivate entity
+        beq     kamegoro_room_current_status_clear ; horizontal — despawn
+kamegoro_room_current_status_clear:  lda     #$00 ; deactivate entity
         sta     ent_status,x            ; clear entity status
         lda     #$FF                    ; mark spawn slot free
         sta     ent_spawn_id,x          ; free spawn slot
         rts                             ; done, entity removed
 
-holograph_current_dist_check:  jsr     entity_x_dist_to_player ; get X distance to player
+kamegoro_room_current_dist_check:  jsr     entity_x_dist_to_player ; get X distance to player
         cmp     #$18                    ; within 24px X?
-        bcs     holograph_current_dir_check ; too far away
+        bcs     kamegoro_room_current_dir_check ; too far away
         jsr     entity_y_dist_to_player ; get Y distance to player
         cmp     #$14                    ; within 20px Y?
-        bcs     holograph_current_dir_check ; too far away
+        bcs     kamegoro_room_current_dir_check ; too far away
         lda     ent_facing,x            ; check direction type
         and     #$08                    ; bit 3 = vertical
-        beq     holograph_current_facing_dir ; horizontal — apply damage
+        beq     kamegoro_room_current_facing_dir ; horizontal — apply damage
         rts                             ; vertical current, no push
 
-holograph_current_facing_dir:  lda     ent_facing,x ; check horizontal facing
+kamegoro_room_current_facing_dir:  lda     ent_facing,x ; check horizontal facing
         and     #FACING_LEFT            ; bit 1 = left facing
-        bne     holograph_current_facing_right ; facing left?
+        bne     kamegoro_room_current_facing_right ; facing left?
         lda     #$01                    ; push player right
-        bne     holograph_current_dir_set ; always branch
-holograph_current_facing_right:  lda     #FACING_LEFT ; push player left
-holograph_current_dir_set:  sta     $36 ; set push direction
+        bne     kamegoro_room_current_dir_set ; always branch
+kamegoro_room_current_facing_right:  lda     #FACING_LEFT ; push player left
+kamegoro_room_current_dir_set:  sta     $36 ; set push direction
         lda     #$00                    ; no Y push
         sta     $37                     ; store Y push component
         lda     #$02                    ; 2px damage push speed
         sta     $38                     ; store push speed
-holograph_current_dir_check:  lda     ent_facing,x ; check direction type
+kamegoro_room_current_dir_check:  lda     ent_facing,x ; check direction type
         and     #$08                    ; bit 3 = vertical
-        beq     holograph_current_return ; horizontal — done
-holograph_current_return:  rts
+        beq     kamegoro_room_current_return ; horizontal — done
+kamegoro_room_current_return:  rts
 
 holograph_boss_init:  lda     ent_status,x ; check sub-state
         and     #$0F                    ; mask low nibble

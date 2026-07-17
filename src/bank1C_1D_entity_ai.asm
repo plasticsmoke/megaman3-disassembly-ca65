@@ -572,12 +572,13 @@ weapon_damage_ptr_hi_special:  .byte   $A6,$A7,$A1,$A8,$A1,$A9,$A1 ; TopSpin, Sn
 ; $3B=chibee $3D=bomb_flier $3E=spark_falling_plat $3F=ret_B $42=pole
 ; $47=komasaburo $49=parasyu $4A/$4B=hologran $4C=bomber_pepe $4D=metall_dx
 ; $4E=petit_snakey $4F=init_tama $52=proto_man
-; $55-$5C=robot_master_intro(x8)  $60-$67=item pickups / surprise box
+; $58-$5F=robot_master_intro(x8)  $64-$6A=RM intro entities  $78-$79=item pickups
 ; $68-$6C=junk_block, spinning_wheel, trap/plat, giant_springer, breakable_wall
 ; $6F/$70=electric_gabyoall
-; $78-$7F=magnet_missile, gemini, hard_knuckle, snake, spark, shadow, big_snakey, tama
-; $80-$97=boss jump tables (needle/magnet/top/shadow/hard/spark/snake/gemini man)
-; $98-$A7=fortress boss jump tables (yellow_devil, wily_machine, gamma, etc.)
+; $80-$87=weapon projectile AIs (magnet_missile .. shadow_blade)
+; $88-$8F=big_snakey / tama / boss projectiles  $90-$97=doc_robot_intro(x8)  $98-$9F=unused
+; $A0-$B7=Doc Robot AIs, $C0-$D7=Robot Master AIs, $E0+=fortress bosses
+;   (dispatch into the $A000 jmp tables of banks 04/05, 06/07, 12)
 sprite_main_ptr_lo:  .byte   $C7,$C9,$FB,$58,$DE,$B4,$FD,$7C
         .byte   $D3,$C8,$14,$49,$12,$C5,$83,$85
         .byte   $0E,$09,$B3,$9B,$8A,$CB,$CB,$E2
@@ -589,14 +590,14 @@ sprite_main_ptr_lo:  .byte   $C7,$C9,$FB,$58,$DE,$B4,$FD,$7C
         .byte   $C9,$C9,$56,$85,$F7,$35,$3F,$7F
         .byte   $60,$CC,$40,$40,$0A,$C3,$E4,$55
         .byte   $34,$C9,$F7,$F7,$C8,$C8,$60,$C8
-        .byte   $53,$53,$53,$53,$53,$53,$53,$53 ; $55-$5C: robot_master_intro (x8)
-        .byte   $C8,$C9,$93,$3F,$FD,$F9,$FD,$F9 ; $60-$67: item pickups, surprise box
-        .byte   $FD,$FD,$D2,$C8,$2F,$65,$F8,$C8 ; $68-$6F: junk_block, spinning_wheel, etc.
-        .byte   $31,$E2,$C8,$94,$AC,$B6,$C8,$C8 ; $70-$77: elec_gabyoall, breakable_wall, etc.
-        .byte   $5F,$5F,$51,$C8,$C8,$C8,$C8,$C8 ; (unused padding)
-        .byte   $A4,$1E,$96,$DD,$88,$47,$C2,$79 ; $78-$7F: magnet_missile thru shadow_blade
-        .byte   $98,$6C,$BE,$A7,$A8,$65,$95,$34 ; $80-$87: big_snakey, tama, doc_robot bosses
-        .byte   $E8,$E8,$E8,$E8,$E8,$E8,$E8,$E8 ; $88-$8F: doc_robot_intro (x8)
+        .byte   $53,$53,$53,$53,$53,$53,$53,$53 ; $58-$5F: robot_master_intro (x8)
+        .byte   $C8,$C9,$93,$3F,$FD,$F9,$FD,$F9 ; $60-$67
+        .byte   $FD,$FD,$D2,$C8,$2F,$65,$F8,$C8 ; $68-$6F
+        .byte   $31,$E2,$C8,$94,$AC,$B6,$C8,$C8 ; $70-$77
+        .byte   $5F,$5F,$51,$C8,$C8,$C8,$C8,$C8 ; $78-$7F: $78-$79=item pickup handlers
+        .byte   $A4,$1E,$96,$DD,$88,$47,$C2,$79 ; $80-$87: magnet_missile thru shadow_blade
+        .byte   $98,$6C,$BE,$A7,$A8,$65,$95,$34 ; $88-$8F: big_snakey, tama, boss projectiles
+        .byte   $E8,$E8,$E8,$E8,$E8,$E8,$E8,$E8 ; $90-$97: doc_robot_intro (x8)
         .byte   $C8,$C8,$C8,$C8,$C8,$C8,$C8,$C8
         .byte   $00,$03,$06,$09,$0C,$0F,$12,$15
         .byte   $18,$1B,$1E,$21,$24,$27,$2A,$2D
@@ -2712,7 +2713,7 @@ junk_block_next_slot:  dey
         clc                             ; not found: C=0
 junk_block_scan_success:  rts
 ; ---------------------------------------------------------------------------
-; main_petit_snakey -- Petit Snakey (small snake, entity type $4E)
+; main_petit_snakey -- Petit Snakey (small snake, entity types $60/$61, routine $4E)
 ; ---------------------------------------------------------------------------
 ; State 0: init -- set sprite hflip, face player, timer=$24.
 ; Active: waits for timer, checks direction to player. If in firing arc
@@ -5417,9 +5418,9 @@ bomber_pepe_bomb_xvel_sub:  .byte   $00,$00,$80
 bomber_pepe_bomb_xvel:  .byte   $01,$01,$00
 
 ; ===========================================================================
-; main_bolton_and_nutton — Two-part bolt enemy (Hard Man stage)
-; Bolton (nut body, OAM $2E) sits on the wall and launches the Nutton
-; (bolt projectile, OAM $2F) when player is within range. Nutton homes
+; main_bolton_and_nutton — Two-part bolt enemy (Top/Spark/Doc Spark stages)
+; Bolton (nut body, OAM $30/$2F) sits on the wall and launches the Nutton
+; (bolt projectile, OAM $2E) when player is within range. Nutton homes
 ; toward the player's position once launched. Code at $1DAC82 (unlabeled,
 ; AI routine $31) handles Nutton's return flight back to Bolton.
 ; Entity memory (Nutton child):
@@ -5623,7 +5624,7 @@ nutton_dock_ready:  lda     ent_anim_state,x ; check own anim state
 nutton_return_end:  rts                 ; return from Nutton logic
 
 ; ===========================================================================
-; main_have_su_bee — Have "Su" Bee (bee carrier, Snake Man stage)
+; main_have_su_bee — Have "Su" Bee (bee carrier, Hard Man / Wily 2-3-5 stages)
 ; Flies toward player, hovers while carrying a bee, then releases it.
 ; After release, reverses direction and flies away. ent_timer=pre-launch
 ; delay, ent_var2=hover timer, ent_var1=release range check flag.
@@ -5835,7 +5836,7 @@ beehive_spawn_offsets:  .byte   $FF,$E8,$FF,$01,$00,$18,$00,$18
 bee_spawn_y_offset:  .byte   $E8,$18,$01,$E8,$18
 
 ; ===========================================================================
-; main_returning_monking — Returning Monking (monkey enemy, Snake Man stage)
+; main_returning_monking — Returning Monking (monkey enemy, Hard Man stage)
 ; Jumps between platforms, pauses on landing, then leaps again toward player.
 ; States: 0=init, 1=jumping/patrolling, 2=grounded/attacking, 3=retreating
 ; ===========================================================================
@@ -6554,7 +6555,7 @@ peterchy_aggression_check:  jsr     entity_x_dist_to_player ; entity_x_dist_to_p
         rts                             ; return
 
 ; ===========================================================================
-; main_walking_bomb — Walking Bomb (Gemini Man / Snake Man stages)
+; main_walking_bomb — Walking Bomb (Shadow Man / Doc Shadow stages)
 ; ===========================================================================
 ; Walks toward player and explodes when hit by a weapon. Bounces off walls
 ; up to 3 times before reversing direction. Hitbox $1A ($99), $1C/$1D
@@ -6716,7 +6717,7 @@ hologran_countdown_timer:  dec     ent_timer,x ; decrement timer; when 0
 hologran_return:  rts
 
 ; ===========================================================================
-; main_parasyu — Parasyu (parachute bomb, Gemini Man stage)
+; main_parasyu — Parasyu (parachute bomb, Shadow Man / Doc stages)
 ; Falls at 3.0 px/frame. When player is within 100 px X-distance,
 ; drops the parachute and falls faster. Explodes on contact with ground.
 ; ===========================================================================

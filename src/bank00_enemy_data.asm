@@ -86,15 +86,19 @@
 ;   $34=Needle Press    $35=(no-op)         $36=Peterchy        $37=Walking Bomb
 ;   $38=Parasyu         $39=Hologran        $3A=Hologran        $3B=Bomber Pepe
 ;   $3C=Metall DX (walk) $3D=Magnet Push    $3E=Proto Man       $3F=(no-op)
-;   $40-$4B=Doc Robot entries               $5C=Giant Springer
-;   $50-$56=Robot Master intros             $62=Komasaburo
-;   $58-$5E=Tama parts
-;   $60-$66=Surprise Box / item pickups (except $62)
-;   $68-$6F=Robot Masters (Needle/Magnet/Gemini/Hard/Top/Snake/Spark/Shadow)
+;   $40-$46=Doc Robot screen markers (no-op AI)
+;   $47-$4E=Robot Masters (Needle/Magnet/Gemini/Hard/Top/Snake/Spark/Shadow)
+;   $50-$56=Robot Master intros             $57=Giant Met (Doc Needle)
+;   $58-$5B,$5D=Tama parts                  $5C=Giant Springer
+;   $5E-$5F=Kamegoro-room spawners (Wily 1)
+;   $60-$61=Petit Snakey                    $62=Komasaburo
+;   $63=Surprise Box                        $64-$65=item pickups
+;   $68-$6F=Doc Robots (Flash/Bubble/Quick/Wood/Crash/Air/Metal/Heat)
 ;   $70-$77=Boss projectiles / special entities
-;   $78=Proto Man (Gemini cutscene)
-;   $80-$84=Wily fortress bosses / Break Man
-;   $8A-$8B=Fortress boss parts
+;   $78=Proto Man (Gemini cutscene)         $7A=Gamma
+;   $7E-$80=Gamma hazard entities           $81=Yellow Devil
+;   $82-$83=Wily Machine A/B                $84=Break Man
+;   $8A-$8D=Boss rematch teleporters
 ; ===========================================================================
 enemy_flags_g:
         .byte   $90,$90,$90,$90,$98,$90,$90,$94 ; $00-$07
@@ -146,16 +150,16 @@ enemy_main_ID_g:
         .byte   $39,$3A,$3B,$3C,$3D,$3E,$3F,$40 ; $28-$2F: (noop)/(noop)/Chibee/BlockBreaker/Penpen/ElecGabyoall/(noop)/BlockBreaker
         .byte   $41,$00,$43,$F5,$33,$48,$07,$34 ; $30-$37: BlockBreaker/(noop)/Pole/Holograph/NeedlePress/(noop)/Peterchy/WalkingBomb
         .byte   $49,$4A,$4B,$4C,$4D,$23,$52,$00 ; $38-$3F: Parasyu/Hologran/Hologran/BomberPepe/MetallDX(walk)/MagnetPush/ProtoMan/(noop)
-        .byte   $00,$00,$00,$00,$00,$00,$00,$58 ; $40-$47: Doc Robot screens (AI $00=noop) / NeedlePress(B)
-        .byte   $59,$5A,$5B,$5C,$5D,$5E,$5F,$00 ; $48-$4F: Doc Robot AI entries
-        .byte   $64,$65,$66,$67,$68,$69,$6A,$FC ; $50-$57: Robot Master intros ($50-$56) / $57=(unk)
-        .byte   $6E,$6E,$70,$72,$73,$74,$F0,$F3 ; $58-$5F: Tama segments
-        .byte   $4E,$4E,$47,$6C,$78,$79,$00,$00 ; $60-$67: item pickup ($60-$61) / $62=Komasaburo / surprise box
-        .byte   $90,$91,$92,$93,$94,$95,$96,$97 ; $68-$6F: Robot Masters (bank06/07 dispatch)
+        .byte   $00,$00,$00,$00,$00,$00,$00,$58 ; $40-$46: Doc Robot screen markers (noop) / $47=Needle Man
+        .byte   $59,$5A,$5B,$5C,$5D,$5E,$5F,$00 ; $48-$4E: Robot Masters Magnet..Shadow (→ main_robot_master_intro)
+        .byte   $64,$65,$66,$67,$68,$69,$6A,$FC ; $50-$56: Robot Master intros / $57=Giant Met (bank12)
+        .byte   $6E,$6E,$70,$72,$73,$74,$F0,$F3 ; $58-$5D: Tama/Springer / $5E-$5F: Kamegoro spawners (bank12)
+        .byte   $4E,$4E,$47,$6C,$78,$79,$00,$00 ; $60-$61: Petit Snakey / $62=Komasaburo / $63=box / $64-$65=items
+        .byte   $90,$91,$92,$93,$94,$95,$96,$97 ; $68-$6F: Doc Robots (→ main_doc_robot_intro, MM2 AIs in banks 04/05)
         .byte   $00,$89,$00,$8A,$00,$00,$8C,$4F ; $70-$77: boss projectiles
-        .byte   $71,$00,$E7,$00,$00,$00,$EA,$EA ; $78-$7F: Proto Man (Gemini) / fortress
-        .byte   $EA,$E0,$E3,$E5,$ED,$00,$00,$00 ; $80-$87: Wily bosses
-        .byte   $00,$00,$EB,$EC,$EC,$EC,$00,$00 ; $88-$8F
+        .byte   $71,$00,$E7,$00,$00,$00,$EA,$EA ; $78-$7F: Proto Man (Gemini) / $7A=Gamma / $7E-$7F=hazards
+        .byte   $EA,$E0,$E3,$E5,$ED,$00,$00,$00 ; $80-$87: $80=hazard / $81=YellowDevil / $82-$83=WilyMachine / $84=BreakMan
+        .byte   $00,$00,$EB,$EC,$EC,$EC,$00,$00 ; $88-$8F: $8A-$8D=rematch teleporters
         .byte   $AA,$FF,$EB,$FE,$B9,$FE,$3A,$FE ; $90-$FF: unused (overlaps stage data)
         .byte   $FA,$FF,$AA,$FF,$EA,$FF,$AA,$FF
         .byte   $AA,$BF,$EA,$FF,$BE,$7B,$FA,$FF

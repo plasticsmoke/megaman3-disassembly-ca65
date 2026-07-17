@@ -154,7 +154,7 @@ sprite_flip_offset_setup:  sty     $11  ; $11 = flip table offset
         bcc     sprite_oam_bank_select  ; enemy slot → normal bank select
         lda     boss_active             ; boss active? override sprite bank
         beq     sprite_oam_bank_select  ; 0 = no override
-        ldy     #$15                    ; weapon sprites in PRG bank $15
+        ldy     #$15                    ; boss sprites in PRG bank $15
         cpy     mmc3_select             ; already selected?
         beq     sprite_oam_id_check     ; already bank $15 → skip switch
         bne     sprite_bank_select_write ; (always branches)
