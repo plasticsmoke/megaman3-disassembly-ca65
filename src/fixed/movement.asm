@@ -20,7 +20,7 @@
 move_right_collide:  lda     ent_flags,x ; set bit 6 = facing right (H-flip)
         ora     #ENT_FLAG_HFLIP         ; set H-flip bit (facing right)
         sta     ent_flags,x     ; store updated flags
-move_right_collide_no_face:             ; 0 = full, skip
+move_right_collide_no_face:             ; entry: move right without facing change
         cpx     #$00                    ; player (slot 0)?
         bne     move_right_collide_cont ; non-player → skip save
         lda     ent_x_px                ; save player X before move
@@ -43,7 +43,7 @@ move_right_platform:  beq     mr_tile_check ; equal → normal tile check
         jmp     ml_tile_check           ; use left-side tile check
 
 mr_tile_check:  jsr     check_tile_collision ; check tiles at entity position
-        jsr     update_collision_flags  ; OAM buffer full?
+        jsr     update_collision_flags  ; update ladder/collision flags
         clc                             ; clear carry (no collision yet)
         lda     $10                     ; tile collision result
         and     #$10                    ; isolate solid tile bit
@@ -663,7 +663,7 @@ entity_distance_table_index:  tya       ; table index = quadrant * 4 + sub-angle
 ; direction_to_player_table — 16-direction lookup by quadrant and sub-angle
 ; ---------------------------------------------------------------------------
 ; Index = quadrant * 4 + sub_angle. 8 quadrants × 4 entries (sub_angle 0-2
-; used, entry 3 unused). Returns direction 0-15 (0=right, 4=up, 8=left, 12=down).
+; used, entry 3 unused). Returns direction 0-15 (0=up/N, 4=right/E, 8=down/S, 12=left/W).
 direction_to_player_table:
         .byte   $04,$05,$06,$04         ; quadrant 0
         .byte   $08,$07,$06,$04         ; quadrant 1
@@ -1016,7 +1016,7 @@ entity_hitbox_width_cmp:  cmp     hitbox_mega_man_widths,y ; if abs(X delta) > h
         eor     #$FF                    ; negate if player is above
         adc     #$01                    ; two's complement
 entity_hitbox_return:  cmp     $00     ; compare Y dist vs hitbox height
-        bcc     entity_hitbox_done      ; A < height: carry clear → no hit
+        bcc     entity_hitbox_done      ; Y dist < height: C=0 = COLLISION
 entity_hitbox_done:  rts                ; return (caller checks carry)
 
 ; sprite hitbox heights for Mega Man collision
@@ -1032,9 +1032,7 @@ hitbox_mega_man_widths:  .byte   $0F,$14,$14,$14,$10,$20,$18,$14
         .byte   $10,$18,$18,$0C,$14,$20,$10,$18
         .byte   $1C,$14,$40,$0C,$0C,$0F,$0C,$10
         .byte   $28,$18,$28
-        bit     $0808                   ; data (hitbox table padding)
-        php                             ; data (hitbox table padding)
-        php                             ; data (hitbox table padding)
+        .byte   $2C,$08,$08,$08,$08     ; entries 27-31 (was misrendered as code)
 
 ; loops through all 3 weapon slots
 ; to check collision against each one

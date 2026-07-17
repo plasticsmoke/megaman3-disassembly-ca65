@@ -12,7 +12,7 @@
 ;   load_overlay_sprites  — copy ROM sprite data for stage transition overlays
 ;   scroll_overlay_sprites — slide overlay sprites leftward each frame
 ;   draw_scroll_sprites   — draw 8 camera-tracking sprites
-;   fade_palette_out/in   — blocking palette fade effects
+;   fade_palette_in/in   — blocking palette fade effects
 ;   palette_fade_tick     — per-frame incremental palette fade
 ;   indirect_dispatch     — jump through word table using A as index
 ;   shift_register_tick   — 32-bit LFSR on $E4-$E7
@@ -47,8 +47,8 @@ drain_ppu_exit:  rts
 ; ---------------------------------------------------------------------------
 ; disable_nmi — clear NMI enable + sprite bits in PPUCTRL
 ; ---------------------------------------------------------------------------
-; Masks $FF (PPUCTRL shadow) to $11 (keep sprite table select + increment),
-; clears NMI enable (bit 7) and sprite size (bit 5).
+; Masks $FF (PPUCTRL shadow) with $11 (keep BG pattern select bit 4 +
+; nametable bit 0), clearing NMI enable (bit 7) among others.
 ; Referenced from bank16 dispatch table at $168A68.
 ; ---------------------------------------------------------------------------
 disable_nmi:
@@ -192,7 +192,7 @@ fill_nametable:  sta     temp_00        ; save parameters
         sty     $02                     ; $02 = attribute/page count
         lda     PPUSTATUS               ; reset PPU latch
         lda     ppu_ctrl_shadow         ; load PPUCTRL shadow
-        and     #$FE                    ; (horizontal increment mode)
+        and     #$FE                    ; clear nametable select bit 0
         sta     PPUCTRL                 ; write to PPUCTRL
         lda     temp_00                 ; PPUADDR = addr_hi : $00
         sta     PPUADDR                 ; set PPUADDR high byte
@@ -230,7 +230,7 @@ fill_nametable_restore_x:  ldx     $01  ; restore X = fill byte
 ; Called each frame before update_entity_sprites. Hides all OAM entries from
 ; the current write position ($97) to end of buffer by setting Y=$F8
 ; (off-screen). Then dispatches to overlay sprite routines based on flags:
-;   $71 != 0 → load_overlay_sprites: copy sprite data from ROM, start scroll
+;   $71 != 0 → load_overlay_sprites: copy hologram sprites from ROM, start scroll
 ;   $72 != 0 → scroll_overlay_sprites: slide overlay sprites leftward
 ;   game_mode == 2 → draw_scroll_sprites: draw camera-tracking sprites
 ;
@@ -240,8 +240,8 @@ fill_nametable_restore_x:  ldx     $01  ; restore X = fill byte
 ;
 ; oam_ptr = OAM write index: $04 = with player, $0C = skip player, $30 = skip overlays
 ; scroll_lock = pause flag (nonzero = skip overlay dispatch)
-; $71 = overlay init trigger (set by palette_fade_tick when fade-in completes)
-; $72 = overlay scroll active (nonzero = overlays visible, preserve OAM 0-11)
+; $71 = overlay init trigger (set by palette_fade_tick when BG fully dark — Hologran)
+; $72 = overlay scroll active (nonzero = hologram overlays visible, preserve OAM 0-11)
 ; 22 callers across banks $02, $0B, $0C, $18, $1E, $1F.
 ; ---------------------------------------------------------------------------
 
@@ -303,7 +303,8 @@ clear_entity_loop:  lda     #$00        ; clear entity type (deactivate slot)
 
 ; --- load_overlay_sprites ---
 ; Copies 12 OAM entries from overlay_sprite_data ($C6D8) to OAM $0200-$022F.
-; Tiles $F1/$F2, palette 2. Clears $71, sets $72 (activates scroll), $97=$30.
+; Tiles $F1/$F2, palette 2 — hologram figures for the Hologran enemy effect
+; (Wily fortress). Clears $71, sets $72 (activates scroll), $97=$30.
 
 load_overlay_sprites:  lda     #$00     ; clear trigger flag (one-shot)
         sta     $71                     ; disable trigger flag
@@ -437,18 +438,20 @@ scroll_sprite_pos_table:  .byte   $18,$28,$E4,$03,$20,$68,$E4,$03
         .byte   $00
 
 ; ===========================================================================
-; fade_palette_out / fade_palette_in — blocking palette fade
+; fade_palette_in / fade_palette_out — blocking palette fade
 ; ===========================================================================
-; fade_palette_out: starts at subtract=$30, step=$F0 (decreasing by $10/pass)
-; fade_palette_in:  starts at subtract=$10, step=$10 (increasing by $10/pass)
-; Both copy $0620 (target palette) → $0600 (active palette), subtract $0F
-; per color channel, clamp to $0F (NES black). Yields 4 frames per step.
-; Runs until subtract reaches $50 or wraps negative. $18 = palette-dirty flag.
+; fade_palette_in ($C74C): subtract starts $30, step -$10/pass → brightens to
+;   full palette (fade in / reveal). Ends when subtract wraps negative.
+; fade_palette_out ($C752): subtract starts $10, step +$10/pass → darkens
+;   (fade out to black). Ends when subtract reaches $50.
+; Both copy $0620 (target palette) → $0600 (active palette) then subtract the
+; current amount ($0F) from every color, clamping to $0F (NES black).
+; Yields 4 frames per step. $18 = palette-dirty flag.
 ; ---------------------------------------------------------------------------
-fade_palette_out:  lda     #$30         ; start dark (subtract $30)
+fade_palette_in:  lda     #$30          ; start dark (subtract $30)
         ldx     #$F0                    ; step = -$10 (brighten each pass)
         bne     fade_start              ; always taken (X != 0)
-fade_palette_in:  lda     #$10          ; start bright (subtract $10)
+fade_palette_out:  lda     #$10         ; start bright (subtract $10)
         tax                             ; step = +$10 (darken each pass)
 fade_start:  sta     $0F                ; $0F = current subtract amount
         stx     $0D                     ; $0D = step delta per pass
@@ -492,8 +495,11 @@ fade_exit:  rts                         ; return to caller
 ; Called each frame from the game loop. When $1C (fade-active flag) is set,
 ; copies $0620 → $0600 and subtracts $1D from BG palette entries ($0600-$060F)
 ; every 4th frame. $1E = step delta added to $1D each tick.
-; When $1D reaches $F0: sets $72=0 (fade-out complete, rendering halted).
-; When $1D reaches $50: sets $71++ (fade-in complete, gameplay resumes).
+; Used by the Hologran enemy (Wily fortress hologram room):
+;   Appearance sets $1D=$10, $1E=+$10 → BG darkens; at $1D=$50 (fully dark)
+;   $71++ triggers the hologram overlay sprites (load_overlay_sprites).
+;   Death/despawn sets $1D=$30, $1E=-$10 → BG brightens; $1D wraps to $F0
+;   (fully restored) → $72=0 stops the overlay scroll.
 ; $1C cleared when done.
 ; ---------------------------------------------------------------------------
 
@@ -522,14 +528,14 @@ fade_tick_clamp:  sta     $0600,y       ; store clamped color back
         adc     $1E                     ; $1E = step delta
         sta     $1D                     ; store new fade amount
         cmp     #$F0                    ; check for fully black
-        beq     fade_tick_fully_black   ; $F0 = fully black
-        cmp     #$50                    ; $50 = fully restored
+        beq     fade_tick_restore_done  ; $F0 = wrapped past 0 = fully restored
+        cmp     #$50                    ; $50 = fully dark
         bne     fade_tick_exit          ; not done, continue fading
-        inc     $71                     ; signal fade-in complete
-        bne     fade_tick_restore_complete ; always taken (inc from nonzero)
-fade_tick_fully_black:  lda     #$00    ; A = 0 for clear
-        sta     $72                     ; signal rendering halted
-fade_tick_restore_complete:  lda     #$00 ; A = 0 for clear
+        inc     $71                     ; fully dark → trigger hologram overlays
+        bne     fade_tick_clear_active  ; always taken (inc from nonzero)
+fade_tick_restore_done:  lda     #$00   ; A = 0 for clear
+        sta     $72                     ; palette restored → stop hologram overlays
+fade_tick_clear_active:  lda     #$00   ; A = 0 for clear
         sta     $1C                     ; clear fade-active flag
 fade_tick_exit:  rts                    ; return to caller
 
@@ -622,7 +628,7 @@ shift_register_rotate_loop:  ror     $E4,x ; rotate carry into high bit
 load_stage:  lda     stage_id           ; switch to stage's PRG bank
         sta     prg_bank                ; ($A000-$BFFF = stage data)
         jsr     select_PRG_banks        ; switch to stage data bank
-        lda     $AA80                   ; load palette indices
+        lda     $AA80                   ; load BG CHR bank index 1
         sta     $E8                     ; from stage bank
         lda     $AA81                   ; load BG CHR bank index 2
         sta     $E9                     ; store to CHR bank slot $E9

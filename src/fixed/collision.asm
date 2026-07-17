@@ -89,7 +89,7 @@ metatile_save_slot:  stx     $04        ; save entity slot
         jsr     select_PRG_banks        ; apply bank switch
         ldx     $04                     ; restore entity slot
         ldy     $13                     ; get metatile column pointer for X screen
-        jsr     metatile_column_ptr     ; set $20/$21 to column data
+        jsr     metatile_screen_ptr     ; set $20/$21 to column data
 metatile_get_chr_ptr:  jsr     metatile_chr_ptr ; get CHR data pointer for column+row ($28)
 metatile_read_index:  ldy     $03       ; read metatile index at sub-tile ($03)
         lda     (temp_00),y             ; $03 = {0,1,2,3} for TL/TR/BL/BR
@@ -265,7 +265,7 @@ metatile_row_shift:  lda     $11        ; Y >> 2 = 4-pixel rows
         jsr     select_PRG_banks        ; apply bank switch
         ldx     $04                     ; restore entity slot
         ldy     $13                     ; get metatile column pointer for X screen
-        jsr     metatile_column_ptr     ; set column data pointer
+        jsr     metatile_screen_ptr     ; set column data pointer
 metatile_get_row_chr_ptr:  jsr     metatile_chr_ptr ; get CHR data pointer for column+row ($28)
 metatile_read_row_index:  ldy     $03   ; read metatile index at sub-tile ($03)
         lda     (temp_00),y             ; read metatile sub-index
@@ -456,36 +456,36 @@ proto_man_wall_override:  sta     $05   ; save original tile type
         stx     $06                     ; save X
         sty     $07                     ; save Y
         lda     proto_man_flag          ; cutscene-complete flag
-        beq     metatile_gemini_original ; no cutscene → return original
+        beq     proto_wall_return_orig  ; no cutscene → return original
         ldy     stage_id                ; stage index
-        ldx     metatile_gemini_table_1,y ; look up wall data offset
-        bmi     metatile_gemini_wrong_stage ; $FF = no wall → clear $68
-        lda     metatile_gemini_table_2,x ; expected scroll position
+        ldx     proto_wall_stage_offsets,y ; look up wall data offset
+        bmi     proto_wall_clear_flag   ; $FF = no wall → clear $68
+        lda     proto_wall_screen_table,x ; expected scroll position
         cmp     camera_screen           ; match current scroll?
-        bne     metatile_gemini_wrong_stage ; no → clear $68 (wrong screen)
-        lda     metatile_gemini_col_offsets,x ; number of wall tile entries
+        bne     proto_wall_clear_flag   ; no → clear $68 (wrong screen)
+        lda     proto_wall_count_table,x ; number of wall tile entries
         sta     $08                     ; store wall entry count
         lda     $28                     ; current tile column
-metatile_gemini_wall_match:  cmp     metatile_gemini_wall_cols,x ; match wall column?
-        beq     metatile_gemini_passthrough ; yes → return $00 (passthrough)
+proto_wall_match_loop:  cmp     proto_wall_col_table,x ; match wall column?
+        beq     proto_wall_passthrough  ; yes → return $00 (passthrough)
         inx                             ; next wall entry
         dec     $08                     ; more entries to check?
-        bpl     metatile_gemini_wall_match ; loop through all wall entries
-        bmi     metatile_gemini_original ; no match → return original tile type
-metatile_gemini_passthrough:  lda     #$00 ; A = $00 (air/passthrough)
-        beq     metatile_gemini_restore_xy ; always branches
-metatile_gemini_original:  lda     $05  ; A = original tile type
-metatile_gemini_restore_xy:  ldx     $06 ; restore X, Y
+        bpl     proto_wall_match_loop   ; loop through all wall entries
+        bmi     proto_wall_return_orig  ; no match → return original tile type
+proto_wall_passthrough:  lda     #$00   ; A = $00 (air/passthrough)
+        beq     proto_wall_restore_xy   ; always branches
+proto_wall_return_orig:  lda     $05    ; A = original tile type
+proto_wall_restore_xy:  ldx     $06     ; restore X, Y
         ldy     $07                     ; restore Y
         rts                             ; return tile type in A
 
-metatile_gemini_wrong_stage:  lda     #$00 ; wrong stage/screen
+proto_wall_clear_flag:  lda     #$00    ; wrong stage/screen
         sta     proto_man_flag          ; clear cutscene-complete flag
-        beq     metatile_gemini_original ; always branches (A=0)
-metatile_gemini_table_1:  .byte   $FF,$00,$11,$04,$FF,$FF,$FF,$0E ; ($28 << 2) & $04 | $03 (quadrant)
-metatile_gemini_table_2:  .byte   $05
-metatile_gemini_col_offsets:  .byte   $01
-metatile_gemini_wall_cols:  .byte   $31,$39,$13,$07,$23,$24,$2B,$2C
+        beq     proto_wall_return_orig  ; always branches (A=0)
+proto_wall_stage_offsets:  .byte   $FF,$00,$11,$04,$FF,$FF,$FF,$0E ; per-stage data offset ($FF = no Proto wall)
+proto_wall_screen_table:  .byte   $05
+proto_wall_count_table:  .byte   $01
+proto_wall_col_table:  .byte   $31,$39,$13,$07,$23,$24,$2B,$2C
         .byte   $33,$34,$3B,$3C,$05,$00,$31,$09
         .byte   $00,$00
 hitbox_h_start_idx:  .byte   $00,$05,$09,$0E,$12,$16,$1A,$1F
@@ -553,9 +553,7 @@ hitbox_v_y_offsets:  .byte   $F5,$0B,$0B,$02,$F8,$F5,$0B,$0B
 hitbox_v_y_offsets_cont:  .byte   $0F,$02,$F0,$F1,$0F,$0F,$02,$14
         .byte   $EC,$14,$14,$02,$EC,$EC,$14,$14
         .byte   $02,$10,$E8,$18,$18,$02
-        beq     hitbox_v_y_offsets_cont ; data (hitbox table continuation)
-        clc                             ; data (hitbox table continuation)
-        clc                             ; data (hitbox table continuation)
+        .byte   $F0,$E8,$18,$18         ; hitbox table continuation (data)
 
 ; -----------------------------------------------
 ; snap_x_to_wall_right — push entity left after hitting a wall on its right
@@ -610,11 +608,11 @@ snap_y_to_ceil:  lda     $11            ; offset = ($11 & $0F) ^ $0F
         adc     ent_y_px,x              ; (push entity down)
         sta     ent_y_px,x              ; store corrected Y pixel
         cmp     #$F0                    ; screen height = $F0
-        bcc     metatile_gemini_done    ; within screen? done
+        bcc     snap_y_done             ; within screen? done
         adc     #$0F                    ; wrap to next screen down
         sta     ent_y_px,x              ; store wrapped Y pixel
         inc     ent_y_scr,x             ; Y screen++
-metatile_gemini_done:  rts              ; return
+snap_y_done:  rts                       ; return
 
 ; -----------------------------------------------
 ; snap_y_to_floor — push entity up after landing on a floor below
@@ -710,10 +708,10 @@ queue_metatile_clear:
         ora     #$20                    ; addr + 32 = next tile row
         sta     $0786                   ; (second entry low byte)
         lda     #$01                    ; count = 1 → write 2 tiles per row
-        sta     $0782                   ; (push entity left)
+        sta     $0782                   ; row 0 tile count
         sta     $0787                   ; count = 1 for second row too
         lda     $0780                   ; copy high byte for second entry
-        sta     $0785                   ; X screen -= borrow
+        sta     $0785                   ; second entry high byte
         lda     #$00                    ; tile data = $00 (blank) for all 4
         sta     $0783                   ; blank tile for row 0 left
         sta     $0784                   ; blank tile for row 0 right
@@ -735,7 +733,7 @@ metatile_final_return:  rts             ; return
 ; $28 = metatile index (low 3 bits = column, upper bits = row)
 ; $10 = nametable select (bit 2: 0=$2000, 4=$2400)
 ; proto_man_flag = cutscene-complete flag (selects alternate tile lookup path)
-; Y  = metatile ID (when $68=0, passed to metatile_column_ptr_by_id)
+; Y  = metatile ID (when $68=0, passed to metatile_screen_ptr_by_id)
 ;
 ; Buffer layout: 4 row entries (7 bytes each) + 1 attribute entry + $FF end
 ;   Entry: [addr_hi][addr_lo][count=3][tile0][tile1][tile2][tile3]
@@ -803,7 +801,7 @@ queue_metatile_update:
         jmp     metatile_oam_copy_loop  ; skip normal lookup path
 
 metatile_oam_id_load:  tya              ; Y = metatile ID
-        jsr     metatile_column_ptr_by_id ; look up metatile definition
+        jsr     metatile_screen_ptr_by_id ; look up metatile definition
         jsr     metatile_to_chr_tiles   ; convert to CHR tile indices
 metatile_oam_copy_loop:  ldx     #$03   ; copy 4×4 tile data from $06C0-$06CF
 metatile_oam_row_copy:  lda     $06C0,x ; row 0: $06C0-$06C3 → $0783-$0786

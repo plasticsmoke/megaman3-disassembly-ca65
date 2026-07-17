@@ -30,16 +30,16 @@ init_rush_spawn_entity:  ldy     #$01   ; spawn entity $13 (Rush) in slot 1
         tax                             ; (bit 1 of $31: 1=R has bit1=0, 2=L has bit1=1)
         lda     ent_x_px                ; Rush X = player X + directional offset
         clc                             ; offset from $D31F table (2 entries: R, L)
-        adc     weapon_x_offset_right_hi,x ; add directional X offset
+        adc     rush_spawn_x_offsets,x  ; add directional X offset
         sta     $0361                   ; store Rush X pixel
         lda     ent_x_scr               ; Rush X screen = player X screen + carry
-        adc     weapon_x_offset_left_lo,x ; add screen carry for X
+        adc     rush_spawn_x_scr,x      ; add screen carry for X
         sta     $0381                   ; store Rush X screen
         lda     #$80                    ; set Rush main routine = $80 (active)
         sta     ent_routine,y           ; set Rush routine to active
-        lda     #$AB                    ; Rush Y speed = $FF.AB (slight downward drift)
-        sta     $0441                   ; Rush Y velocity sub = $AB
-        lda     #$FF                    ; Rush Y velocity = $FF (upward drift)
+        lda     #$AB                    ; Rush Y speed = $FF.AB (slight downward drift
+        sta     $0441                   ; = -1 entity gravity tick)
+        lda     #$FF                    ; Rush Y velocity whole = $FF
         sta     $0461                   ; store Rush Y velocity whole
         ldx     #$00                    ; restore X = 0 (player slot)
 init_rush_exit:  rts                    ; return to caller
@@ -55,7 +55,7 @@ init_needle_cannon:
         tax                             ; X = parity index (0 or 1)
         lda     ent_y_px,y              ; read shot Y position
         clc                             ; add Y offset from table
-        adc     weapon_max_shots_table,x ; even/odd needle offset
+        adc     needle_y_offsets,x      ; even/odd needle offset
         sta     ent_y_px,y              ; store adjusted Y position
         ldx     #$00                    ; restore X = 0 (player slot)
 init_needle_cannon_exit:  rts           ; return to caller
@@ -118,8 +118,8 @@ init_hard_knuckle_ladder:  lda     #$00 ; zero X/Y speeds for slot 1
         inc     $05E1                   ; bump anim frame (force sprite update)
         lda     player_state            ; save player state to ent_timer (slot 0)
         sta     ent_timer               ; (restore when Hard Knuckle ends)
-        lda     #$10                    ; slot 1 AI routine = $10
-        sta     ent_var1                ; (Hard Knuckle movement handler)
+        lda     #$10                    ; player ent_var1 = $10 (16-frame
+        sta     ent_var1                ; recoil timer for state $0B)
         lda     #PSTATE_WEAPON_RECOIL   ; set player state $0B = hard_knuckle_ride
         sta     player_state            ; (D-pad steers the projectile)
 init_hard_knuckle_exit:  rts
@@ -127,6 +127,7 @@ init_hard_knuckle_exit:  rts
 ; Hard Knuckle OAM IDs per player state ($30=0..3)
 ; $AA=ground, $AB=air, $00=skip(slide), $AD=ladder
 init_hard_knuckle_oam_table:  .byte   $AA,$AB,$00,$AD
+; first 4 = recovery OAM by saved state (idle/jump/-/climb), used by state $0B exit
 init_hard_knuckle_offset_table:  .byte   $01,$07,$00,$0A,$FC,$FF,$04,$00
 init_top_spin:
         lda     player_state            ; check if player is airborne
@@ -196,17 +197,19 @@ weapon_init_ptr_hi:  .byte   $D1,$D2,$D1,$D2,$D1,$D2,$D2,$D1 ; Mega Buster
         .byte   $D1,$D1,$D2,$D1         ; Spark Shock
 
 ; on weapon fire, weapon is placed at an offset from Mega Man
-; based on left vs. right facing
-; right X pixel, right X screen, left X pixel, left X screen
-weapon_x_offset:  .byte   $0F
-weapon_x_offset_right_lo:  .byte   $00,$F0,$FF
-weapon_x_offset_right_hi:  .byte   $17
-weapon_x_offset_left_lo:  .byte   $00,$E8,$FF
+; based on left vs. right facing. Two 4-byte groups, each
+; [right px, right scr, left px, left scr] (indexed X=0 right, X=2 left;
+; the second label of each group is the +1 view for the screen-carry add):
+; weapon spawn: +$0F / -$10.  Rush spawn: +$17 / -$18.
+weapon_spawn_x_offsets:  .byte   $0F
+weapon_spawn_x_scr:  .byte   $00,$F0,$FF
+rush_spawn_x_offsets:  .byte   $17
+rush_spawn_x_scr:  .byte   $00,$E8,$FF
 weapon_OAM_ID:  .byte   $18,$9F,$A2,$AC,$97,$18,$A5,$18 ; Mega Buster
         .byte   $9C,$18,$9E,$18         ; Spark Shock
 weapon_main_ID:  .byte   $01,$84,$01,$85,$83,$01,$86,$01 ; Mega Buster
         .byte   $87,$01,$88,$01         ; Spark Shock
-weapon_max_shots_table:  .byte   $FE,$02
+needle_y_offsets:  .byte   $FE,$02   ; needle shot Y offset by parity: -2/+2
 
 ; maximum # of shots on screen at once
 weapon_max_shots:  .byte   $03,$01,$03,$01,$02,$00,$03,$03 ; Mega Buster
@@ -316,7 +319,7 @@ slide_initiate_confirmed:  lda     #PSTATE_SLIDE ; state $02 = player_slide
 
 ; player state $02: sliding on ground
 ; Speed: $02.80 = 2.5 px/frame. Timer in $33 (starts at $14 = 20 frames).
-; First 9 frames: uncancellable. Frames 10-20: cancellable with A (slide jump).
+; First 8 frames: uncancellable. Last 12 frames: cancellable with A (slide jump).
 ; Exits: timer expires, direction change, wall hit, ledge, or A button.
 player_slide:
         ldy     #$02                    ; apply $99 (Y=2 = slide hitbox)
@@ -398,7 +401,7 @@ check_ladder_entry:  ldy     #$04       ; check tile at Y=4 offset
         jsr     check_tile_collision    ; check tile type at offset
         lda     tile_at_feet_hi         ; tile type at feet (high)
         cmp     #TILE_LADDER            ; ladder tile ($20)?
-        beq     ladder_enter_from_up    ; ladder top ($40)
+        beq     ladder_enter_from_up    ; ladder body → enter
         cmp     #TILE_LADDER_TOP        ; ladder top tile ($40)?
         beq     ladder_enter_from_up    ; yes → enter ladder
         lda     tile_at_feet_lo         ; check other foot tile
@@ -599,7 +602,7 @@ player_reappear:
 
 shadow_man_drop_vertical:  lda     ent_y_px ; Shadow Man: Y >= $30 → switch to $99
         cmp     #$30                    ; Shadow Man Y threshold = $30
-        bcs     shadow_man_landing_gravity ; → stay on ladder
+        bcs     shadow_man_landing_gravity ; past threshold → use gravity
         jsr     apply_y_speed           ; fall at constant speed
         jmp     shadow_man_landing_clear ; skip to clear anim counter
 
@@ -625,7 +628,7 @@ shadow_man_reappear_check:  lda     ent_anim_state ; anim frame == 4 → reappea
         cmp     #$04                    ; if >0: skip movement (anim playing)
         bne     shadow_man_reappear_return ; not done yet
         lda     #$00                    ; transition to state $00 (on_ground)
-        sta     player_state            ; Shadow Man stage ($07)?
+        sta     player_state            ; set state to on_ground
         sta     walk_flag               ; clear shooting flag
         sta     invincibility_timer     ; clear invincibility timer
 shadow_man_reappear_return:  rts        ; return to caller
@@ -771,8 +774,8 @@ player_damage_anim_set:  jsr     reset_sprite_anim ; set player damage animation
 
 ; --- knockback physics: $99 + horizontal recoil ---
 player_knockback_physics:  lda     $3E  ; check saved OAM for special cases:
-        cmp     #$10                    ; $10 = climbing (no knockback physics)
-        beq     player_knockback_landing ; climbing → skip knockback
+        cmp     #$10                    ; $10 = sliding (no knockback physics)
+        beq     player_knockback_landing ; sliding → skip knockback
         cmp     #$79                    ; >= $79 = special state (skip physics)
         bcs     player_knockback_landing ; special OAM → skip knockback physics
         ldy     #$00                    ; Y = 0 (player slot)
@@ -807,19 +810,19 @@ player_knockback_landing:  lda     ent_anim_state ; ent_anim_state = animation/c
 ; --- landed: restore OAM and start invincibility frames ---
         lda     $3E                     ; saved OAM determines recovery anim
         pha                             ; save OAM on stack
-        cmp     #$10                    ; $10 = climbing → reset anim
-        beq     player_knockback_restore_oam ; climbing → restore anim
+        cmp     #$10                    ; $10 = sliding → reset anim
+        beq     player_knockback_restore_oam ; sliding → restore anim
         cmp     #$D9                    ; >= $D9 = Rush Marine → reset anim
         bcc     player_knockback_state_check ; else keep current anim
 player_knockback_restore_oam:  jsr     reset_sprite_anim ; reset to saved OAM
 player_knockback_state_check:  pla      ; determine return state:
-        cmp     #$10                    ; $10 (climbing) → state $02
-        beq     player_knockback_return_climb ; climbing → return to ladder state
+        cmp     #$10                    ; $10 (sliding) → state $02
+        beq     player_knockback_return_climb ; sliding → return to slide state
         cmp     #$D9                    ; >= $D9 (Rush Marine) → state $08
         bcc     player_knockback_return_normal ; else → state $00 (normal)
         lda     #$08                    ; return state = $08 (Rush Marine)
         bne     player_knockback_set_invincible ; branch always taken (A != 0)
-player_knockback_return_climb:  lda     #$02 ; return state = $02 (climbing)
+player_knockback_return_climb:  lda     #$02 ; return state = $02 (slide)
         bne     player_knockback_set_invincible ; branch always taken (A != 0)
 player_knockback_return_normal:  lda     #$00 ; return state = $00 (normal)
 player_knockback_set_invincible:  sta     player_state ; set return player state
@@ -958,7 +961,7 @@ player_rush_marine:
 rush_marine_check_env:  ldy     #$06    ; check tile at player's feet
         jsr     check_tile_horiz        ; Y=$06 = below center
         lda     $10                     ; $10 = tile type result
-        cmp     #$80                    ; $80 = water tile
+        cmp     #TILE_WATER             ; $80 = water tile
         beq     rush_marine_water_check ; water → underwater mode
 
 ; --- land mode: $99 + horizontal movement ---
@@ -1005,7 +1008,7 @@ rush_marine_water_physics:  lda     joy1_press ; A button pressed?
         ldy     #$01                    ; check tile above (Y=$01)
         jsr     check_tile_horiz        ; check tile type above player
         lda     $10                     ; still water above?
-        cmp     #$80                    ; water tile above?
+        cmp     #TILE_WATER             ; water tile above?
         bne     rush_marine_jump_vel_set ; surfacing → apply jump velocity
 
 ; --- underwater: no thrust, slow sink ---
@@ -1030,7 +1033,7 @@ rush_marine_sink_vel_set:  lda     #$80 ; y_speed = $01.80 (slow sink in water)
         ldy     #$06                    ; re-check water tile at feet
         jsr     check_tile_horiz        ; re-check tile type at feet
         lda     $10                     ; still in water?
-        cmp     #$80                    ; still in water?
+        cmp     #TILE_WATER             ; still in water?
         beq     rush_marine_surface_snap ; yes → done
         lda     ent_y_px                ; surfaced: snap Y to next tile boundary
         and     #$F0                    ; (align to water surface)
@@ -1064,7 +1067,7 @@ rush_marine_clear_shoot:  lda     #$00  ; clear shoot timer
 ; ===========================================================================
 ; Player stands still while boss intro plays (shutters close, HP bars fill).
 ; Applies $99 until grounded, then sets standing OAM. Handles two phases:
-;   1. Wily4 ($22=$10): progressively draws boss arena nametable (column $1A)
+;   1. Wily5 ($22=$10): progressively draws boss arena nametable (column $1A)
 ;   2. HP bar fill: boss_hp_display increments from $80 to HEALTH_FULL (28 ticks),
 ;      playing SFX_HP_FILL each tick. When it reaches HEALTH_FULL, returns to state $00.
 ; ---------------------------------------------------------------------------
@@ -1086,8 +1089,8 @@ player_boss_wait:
 ; --- Wily4 special: draw boss arena nametable progressively ---
 boss_intro_stage_check:  lda     stage_id ; check current stage
         cmp     #STAGE_WILY5            ; check for Wily5 stage
-        bne     boss_intro_hp_bar_fill  ; not Wily4 → skip to HP fill
-        ldy     #$26                    ; $52 = $26 (set viewport for Wily4 arena)
+        bne     boss_intro_hp_bar_fill  ; not Wily5 → skip to HP fill
+        ldy     #$26                    ; $52 = $26 (set viewport for Wily5 arena)
         cpy     $52                     ; already set?
         beq     boss_intro_nt_render_check ; yes → check render progress
         sty     $52                     ; first time: initialize nametable render
@@ -1101,7 +1104,7 @@ boss_intro_nt_render_check:  ldy     $70 ; $70 = 0 means render complete
 boss_intro_bank_switch:  sta     prg_bank ; switch to stage bank
         jsr     select_PRG_banks        ; switch PRG banks
         lda     #$1A                    ; metatile column $1A (boss arena column)
-        jsr     metatile_column_ptr_by_id ; load metatile column pointer
+        jsr     metatile_screen_ptr_by_id ; load metatile column pointer
         lda     #$04                    ; nametable select = $04
         sta     $10                     ; set nametable select value
         jsr     fill_nametable_progressive ; draw one column per frame
@@ -1136,29 +1139,29 @@ boss_intro_return:  rts                 ; return to caller
 ; frames. When timer expires or player lands on ground, returns to state $00.
 ; Facing direction is preserved across move_collide calls.
 ; ---------------------------------------------------------------------------
-player_top_spin:                        ; $A000 bank target = 0
+player_top_spin:
 
         ldy     #$00                    ; apply $99 to player
-        jsr     move_vertical_gravity   ; column counter = 0
-        bcs     spark_freeze_clear_timer ; landed → end Top Spin recoil
+        jsr     move_vertical_gravity   ; apply gravity, carry = landed
+        bcs     top_spin_end            ; landed → end Top Spin recoil
         lda     ent_flags               ; save facing (move_collide may change it)
         pha                             ; save flags on stack
         and     #ENT_FLAG_HFLIP         ; bit 6: 0=right, 1=left
-        bne     spark_freeze_move_left  ; H-flip set → move left
+        bne     top_spin_move_left      ; H-flip set → move left
         ldy     #$00                    ; facing right → move right
         jsr     move_right_collide      ; move right with collision
-        jmp     spark_freeze_restore_facing ; restore facing direction
+        jmp     top_spin_restore_facing ; restore facing direction
 
-spark_freeze_move_left:  ldy     #$01   ; facing left → move left
+top_spin_move_left:  ldy     #$01       ; facing left → move left
         jsr     move_left_collide       ; move left with collision
-spark_freeze_restore_facing:  pla       ; restore original facing
+top_spin_restore_facing:  pla           ; restore original facing
         sta     ent_flags               ; restore facing flags
         dec     ent_timer               ; decrement Top Spin recoil timer
-        bne     spark_freeze_return     ; not expired → continue
-spark_freeze_clear_timer:  lda     #$00 ; timer expired or landed:
+        bne     top_spin_return         ; not expired → continue
+top_spin_end:  lda     #$00             ; timer expired or landed:
         sta     ent_timer               ; clear timer
         sta     player_state            ; return to state $00 (ground)
-spark_freeze_return:  rts               ; return to caller
+top_spin_return:  rts                   ; return to caller
 
 ; ===========================================================================
 ; player state $0B: Hard Knuckle fire freeze [confirmed]
@@ -1190,19 +1193,19 @@ gemini_dup_return:  rts                 ; return to caller
 ; Also handles: walking to screen center (X=$80), victory music,
 ;   palette flash for Wily stages ($22 >= $10), Doc Robot ($08-$0B) exits.
 ; ---------------------------------------------------------------------------
-player_victory:                         ; facing right → move right
+player_victory:
 
         lda     ent_timer               ; get victory phase counter
         and     #$0F                    ; mask to low nibble
-        beq     victory_walk_left       ; phase 0 → skip to $99/walk
+        beq     victory_flash_check     ; phase 0 → skip to $99/walk
 
 ; --- phases 1-4: wait for landing, then process explosions ---
-        lda     ent_yvel                ; y_speed: negative = still rising from jump
-        bpl     victory_walk_left       ; positive/zero = falling/grounded → continue
+        lda     ent_yvel                ; y_speed: positive = still rising from jump
+        bpl     victory_flash_check     ; rising → keep applying physics
         lda     #$68                    ; clamp Y to landing position $68
         cmp     ent_y_px                ; compare to landing Y ($68)
         beq     victory_explosion_check ; at $68 → proceed
-        bcs     victory_walk_left       ; above $68 → still falling, wait
+        bcs     victory_flash_check     ; above $68 → still falling, wait
         sta     ent_y_px                ; below $68 → snap to $68
 
 ; --- check if all explosion entities (slots $10-$1F) are inactive ---
@@ -1246,18 +1249,18 @@ victory_phase_continue:  lda     #SFX_WEAPON_GET ; weapon acquired jingle
 
 ; --- victory phase 0: $99 + palette flash + walk to center ---
 
-victory_walk_left:  lda     stage_id    ; Wily stages (stage_id >= $10): palette flash effect
+victory_flash_check:  lda     stage_id  ; Wily stages (stage_id >= $10): palette flash effect
         cmp     #STAGE_WILY5            ; Wily5+ stages have palette flash
         bcc     victory_ground_check    ; not Wily → skip flash
         lda     $95                     ; flash every 8 frames
         and     #$07                    ; check every 8th frame
         bne     victory_ground_check    ; not flash frame → skip
         lda     ent_var1                ; ent_var1 = music countdown timer
-        beq     victory_walk_right      ; if 0 → toggle
+        beq     victory_flash_toggle    ; if 0 → toggle
         lda     $0610                   ; SP0 color 0: if $0F → stop flashing
         cmp     #$0F                    ; (palette restored to normal)
         beq     victory_ground_check    ; palette normal → skip flash
-victory_walk_right:  lda     $0610      ; toggle SP0 palette entry: XOR with $2F
+victory_flash_toggle:  lda     $0610    ; toggle SP0 palette entry: XOR with $2F
         eor     #$2F                    ; (flashes between dark and light)
         sta     $0610                   ; store toggled palette value
         lda     #$FF                    ; trigger palette update
@@ -1278,7 +1281,7 @@ victory_jump_init:  rol     $0F         ; $0F bit 0 = grounded this frame
 
 ; --- wait for boss explosion entities (slots $10-$1F) to finish ---
         ldy     #$0F                    ; check slots $10-$1F
-victory_super_jump_start:  lda     stage_id ; Wily5 (stage_id=$11): skip checking slot $10
+victory_slot_loop:  lda     stage_id    ; Wily6 (stage_id=$11): skip checking slot $10
         cmp     #STAGE_WILY6            ; Wily6: skip slot $10
         bne     victory_check_explosions_loop ; not Wily6 → check all slots
         cpy     #$00                    ; at Y=0 (slot $10) → skip to next phase
@@ -1286,7 +1289,7 @@ victory_super_jump_start:  lda     stage_id ; Wily5 (stage_id=$11): skip checkin
 victory_check_explosions_loop:  lda     $0310,y ; check if slot still active
         bmi     victory_phase_check     ; active → wait (return)
         dey                             ; next slot
-        bpl     victory_super_jump_start ; loop through all slots
+        bpl     victory_slot_loop       ; loop through all slots
 
 ; --- all explosions done: determine stage-specific exit behavior ---
 victory_all_done_check:  lda     stage_id ; Doc Robot stages ($08-$0B)?
@@ -1299,7 +1302,7 @@ victory_all_done_check:  lda     stage_id ; Doc Robot stages ($08-$0B)?
         bcc     victory_return          ; early stage → skip music
 
 ; --- play victory music ---
-victory_weapon_award:  lda     stage_id ; Wily5 ($11) → music $37 (special victory)
+victory_weapon_award:  lda     stage_id ; Wily6 ($11) → music $37 (special victory)
         cmp     #STAGE_WILY6            ; Wily6 → special victory music
         bne     victory_play_music      ; not Wily6 → normal music
         lda     #MUSIC_WILY_VICTORY     ; already playing?
@@ -1338,8 +1341,8 @@ victory_return:  lda     stage_id       ; stages $00-$07 (robot master): walk to
 victory_exit_robot_master:  sty     temp_00 ; save Y (slot check result)
         lda     ent_x_px                ; get player X position
         cmp     #$80                    ; compare X to screen center
-        beq     victory_exit_wily       ; at center → done walking
-        bcs     victory_exit_fortress   ; X > $80 → walk left
+        beq     victory_walk_anim       ; at center → done walking
+        bcs     victory_walk_left_to_center ; X > $80 → walk left
 
 ; --- walk right toward center ---
         ldy     #$00                    ; move right with collision
@@ -1347,29 +1350,29 @@ victory_exit_robot_master:  sty     temp_00 ; save Y (slot check result)
         rol     temp_00                 ; save collision result
         lda     #$80                    ; clamp: don't overshoot $80
         cmp     ent_x_px                ; check if past center
-        bcs     victory_exit_wily       ; X <= $80 → ok
+        bcs     victory_walk_anim       ; X <= $80 → ok
         sta     ent_x_px                ; clamp X to $80
-        bcc     victory_exit_wily       ; always taken → check anim
+        bcc     victory_walk_anim       ; always taken → check anim
 
 ; --- walk left toward center ---
-victory_exit_fortress:  ldy     #$01    ; move left with collision
+victory_walk_left_to_center:  ldy     #$01 ; move left with collision
         jsr     move_left_collide       ; move left with collision
         rol     temp_00                 ; save collision result
         lda     #$80                    ; clamp: don't undershoot $80
         cmp     ent_x_px                ; compare X to center ($80)
-        bcc     victory_exit_wily       ; X >= $80 → ok
+        bcc     victory_walk_anim       ; X >= $80 → ok
         sta     ent_x_px                ; clamp X to $80
 
 ; --- set walking/standing animation based on ground state ---
-victory_exit_wily:  ldy     #$00        ; $0F bit 0 = grounded (from ROL earlier)
+victory_walk_anim:  ldy     #$00        ; $0F bit 0 = grounded (from ROL earlier)
         lsr     $0F                     ; carry = grounded
-        bcs     victory_restore_palette ; grounded → Y=0 (walk anim)
+        bcs     victory_set_walk_oam    ; grounded → Y=0 (walk anim)
         iny                             ; airborne → Y=1 (jump anim)
-victory_restore_palette:  lda     victory_walk_oam_table,y ; $DC7F = walk/jump OAM lookup table
+victory_set_walk_oam:  lda     victory_walk_oam_table,y ; $DC7F = walk/jump OAM lookup table
         cmp     ent_anim_id             ; already correct OAM?
-        beq     victory_next_stage_setup ; yes → skip anim reset
+        beq     victory_jump_check      ; yes → skip anim reset
         jsr     reset_sprite_anim       ; set new animation
-victory_next_stage_setup:  cpy     #$01 ; airborne (Y=1)? → done for this frame
+victory_jump_check:  cpy     #$01       ; airborne (Y=1)? → done for this frame
         beq     explosion_return        ; airborne → done this frame
         lsr     temp_00                 ; check collision flag from walk
         bcc     explosion_return        ; no collision → done
@@ -1377,7 +1380,7 @@ victory_next_stage_setup:  cpy     #$01 ; airborne (Y=1)? → done for this fram
 ; --- grounded at center: do victory jump ---
         lda     ent_x_px                ; at center X=$80?
         cmp     #$80                    ; at screen center?
-        beq     victory_exit_completion ; yes → super jump!
+        beq     victory_super_jump      ; yes → super jump!
         lda     #$E5                    ; not at center: normal jump velocity
         sta     ent_yvel_sub            ; y_speed = $04.E5
         lda     #$04                    ; y_speed = $04 (normal jump)
@@ -1386,7 +1389,7 @@ victory_done_end:  rts                  ; return to caller
 
 ; --- victory super jump at screen center ---
 
-victory_exit_completion:  lda     #$00  ; y_speed = $08.00 (super jump!)
+victory_super_jump:  lda     #$00       ; y_speed = $08.00 (super jump!)
         sta     ent_yvel_sub            ; y_speed_sub = $00
         lda     #$08                    ; super jump velocity = $08
         sta     ent_yvel                ; y_speed = $08 (double height jump)
@@ -1402,6 +1405,11 @@ victory_exit_completion:  lda     #$00  ; y_speed = $08.00 (super jump!)
 ; Positions from $DCE1 (X) and $DCD1 (Y) tables, velocities from $DC71+.
 ; ---------------------------------------------------------------------------
 
+; NOTE: the loads below index PAST their label bases on purpose: with
+; Y=$10-$1F, victory_y_positions+Y lands in victory_x_positions (X pos) and
+; victory_burst_y_speed+Y lands in victory_y_positions (Y pos). The ,x loads
+; (X=$1F-$2B from warp_boss_init_table) land in the victory_* velocity rows.
+; The labels are index bases, not the semantic start of the data used.
 explosion_init_table:  ldy     ent_timer ; velocity table offset from batch number
         ldx     warp_boss_init_table,y  ; velocity table start index for this batch
         ldy     #$1F                    ; Y = slot $1F (fill backwards to $10)
@@ -1513,8 +1521,8 @@ player_teleport:
 ; --- landed: stop movement, start wait timer ---
 
 teleport_phase_advance:  inc     ent_status ; advance phase ($80 → $81)
-        sta     ent_yvel_sub            ; clear vertical speed (A=0 from BCS)
-        sta     ent_yvel                ; clear Y velocity
+        sta     ent_yvel_sub            ; A=$FF here (from reset_gravity), so
+        sta     ent_yvel                ; yvel = $FF.FF (≈ -1/256, near-rest)
         lda     #$3C                    ; ent_timer = $3C (60 frame wait before beam)
         sta     ent_timer               ; wait 60 frames before teleport beam
         lda     #$01                    ; OAM $01 = standing
@@ -1563,19 +1571,19 @@ teleport_beam_check_formed:  lda     ent_anim_state ; anim state $02 = beam full
         cpy     #$0C                    ; if stage >= $0C (Wily fortress),
         bcs     wily_stage_clear        ; handle separately
         lda     bosses_beaten           ; load boss-defeated bitmask
-        ora     entity_damage_table,y   ; set bit for this stage's boss
+        ora     stage_bit_mask,y        ; set bit for this stage's boss
         sta     bosses_beaten           ; store updated bitmask
         inc     $59                     ; advance stage progression
         lda     stage_id                ; check if Needle Man stage
         cmp     #$00                    ; awards Rush Jet
-        beq     rush_jet_energy_full_table ; Needle Man → award Rush Jet
+        beq     rush_jet_award          ; Needle Man → award Rush Jet
         cmp     #STAGE_SHADOW           ; check if Shadow Man stage
         bne     teleport_timer_done     ; other stages → no Rush award
         lda     #HEALTH_FULL            ; fill Rush Marine energy
         sta     $AB                     ; store Rush Marine ammo
         rts                             ; return to caller
 
-rush_jet_energy_full_table:  lda     #HEALTH_FULL ; fill Rush Jet energy
+rush_jet_award:  lda     #HEALTH_FULL   ; fill Rush Jet energy
 rush_jet_energy_set:  sta     $AD
 teleport_timer_done:  rts
 
@@ -1616,4 +1624,6 @@ victory_x_positions:
 warp_boss_init_table:  .byte   $2B,$1F,$1F,$27
 
 ; weapon ID per stage table (indexed by $22)
-victory_weapon_id_table:  .byte   $02,$04,$01,$03,$05,$00,$02,$04 ; Ndl→$04(Mag) Mag→$01(Gem) Gem→$03(Hrd) Hrd→$05(Top)
+; awarded weapon = this value + warp_position_table[stage] ($00 or $06):
+; Ndl $02, Mag $04, Gem $01, Hrd $03, Top $05, Snk $00+6=$06, Spk $02+6=$08, Shd $04+6=$0A
+victory_weapon_id_table:  .byte   $02,$04,$01,$03,$05,$00,$02,$04

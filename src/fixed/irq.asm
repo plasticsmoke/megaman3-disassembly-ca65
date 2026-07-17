@@ -19,8 +19,8 @@ IRQ:  php                               ; push processor status (IRQ entry)
         pha                             ; push X
         tya                             ; preserve Y
         pha                             ; push Y
-        sta     auto_walk_spawn_done    ; acknowledge MMC3 IRQ (disable)
-        sta     weapon_hurt_timer_done  ; re-enable MMC3 IRQ
+        sta     MMC3_IRQ_DISABLE        ; acknowledge MMC3 IRQ (disable)
+        sta     MMC3_IRQ_ENABLE         ; re-enable MMC3 IRQ
         jmp     (irq_handler_ptr)       ; dispatch to current handler
 
 ; ===========================================================================
@@ -82,7 +82,7 @@ irq_gameplay_hscroll:
         lda     $51                     ; counter = $51 - $9F
         sec                             ; (scanlines until secondary split)
         sbc     #$9F                    ; subtract scanline offset
-        sta     NMI                     ; set MMC3 IRQ counter for next split
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter for next split
         lda     irq_vector_lo_gameplay_status ; chain to irq_gameplay_status_bar
         sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_gameplay_status ; chain handler high byte
@@ -115,7 +115,7 @@ irq_gameplay_ntswap:
         lda     #$B0                    ; counter = $B0 - $7B
         sec                             ; (scanlines to next split)
         sbc     irq_scanline            ; subtract base scanline count
-        sta     NMI                     ; set MMC3 IRQ counter for next split
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter for next split
         ldx     screen_mode             ; chain index = current game mode
         lda     scroll_lock             ; secondary split?
         beq     irq_gameplay_ntswap_chain ; no → use mode index
@@ -154,7 +154,7 @@ irq_gameplay_vscroll:
         lda     $51                     ; counter = $51 - $B0
         sec                             ; set carry for subtraction
         sbc     #$B0                    ; subtract scanline offset
-        sta     NMI                     ; set MMC3 IRQ counter for next split
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter for next split
         lda     irq_vector_lo_gameplay_status ; chain to irq_gameplay_status_bar
         sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_gameplay_status ; chain handler high byte
@@ -190,7 +190,7 @@ irq_stagesel_first:
         lda     #$C0                    ; counter = $C0 - $7B
         sec                             ; (scanlines to bottom split)
         sbc     irq_scanline            ; subtract base scanline count
-        sta     NMI                     ; set MMC3 IRQ counter for next split
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter for next split
         lda     irq_vector_lo_stagesel_second ; chain to irq_stagesel_second ($C26F)
         sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_stagesel_second ; chain handler high byte
@@ -260,7 +260,7 @@ irq_transition_first_split:
         lda     #$58                    ; set Y scroll = $58 (88)
         sta     PPUSCROLL               ; (top of middle band)
         lda     #$40                    ; set next IRQ at 64 scanlines later
-        sta     NMI                     ; (scanline 88+64 = 152)
+        sta     MMC3_IRQ_LATCH          ; (scanline 88+64 = 152)
         lda     irq_vector_lo_transition_second ; chain to second split handler
         sta     irq_handler_ptr         ; $9C/$9D → $C2D2
         lda     irq_vector_hi_transition_second ; (irq_transition_second_split)
@@ -326,7 +326,7 @@ irq_wave_set_strip:
         lda     wave_y_scroll_set,y     ; Y scroll from table: $30/$60/$90
         sta     PPUSCROLL               ; write wave Y scroll
         lda     #$0E                    ; next IRQ in 14 scanlines
-        sta     NMI                     ; set MMC3 IRQ counter (14 scanlines)
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter (14 scanlines)
         lda     irq_vector_lo_wave_advance ; chain to irq_wave_advance ($C32B)
         sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_wave_advance ; chain handler high byte
@@ -353,7 +353,7 @@ irq_wave_advance:
         cmp     #$03                    ; all 3 strips done?
         beq     irq_wave_all_strips_done ; yes → finish
         lda     #$20                    ; next IRQ in 32 scanlines
-        sta     NMI                     ; set MMC3 IRQ counter (32 scanlines)
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter (32 scanlines)
         lda     irq_vector_lo_wave_set_strip ; chain back to irq_wave_set_strip ($C302)
         sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_wave_set_strip ; chain handler high byte
@@ -367,7 +367,7 @@ irq_wave_all_strips_done:  lda     #$00 ; reset strip counter
         lda     $51                     ; counter = $51 - $A0
         sec                             ; set carry for subtraction
         sbc     #$A0                    ; subtract scanline offset
-        sta     NMI                     ; set MMC3 IRQ counter for secondary split
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter for secondary split
         lda     irq_vector_lo_gameplay_status ; chain to irq_gameplay_status_bar
         sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_gameplay_status ; chain handler high byte
@@ -397,7 +397,7 @@ irq_title_first:
         sta     PPUSCROLL               ; write X scroll = 0
         sta     PPUSCROLL               ; write Y scroll = 0
         lda     #$4C                    ; next IRQ in 76 scanlines
-        sta     NMI                     ; set MMC3 IRQ counter (76 scanlines)
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter (76 scanlines)
         lda     irq_vector_lo_title_cutscene ; chain to irq_title_second ($C3A3)
         sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_title_cutscene ; chain handler high byte
@@ -422,7 +422,7 @@ irq_title_second:
         lda     $51                     ; counter = $51 - $A0
         sec                             ; set carry for subtraction
         sbc     #$A0                    ; subtract scanline offset
-        sta     NMI                     ; set MMC3 IRQ counter for secondary split
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter for secondary split
         lda     irq_vector_lo_gameplay_status ; chain to irq_gameplay_status_bar
         sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_gameplay_status ; chain handler high byte
@@ -462,7 +462,7 @@ irq_cutscene_scroll:
         lda     #$AE                    ; counter = $AE - $7B
         sec                             ; (scanlines to secondary split)
         sbc     irq_scanline            ; subtract base scanline count
-        sta     NMI                     ; set MMC3 IRQ counter
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter
         lda     irq_vector_lo_chr_handlers ; chain to irq_cutscene_secondary ($C408)
         sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_chr_handlers ; chain handler high byte
@@ -500,7 +500,7 @@ irq_cutscene_reset_scroll:  lda     PPUSTATUS ; reset PPU latch
         sta     PPUSCROLL               ; write Y scroll = 0
         lda     scroll_lock             ; secondary split?
         beq     irq_cutscene_last_split ; no → last split
-        stx     NMI                     ; counter = X (from $51 - $B0 above)
+        stx     MMC3_IRQ_LATCH          ; counter = X (from $51 - $B0 above)
         lda     irq_vector_lo_gameplay_status ; chain to irq_gameplay_status_bar
         sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_gameplay_status ; chain handler high byte
@@ -523,7 +523,7 @@ irq_chr_split_first:
         lda     #$00                    ; Y scroll = 0
         sta     PPUSCROLL               ; write Y scroll = 0
         lda     #$30                    ; next IRQ in 48 scanlines
-        sta     NMI                     ; set MMC3 IRQ counter (48 scanlines)
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter (48 scanlines)
         lda     irq_vector_lo_chr_swap  ; chain to irq_chr_split_swap ($C469)
         sta     irq_handler_ptr         ; store handler low byte
         lda     irq_vector_hi_chr_swap  ; chain handler high byte
@@ -552,7 +552,7 @@ irq_chr_split_swap:
         sta     $E8                     ; store to CHR bank 0 shadow
         lda     #$72                    ; swap BG CHR bank 1 → $72
         sta     $E9                     ; store to CHR bank 1 shadow
-        jsr     task_yield_clear_flag   ; apply CHR bank swap via MMC3
+        jsr     select_CHR_banks_force  ; apply CHR bank swap via MMC3
         lda     mmc3_shadow             ; trigger MMC3 bank latch
         sta     MMC3_BANK_SELECT        ; write MMC3 bank select register
         lda     #$78                    ; set up next banks for NMI restore
@@ -579,7 +579,7 @@ irq_chr_swap_only:
         sta     $E8                     ; store to CHR bank 0 shadow
         lda     #$72                    ; temporarily swap BG CHR bank 1 → $72
         sta     $E9                     ; store to CHR bank 1 shadow
-        jsr     task_yield_clear_flag   ; apply CHR bank swap via MMC3
+        jsr     select_CHR_banks_force  ; apply CHR bank swap via MMC3
         lda     mmc3_shadow             ; trigger MMC3 bank latch
         sta     MMC3_BANK_SELECT        ; write MMC3 bank select register
         pla                             ; restore $E9
@@ -592,7 +592,7 @@ irq_chr_swap_only:
 ; Handlers jump here when done. Two entry points:
 ;   irq_exit_disable ($C4BA): disables IRQ (last split of frame)
 ;   irq_exit ($C4BD): keeps IRQ enabled (more splits coming)
-irq_exit_disable:  sta     auto_walk_spawn_done ; disable MMC3 IRQ (no more splits)
+irq_exit_disable:  sta     MMC3_IRQ_DISABLE ; disable MMC3 IRQ (no more splits)
 irq_exit:  pla                          ; restore Y
         tay                             ; restore Y
         pla                             ; restore registers
@@ -633,26 +633,26 @@ irq_exit:  pla                          ; restore Y
         .byte   $00,$00,$00,$00
 
 ; low bytes of handler addresses ($C4C8, 18 entries)
-irq_vector_lo:  .byte   $BA             ; modes $00-$03
-irq_vector_lo_gameplay_status:  .byte   $52,$98,$C1,$00,$35
-irq_vector_lo_stagesel_second:  .byte   $6F,$97
-irq_vector_lo_transition_second:  .byte   $D2
-irq_vector_lo_wave_set_strip:  .byte   $02
-irq_vector_lo_wave_advance:  .byte   $2B,$75
-irq_vector_lo_title_cutscene:  .byte   $A3,$CC ; modes $0C-$11
-irq_vector_lo_chr_handlers:  .byte   $08,$4A ; modes $0C-$11
-irq_vector_lo_chr_swap:  .byte   $69,$9C
+irq_vector_lo:  .byte   $BA             ; mode $00
+irq_vector_lo_gameplay_status:  .byte   $52,$98,$C1,$00,$35 ; modes $01-$05
+irq_vector_lo_stagesel_second:  .byte   $6F,$97 ; modes $06-$07
+irq_vector_lo_transition_second:  .byte   $D2 ; mode $08
+irq_vector_lo_wave_set_strip:  .byte   $02 ; mode $09
+irq_vector_lo_wave_advance:  .byte   $2B,$75 ; modes $0A-$0B
+irq_vector_lo_title_cutscene:  .byte   $A3,$CC ; modes $0C-$0D
+irq_vector_lo_chr_handlers:  .byte   $08,$4A ; modes $0E-$0F
+irq_vector_lo_chr_swap:  .byte   $69,$9C ; modes $10-$11
 
 ; high bytes of handler addresses ($C4DA, 18 entries)
-irq_vector_hi:  .byte   $C4             ; modes $00-$01
-irq_vector_hi_gameplay_status:  .byte   $C1,$C1,$C1,$C2,$C2 ; modes $00-$01
-irq_vector_hi_stagesel_second:  .byte   $C2,$C2
-irq_vector_hi_transition_second:  .byte   $C2
-irq_vector_hi_wave_set_strip:  .byte   $C3
-irq_vector_hi_wave_advance:  .byte   $C3,$C3 ; modes $0A-$11
-irq_vector_hi_title_cutscene:  .byte   $C3,$C3
-irq_vector_hi_chr_handlers:  .byte   $C4,$C4 ; modes $0A-$11
-irq_vector_hi_chr_swap:  .byte   $C4,$C4
+irq_vector_hi:  .byte   $C4             ; mode $00
+irq_vector_hi_gameplay_status:  .byte   $C1,$C1,$C1,$C2,$C2 ; modes $01-$05
+irq_vector_hi_stagesel_second:  .byte   $C2,$C2 ; modes $06-$07
+irq_vector_hi_transition_second:  .byte   $C2 ; mode $08
+irq_vector_hi_wave_set_strip:  .byte   $C3 ; mode $09
+irq_vector_hi_wave_advance:  .byte   $C3,$C3 ; modes $0A-$0B
+irq_vector_hi_title_cutscene:  .byte   $C3,$C3 ; modes $0C-$0D
+irq_vector_hi_chr_handlers:  .byte   $C4,$C4 ; modes $0E-$0F
+irq_vector_hi_chr_swap:  .byte   $C4,$C4 ; modes $10-$11
 
 ; --- water wave scroll tables (used by irq_wave_set_strip/advance) ---
 ; $73 indexes strip 0-2. Strips 0,2 invert X scroll; strip 1 keeps it.

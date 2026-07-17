@@ -68,11 +68,11 @@ rendering_on           := $C53B
 fill_nametable           := $C59D
 prepare_oam_buffer           := $C5E9
 clear_entity_table           := $C628
-fade_palette_out           := $C74C
-fade_palette_in           := $C752
+fade_palette_in           := $C74C     ; fade palette in (reveal)
+fade_palette_out          := $C752     ; fade palette out (to black)
 game_entry_set_hp_scroll           := $C9B3
 do_render_column           := $E4F1
-metatile_column_ptr_by_id           := $E8B4
+metatile_screen_ptr_by_id           := $E8B4
 queue_metatile_update           := $EEAB
 fill_nametable_progressive           := $EF8C
 reset_gravity           := $F81B
@@ -638,7 +638,7 @@ bank03_portrait_setup_routine:  .byte   $60,$70,$60,$71,$71,$74,$73,$6F
 ; metatile data to render the stage select background. After all 64
 ; metatile columns are rendered, enables PPU and waits for Start press.
 ; ===========================================================================
-        jsr     fade_palette_in         ; fade palette to black
+        jsr     fade_palette_out        ; fade palette to black
         jsr     task_yield              ; wait for fade to complete
         jsr     rendering_off           ; rendering_off
         ldy     #$05                    ; index for 6 CHR bank slots
@@ -668,11 +668,11 @@ palette_copy_loop:  lda     $9C03,y
         ldx     #$11                    ; table index $11
         jsr     write_ppu_data_from_table ; write_ppu_data_from_bank03
         jsr     task_yield              ; wait for PPU write
-        jsr     fade_palette_out        ; show title screen
+        jsr     fade_palette_in         ; show title screen
         ldx     #$B4                    ; wait 180 frames (3 seconds)
         jsr     task_yield_x            ; delay before stage select
 ; --- Second phase: load stage select background via metatiles ---
-        jsr     fade_palette_in         ; fade out
+        jsr     fade_palette_out        ; fade out
         jsr     task_yield              ; wait for fade to complete
         jsr     rendering_off           ; rendering_off
         ldy     #$05                    ; index for 6 CHR bank slots
@@ -715,7 +715,7 @@ oam_sentinel_load_loop:  lda     $9C69,x ; initial OAM data (4 bytes)
         lda     #$13                    ; bank $13 = metatile data
         sta     prg_bank                ; set PRG bank
         jsr     select_PRG_banks        ; apply PRG bank selection
-        jsr     fade_palette_out        ; show stage select background
+        jsr     fade_palette_in         ; show stage select background
 
 ; ===========================================================================
 ; Title screen Start button wait loop ($90B4)
@@ -788,7 +788,7 @@ stage_select_init_fresh_vs_return:  sty     $0F ; $0F = 0 (fresh) or 1 (return)
         lda     #$00                    ; clear counters
         sta     $70                     ; clear NMI sync flag
         lda     $9C63,y                 ; load screen scroll/setup param
-        jsr     metatile_column_ptr_by_id ; init metatile column pointer
+        jsr     metatile_screen_ptr_by_id ; init metatile column pointer
         lda     #$04                    ; OAM offset = 4 (skip sprite 0)
         sta     oam_ptr                 ; set OAM write pointer
         jsr     prepare_oam_buffer      ; clear unused OAM sprites
@@ -868,7 +868,7 @@ scroll_increment_loop:  lda     camera_x_lo ; load scroll X low byte
         asl     a                       ; 0 or 4
         sta     $10                     ; store NT select (0 or 4)
         lda     #$01                    ; metatile column 1
-        jsr     metatile_column_ptr_by_id ; metatile_column_ptr_by_id
+        jsr     metatile_screen_ptr_by_id ; metatile_screen_ptr_by_id
         lda     #$00                    ; init fill counter
         sta     $70                     ; reset fill progress
         sta     nmi_skip                ; allow NMI
@@ -957,7 +957,7 @@ oam_clear_loop:  sta     $0200,y        ; clear OAM Y to offscreen
         sta     $70                     ; nametable fill counter
         sta     $28                     ; clear scroll sub-state
         lda     #$04                    ; metatile column 4
-        jsr     metatile_column_ptr_by_id ; metatile_column_ptr_by_id
+        jsr     metatile_screen_ptr_by_id ; metatile_screen_ptr_by_id
 nametable_fill_sync_loop:  lda     #$00 ; clear temp variables
         sta     nmi_skip                ; allow NMI
         sta     $10                     ; NT select = 0
@@ -1213,10 +1213,10 @@ stage_select_check_beaten_boss:  lda     bosses_beaten ; boss-defeated bitmask
         sta     $10                     ; nametable select for PPU writes
 
 ; --- Set up metatile pointer and fill nametable ---
-; metatile_column_ptr_by_id computes: ($20/$21) = $AF00 + (A << 6)
+; metatile_screen_ptr_by_id computes: ($20/$21) = $AF00 + (A << 6)
 ; A=$03 → column 3 of bank $13 level data → pointer $AFC0
         lda     #$03                    ; set metatile column pointer
-        jsr     metatile_column_ptr_by_id ; ($20/$21) → $AFC0 in bank $13
+        jsr     metatile_screen_ptr_by_id ; ($20/$21) → $AFC0 in bank $13
         lda     #$00                    ; $70 = nametable fill progress (0-63)
         sta     $70                     ; starts at 0
         sta     nmi_skip                ; 0 = allow NMI
@@ -1391,7 +1391,7 @@ weapon_energy_refill_continue:  dey     ; next weapon slot
 
 ; --- Robot Master intro animation ---
 
-robot_master_intro_entry:  jsr     fade_palette_in ; disable sprites/rendering
+robot_master_intro_entry:  jsr     fade_palette_out ; disable sprites/rendering
         lda     #$04                    ; set rendering mode
         sta     oam_ptr                 ; OAM pointer = 4
         jsr     prepare_oam_buffer      ; configure PPU
@@ -1403,13 +1403,13 @@ robot_master_intro_entry:  jsr     fade_palette_in ; disable sprites/rendering
 ; Fill nametable 0 with boss intro layout from bank $13.
 ; Temporarily set $22 = $14 so metatile pointer references the correct
 ; level section in bank $13 (stage $14 = the boss intro screen layout).
-; metatile_column_ptr_by_id with A=$07 → metatile column 7 → pointer $B0C0.
+; metatile_screen_ptr_by_id with A=$07 → metatile column 7 → pointer $B0C0.
         lda     stage_id                ; save real stage number
         pha                             ; push real stage_id to stack
         lda     #$14                    ; $22 = $14 (boss intro layout ID)
         sta     stage_id                ; set boss intro layout ID
         lda     #$07                    ; metatile column 7
-        jsr     metatile_column_ptr_by_id ; pointer → $B0C0 in bank $13
+        jsr     metatile_screen_ptr_by_id ; pointer → $B0C0 in bank $13
 robot_master_nametable_fill_wait_loop:  lda     #$00 ; target nametable $2000
         sta     $10                     ; target nametable $2000
         jsr     fill_nametable_progressive ; write 4 tile rows
@@ -1464,7 +1464,7 @@ intro_palette_load_loop:  lda     $9D16,y ; 32 bytes: BG ($0620-$062F) + sprite 
         and     #$BF                    ; mask off bit 6 (H-flip)
         sta     ent_flags               ; face right
         jsr     task_yield              ; wait 1 frame
-        jsr     fade_palette_out        ; enable rendering
+        jsr     fade_palette_in         ; enable rendering
 
 ; Boss drop loop: decrement Y from $E8 to $74 at 4px/frame.
 ; ($E8 - $74) / 4 = 29 frames for the boss to slide down.
@@ -1634,7 +1634,7 @@ stage_load_dispatch:
 ; If $60!=0 (returning from Doc Robot): sets $60=$12 (all Doc Robots beaten),
 ;   writes center Mega Man portrait, loads Wily center face sprites.
 ; ===========================================================================
-doc_robot_select_setup:  jsr     fade_palette_in ; disable rendering
+doc_robot_select_setup:  jsr     fade_palette_out ; disable rendering
         lda     #$04                    ; set OAM pointer to page 4
         sta     oam_ptr                 ; store OAM page
         jsr     prepare_oam_buffer      ; clear OAM buffer
@@ -1647,7 +1647,7 @@ doc_robot_select_setup:  jsr     fade_palette_in ; disable rendering
         jsr     select_PRG_banks        ; apply PRG bank switch
 ; --- Fill nametable 0 with stage select layout ---
         lda     #$01                    ; metatile column 1
-        jsr     metatile_column_ptr_by_id ; set metatile column pointer
+        jsr     metatile_screen_ptr_by_id ; set metatile column pointer
         lda     #$00                    ; clear fill progress counter
         sta     $70                     ; store to $70
 doc_nt0_fill_loop:  lda     #$00        ; nametable select = $2000
@@ -1670,7 +1670,7 @@ doc_nt0_fill_loop:  lda     #$00        ; nametable select = $2000
         jsr     task_yield              ; wait for NMI
 ; --- Fill nametable 1 (offscreen) ---
         lda     #$04                    ; metatile column 4
-        jsr     metatile_column_ptr_by_id ; set metatile column pointer
+        jsr     metatile_screen_ptr_by_id ; set metatile column pointer
         lda     #$00                    ; clear fill progress counter
         sta     $70                     ; store to $70
 doc_nt1_fill_loop:  lda     #$04
@@ -1710,7 +1710,7 @@ doc_spr_palette_loop:  lda     $9C23,y  ; load sprite palettes
         lda     #$07                    ; mode $07 = stage select
         sta     game_mode               ; game mode $07 = stage select
         jsr     task_yield              ; wait for NMI
-        jsr     fade_palette_out        ; enable rendering
+        jsr     fade_palette_in         ; enable rendering
 ; --- Check if first time or returning from Doc Robot ---
         lda     stage_select_page       ; check stage select page
         beq     doc_first_time_init     ; $60=0 → first time all beaten
@@ -1767,7 +1767,7 @@ doc_cursor_init:
 ; from $9C43, writes PPU data, then enters the stage select loop.
 ; ===========================================================================
 normal_return_setup:
-        jsr     fade_palette_in         ; disable rendering
+        jsr     fade_palette_out        ; disable rendering
         lda     #$04                    ; set OAM pointer to page 4
         sta     oam_ptr                 ; store OAM page
         jsr     prepare_oam_buffer      ; clear OAM buffer
@@ -1780,7 +1780,7 @@ normal_return_setup:
         lda     #$01                    ; select nametable 1
         sta     camera_x_hi             ; display nametable 1
         lda     #$02                    ; metatile column 2
-        jsr     metatile_column_ptr_by_id ; set metatile column pointer
+        jsr     metatile_screen_ptr_by_id ; set metatile column pointer
 return_nt1_fill_loop:  lda     #$04
         sta     $10                     ; nametable $2400
         jsr     fill_nametable_progressive ; fill one column of tiles
@@ -1817,7 +1817,7 @@ return_spr_palette_loop:  lda     $9C23,y ; sprite palettes
         sta     prg_bank                ; switch to bank $03
         jsr     select_PRG_banks        ; apply PRG bank switch
         jsr     bank03_portrait_setup_routine ; call bank03 routine (portrait setup)
-        jsr     fade_palette_out        ; enable rendering
+        jsr     fade_palette_in         ; enable rendering
 
 ; --- Wait for Start/A button to enter stage select ---
 return_wait_button:
@@ -2029,7 +2029,7 @@ center_attr_copy_loop:  lda     $9DC4,x ; $23DB: attr addr, 2 bytes: $88,$22
 ;   If $60=$12 (all Doc Robots beaten) → Wily fortress gate entrance
 ; ===========================================================================
 password_screen_init:                   ; (3 seconds on black screen)
-        jsr     fade_palette_in         ; disable rendering
+        jsr     fade_palette_out        ; disable rendering
         lda     #$04                    ; OAM page 4 ($0400)
         sta     oam_ptr                 ; set OAM write pointer
         jsr     prepare_oam_buffer      ; clear OAM sprites
@@ -2043,7 +2043,7 @@ password_screen_init:                   ; (3 seconds on black screen)
         sta     scroll_y                ; clear vertical scroll
 ; --- Fill nametable 1 with password screen layout ---
         lda     #$02                    ; metatile column 2
-        jsr     metatile_column_ptr_by_id ; set metatile pointer for col 2
+        jsr     metatile_screen_ptr_by_id ; set metatile pointer for col 2
 password_nt_fill_loop:  lda     #$04    ; nametable $2400 high byte
         sta     $10                     ; nametable $2400
         jsr     fill_nametable_progressive ; write 4 tile rows to PPU queue
@@ -2085,7 +2085,7 @@ password_spr_palette_loop:  lda     $9C23,y ; sprite palettes
         jsr     select_PRG_banks        ; switch PRG bank
         jsr     bank03_portrait_setup_routine ; call bank03 portrait routine
         jsr     task_yield              ; wait for NMI
-        jsr     fade_palette_out        ; enable rendering
+        jsr     fade_palette_in         ; enable rendering
 ; --- Wait 120 frames ($78) before showing cursor ---
         lda     #$78                    ; 120-frame delay
 password_startup_delay_loop:  pha       ; save counter
@@ -2389,7 +2389,7 @@ wily_gate_discard_ret:                  ; submit PPU update buffer
         pla                             ; discard return address low
 ; --- Wily gate entry point (also called from $9006 jump table) ---
 wily_gate_init:                         ; y += 2
-        jsr     fade_palette_in         ; disable rendering
+        jsr     fade_palette_out        ; disable rendering
         jsr     reset_stage_state       ; clear scroll/weapon state
         lda     #$04                    ; OAM page 4 ($0400)
         sta     oam_ptr                 ; set OAM pointer
@@ -2501,7 +2501,7 @@ fortress_palette_loop:  lda     $9E2A,y ; fortress palette data (32 bytes)
         lda     #MUSIC_WILY_MAP         ; music $0C = Wily stage theme
         jsr     submit_sound_ID_D9      ; play Wily map music
         jsr     task_yield              ; yield to let music start
-        jsr     fade_palette_out        ; enable rendering
+        jsr     fade_palette_in         ; enable rendering
         jmp     game_entry_set_hp_scroll ; → fixed bank gate animation
 
 ; =============================================================================

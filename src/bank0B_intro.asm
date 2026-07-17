@@ -32,9 +32,9 @@ music_driver_tick := $A003              ; continue music playback (bank $0E)
 music_start_track := $A006              ; start music track X (bank $0E)
 prepare_oam_buffer           := $C5E9   ; prepare OAM buffer
 clear_entity_table           := $C628   ; clear entity table
-fade_palette_out           := $C74C     ; fade palette out (reveal)
-fade_palette_in           := $C752      ; fade palette in (to black)
-metatile_column_ptr_by_id           := $E8B4 ; init metatile column pointers
+fade_palette_in           := $C74C     ; fade palette in (reveal)
+fade_palette_out          := $C752     ; fade palette out (to black)
+metatile_screen_ptr_by_id           := $E8B4 ; init metatile column pointers
 fill_nametable_progressive           := $EF8C ; fill one nametable column
 apply_y_speed           := $F797        ; apply Y speed (gravity)
 reset_sprite_anim           := $F835    ; reset sprite animation (A=anim, X=entity)
@@ -66,7 +66,7 @@ select_PRG_banks           := $FF6B     ; select PRG banks
 ; ===========================================================================
 intro_phase1_init:  lda     #$00        ; A = 0
         sta     nmi_skip                ; disable NMI processing
-        jsr     fade_palette_in         ; fade palette to black
+        jsr     fade_palette_out        ; fade palette to black
         lda     #$04                    ; OAM starts at byte 4
         sta     oam_ptr                 ; OAM write position
         jsr     prepare_oam_buffer      ; prepare OAM buffer
@@ -85,7 +85,7 @@ intro_phase1_init:  lda     #$00        ; A = 0
         lda     #$16                    ; stage $16 = intro background
         sta     stage_id                ; stage $16 = intro/Shadow Man stage
         lda     #$02                    ; nametable bank = $02
-        jsr     metatile_column_ptr_by_id ; init metatile column pointers
+        jsr     metatile_screen_ptr_by_id ; init metatile column pointers
 ; --- fill nametable progressively until complete ---
 fill_nametable_loop:  lda     #$00                ; A = 0
         sta     $10                     ; column direction = rightward
@@ -143,7 +143,7 @@ load_mountain_oam_loop:  lda     intro_phase1_mountain_oam_table,y ; load mounta
         lda     #$C0                    ; scroll limit = $C0
         sta     $5E                     ; scroll limit
         jsr     task_yield              ; wait for NMI
-        jsr     fade_palette_out        ; fade palette out (reveal scene)
+        jsr     fade_palette_in         ; fade palette out (reveal scene)
 ; --- init phase 1 state variables ---
         lda     #$08                    ; start at track $08 (Shadow Man)
         sta     ent_timer               ; music track index
@@ -273,7 +273,7 @@ phase1_loop_back:  jmp     phase1_main_loop           ; loop phase 1
 ; ===========================================================================
 intro_phase2_init:  lda     #$00                ; A = 0
         sta     nmi_skip                ; disable NMI
-        jsr     fade_palette_in         ; fade palette to black
+        jsr     fade_palette_out        ; fade palette to black
         lda     #$04                    ; OAM starts at byte 4
         sta     oam_ptr                 ; set OAM write position
         jsr     prepare_oam_buffer      ; prepare OAM buffer
@@ -286,7 +286,7 @@ intro_phase2_init:  lda     #$00                ; A = 0
         sta     prg_bank                ; bank $13 for phase 2 stage tiles
         jsr     select_PRG_banks        ; select PRG banks
         lda     #$08                    ; stage $08 nametable layout
-        jsr     metatile_column_ptr_by_id ; init metatile columns for stage $08
+        jsr     metatile_screen_ptr_by_id ; init metatile columns for stage $08
 ; --- fill nametable progressively ---
 phase2_fill_nametable_loop:  lda     #$00                ; A = 0
         sta     $10                     ; column direction = rightward
@@ -330,7 +330,7 @@ load_phase2_chr_loop:  lda     intro_phase2_chr_bank_table,y ; phase 2 CHR bank 
         lda     #$04                    ; X speed = 4 px/frame
         sta     ent_xvel                ; horizontal speed = 4 px/frame
         jsr     task_yield              ; wait for NMI
-        jsr     fade_palette_out        ; fade palette out (reveal scene)
+        jsr     fade_palette_in         ; fade palette out (reveal scene)
 ; ===========================================================================
 ; Phase 2 Main Loop: Flying upward on Rush Jet
 ; ===========================================================================
@@ -389,7 +389,7 @@ phase2_process_frame:  inc     palette_dirty       ; mark palette for NMI upload
 ; ===========================================================================
 intro_phase3_init:  lda     #$00                ; A = 0 for clearing
         sta     nmi_skip                ; disable NMI
-        jsr     fade_palette_in         ; fade palette to black
+        jsr     fade_palette_out        ; fade palette to black
         lda     #$00                    ; A = 0 for clearing
         sta     ent_y_scr               ; reset screen position
         sta     ent_x_scr               ; clear X screen
@@ -595,7 +595,7 @@ phase3_process_frame:  jsr     process_frame_yield ; process frame + yield
 ; ===========================================================================
 doc_robot_stage_init:  lda     #$00                ; A = 0
         sta     nmi_skip                ; disable NMI
-        jsr     fade_palette_in         ; fade palette to black
+        jsr     fade_palette_out        ; fade palette to black
         lda     #MUSIC_DOC_ROBOT        ; music ID $36
         jsr     submit_sound_ID_D9      ; submit music $36 (Doc Robot theme)
         lda     #$04                    ; OAM offset past sprites
@@ -611,7 +611,7 @@ doc_robot_stage_init:  lda     #$00                ; A = 0
         sta     prg_bank                ; bank $0E for stage tile data
         jsr     select_PRG_banks        ; select PRG banks
         lda     #$00                    ; metatile init param = 0
-        jsr     metatile_column_ptr_by_id ; init metatile columns
+        jsr     metatile_screen_ptr_by_id ; init metatile columns
 ; --- fill nametable progressively ---
 doc_robot_fill_nt_loop:  lda     #$00                ; clear temp
         sta     $10                     ; nametable fill parameter
@@ -639,7 +639,7 @@ load_doc_scenery_oam_loop:  lda     intro_doc_robot_scenery_oam_table,y ; 40 byt
         bpl     load_doc_scenery_oam_loop               ; loop until all 40 done
         jsr     clear_entity_table      ; clear entity table
         jsr     task_yield              ; wait for NMI
-        jsr     fade_palette_out        ; fade palette out (reveal scene)
+        jsr     fade_palette_in         ; fade palette out (reveal scene)
 ; --- load robot master portrait position sprites ---
         ldy     #$13                    ; copy 20 bytes (5 icons)
 load_doc_icon_pos_loop:  lda     intro_doc_robot_icon_position_table,y ; 5 robot master icon positions

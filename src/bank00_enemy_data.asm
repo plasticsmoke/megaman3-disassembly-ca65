@@ -643,7 +643,7 @@ enemy_x_velocity_g:
 ; Metatile column definitions ($AF00-$B6FF)
 ; ===========================================================================
 ; Each column ID has 64 bytes of metatile indices (8 rows x 8 entries).
-; The engine reads these via metatile_column_ptr at $AF00 + (column_ID * 64).
+; The engine reads these via metatile_screen_ptr at $AF00 + (column_ID * 64).
 ; 32 column IDs = 2048 bytes total.
 ; ===========================================================================
         .byte   $B4,$84,$84,$64,$A4,$A8,$74,$74

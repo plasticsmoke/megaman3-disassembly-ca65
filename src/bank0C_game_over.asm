@@ -37,9 +37,9 @@ rendering_on           := $C53B         ; enable PPU rendering
 fill_nametable           := $C59D       ; fill entire nametable from metatile data
 prepare_oam_buffer           := $C5E9   ; prepare OAM buffer
 clear_entity_table           := $C628   ; clear entity table
-fade_palette_out           := $C74C     ; fade palette out (reveal)
-fade_palette_in           := $C752      ; fade palette in (to black)
-metatile_column_ptr_by_id           := $E8B4 ; init metatile column pointers
+fade_palette_in           := $C74C     ; fade palette in (reveal)
+fade_palette_out          := $C752     ; fade palette out (to black)
+metatile_screen_ptr_by_id           := $E8B4 ; init metatile column pointers
 queue_metatile_update           := $EEAB ; queue metatile column for PPU update
 fill_nametable_progressive           := $EF8C ; fill one nametable column per call
 reset_sprite_anim           := $F835    ; reset sprite animation (A=anim, X=entity)
@@ -67,7 +67,7 @@ select_PRG_banks           := $FF6B     ; select PRG banks
         sta     nmi_skip                ; disable NMI processing
         ldx     #$B4                    ; delay $B4 frames
         jsr     task_yield_x            ; wait 180 frames (~3 seconds)
-        jsr     fade_palette_in         ; fade palette to black
+        jsr     fade_palette_out        ; fade palette to black
         lda     #$04                    ; OAM pointer start offset
         sta     oam_ptr                 ; set OAM write pointer
         jsr     prepare_oam_buffer      ; prepare OAM buffer (clear sprites)
@@ -115,14 +115,14 @@ load_game_over_chr_banks_loop:  lda     game_over_chr_bank_table,y ; load CHR ba
         jsr     load_ppu_write_buffer               ; load PPU write buffer (writes "GAME OVER" text)
         jsr     task_yield              ; yield to let NMI process the buffer
 ; --- set up background stage for falling animation ---
-        jsr     fade_palette_out        ; fade palette out (prepare for stage bg)
+        jsr     fade_palette_in         ; fade palette out (prepare for stage bg)
         ldx     #$F0                    ; delay $F0 frames
         jsr     task_yield_x            ; wait 240 frames (~4 seconds)
-        jsr     fade_palette_in         ; fade palette back in
+        jsr     fade_palette_out        ; fade palette back in
         lda     #$16                    ; stage ID for game over bg
         sta     stage_id                ; stage $16 = game over background stage
         lda     #$02                    ; screen column offset 2
-        jsr     metatile_column_ptr_by_id ; load metatile column pointer for stage bg
+        jsr     metatile_screen_ptr_by_id ; load metatile column pointer for stage bg
 ; --- fill background nametable progressively ---
 fill_background_nametable_loop:  lda     #$00
         sta     $10                     ; no special flags
@@ -176,7 +176,7 @@ load_fixed_sprites_oam_loop:  lda     game_over_fixed_sprites_oam_table,y ; 8 by
         lda     #$C0                    ; PPU ctrl: NMI on + bg $1000
         sta     $5E                     ; set PPU control mirror (enable NMI, etc.)
         jsr     task_yield              ; yield one frame
-        jsr     fade_palette_out        ; fade palette out
+        jsr     fade_palette_in         ; fade palette out
         lda     #$00                    ; A = 0 for clearing
         sta     $0104                   ; palette cycle index = 0
         sta     ent_var1                ; clear entity variable (delay counter)
@@ -309,7 +309,7 @@ game_over_render_frame:  lda     #$08
 
 results_screen_init:  lda     #$00                ; A = 0
         sta     nmi_skip                ; re-enable NMI
-        jsr     fade_palette_in         ; fade palette to black
+        jsr     fade_palette_out        ; fade palette to black
         lda     #$04                    ; OAM buffer start offset
         sta     oam_ptr                 ; set OAM pointer
         jsr     prepare_oam_buffer      ; prepare OAM buffer (clear sprites)
@@ -329,7 +329,7 @@ load_results_palette_loop:  lda     results_screen_palette_table,y ; 16-byte pal
         lda     #$14                    ; stage $14 = results layout
         sta     stage_id                ; stage $14 = results screen layout
         lda     #$00                    ; pass 0 (first half)
-        jsr     metatile_column_ptr_by_id ; load metatile column pointers (pass 0)
+        jsr     metatile_screen_ptr_by_id ; load metatile column pointers (pass 0)
 fill_nametable_2400_loop:  lda     #$04                ; nametable $2400
         sta     $10                     ; set nametable base ($2400)
         jsr     fill_nametable_progressive ; fill nametable progressively
@@ -337,7 +337,7 @@ fill_nametable_2400_loop:  lda     #$04                ; nametable $2400
         lda     $70                     ; check fill progress
         bne     fill_nametable_2400_loop               ; loop until complete
         lda     #$01                    ; pass 1 (second half)
-        jsr     metatile_column_ptr_by_id ; load metatile column pointers (pass 1)
+        jsr     metatile_screen_ptr_by_id ; load metatile column pointers (pass 1)
 fill_nametable_2000_loop:  lda     #$00                ; nametable $2000
         sta     $10                     ; set nametable base ($2000)
         jsr     fill_nametable_progressive ; fill nametable progressively
@@ -402,7 +402,7 @@ load_results_chr_banks_loop:  lda     results_screen_chr_bank_table,y ; results 
         sta     ent_var2                ; clear section index
         sta     ent_var3                ; clear saved OAM pointer
         jsr     task_yield              ; yield one frame
-        jsr     fade_palette_out        ; fade palette out
+        jsr     fade_palette_in         ; fade palette out
 ; --- main scrolling loop ---
 ; Mega Man walks left while the camera scrolls. Every 4 pixels of scroll,
 ; a new metatile column is loaded. Music sections play at intervals.
@@ -546,7 +546,7 @@ credits_nametable_setup:  lda     #$01                ; set H-mirroring
         sta     game_mode               ; reset game mode
 ; --- load credits nametable ---
         lda     #$06                    ; stage $06 = credits layout
-        jsr     metatile_column_ptr_by_id ; load metatile column pointers (credits)
+        jsr     metatile_screen_ptr_by_id ; load metatile column pointers (credits)
 fill_credits_nametable_loop:  lda     #$08                ; nametable flags
         sta     $10                     ; nametable flags
         jsr     fill_nametable_progressive ; fill nametable progressively
@@ -650,7 +650,7 @@ continue_screen_init:  ldx     #$F0                ; hold for $F0 frames
         jsr     task_yield_x            ; wait $F0 frames
         lda     #$00                    ; A = 0
         sta     nmi_skip                ; re-enable NMI
-        jsr     fade_palette_in         ; fade palette to black
+        jsr     fade_palette_out        ; fade palette to black
         lda     #$04                    ; OAM buffer start offset
         sta     oam_ptr                 ; set OAM write pointer
         jsr     prepare_oam_buffer      ; clear OAM buffer
@@ -668,7 +668,7 @@ continue_screen_init:  ldx     #$F0                ; hold for $F0 frames
         sta     stage_id                ; stage $13 = password screen
         jsr     select_PRG_banks        ; apply bank switch
         lda     #$03                    ; metatile set $03
-        jsr     metatile_column_ptr_by_id ; load metatile column pointers
+        jsr     metatile_screen_ptr_by_id ; load metatile column pointers
         lda     #$00                    ; A = 0
         sta     $70                     ; clear nametable fill flag
 fill_continue_nametable_loop:  lda     #$00                ; clear nametable select
@@ -710,7 +710,7 @@ load_password_palette_loop:  lda     password_screen_palette_table,y ; 16-byte p
         ldx     #$13                    ; PPU write buffer index $13
         jsr     load_ppu_write_buffer               ; load nametable text data
         jsr     task_yield              ; wait one frame
-        jsr     fade_palette_out        ; fade palette out
+        jsr     fade_palette_in         ; fade palette out
         ldx     #$B4                    ; hold $B4 frames
         jsr     task_yield_x            ; wait 180 frames
         lda     #$00                    ; A = 0

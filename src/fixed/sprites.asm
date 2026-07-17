@@ -121,10 +121,10 @@ sprite_landed_check:  lda     ent_y_scr ; Y screen = 1? (landed from above)
         bne     sprite_landed_setup     ; no → skip landing override
         lda     #PSTATE_AIRBORNE        ; set player state = $01 (airborne)
         sta     player_state            ; player state = airborne
-        lda     #$10                    ; set Y subpixel speed = $10
-        sta     ent_yvel_sub            ; set Y sub velocity
-        lda     #$0D                    ; Y vel = $0D (fast fall)
-        sta     ent_yvel                ; set Y velocity = fast fall
+        lda     #$10                    ; Y velocity = $0D.10 UPWARD
+        sta     ent_yvel_sub            ; (positive = rising: debug bounces
+        lda     #$0D                    ; the player back out of the pit)
+        sta     ent_yvel                ; set Y velocity
 sprite_landed_setup:  jmp     setup_sprite_render ; proceed to sprite rendering
 
 sprite_screen_fixed_x:  lda     ent_x_px,x ; for screen-fixed entities,
@@ -391,7 +391,7 @@ energy_bar_forward_loop:  jsr     draw_one_energy_bar ; draw bar[$10]
 
 energy_bar_reverse:  ldx     #$02       ; reverse: bar 2, 1, 0
         stx     $10                     ; start at bar 2
-energy_bar_reverse_loop:  jsr     draw_one_energy_bar ; +2 to skip header bytes (count, duration)
+energy_bar_reverse_loop:  jsr     draw_one_energy_bar ; draw bar[$10]
         dec     $10                     ; next bar (decrement)
         ldx     $10                     ; load bar index
         bpl     energy_bar_reverse_loop ; bar index >= 0? continue
@@ -452,7 +452,12 @@ bar_fill_tiles:  .byte   $6B,$6A,$69,$68,$67
 bar_attributes:  .byte   $00,$01,$02
 
 ; energy bar X positions: bar 0=$10, 1=$18, 2=$28
-bar_x_positions:  .byte   $10,$18,$28,$A0,$FB,$2A,$EC,$88
+bar_x_positions:  .byte   $10,$18,$28
+
+; --- unidentified data block ($F31E-$F57F) ---
+; Not referenced by any fixed-bank code. Possibly password-related tables
+; (see "password table" note near the end) or leftover data.
+fixed_f31e_data:  .byte   $A0,$FB,$2A,$EC,$88
         .byte   $DF,$B8,$FE,$08,$50,$0A,$EB,$0A
         .byte   $6D,$8A,$6F,$2A,$D0,$A0,$B7,$8E
         .byte   $CD,$0A,$EC,$28,$C8,$28,$13,$A0
@@ -528,8 +533,6 @@ bar_x_positions:  .byte   $10,$18,$28,$A0,$FB,$2A,$EC,$88
         .byte   $D4,$F5,$05,$56,$00,$EC,$14,$9A
         .byte   $10,$B0,$50,$BE,$55,$F6,$14,$7C
         .byte   $01,$E0,$54,$2A,$45,$4A,$51,$6D
-        ora     $38,x                   ; data (disassembler artifact)
-        .byte   $14                     ; password table (continued)
-        .byte   $E2
-        .byte   $50
+        .byte   $15,$38                 ; (was 'ora $38,x' — data, not code)
+        .byte   $14,$E2,$50
 

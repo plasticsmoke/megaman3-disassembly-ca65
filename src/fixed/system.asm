@@ -383,16 +383,16 @@ update_CHR_banks:  lda     #$FF         ; turns on the flag for
 ; based on what's in $E8~$ED
 
 select_CHR_banks:  lda     $1B          ; test select CHR flag
-        beq     task_yield_return       ; return if not on
-task_yield_clear_flag:  ldx     #$00    ; reset select CHR flag
+        beq     select_CHR_banks_exit   ; return if not on
+select_CHR_banks_force:  ldx     #$00   ; reset select CHR flag
         stx     $1B                     ; immediately, one-off usage
-task_yield_select_chr:  stx     MMC3_BANK_SELECT ; MMC3 bank select register
+select_CHR_banks_loop:  stx     MMC3_BANK_SELECT ; MMC3 bank select register
         lda     $E8,x                   ; load CHR bank number from $E8+X
         sta     MMC3_BANK_DATA          ; write to MMC3 bank data register
         inx                             ; next CHR bank slot
         cpx     #$06                    ; all 6 CHR banks done?
-        bne     task_yield_select_chr   ; loop until done
-task_yield_return:  rts                 ; return
+        bne     select_CHR_banks_loop   ; loop until done
+select_CHR_banks_exit:  rts             ; return
 
 ; ===========================================================================
 ; process_frame_and_yield — run one frame of game logic, then yield to NMI

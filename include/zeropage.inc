@@ -75,7 +75,7 @@ irq_enable       = $9B   ; IRQ enable flag
 current_weapon   = $A0   ; current weapon ID (see WPN_ constants)
 weapon_cursor    = $A1   ; weapon menu cursor position
 player_hp        = $A2   ; player HP (AND #$1F for value, 28 max)
-weapon_ammo      = $A3   ; weapon ammo base (indexed by weapon ID: $A3+wpn)
+weapon_ammo      = $A3   ; weapon ammo ($A2+wpn: Gemini $A3 ... Rush Jet $AD; Buster uses HP)
 lives            = $AE   ; lives remaining
 etanks           = $AF   ; E-Tanks
 

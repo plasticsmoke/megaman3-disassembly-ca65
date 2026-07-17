@@ -101,9 +101,9 @@ nmi_scroll_mode_check:  lda     PPUSTATUS ; reset PPU latch
         sta     PPUSCROLL               ; write gameplay Y scroll
 
 ; --- restore rendering and CHR banks ---
-nmi_restore_rendering:  lda     ppu_mask_shadow ; PPUMASK = $FE (re-enable rendering)
+nmi_restore_rendering:  lda     ppu_mask_shadow ; PPUMASK = ppu_mask_shadow (re-enable rendering)
         sta     PPUMASK                 ; re-enable rendering
-        lda     nt_select               ; PPUCTRL = $FF | (nt_select & $03)
+        lda     nt_select               ; PPUCTRL = shadow $FF | (nt_select & $03)
         and     #$03                    ; bits 0-1 from $7A = nametable select
         ora     ppu_ctrl_shadow         ; rest from ppu_ctrl_shadow (NMI enable, sprite table, etc.)
         sta     PPUCTRL                 ; write PPUCTRL with nametable
@@ -116,10 +116,10 @@ nmi_restore_rendering:  lda     ppu_mask_shadow ; PPUMASK = $FE (re-enable rende
 ; screen_mode = game mode, used to index irq_vector_table for handler address.
 ; scroll_lock/$51 = secondary split: if scroll_lock != 0, use gameplay handler.
         lda     irq_scanline            ; scanline count for first split
-        sta     NMI                     ; set MMC3 IRQ counter value
-        sta     nmi_preserve_regs       ; latch counter (reload)
+        sta     MMC3_IRQ_LATCH          ; set MMC3 IRQ counter ($C000 = NMI entry too)
+        sta     MMC3_IRQ_RELOAD         ; latch counter ($C001 = reload)
         ldx     irq_enable              ; IRQ enable flag
-        sta     auto_walk_spawn_done,x  ; $9B=0 → $E000 (disable), $9B=1 → $E001 (enable)
+        sta     MMC3_IRQ_DISABLE,x      ; $9B=0 → $E000 (disable), $9B=1 → $E001 (enable)
         beq     nmi_frame_counter_tick  ; if disabled, skip vector setup
         ldx     screen_mode             ; X = game mode (index into vector table)
         lda     scroll_lock             ; secondary split flag
@@ -163,8 +163,8 @@ nmi_channel_next:  inx                  ; advance to next channel (+4 bytes)
         sta     $0106,x                 ; overwrite stack return addr low byte
         pla                             ; begin register restore
         tay                             ; restore Y
-        pla                             ; restore X, Y, and P flags
-        tax                             ; and clear interrupt flag
+        pla                             ; restore X
+        tax                             ; (transfer to X)
         pla                             ; restore A
         plp                             ; restore processor flags
         rti                             ; FAKE RETURN

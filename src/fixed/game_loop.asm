@@ -43,7 +43,7 @@ stage_init:  lda     #$00               ; $EE = 0: allow NMI rendering
         sta     nmi_skip                ; allow NMI rendering during setup
 
 ; --- initialize display and entity state ---
-        jsr     fade_palette_in         ; fade screen to black
+        jsr     fade_palette_out        ; fade screen to black
         lda     #$04                    ; $97 = 4 (OAM scan start offset)
         sta     oam_ptr                 ; OAM scan start offset = 4
         jsr     prepare_oam_buffer      ; clear OAM buffer
@@ -127,7 +127,7 @@ game_entry_set_mirroring:  stx     MMC3_MIRRORING ; set mirroring mode
         lda     #$00                    ; $18 = 0 (rendering disabled during setup)
         sta     palette_dirty           ; suppress palette upload during setup
         jsr     task_yield              ; yield to NMI
-        jsr     fade_palette_out        ; fade from black → stage palette
+        jsr     fade_palette_in         ; fade from black → stage palette
         lda     #$80                    ; player X = $80 (128, center of screen)
         sta     ent_x_px                ; player X = 128 (center of screen)
 
@@ -155,8 +155,8 @@ game_entry_set_intro_chr:  lda     #$74 ; $EA/$EB = $74/$75 (intro/ready CHR pag
         lda     #$75                    ; intro CHR page $75
         sta     $EB                     ; store intro CHR page $EB
         jsr     update_CHR_banks        ; apply CHR bank settings
-        lda     #$30                    ; $0611 = $30 (BG palette color for intro)
-        sta     $0611                   ; store BG palette entry
+        lda     #$30                    ; $0611 = $30 (sprite pal 0 color 1: white
+        sta     $0611                   ; for READY overlay letters)
         inc     palette_dirty           ; enable rendering (palette_dirty = 1)
         lda     #$3C                    ; A = 60 (fade-in frame count)
 
@@ -170,11 +170,11 @@ game_entry_fadein_loop:  pha            ; save frame countdown
         ldx     #$10                    ; X = $10 (5 sprites × 4 bytes - 4)
 game_entry_show_ready_overlay:  lda     frame_loop_ready_overlay_data,x ; copy OAM entry: Y, tile, attr, X
         sta     $0200,x                 ; store OAM Y position
-        lda     rush_coil_dispatch_table,x ; OAM tile index
+        lda     ready_overlay_tiles,x   ; OAM tile index
         sta     $0201,x                 ; store OAM tile index
-        lda     rush_marine_dispatch_table,x ; load OAM attribute byte
+        lda     ready_overlay_attrs,x   ; load OAM attribute byte
         sta     $0202,x                 ; store OAM attribute byte
-        lda     rush_jet_dispatch_table,x ; load OAM X position
+        lda     ready_overlay_xpos,x    ; load OAM X position
         sta     $0203,x                 ; OAM X position
         dex                             ; prev OAM entry (X -= 4)
         dex                             ; (part of X -= 4)
@@ -204,8 +204,8 @@ game_entry_hide_oam_loop:  sta     $0200,x ; hide sprite: Y = $F8
         bne     game_entry_fadein_loop  ; loop until 60 frames complete
 
 ; --- fade-in complete: set up gameplay CHR and spawn player ---
-        lda     #$0F                    ; $0611 = $0F (BG color → black)
-        sta     $0611                   ; store BG palette entry
+        lda     #$0F                    ; $0611 = $0F (sprite pal 0 color 1 → black,
+        sta     $0611                   ; READY overlay gone)
         inc     palette_dirty           ; mark palette dirty for upload
         lda     #$00                    ; $EA/$EB = pages 0/1 (shared sprite CHR)
         sta     $EA                     ; R2: tiles $00-$3F at $1000
@@ -489,7 +489,7 @@ frame_loop_checkpoint_boundary:  dey    ; we're one checkpoint too far so
 
 frame_loop_checkpoint_restore:  tya     ; save checkpoint index
         pha                             ; save checkpoint index
-        jsr     fade_palette_in         ; fade screen to black
+        jsr     fade_palette_out        ; fade screen to black
         lda     #$04                    ; $97 = 4 (OAM scan start)
         sta     oam_ptr                 ; store OAM scan start
         jsr     prepare_oam_buffer      ; clear OAM buffer
@@ -576,7 +576,7 @@ frame_loop_render_columns_loop:  pha    ; save column counter
         lda     #$00                    ; suppress palette upload this frame
         sta     palette_dirty           ; suppress palette upload this frame
         jsr     task_yield              ; yield to let NMI run
-        jsr     fade_palette_out        ; fade from black → stage palette
+        jsr     fade_palette_in         ; fade from black → stage palette
         lda     #$80                    ; spawn player at Y=$80 (mid-screen)
         sta     ent_x_px                ; player X = 128 (center of screen)
         jmp     game_entry_set_hp_scroll ; → continue stage_init (Gemini scroll, fade-in)
@@ -595,21 +595,22 @@ dead_code_refill_all_ammo:
         ldy     #$0B                    ; fill $A2-$AD (12 ammo slots)
 
 ; --- END DEAD CODE ---
-; (Bytes below serve as overlap data for Rush dispatch tables and are
-; referenced from player_ground.asm via frame_loop_ready_overlay_oam.)
+; (The instruction bytes above also serve as Rush handler dispatch bases:
+; player_ground.asm does lda rush_handler_ptr_lo/hi,y with Y = Rush anim ID
+; ($D7+), so the actual pointer bytes live at $CCEF+$D7 in later code.)
 
-frame_loop_ready_overlay_oam:  lda     #HEALTH_FULL ; all to full (28 units)
+rush_handler_ptr_lo:  lda     #HEALTH_FULL ; all to full (28 units)
 ; --- overlap trick: $99,$A2,$00 = sta $00A2,y (sta ammo_array,y) ---
 ; Fall-through fills ammo slots; entry at ready_sprite_table loads X=0.
 frame_loop_ammo_refill_loop:  .byte   $99   ; opcode: sta abs,y
-frame_loop_ready_sprite_table:  ldx     #$00 ; code: ldx #$00 | addr: $00A2
+rush_handler_ptr_hi:  ldx     #$00      ; code: ldx #$00 | addr: $00A2
         dey                             ; next ammo slot
         bpl     frame_loop_ammo_refill_loop ; loop until all 12 filled
 frame_loop_ammo_refill_exit:  rts
-frame_loop_ready_overlay_data:  .byte   $80
-rush_coil_dispatch_table:  .byte   $40
-rush_marine_dispatch_table:  .byte   $00
-rush_jet_dispatch_table:  .byte   $6C,$80,$41,$00,$74,$80,$42,$00
+frame_loop_ready_overlay_data:  .byte   $80 ; READY overlay: Y pos (5 sprites, stride 4)
+ready_overlay_tiles:  .byte   $40      ; tiles $40-$44 = letters R,E,A,D,Y
+ready_overlay_attrs:  .byte   $00      ; attribute (palette 0)
+ready_overlay_xpos:  .byte   $6C,$80,$41,$00,$74,$80,$42,$00 ; X: $6C,$74,$7C,$84,$8C
         .byte   $7C,$80,$43,$00,$84,$80,$44,$00
         .byte   $8C
 frame_loop_stage_music_table:           ; stage music IDs (indexed by stage_id)

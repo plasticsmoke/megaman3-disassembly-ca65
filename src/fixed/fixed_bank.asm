@@ -62,7 +62,7 @@
 ;   entity_ride_slot ($34) = entity slot being ridden (state $05)
 ;   facing_sub ($35)       = facing sub-state / Mag Fly direction inherit
 ;   invincibility_timer ($39) = i-frames timer (nonzero = immune)
-;   force_full_jump ($3A)     = jump/rush counter
+;   force_full_jump ($3A) = suppress variable-jump cutoff (Rush Coil bounce)
 ;   hazard_pending ($3D)   = pending hazard ($06=damage, $0E=death)
 ;   tile_at_feet_max ($41) = max tile type at feet (highest priority hazard)
 ;   scroll_lock ($50)      = scroll lock flag
@@ -72,7 +72,7 @@
 ;   proto_man_flag ($68)   = cutscene-complete flag (Proto Man encounter)
 ;   warp_dest ($6C)        = warp destination index (teleporter target)
 ;   screen_mode ($78)      = screen mode
-;   gravity ($99)          = sub-pixel increment ($55 gameplay, $40 stage select)
+;   gravity ($99)          = sub-pixel increment, per frame: $40 player / $55 entities
 ;
 ; Weapon / Inventory Block ($A0-$AF):
 ;   current_weapon ($A0)   = weapon ID (see constants.inc WPN_*)
@@ -120,7 +120,8 @@
 ;   Slide jump velocity:     $06.EE (~6.9 px/frame upward)
 ;   Resting Y velocity:      $FF.C0 (-0.25, gentle ground pin)
 ;   Terminal fall velocity:   $F9.00 (-7.0, clamped in $99 code)
-;   Gravity per frame:        $00.55 (0.332 px/frame², set in process_sprites)
+;   Gravity per frame:        player $00.40 (0.25 px/f², state dispatch prelude),
+;                             entities $00.55 (0.332 px/f², set in process_sprites)
 ;   Velocity format: ent_yvel.ent_yvel_sub = whole.sub, higher = upward
 ;
 ; TILE COLLISION TYPES (upper nibble of $BF00,y tile attribute table):
@@ -130,7 +131,8 @@
 ;   $30 = damage tile (lava/fire — triggers player_damage, solid)
 ;   $40 = ladder top (climbable, grab point from above)
 ;   $50 = spikes (instant kill, solid)
-;   $70 = disappearing block (Gemini Man stages $02/$09 only, solid when visible)
+;   $70 = breakable block (Gemini Man stages $02/$09; weapons destroy, spawns debris)
+;   $80 = water (Rush Marine buoyancy/sink physics)
 ;   Solid test: accumulate tile types in $10, then AND #$10 — nonzero = on solid ground
 ;   Hazard priority: $41 tracks max type, $30→damage, $50→death
 ;   $BF00 table is per-stage, loaded from the stage's PRG bank
@@ -147,12 +149,14 @@
 ;   $AB00+:      enemy placement tables (4 tables, indexed by stage enemy ID):
 ;                  $AB00,y = screen number, $AC00,y = X pixel, $AD00,y = Y pixel,
 ;                  $AE00,y = global enemy ID (→ bank $00 for AI/shape/HP)
-;   $AF00+:      metatile column definitions, 64 bytes per column ID
-;                  (vertical strip of metatile indices for one 16px-wide column)
-;   $B700+:      metatile CHR definitions, 4 bytes per metatile index
-;                  (2x2 CHR tile pattern: TL, TR, BL, BR)
-;   $BF00-$BFFF: collision attribute table, 1 byte per metatile index (256 entries)
-;                  upper nibble = collision type (see TILE COLLISION TYPES above)
+;   $AF00+:      screen layouts, 64 bytes per layout ID:
+;                  8x8 grid of 32x32-px metatile IDs (one 256x256 screen)
+;   $B700+:      metatile definitions, 4 bytes per 32px metatile ID:
+;                  four 16x16 block indices (TL, TR, BL, BR)
+;   $BB00-$BEFF: per-block CHR tiles (4 tables: TL/TR/BL/BR 8x8 tile each,
+;                  indexed by 16x16 block index)
+;   $BF00-$BFFF: attribute table, 1 byte per 16x16 block index (256 entries)
+;                  upper nibble = collision type, low 2 bits = palette
 ;   Screen = 16 columns x N rows of 16x16 metatiles = 256px wide
 ;   load_stage routine at $1EC816 copies screen data to RAM ($0600+)
 ;
@@ -209,7 +213,7 @@
 ;   MM3 ent_anim_frame,x → MM4 ent_var2,x  (animation frame counter)
 ;
 ; Sound System:
-;   submit_sound_ID ($1FFA98) — submit a sound effect to the queue
+;   submit_sound_ID ($1FF89A) — submit a sound effect to the queue
 ;
 ; Palette RAM:
 ;   $0600-$061F = palette buffer (32 bytes, uploaded to PPU $3F00 during NMI)
@@ -236,9 +240,9 @@
 ;   Example: $01.4C = 1 + 76/256 = 1.297 pixels/frame
 ;
 ; PHYSICS CONSTANTS (from reset_gravity and player movement code):
-;   Gravity (player):  $FFC0 as velocity = -0.25 px/frame² (upward bias)
-;   Gravity (enemies): $FFAB as velocity = -0.332 px/frame²
-;   Terminal velocity: $07.00 = 7.0 px/frame downward (clamped at ent_yvel >= $07)
+;   Gravity per frame: player $00.40 (0.25 px/f²), enemies $00.55 (0.332 px/f²)
+;   Rest velocity (reset_gravity): player $FF.C0, enemies $FF.AB (= -1 gravity tick)
+;   Terminal velocity: $F9.00 = 7.0 px/frame downward (positive yvel = rising)
 ;   Walk speed:        $01.4C = 1.297 px/frame (same as MM4)
 ;   Slide speed:       $02.80 = 2.5 px/frame (20 frames max, cancellable after 8)
 ;   Jump velocity:     $04.E5 = ~4.898 px/frame upward (confirmed, see .jump at $ECEB3)

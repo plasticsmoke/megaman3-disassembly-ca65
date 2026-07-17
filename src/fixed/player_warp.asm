@@ -8,30 +8,30 @@
 
 warp_position_table:  .byte   $00,$00,$00,$00,$00,$06,$06,$06
 player_screen_scroll:  ldy     #$00  ; state $10: vertical scroll transition
-        jsr     move_vertical_gravity   ; fill Rush Jet energy ($AD)
-        bcc     warp_boss_refight_init  ; airborne → skip standing check
+        jsr     move_vertical_gravity   ; apply gravity, carry = landed
+        bcc     warp_shutter_nt_init    ; airborne → skip standing check
         lda     #$01                    ; set standing OAM when grounded
         cmp     ent_anim_id             ; already standing anim?
-        beq     warp_boss_refight_init  ; already set → skip
+        beq     warp_shutter_nt_init    ; already set → skip
         jsr     reset_sprite_anim       ; set standing animation
 
 ; --- render shutter nametable columns ---
-warp_boss_refight_init:  ldy     #$26   ; set viewport ($52 = $26)
+warp_shutter_nt_init:  ldy     #$26     ; set viewport ($52 = $26)
         cpy     $52                     ; viewport already $26?
-        beq     warp_arena_nt_render    ; already set → check progress
+        beq     warp_shutter_nt_check   ; already set → check progress
         sty     $52                     ; first time: init progressive render
         ldy     #$00                    ; clear init values
         sty     MMC3_MIRRORING          ; set V-mirroring
         sty     $70                     ; progress counter = 0
         sty     $28                     ; column counter = 0
-        beq     warp_arena_finalize     ; always branch (Y=0)
-warp_arena_nt_render:  ldy     $70      ; render complete?
-        beq     warp_destination_check  ; yes → wait for entities
-warp_arena_finalize:  lda     #$11      ; switch to bank $11 (shutter graphics)
+        beq     warp_shutter_nt_render  ; always branch (Y=0)
+warp_shutter_nt_check:  ldy     $70     ; render complete?
+        beq     warp_shutter_wait       ; yes → wait for entities
+warp_shutter_nt_render:  lda     #$11   ; switch to bank $11 (shutter graphics)
         sta     prg_bank                ; select bank $11
         jsr     select_PRG_banks        ; apply bank switch
         lda     #$04                    ; metatile column $04 (shutter/door column)
-        jsr     metatile_column_ptr_by_id ; set metatile column pointer
+        jsr     metatile_screen_ptr_by_id ; set metatile column pointer
         lda     #$04                    ; nametable select = $04
         sta     $10                     ; store nametable select
         jsr     fill_nametable_progressive ; draw one column per frame
@@ -40,16 +40,16 @@ warp_arena_finalize:  lda     #$11      ; switch to bank $11 (shutter graphics)
 
 ; --- wait for shutter entities (slots $08-$17) to clear ---
 
-warp_destination_check:  ldy     #$0F   ; check 16 entity slots
-warp_negative_screen:  lda     $0308,y  ; slot still active?
-        bmi     proto_man_encounter_init ; yes → wait
+warp_shutter_wait:  ldy     #$0F        ; check 16 entity slots
+warp_shutter_wait_loop:  lda     $0308,y ; slot still active?
+        bmi     warp_scroll_return      ; yes → wait
         dey                             ; next slot index
-        bpl     warp_negative_screen    ; next slot
+        bpl     warp_shutter_wait_loop  ; next slot
 
 ; --- all entities done: begin Y scroll reveal ---
         lda     #$0B                    ; set game mode $0B (split-screen mode)
         cmp     game_mode               ; already in split-screen mode?
-        beq     warp_boss_slot_setup    ; yes → skip init
+        beq     warp_scroll_step        ; yes → skip init
         sta     game_mode               ; set game mode to split-screen
         lda     camera_x_hi             ; set nametable select bit
         ora     #$01                    ; set nametable select bit
@@ -60,33 +60,33 @@ warp_negative_screen:  lda     $0308,y  ; slot still active?
         sta     $5E                     ; set IRQ scanline split
 
 ; --- scroll Y down by 3 per frame ---
-warp_boss_slot_setup:  lda     scroll_y ; scroll_y -= 3
+warp_scroll_step:  lda     scroll_y     ; scroll_y -= 3
         sec                             ; prepare subtraction
         sbc     #$03                    ; subtract 3 pixels
         sta     scroll_y                ; store updated scroll Y
-        bcs     warp_position_load      ; no underflow → continue
+        bcs     warp_shutter_y_adjust   ; no underflow → continue
         lda     #$00                    ; underflow: clamp to 0
         sta     scroll_y                ; scroll_y = 0 (scroll complete)
         sta     player_state            ; player_state = state $00 (return to normal)
 
 ; --- adjust shutter entity Y positions during scroll ---
-warp_position_load:  ldy     #$03       ; 4 shutter entities (slots $1C-$1F)
-warp_arena_render_done:  lda     shutter_base_y_table,y ; base Y position from table
+warp_shutter_y_adjust:  ldy     #$03    ; 4 shutter entities (slots $1C-$1F)
+warp_shutter_y_loop:  lda     shutter_base_y_table,y ; base Y position from table
         sec                             ; subtract current scroll offset
         sbc     scroll_y                ; adjust for current scroll position
-        bcc     warp_teleport_complete  ; off screen (negative) → skip
+        bcc     warp_shutter_y_next     ; off screen (negative) → skip
         sta     $03DC,y                 ; y_pixel for slot $1C+Y
         lda     $059C,y                 ; clear bit 2 of sprite flags
         and     #$FB                    ; (make entity visible)
         sta     $059C,y                 ; store updated flags
-warp_teleport_complete:  dey            ; next entity
-        bpl     warp_arena_render_done  ; loop all 4 shutter slots
+warp_shutter_y_next:  dey               ; next entity
+        bpl     warp_shutter_y_loop     ; loop all 4 shutter slots
         lda     player_state            ; scroll done (player_state = 0)?
-        beq     proto_man_encounter_init ; yes → return
+        beq     warp_scroll_return      ; yes → return
         lda     $059E                   ; set bit 2 on slot $1E (keep one shutter visible
         ora     #$04                    ; during transition for visual continuity)
         sta     $059E                   ; store updated slot $1E flags
-proto_man_encounter_init:  rts           ; return from encounter init
+warp_scroll_return:  rts                ; return from encounter init
 
 ; shutter entity base Y positions (for slots $1C-$1F during scroll)
 shutter_base_y_table:  .byte   $48
@@ -113,10 +113,10 @@ shutter_base_y_table:  .byte   $48
 player_warp_init:
         lda     ent_anim_state          ; check teleport-in animation state
         cmp     #$04                    ; $04 = animation complete
-        bne     proto_man_encounter_init ; not done → wait
+        bne     warp_scroll_return      ; not done → wait
         ldy     warp_dest               ; Y = warp destination index
         lda     warp_screen_table,y     ; check screen number
-        bpl     proto_man_phase_2_check ; positive → valid boss arena
+        bpl     warp_arena_setup        ; positive → valid boss arena
 
 ; --- negative screen = Wily stage clear (no more bosses) ---
         sta     $74                     ; mark fortress stage cleared ($FF)
@@ -127,9 +127,9 @@ player_warp_init:
 
 ; --- set up boss refight arena ---
 
-proto_man_phase_2_check:  lda     #$00  ; clear NMI skip flag
+warp_arena_setup:  lda     #$00         ; clear NMI skip flag
         sta     nmi_skip                ; allow rendering
-        jsr     fade_palette_in         ; fade screen in
+        jsr     fade_palette_out        ; fade screen out (to black)
         lda     #$04                    ; $97 = $04 (OAM overlay mode for boss arena)
         sta     oam_ptr                 ; set OAM overlay mode
         jsr     prepare_oam_buffer      ; refresh OAM
@@ -139,22 +139,22 @@ proto_man_phase_2_check:  lda     #$00  ; clear NMI skip flag
         sta     prg_bank                ; select bank $01
         jsr     select_PRG_banks        ; switch PRG bank
         ldy     warp_dest               ; load warp destination index
-        bne     proto_man_walk_init     ; nonzero → skip bitmask clear
+        bne     warp_arena_load_boss    ; nonzero → skip bitmask clear
         sty     $6E                     ; $6E = 0
 
 ; --- load boss position from tables ---
-proto_man_walk_init:  lda     warp_screen_table,y ; camera screen = boss screen number
+warp_arena_load_boss:  lda     warp_screen_table,y ; camera screen = boss screen number
         sta     camera_screen           ; set camera to boss screen
         sta     ent_x_scr               ; player X screen = boss screen
         sta     $2B                     ; room index = boss screen
         sta     $29                     ; column render position
         lda     #$20                    ; $2A = $20 (scroll flags: h-scroll enabled)
         sta     $2A                     ; store scroll flags
-        lda     weapon_cost_table,y     ; player X = boss X position
+        lda     warp_boss_x_table,y     ; player X = boss X position
         sta     ent_x_px                ; set player X pixel
-        lda     weapon_use_rate_table,y ; player Y = boss Y position
+        lda     warp_boss_y_table,y     ; player Y = boss Y position
         sta     ent_y_px                ; set player Y pixel
-        lda     weapon_ammo_drain_table,y ; boss anim/state value
+        lda     warp_boss_param_table,y ; boss anim/state value
         sta     $9E                     ; (used by boss spawn code)
         sta     $9F                     ; store duplicate state value
         lda     warp_chr_param_table,y  ; CHR bank param → bank $01 $A000
@@ -170,7 +170,7 @@ proto_man_walk_init:  lda     warp_screen_table,y ; camera screen = boss screen 
         lda     #$1F                    ; $24 = $1F (starting row)
         sta     $24                     ; set starting column
         lda     #$21                    ; 33 columns to render
-proto_man_walk_x_pos:  pha              ; save column counter
+warp_arena_render_loop:  pha            ; save column counter
         lda     #$01                    ; $10 = nametable select (right)
         sta     $10                     ; store nametable select
         jsr     do_render_column        ; render one nametable column
@@ -178,7 +178,7 @@ proto_man_walk_x_pos:  pha              ; save column counter
         pla                             ; decrement column counter
         sec                             ; decrement column counter
         sbc     #$01                    ; subtract 1
-        bne     proto_man_walk_x_pos    ; more columns → loop
+        bne     warp_arena_render_loop  ; more columns → loop
 
 ; --- arena rendered: finalize ---
         sta     $2C                     ; clear scroll progress fields
@@ -186,11 +186,11 @@ proto_man_walk_x_pos:  pha              ; save column counter
         sta     boss_active             ; clear boss active flag
         lda     camera_screen           ; screen $08 = special arena
         cmp     #$08                    ; play music $0A (boss intro)
-        bne     proto_man_rise_init     ; not screen $08 → skip music
+        bne     warp_arena_finish       ; not screen $08 → skip music
         lda     #MUSIC_WILY_2           ; play Wily 3-4 music
         jsr     submit_sound_ID_D9      ; start music track
-proto_man_rise_init:  jsr     task_yield ; yield for one more frame
-        jsr     fade_palette_out        ; fade screen out (prepare for warp-in)
+warp_arena_finish:  jsr     task_yield  ; yield for one more frame
+        jsr     fade_palette_in         ; fade screen in (reveal after warp)
         ldx     #$00                    ; X = player slot 0
         lda     #$13                    ; set teleport beam OAM
         jsr     reset_sprite_anim       ; set player animation
@@ -208,10 +208,10 @@ player_warp_anim:
 
         lda     ent_anim_state          ; check animation state
         cmp     #$04                    ; $04 = teleport-in finished
-        bne     proto_man_rise_check    ; not done → wait
+        bne     warp_anim_return        ; not done → wait
         lda     #$00                    ; $30 = state $00 (normal gameplay)
         sta     player_state            ; return to normal gameplay
-proto_man_rise_check:  rts
+warp_anim_return:  rts
 
 ; ---------------------------------------------------------------------------
 ; Boss refight tables — all indexed by $6C (boss/warp index 0-11)
@@ -223,13 +223,13 @@ proto_man_rise_check:  rts
 warp_screen_table:  .byte   $07,$00,$FF,$0A,$0C,$0E,$10,$12
         .byte   $14,$16,$18,$00,$08,$08,$08,$08
         .byte   $08,$08,$08,$08
-weapon_cost_table:  .byte   $30,$00,$00,$20,$20,$20,$20,$20
+warp_boss_x_table:  .byte   $30,$00,$00,$20,$20,$20,$20,$20
         .byte   $20,$20,$20,$00,$30,$30,$30,$70
         .byte   $90,$D0,$D0,$D0
-weapon_use_rate_table:  .byte   $B0,$00,$00,$C0,$B0,$B0,$B0,$B0
+warp_boss_y_table:  .byte   $B0,$00,$00,$C0,$B0,$B0,$B0,$B0
         .byte   $B0,$A0,$B0,$00,$2C,$6C,$AC,$AC
         .byte   $AC,$2C,$6C,$AC
-weapon_ammo_drain_table:  .byte   $10,$10,$00,$1B,$1C,$1D,$1E,$1F
+warp_boss_param_table:  .byte   $10,$10,$00,$1B,$1C,$1D,$1E,$1F
         .byte   $20,$21,$22,$00,$11,$11,$11,$11
         .byte   $11,$11,$11,$11
 
@@ -237,46 +237,43 @@ weapon_ammo_drain_table:  .byte   $10,$10,$00,$1B,$1C,$1D,$1E,$1F
 warp_chr_param_table:  .byte   $02,$02,$00,$25,$23,$27,$24,$2A
         .byte   $26,$28,$29,$00,$02,$02,$02,$02
         .byte   $02
-entity_ai_routine_table:  .byte   $02,$02,$02
+warp_defeat_mask_base:  .byte   $02,$02,$02 ; tail of warp_chr_param_table; base+3 = stage_bit_mask (see spawn_weapon_orb)
 
 ; boss_defeated_bitmask: indexed by stage ($22), sets bit in $61
 ; $00=Needle $01=Magnet $02=Gemini $03=Hard $04=Top $05=Snake $06=Spark $07=Shadow
-entity_damage_table:  .byte   $01,$02,$04,$08,$10,$20,$40,$80
+stage_bit_mask:  .byte   $01,$02,$04,$08,$10,$20,$40,$80
 
 ; Doc Robot stage bitmask (4 stages: Needle=$08, Gemini=$09, Spark=$0A, Shadow=$0B)
-        .byte   $01
-        .byte   $04
-        rti
-
-        .byte   $80
+; (continuation of stage_bit_mask, indexed by stage_id $08-$0B)
+        .byte   $01,$04,$40,$80
 decrease_ammo:  lda     current_weapon
         cmp     #WPN_SNAKE              ; weapons $06+ are Rush items (odd IDs)
         bcc     decrease_ammo_tick      ; weapons $00-$05 always drain
         and     #$01                    ; odd = Rush weapon, skip drain
-        bne     weapon_hurt_freeze_done ; Rush weapon → skip drain
+        bne     decrease_ammo_return    ; Rush weapon → skip drain
 decrease_ammo_tick:  ldy     current_weapon ; Y = current weapon index
         inc     $B5                     ; increment usage frame counter
         lda     $B5                     ; load current count
         cmp     weapon_framerate,y      ; compare to drain rate for this weapon
-        bne     weapon_hurt_freeze_done ; not at threshold → return
+        bne     decrease_ammo_return    ; not at threshold → return
         lda     #$00                    ; reset frame counter to 0
         sta     $B5                     ; store reset counter
         lda     player_hp,y             ; load weapon ammo
         and     #$1F                    ; mask to ammo value (low 5 bits)
         sec                             ; subtract ammo cost
         sbc     weapon_cost,y           ; subtract ammo cost
-        bcs     entity_spawn_x_offset_table ; no underflow → store result
+        bcs     ammo_store_clamped      ; no underflow → store result
         lda     #$00                    ; clamp to zero if underflow
-entity_spawn_x_offset_table:  ora     #$80 ; set bit 7 (weapon-owned flag)
+ammo_store_clamped:  ora     #$80       ; set bit 7 (weapon-owned flag)
         sta     player_hp,y             ; store updated ammo
         cmp     #$80                    ; check if ammo is now zero ($80)
-        bne     weapon_hurt_freeze_done ; still has ammo → return
+        bne     decrease_ammo_return    ; still has ammo → return
 
 ; ammo has been depleted, clean up rush
         cpy     #$0B                    ; Rush Jet? → deactivate
-        beq     weapon_hurt_freeze_init ; yes → deactivate Rush
+        beq     ammo_depleted_rush_off  ; yes → deactivate Rush
         cpy     #$09                    ; Rush Marine?
-        bne     weapon_hurt_freeze_done ; neither → return
+        bne     decrease_ammo_return    ; neither → return
         lda     #$02                    ; set CHR reload flag
         sta     $EB                     ; set CHR reload flag
         jsr     update_CHR_banks        ; reload Mega Man CHR tiles
@@ -284,9 +281,9 @@ entity_spawn_x_offset_table:  ora     #$80 ; set bit 7 (weapon-owned flag)
         jsr     reset_sprite_anim       ; set standing animation
         lda     #$00                    ; state $00 = normal
         sta     player_state            ; return to normal ground state
-weapon_hurt_freeze_init:  lda     #$00  ; A = 0 for sta below
+ammo_depleted_rush_off:  lda     #$00   ; A = 0 for sta below
         sta     ent_status+1            ; deactivate Rush entity slot 1
-weapon_hurt_freeze_done:  rts
+decrease_ammo_return:  rts
 
 ; how much ammo each weapon costs upon use
 weapon_cost:  .byte   $00,$02,$01,$02,$02,$00,$01,$03
@@ -296,8 +293,7 @@ weapon_cost:  .byte   $00,$02,$01,$02,$02,$00,$01,$03
 ; most weapons are 1 shot == 1 frame
 ; jet & marine count while using them
 weapon_framerate:  .byte   $00,$01,$04,$01,$01,$00,$02
-        ora     ($01,x)
-        asl     $1E02,x
+        .byte   $01,$01,$1E,$02,$1E     ; Spark $01, R.Marine $1E, Shadow $02, R.Jet $1E
 
 ; player state $13: Proto Man exit beam — Wily gate scene after all Doc Robots [confirmed]
 ; Triggered only by Proto Man routine $53 (bank18 scripted spawn, $60=$12).
@@ -311,12 +307,12 @@ weapon_framerate:  .byte   $00,$01,$04,$01,$01,$00,$02
 player_teleport_beam:
         lda     ent_anim_id             ; check current OAM ID
         cmp     #$13                    ; teleport beam OAM?
-        beq     break_man_encounter_init ; yes → phase 2 (rising)
+        beq     beam_rise_phase         ; yes → phase 2 (rising)
 
 ; --- phase 1: falling with $99 ---
         ldy     #$00                    ; move down with $99 (slot 0)
         jsr     move_vertical_gravity   ; carry set = landed
-        bcc     break_man_spawn_explosions ; still airborne → return
+        bcc     beam_return             ; still airborne → return
         lda     #$13                    ; landed: set teleport beam OAM
         jsr     reset_sprite_anim       ; set teleport beam anim
         inc     ent_anim_state          ; signal landing (anim counts down)
@@ -325,12 +321,12 @@ player_teleport_beam:
         sta     ent_yvel                ; clear Y velocity
 
 ; --- phase 2: rising off-screen ---
-break_man_encounter_init:  lda     ent_anim_state ; nonzero = still in landing anim
-        bne     break_man_spawn_explosions ; waiting for anim to finish → return
+beam_rise_phase:  lda     ent_anim_state ; nonzero = still in landing anim
+        bne     beam_return             ; waiting for anim to finish → return
         sta     ent_anim_frame          ; reset anim frame counter
         jsr     move_sprite_up          ; move player upward by Y speed
         lda     ent_y_scr               ; check if off-screen (Y screen != 0)
-        bne     break_man_walk_init     ; → trigger ending
+        bne     beam_offscreen_ending   ; → trigger ending
         lda     ent_yvel_sub            ; accelerate Y speed by gravity
         clc                             ; (gradual speed increase each frame)
         adc     gravity                 ; add gravity sub-pixel
@@ -342,7 +338,7 @@ break_man_encounter_init:  lda     ent_anim_state ; nonzero = still in landing a
 
 ; --- player has risen off-screen: trigger Wily gate ending ---
 
-break_man_walk_init:  lda     #$00      ; reset player state
+beam_offscreen_ending:  lda     #$00    ; reset player state
         sta     player_state            ; return to ground state
         lda     #$80                    ; $74 = $80 → trigger stage clear path
         sta     $74                     ; store stage clear flag
@@ -350,10 +346,10 @@ break_man_walk_init:  lda     #$00      ; reset player state
         sta     stage_select_page       ; mark all Doc Robots beaten
         ldy     #$0B                    ; fill all 12 ammo slots to $9C (full)
         lda     #HEALTH_FULL            ; full ammo
-break_man_check_defeated:  sta     player_hp,y ; fill ammo for each weapon slot
+beam_ammo_fill_loop:  sta     player_hp,y ; fill ammo for each weapon slot
         dey                             ; next weapon slot
-        bpl     break_man_check_defeated ; loop all 12 slots
-break_man_spawn_explosions:  rts        ; return to caller
+        bpl     beam_ammo_fill_loop     ; loop all 12 slots
+beam_return:  rts                       ; return to caller
 
 ; ===========================================================================
 ; player_auto_walk — state $14: post-Wily cutscene walk (Break Man encounter)
@@ -374,29 +370,29 @@ player_auto_walk:
         php                             ; save carry (1=landed)
         ror     $0F                     ; rotate carry into $0F bit 7
         plp                             ; restore flags
-        bcs     weapon_hurt_walk_oam    ; landed → set walk animation
+        bcs     aw_walk_oam             ; landed → set walk animation
         lda     #$07                    ; airborne: set jump OAM ($07)
         cmp     ent_anim_id             ; already jump OAM?
-        beq     weapon_hurt_phase_check ; yes → check phase
+        beq     aw_phase_check          ; yes → check phase
         jsr     reset_sprite_anim       ; set jump animation
-        jmp     weapon_hurt_phase_check ; skip to phase check
+        jmp     aw_phase_check          ; skip to phase check
 
-weapon_hurt_walk_oam:  lda     #$04     ; on ground: set walk OAM ($04)
+aw_walk_oam:  lda     #$04              ; on ground: set walk OAM ($04)
         cmp     ent_anim_id             ; already walk OAM?
-        beq     weapon_hurt_phase_check ; yes → check phase
+        beq     aw_phase_check          ; yes → check phase
         jsr     reset_sprite_anim       ; set walk animation
-weapon_hurt_phase_check:  lda     ent_status ; check sub-phase from status low nibble
+aw_phase_check:  lda     ent_status     ; check sub-phase from status low nibble
         and     #$0F                    ; phase 0 = walk to X=$50
         bne     aw_wait_timer           ; phase 1+ → wait/continue
         lda     ent_x_px                ; get player X position
         cmp     #$50                    ; reached target?
         beq     aw_wait_timer           ; yes → stop and wait
-        bcs     weapon_hurt_walk_left   ; X > $50 → walk left
+        bcs     aw_walk_left            ; X > $50 → walk left
         inc     ent_x_px                ; X < $50 → walk right (inc X)
-        jmp     weapon_hurt_walk_check_x ; check if arrived at target
+        jmp     aw_check_x              ; check if arrived at target
 
-weapon_hurt_walk_left:  dec     ent_x_px ; walk left (dec X)
-weapon_hurt_walk_check_x:  lda     ent_x_px ; check if at X=$50
+aw_walk_left:  dec     ent_x_px         ; walk left (dec X)
+aw_check_x:  lda     ent_x_px           ; check if at X=$50
         cmp     #$50                    ; at target position?
         bne     aw_ret                  ; not yet → return
         lda     $031F                   ; slot $1F already active?
@@ -420,10 +416,10 @@ weapon_hurt_walk_check_x:  lda     ent_x_px ; check if at X=$50
         lda     #$EE                    ; Break Man routine = $EE (AI state)
         sta     $033F                   ; store to ent_routine for slot $1F
 ; --- overlap trick: $A9,$5A = lda #$5A (load 90 into A for timer) ---
-; Fall-through loads A=$5A (90 frames); entry at weapon_hurt_timer_done
+; Fall-through loads A=$5A (90 frames); entry at auto_walk_timer_byte
 ; skips the load (A already set by caller).
-auto_walk_spawn_done:  .byte   $A9      ; opcode: lda immediate
-weapon_hurt_timer_done:  .byte   $5A    ; operand: $5A (90 frames)
+auto_walk_lda_op:  .byte   $A9          ; opcode: lda immediate
+auto_walk_timer_byte:  .byte   $5A      ; operand: $5A (90 frames)
         sta     ent_timer               ; set player timer
         lda     ent_flags               ; load player flags
         ora     #ENT_FLAG_HFLIP         ; set horizontal flip
@@ -441,18 +437,18 @@ aw_ret:  rts                            ; return to caller
 aw_timer_done:  lda     ent_status      ; sub-phase (lower nibble)
         and     #$0F                    ; isolate sub-phase
         cmp     #$02                    ; phase 2 = post-jump (landed)
-        beq     weapon_hurt_ground_check ; yes → check ground
+        beq     aw_ground_check         ; yes → check ground
         lda     ent_x_px                ; get player X position
         cmp     #$A0                    ; reached X=$A0?
-        beq     weapon_hurt_jump_velocity ; yes → initiate jump
+        beq     aw_jump_velocity        ; yes → initiate jump
         lda     #$04                    ; set walk OAM ($04)
         cmp     ent_anim_id             ; already walk OAM?
-        beq     weapon_hurt_walk_right  ; yes → skip anim reset
+        beq     aw_walk_right           ; yes → skip anim reset
         jsr     reset_sprite_anim       ; set walk animation
-weapon_hurt_walk_right:  inc     ent_x_px ; walk right 1 pixel per frame
+aw_walk_right:  inc     ent_x_px        ; walk right 1 pixel per frame
         lda     ent_x_px                ; check if reached X=$A0
         cmp     #$A0                    ; at jump trigger point?
-        bne     weapon_hurt_return      ; not there yet → return
+        bne     aw_return               ; not there yet → return
         lda     #$6E                    ; Break Man teleport OAM ($6E)
         sta     $05DF                   ; set slot $1F OAM
         lda     #$00                    ; clear slot $1F anim fields
@@ -462,30 +458,30 @@ weapon_hurt_walk_right:  inc     ent_x_px ; walk right 1 pixel per frame
         sta     ent_timer               ; set wait timer
         rts                             ; return to caller
 
-weapon_hurt_jump_velocity:  lda     #$E5 ; y_speed_sub = $E5
+aw_jump_velocity:  lda     #$E5         ; y_speed_sub = $E5
         sta     ent_yvel_sub            ; set Y sub-velocity
         lda     #$04                    ; y_speed = $04 (jump vel = $04.E5 upward)
         sta     ent_yvel                ; y_speed = $04 (jump velocity $04.E5)
         inc     ent_status              ; advance to phase 2
         rts                             ; return to caller
 
-weapon_hurt_ground_check:  lda     $0F  ; bit 7 = on ground? (from ROR carry)
-        bpl     weapon_hurt_drift_left  ; airborne → drift left
+aw_ground_check:  lda     $0F           ; bit 7 = on ground? (from ROR carry)
+        bpl     aw_drift_left           ; airborne → drift left
         lda     ent_var1                ; check Break Man defeated flag
-        bne     weapon_hurt_set_inactive ; defeated → teleport out
+        bne     aw_teleport_out         ; defeated → teleport out
         inc     ent_var1                ; first landing: set flag, wait $78 frames
         lda     #$78                    ; wait 120 frames after landing
         sta     ent_timer               ; set countdown timer
-weapon_hurt_drift_left:  dec     ent_x_px ; drift left 1 pixel per frame
+aw_drift_left:  dec     ent_x_px        ; drift left 1 pixel per frame
         rts                             ; return to caller
 
-weapon_hurt_set_inactive:  lda     #$81 ; set teleport status
+aw_teleport_out:  lda     #$81          ; set teleport status
         sta     ent_status              ; mark player as teleporting
         lda     #$00                    ; clear timer
         sta     ent_timer               ; clear phase timer
         lda     #PSTATE_TELEPORT        ; set state $0D (teleport)
         sta     player_state            ; store player state
-weapon_hurt_return:  rts
+aw_return:  rts
 
 ; ===========================================================================
 ; player_auto_walk_2 — state $15: boss-defeated ending cutscene
@@ -499,36 +495,36 @@ player_auto_walk_2:
 
         ldy     #$00                    ; no horizontal movement
         jsr     move_vertical_gravity   ; apply gravity
-        bcs     explosion_award_walk_oam ; landed?
+        bcs     aw2_walk_oam            ; landed?
         lda     #$07                    ; airborne: jump OAM ($07)
-        bne     explosion_award_oam_check ; (always taken)
-explosion_award_walk_oam:  lda     #$04 ; on ground: walk OAM ($04)
-explosion_award_oam_check:  cmp     ent_anim_id ; already set?
-        beq     explosion_award_walk_x_check ; yes → skip
+        bne     aw2_oam_check           ; (always taken)
+aw2_walk_oam:  lda     #$04             ; on ground: walk OAM ($04)
+aw2_oam_check:  cmp     ent_anim_id     ; already set?
+        beq     aw2_check_x             ; yes → skip
         jsr     reset_sprite_anim       ; reset animation state
-explosion_award_walk_x_check:  lda     ent_x_px ; reached X=$68?
+aw2_check_x:  lda     ent_x_px          ; reached X=$68?
         cmp     #$68                    ; target X position
-        beq     explosion_award_stand_oam ; yes → stop and spawn explosions
-        bcs     explosion_award_walk_left ; past target → walk left
+        beq     aw2_stand_oam           ; yes → stop and spawn explosions
+        bcs     aw2_walk_left           ; past target → walk left
         inc     ent_x_px                ; walk right
         rts                             ; return to caller
 
-explosion_award_walk_left:  dec     ent_x_px ; walk left
+aw2_walk_left:  dec     ent_x_px        ; walk left
         rts                             ; return to caller
 
-explosion_award_stand_oam:  lda     #$01 ; set stand OAM ($01)
+aw2_stand_oam:  lda     #$01            ; set stand OAM ($01)
         cmp     ent_anim_id             ; already set?
-        beq     explosion_award_timer_inc ; yes → skip
+        beq     aw2_timer_inc           ; yes → skip
         jsr     reset_sprite_anim       ; reset animation state
-explosion_award_timer_inc:  inc     ent_timer ; increment frame counter
-        bne     explosion_award_return  ; not wrapped → wait
+aw2_timer_inc:  inc     ent_timer       ; increment frame counter
+        bne     aw2_return              ; not wrapped → wait
         lda     #$C0                    ; reset counter to $C0 (192 frames between spawns)
         sta     ent_timer               ; set timer to $C0
         lda     ent_var1                ; all 4 explosions spawned?
         cmp     #$04                    ; all 4 explosions spawned?
-        beq     explosion_award_return  ; yes → done
+        beq     aw2_return              ; yes → done
         jsr     find_enemy_freeslot_y   ; find free entity slot
-        bcs     explosion_award_return  ; none free → skip
+        bcs     aw2_return              ; none free → skip
         lda     #$80                    ; type = $80 (generic cutscene entity)
         sta     ent_status,y            ; set entity active
         lda     #$90                    ; flags = active + bit 4
@@ -556,7 +552,7 @@ explosion_award_timer_inc:  inc     ent_timer ; increment frame counter
         lda     camera_screen           ; x_screen = camera screen
         sta     ent_x_scr,y             ; set explosion X screen
         ldx     #$00                    ; restore X = player slot 0
-explosion_award_return:  rts
+aw2_return:  rts
 
 ; -----------------------------------------------
 ; spawn_weapon_orb — create post-boss weapon pickup in entity slot $0E
@@ -584,16 +580,16 @@ spawn_weapon_orb:
         lda     camera_screen           ; $038E = x_screen = camera screen
         sta     $038E                   ; set x_screen for slot $0E
         ldy     warp_dest               ; Y = boss/weapon index
-        lda     weapon_cost_table,y     ; x_pixel from weapon_cost_table
+        lda     warp_boss_x_table,y     ; x_pixel from warp_boss_x_table
         sta     $036E                   ; set x_pixel for slot $0E
-        lda     weapon_use_rate_table,y ; y_pixel from weapon_use_rate_table
+        lda     warp_boss_y_table,y     ; y_pixel from warp_boss_y_table
         and     #$F0                    ; align to 16-pixel boundary
         sta     $03CE                   ; set y_pixel for slot $0E
         lda     warp_dest               ; $04CE = stage_enemy_id = boss index + $18
         clc                             ; (prevents respawn tracking conflict)
         adc     #$18                    ; offset spawn ID by $18
         sta     $04CE                   ; set spawn_id for slot $0E
-        lda     entity_ai_routine_table,y ; load boss-defeated bitmask
+        lda     warp_defeat_mask_base,y ; load boss-defeated bitmask
         ora     $6E                     ; set defeated bit in $6E
         sta     $6E                     ; store updated weapon bitmask
         lda     #$0C                    ; $EC = $0C (trigger CHR bank update)

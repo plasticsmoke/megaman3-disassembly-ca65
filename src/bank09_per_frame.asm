@@ -31,7 +31,7 @@
 ; ---------------------------------------------------------------------------
 ; Fixed bank subroutine imports
 ; ---------------------------------------------------------------------------
-metatile_column_ptr_by_id   := $E8B4    ; set metatile column pointer by ID
+metatile_screen_ptr_by_id   := $E8B4    ; set metatile column pointer by ID
 queue_metatile_update       := $EEAB    ; build PPU buffer for 4x4 metatile
 fill_nametable_progressive  := $EF8C    ; fill nametable 4 columns per call
 reset_sprite_anim           := $F835    ; set entity OAM animation (X = slot)
@@ -426,7 +426,7 @@ docrobot_check_scroll:  lda     game_mode ; check game mode
         sta     prg_bank                ; set PRG bank to stage bank
         jsr     select_PRG_banks        ; swap in stage data bank
         lda     #$1F                    ; metatile column $1F
-        jsr     metatile_column_ptr_by_id ; set column pointer
+        jsr     metatile_screen_ptr_by_id ; set column pointer
         lda     #$08                    ; 8 rows to process
         sta     $10                     ; store row count in temp
         jsr     fill_nametable_progressive ; draw columns progressively

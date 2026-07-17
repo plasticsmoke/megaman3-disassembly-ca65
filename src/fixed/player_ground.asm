@@ -20,9 +20,9 @@ player_ground_rush_coil_check:  ldy     $05C1 ; load slot 1 anim ID
         bcc     player_ground_normal_walk ; no → normal ground
 
 ; --- Rush handler dispatch via pointer table ---
-        lda     frame_loop_ready_overlay_oam,y ; build indirect jump pointer
+        lda     rush_handler_ptr_lo,y   ; build indirect jump pointer
         sta     temp_00                 ; from $CCEF/$CCF2 tables
-        lda     frame_loop_ready_sprite_table,y ; indexed by Rush OAM ID
+        lda     rush_handler_ptr_hi,y   ; indexed by Rush OAM ID
         sta     $01                     ; store handler ptr high byte
         jmp     (temp_00)               ; dispatch Rush handler via pointer table
 
@@ -142,11 +142,11 @@ player_ground_shoot_walk_anim:  lda     #$04 ; OAM $04 = shoot-walk
         ldy     walk_flag               ; if not shooting: just move
         beq     player_ground_move_horizontal ; not shooting, move player
         jsr     shoot_oam_advance_variant ; update shoot animation
-        ldy     current_weapon          ; Y = current weapon ID
-        cmp     #$04                    ; A == $04? (Magnet Missile OAM)
-        bne     player_ground_move_horizontal ; not Magnet OAM, skip
-        ldy     #$AA                    ; OAM $AA = Magnet shoot-walk
-        sta     ent_anim_id             ; set animation ID to Magnet variant
+        ldy     current_weapon          ; (vestigial: Y loaded but unused)
+        cmp     #$04                    ; A = facing (1/2), never $04 —
+        bne     player_ground_move_horizontal ; branch is ALWAYS taken
+        ldy     #$AA                    ; (unreachable leftover: would set
+        sta     ent_anim_id             ; anim ID from A = facing value)
 
 ; --- move_horizontal: move player L/R based on direction in A ---
 ; A bit 0: 1=right, 0=left. Entry point used by walking, entity_ride, etc.
@@ -427,8 +427,8 @@ init_weapon_spawn_shot:  ldx     current_weapon ; X = current weapon ID
         sta     ent_status,y            ; mark weapon slot active
         lda     player_facing           ; read player facing direction
         ror     a                       ; to sprite flags bit 6 (H-flip)
-        ror     a                       ; $01→ROR³→$00→AND=$00 (right)
-        ror     a                       ; $02→ROR³→$40→AND=$40 (left=flip)
+        ror     a                       ; $01 (right) →ROR³→ AND=$40 (flip set)
+        ror     a                       ; $02 (left)  →ROR³→ AND=$00 (no flip)
         and     #ENT_FLAG_HFLIP         ; isolate H-flip bit
         ora     #$90                    ; bits: $80=drawn, $10=child spawn
         sta     ent_flags,y             ; store weapon sprite flags
@@ -442,10 +442,10 @@ init_weapon_spawn_shot:  ldx     current_weapon ; X = current weapon ID
         tax                             ; X = offset table index
         lda     ent_x_px                ; player X pixel position
         clc                             ; add directional offset
-        adc     weapon_x_offset,x       ; weapon X = player X + offset
+        adc     weapon_spawn_x_offsets,x ; weapon X = player X + offset
         sta     ent_x_px,y              ; store weapon X pixel
         lda     ent_x_scr               ; player X screen
-        adc     weapon_x_offset_right_lo,x ; add screen carry offset
+        adc     weapon_spawn_x_scr,x    ; add screen carry offset
         sta     ent_x_scr,y             ; store weapon X screen
         lda     ent_y_px                ; player Y pixel position
         sta     ent_y_px,y              ; copy to weapon Y pixel

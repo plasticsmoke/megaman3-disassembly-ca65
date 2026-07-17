@@ -122,6 +122,7 @@ TILE_DAMAGE      = $30   ; damage tile (lava/fire)
 TILE_LADDER_TOP  = $40   ; ladder top (grab point from above)
 TILE_SPIKES      = $50   ; instant kill spikes
 TILE_BREAKABLE   = $70   ; breakable block (Gemini stage; destroyed by weapons, spawns debris)
+TILE_WATER       = $80   ; water (Rush Marine buoyancy; Doc Needle underwater areas)
 
 ; =============================================================================
 ; Music IDs (via submit_sound_ID_D9 — checks $D9 to avoid restart)

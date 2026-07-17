@@ -186,13 +186,13 @@ camera_screen_offset_check:  lda     camera_screen ; load camera screen position
         sec                             ; subtract room base screen
         sbc     $AA30                   ; compute screen offset
         cmp     #$02                    ; if exactly 2 screens in:
-        bne     camera_wily5_stage_check ; not 2 screens → skip boss shutter check
+        bne     camera_wily4_stage_check ; not 2 screens → skip boss shutter check
         lda     $031F                   ; check entity slot $1F status
         bmi     camera_check_vert_transition ; active → block room transition
         lda     player_state            ; player state >= $0C (victory)?
         cmp     #PSTATE_VICTORY         ; block if in cutscene state
         bcs     camera_check_vert_transition ; cutscene → block transition
-camera_wily5_stage_check:  lda     stage_id ; stage $0F (Wily Fortress 4)
+camera_wily4_stage_check:  lda     stage_id ; stage $0F (Wily Fortress 4)
         cmp     #STAGE_WILY4            ; special check
         bne     camera_next_room_scroll ; not Wily 4 → advance to next room
         lda     camera_screen           ; only on screen $08
@@ -579,7 +579,7 @@ scroll_build_column:  lda     stage_id  ; select stage data bank
         lsr     a                       ; divide column by 4
         sta     $28                     ; store attribute row index
         ldy     $29                     ; set up metatile data pointer
-        jsr     metatile_column_ptr     ; for column $29
+        jsr     metatile_screen_ptr     ; for column $29
         lda     #$00                    ; $03 = buffer write offset
         sta     $03                     ; (increments by 4 per row)
 scroll_metatile_loop:  jsr     metatile_to_chr_tiles ; decode metatile → $06C0 tile buffer
@@ -847,7 +847,7 @@ vert_row_build_fresh:  lda     stage_id ; switch to stage data bank
         sta     prg_bank                ; set PRG bank to stage data
         jsr     select_PRG_banks        ; apply bank switch
         ldy     $29                     ; set up metatile column pointer for screen $29
-        jsr     metatile_column_ptr     ; set metatile column pointer
+        jsr     metatile_screen_ptr     ; set metatile column pointer
         lda     $24                     ; $28 = row-within-block offset × 2
         and     #$1C                    ; (rows come in groups of 4 within metatile)
         asl     a                       ; multiply by 2 for column stride
@@ -1085,10 +1085,11 @@ metatile_restore_y_reg:  ldy     $0F    ; restore Y
         ldx     $0E                     ; restore X
         rts                             ; return to metatile_to_chr_tiles
 
-; metatile_chr_ptr: sets $00/$01 pointer to 4-byte metatile CHR definition
-; reads metatile index from column data at ($20),y
-; each metatile = 4 CHR tile indices (2x2 pattern: TL, TR, BL, BR)
-; metatile definitions at $B700 + (metatile_index * 4) in stage bank
+; metatile_chr_ptr: sets $00/$01 pointer to 4-byte metatile definition
+; reads 32x32 metatile index from screen layout at ($20),y (y = grid pos $28)
+; each entry = 4 sub-block indices (2x2 pattern of 16x16 blocks: TL,TR,BL,BR);
+; each block index then selects CHR tiles via $BB00-$BE00 and attributes/
+; collision via $BF00. Definitions at $B700 + (metatile_index * 4).
 
 metatile_chr_ptr:  jsr     ensure_stage_bank ; ensure stage bank selected
         lda     #$00                    ; initialize pointer high byte
@@ -1110,11 +1111,12 @@ metatile_attr_offset_table:  .byte   $00,$02,$08,$0A
 metatile_burst_table:  .byte   $00,$80,$00,$80,$00,$80,$00,$80
 metatile_nt_offset_table:  .byte   $20,$20,$21,$21,$22,$22,$23,$23
 
-; metatile_column_ptr: sets $20/$21 pointer to metatile column data
-; Y = screen page → reads column ID from $AA00,y in stage bank
-; column data is at $AF00 + (column_ID * 64) — 64 bytes per column
-metatile_column_ptr:  lda     $AA00,y   ; column ID from screen data
-metatile_column_ptr_by_id:  pha         ; multiply column ID by 64:
+; metatile_screen_ptr: sets $20/$21 pointer to a screen's metatile layout
+; Y = screen page → reads layout ID from $AA00,y in stage bank
+; layout data at $AF00 + (ID * 64): 8x8 grid of 32x32-px metatile IDs
+; (index = (Y/32)*8 + (X/32), so 64 bytes cover one 256x256 screen)
+metatile_screen_ptr:  lda     $AA00,y   ; layout ID from screen table
+metatile_screen_ptr_by_id:  pha         ; multiply layout ID by 64:
         lda     #$00                    ; A << 6 → $00:A (16-bit result)
         sta     temp_00                 ; 6 shifts with 16-bit rotate
         pla                             ; restore column ID
@@ -1130,8 +1132,8 @@ metatile_column_ptr_by_id:  pha         ; multiply column ID by 64:
         rol     temp_00                 ; 16-bit rotate
         asl     a                       ; shift 6
         rol     temp_00                 ; 16-bit rotate
-        sta     $20                     ; $20/$21 = $AF00 + (column_ID × 64)
-        lda     temp_00                 ; pointer to metatile column data
+        sta     $20                     ; $20/$21 = $AF00 + (layout_ID × 64)
+        lda     temp_00                 ; pointer to screen metatile layout
         clc                             ; in stage bank at $AF00+
         adc     #$AF                    ; add base address high byte
         sta     $21                     ; store pointer high byte
