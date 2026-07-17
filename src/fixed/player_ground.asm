@@ -31,7 +31,7 @@ player_ground_rush_coil_check:  ldy     $05C1 ; load slot 1 anim ID
 
         lda     $05A1                   ; if Rush already bounced: skip
         bne     player_ground_normal_walk ; already bounced, normal walk
-        inc     jump_counter            ; set forced-fall flag (no variable jump)
+        inc     force_full_jump         ; force full jump (no variable-jump cutoff)
         lda     #$EE                    ; Y speed = $06.EE (Rush Coil bounce)
         sta     ent_yvel_sub            ; strong upward bounce
         lda     #$06                    ; Y velocity whole = $06 (upward)
@@ -68,7 +68,7 @@ player_ground_jump_or_slide:  lda     joy1_press ; check new button presses
 ; Holding Right on P2 (or latching it via Left) increases jump velocity
 ; from $04.E5 to $08.00 (~73% higher). Combined with pit death immunity,
 ; this lets the player skip large portions of stages.
-player_ground_normal_jump:  lda     $17 ; P2 held buttons
+player_ground_normal_jump:  lda     joy2_held ; P2 held buttons
         and     #$01                    ; bit 0 = Right held?
         bne     player_ground_super_jump ; yes → debug super jump
         lda     #$E5                    ; normal jump: Y vel = $04.E5
@@ -258,15 +258,15 @@ dead_code_rush_marine_exit:  rts        ; return to caller
 ; player state $01: jumping/falling, variable jump
 
 player_airborne:  lda     ent_yvel      ; check Y velocity sign
-        bmi     player_airborne_variable_jump ; negative (rising) → skip to clear flag
-        lda     jump_counter            ; check forced-fall flag
+        bmi     player_airborne_variable_jump ; negative (falling) → skip to clear flag
+        lda     force_full_jump         ; check force-full-jump flag
         bne     player_airborne_wall_check ; nonzero → skip variable jump
         lda     joy1_held               ; check if A button held
         and     #BTN_A                  ; A button mask
         bne     player_airborne_variable_jump ; held → keep rising (variable jump)
         jsr     reset_gravity           ; A released → clamp Y speed to 0 (variable jump)
 player_airborne_variable_jump:  lda     #$00 ; clear forced-fall flag
-        sta     jump_counter            ; clear jump counter
+        sta     force_full_jump         ; clear force-full-jump flag
 
 ; --- horizontal wall check + vertical movement with $99 ---
 player_airborne_wall_check:  ldy     #$06 ; Y=6: check at foot height

@@ -308,7 +308,7 @@ move_sprite_down_screen:  rts           ; return
 ; X: sprite slot
 
 move_sprite_up:  lda     ent_y_sub,x ; load Y subpixel position
-        sec                             ; Y subpixel += Y subpixel speed
+        sec                             ; Y subpixel -= Y subpixel speed
         sbc     ent_yvel_sub,x          ; subtract Y subpixel velocity
         sta     ent_y_sub,x             ; store new Y subpixel
         lda     ent_y_px,x              ; load Y pixel position

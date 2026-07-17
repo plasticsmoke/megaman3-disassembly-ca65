@@ -19,15 +19,15 @@
 ;   $10     = OR of all tile types (AND #$10 tests solid)
 ; -----------------------------------------------
 
-check_tile_horiz:  lda     metatile_gemini_scr1_starts,y ; $40 = starting offset index
+check_tile_horiz:  lda     hitbox_h_start_idx,y ; $40 = starting offset index
         sta     $40                     ; store starting offset
         jsr     tile_check_init         ; clear accumulators, switch to stage bank
         tay                             ; Y = hitbox config index
-        lda     metatile_gemini_scr2_count,y ; $02 = number of check points - 1
+        lda     hitbox_h_count,y        ; $02 = number of check points - 1
         sta     $02                     ; store check point count
         lda     ent_y_scr,x             ; $03 = entity Y screen
         sta     $03                     ; store entity Y screen
-        lda     metatile_gemini_scr2_offset,y ; $11 = entity_Y + Y_offset
+        lda     hitbox_h_y_offset,y     ; $11 = entity_Y + Y_offset
         pha                             ; (compute check Y position)
         clc                             ; add Y offset to entity Y pixel
         adc     ent_y_px,x              ; compute check Y position
@@ -61,7 +61,7 @@ metatile_y_screen_check:  lda     $03   ; Y screen != 0? treat as offscreen
         sta     $03                     ; store sub-tile Y select
         lda     #$00                    ; $04 = sign extension for X offset
         sta     $04                     ; clear sign extension
-        lda     metatile_gemini_scr2_widths,y ; first X offset (signed)
+        lda     hitbox_h_x_offsets,y    ; first X offset (signed)
         bpl     metatile_compute_x_pos  ; positive → skip sign extension
         dec     $04                     ; negative: $04 = $FF
 metatile_compute_x_pos:  clc            ; $12/$13 = entity_X + X_offset
@@ -115,7 +115,7 @@ metatile_accumulate_tiles:  ora     $10 ; accumulate all tile types
         sta     $04                     ; save as comparison reference
         pla                             ; $12 += next X offset
         clc                             ; add next X offset from table
-        adc     metatile_gemini_scr2_widths,y ; advance X to next check point
+        adc     hitbox_h_x_offsets,y    ; advance X to next check point
         sta     $12                     ; update X position
         and     #$10                    ; did bit4 change? (crossed 16px tile?)
         cmp     $04                     ; compare with previous bit4
@@ -178,15 +178,15 @@ metatile_cleanup_return:  jmp     tile_check_cleanup ; restore bank and return
 ;   $10     = OR of all tile types (AND #$10 tests solid)
 ; -----------------------------------------------
 
-check_tile_collision:  lda     metatile_gemini_scr3_starts,y ; $40 = starting offset index
+check_tile_collision:  lda     hitbox_v_start_idx,y ; $40 = starting offset index
         sta     $40                     ; store starting offset
         jsr     tile_check_init         ; clear accumulators, switch to stage bank
         tay                             ; Y = hitbox config index
-        lda     metatile_gemini_scr4_count,y ; $02 = number of check points - 1
+        lda     hitbox_v_count,y        ; $02 = number of check points - 1
         sta     $02                     ; store check point count
         lda     #$00                    ; $04 = sign extension for X offset
         sta     $04                     ; $04 = 0 (sign extension)
-        lda     metatile_gemini_scr4_offset,y ; X offset (signed)
+        lda     hitbox_v_x_offset,y     ; X offset (signed)
         bpl     metatile_offset_compute ; positive → skip sign extension
         dec     $04                     ; negative: $04 = $FF
 metatile_offset_compute:  clc           ; $12/$13 = entity_X + X_offset
@@ -211,9 +211,9 @@ metatile_offset_compute:  clc           ; $12/$13 = entity_X + X_offset
         bne     metatile_clamp_bottom_bound ; Y screen > 0 → clamp to $EF
         lda     ent_y_px,x              ; $11 = entity_Y + first Y offset
         clc                             ; prepare for addition
-        adc     metatile_gemini_scr4_widths,y ; add first Y offset
+        adc     hitbox_v_y_offsets,y    ; add first Y offset
         sta     $11                     ; store check Y position
-        lda     metatile_gemini_scr4_widths,y ; check offset sign
+        lda     hitbox_v_y_offsets,y    ; check offset sign
         bpl     metatile_offset_overflow ; positive offset → check overflow
         bcc     metatile_clamp_top_bound ; negative + no carry = underflow
         bcs     metatile_screen_bounds  ; negative + carry = ok, check bounds
@@ -230,7 +230,7 @@ metatile_clamp_top_bound:  lda     #$00 ; clamp to top of screen
         beq     metatile_row_shift      ; always branches (zero)
 metatile_advance_y_offset:  lda     $11 ; $11 += next Y offset
         clc                             ; add next Y offset from table
-        adc     metatile_gemini_scr4_widths,y ; add next Y offset from table
+        adc     hitbox_v_y_offsets,y    ; add next Y offset from table
         sta     $11                     ; store updated Y position
         cmp     #$F0                    ; crossed screen boundary?
         bcc     metatile_offset_index_adv ; within screen → continue check
@@ -278,7 +278,7 @@ metatile_read_row_index:  ldy     $03   ; read metatile index at sub-tile ($03)
         sta     $42,y                   ; store tile type for point
         cmp     tile_at_feet_max        ; update max tile type
         bcc     metatile_accum_row_tiles ; less than max → skip update
-        sta     tile_at_feet_max        ; $03 bit0 = sub-tile X (left/right)
+        sta     tile_at_feet_max        ; update max tile type
 metatile_accum_row_tiles:  ora     $10  ; accumulate all tile types
         sta     $10                     ; store combined tile flags
         dec     $02                     ; all check points done?
@@ -291,7 +291,7 @@ metatile_accum_row_tiles:  ora     $10  ; accumulate all tile types
         sta     $04                     ; save as comparison reference
         pla                             ; $11 += next Y offset
         clc                             ; prepare for addition
-        adc     metatile_gemini_scr4_widths,y ; check offset sign
+        adc     hitbox_v_y_offsets,y    ; check offset sign
         sta     $11                     ; store updated Y position
         and     #$10                    ; did bit4 change? (crossed 16px tile?)
         cmp     $04                     ; same 16px tile?
@@ -488,15 +488,15 @@ metatile_gemini_col_offsets:  .byte   $01
 metatile_gemini_wall_cols:  .byte   $31,$39,$13,$07,$23,$24,$2B,$2C
         .byte   $33,$34,$3B,$3C,$05,$00,$31,$09
         .byte   $00,$00
-metatile_gemini_scr1_starts:  .byte   $00,$05,$09,$0E,$12,$16,$1A,$1F
+hitbox_h_start_idx:  .byte   $00,$05,$09,$0E,$12,$16,$1A,$1F
         .byte   $24,$28,$2C,$31,$36,$3B,$40,$45
         .byte   $49,$4E,$53,$57,$5B,$5F,$63,$68
         .byte   $6C,$70,$75,$79,$7D,$81,$85,$8A
         .byte   $8F,$94,$99,$9E,$A3,$A8,$AD,$B2
         .byte   $B7,$BC,$C1,$C6,$CB,$CE
-metatile_gemini_scr2_count:  .byte   $02
-metatile_gemini_scr2_offset:  .byte   $0C
-metatile_gemini_scr2_widths:  .byte   $F9,$07,$07,$01,$F4,$F9,$0E,$02
+hitbox_h_count:  .byte   $02
+hitbox_h_y_offset:  .byte   $0C
+hitbox_h_x_offsets:  .byte   $F9,$07,$07,$01,$F4,$F9,$0E,$02
         .byte   $0A,$F1,$0F,$0F,$01,$00,$F9,$0E
         .byte   $01,$00,$08,$0E,$01,$00,$EA,$0E
         .byte   $00,$00,$00,$00,$00,$02,$16,$F9
@@ -522,14 +522,14 @@ metatile_gemini_scr2_widths:  .byte   $F9,$07,$07,$01,$F4,$F9,$0E,$02
         .byte   $0F,$0F,$02,$E8,$F1,$0F,$0F,$02
         .byte   $1C,$F5,$0B,$0B,$02,$DC,$F5,$0B
         .byte   $0B,$00,$04,$00,$00,$08,$00
-metatile_gemini_scr3_starts:  .byte   $00,$05,$0A,$0E,$12,$17,$1C,$21
+hitbox_v_start_idx:  .byte   $00,$05,$0A,$0E,$12,$17,$1C,$21
         .byte   $26,$2A,$2E,$33,$38,$3D,$42,$49
         .byte   $50,$57,$5E,$65,$6C,$71,$76,$7B
         .byte   $80,$85,$8A,$8F,$94,$99,$9E,$A2
         .byte   $A6,$AB,$B0,$B5,$BA,$BF
-metatile_gemini_scr4_count:  .byte   $02
-metatile_gemini_scr4_offset:  .byte   $08
-metatile_gemini_scr4_widths:  .byte   $F5,$0B,$0B,$02,$F8,$F5,$0B,$0B
+hitbox_v_count:  .byte   $02
+hitbox_v_x_offset:  .byte   $08
+hitbox_v_y_offsets:  .byte   $F5,$0B,$0B,$02,$F8,$F5,$0B,$0B
         .byte   $01,$10,$FB,$0C,$01,$F0,$FB,$0C
         .byte   $02,$00,$F5,$0B,$0B,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
@@ -550,10 +550,10 @@ metatile_gemini_scr4_widths:  .byte   $F5,$0B,$0B,$02,$F8,$F5,$0B,$0B
         .byte   $07,$07,$02,$0C,$F9,$07,$07,$02
         .byte   $F4,$F9,$07,$07,$01,$04,$FD,$06
         .byte   $01,$FC,$FD,$06,$02,$10,$F1,$0F
-metatile_gemini_scr4_hi_widths:  .byte   $0F,$02,$F0,$F1,$0F,$0F,$02,$14
+hitbox_v_y_offsets_cont:  .byte   $0F,$02,$F0,$F1,$0F,$0F,$02,$14
         .byte   $EC,$14,$14,$02,$EC,$EC,$14,$14
         .byte   $02,$10,$E8,$18,$18,$02
-        beq     metatile_gemini_scr4_hi_widths ; data (hitbox table continuation)
+        beq     hitbox_v_y_offsets_cont ; data (hitbox table continuation)
         clc                             ; data (hitbox table continuation)
         clc                             ; data (hitbox table continuation)
 

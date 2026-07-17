@@ -62,7 +62,7 @@
 ;   entity_ride_slot ($34) = entity slot being ridden (state $05)
 ;   facing_sub ($35)       = facing sub-state / Mag Fly direction inherit
 ;   invincibility_timer ($39) = i-frames timer (nonzero = immune)
-;   jump_counter ($3A)     = jump/rush counter
+;   force_full_jump ($3A)     = jump/rush counter
 ;   hazard_pending ($3D)   = pending hazard ($06=damage, $0E=death)
 ;   tile_at_feet_max ($41) = max tile type at feet (highest priority hazard)
 ;   scroll_lock ($50)      = scroll lock flag

@@ -25,8 +25,9 @@ temp_0F          = $0F
 
 ; --- Input ---
 joy1_press       = $14   ; controller 1 new presses this frame
-joy1_press_alt   = $15   ; controller 1 new presses (alternate read)
+joy2_press       = $15   ; controller 2 new presses this frame (debug features)
 joy1_held        = $16   ; controller 1 held buttons
+joy2_held        = $17   ; controller 2 held buttons (debug features)
 
 ; --- Rendering / PPU ---
 palette_dirty    = $18   ; palette update request flag
@@ -43,7 +44,7 @@ walk_flag        = $32   ; walking flag / sub-state
 entity_ride_slot = $34   ; entity slot index being ridden (state $05)
 facing_sub       = $35   ; facing sub-state / Mag Fly direction inherit
 invincibility_timer = $39 ; i-frames timer (nonzero = immune to damage)
-jump_counter     = $3A   ; jump / rush counter
+force_full_jump  = $3A   ; suppress variable-jump cutoff while rising (set by Rush Coil bounce)
 hazard_pending   = $3D   ; pending hazard state ($06=damage, $0E=death)
 tile_at_feet_max = $41   ; max tile type at feet (highest priority hazard)
 tile_at_feet_lo  = $43   ; tile type at player feet (low)
@@ -67,7 +68,7 @@ irq_scanline     = $7B   ; IRQ scanline target
 nmi_occurred     = $90   ; NMI occurred flag
 frame_counter    = $92   ; frame counter
 oam_ptr          = $97   ; OAM buffer pointer
-gravity          = $99   ; gravity sub-pixel increment ($55 gameplay, $40 stage select)
+gravity          = $99   ; gravity sub-pixel increment, set per frame: $40 for player (state dispatch prelude), $55 for entities (process_sprites)
 irq_enable       = $9B   ; IRQ enable flag
 
 ; --- Weapon / Inventory Block ($A0-$AF) ---
@@ -90,10 +91,10 @@ snd_temp         = $C3   ; sound driver temp / command argument
 snd_param        = $C4   ; sound driver param / multiply input
 snd_inst_lo      = $C5   ; instrument table pointer low
 snd_inst_hi      = $C6   ; instrument table pointer high
-snd_tempo_ticks  = $C7   ; tempo tick count (decremented per frame)
+snd_tempo_ticks  = $C7   ; ticks to advance this frame (recomputed per frame: int + carry from frac accum)
 snd_tempo_accum  = $C8   ; tempo accumulator (fractional)
-snd_tempo_lo     = $C9   ; tempo increment low
-snd_tempo_hi     = $CA   ; tempo increment high
+snd_tempo_int    = $C9   ; tempo increment, integer part (ticks/frame)
+snd_tempo_frac   = $CA   ; tempo increment, fractional part (added to accum each frame)
 snd_pitch_offset = $CB   ; master pitch transpose offset
 snd_fade_rate    = $CC   ; volume fade rate (signed, bit 7=direction)
 snd_fade_level   = $CD   ; volume fade target level

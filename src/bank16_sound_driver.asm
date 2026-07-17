@@ -122,12 +122,12 @@ sound_driver_update:  lda     snd_flags ; load driver flags
         beq     update_tempo_accumulator               ; skip data parse if no sound
         jsr     parse_music_data               ; parse next sound data byte
 update_tempo_accumulator:  clc                         ; update tempo accumulator
-        lda     snd_tempo_hi            ; tempo speed fractional
+        lda     snd_tempo_frac          ; tempo speed fractional
         adc     snd_tempo_accum         ; add to tempo accumulator
         sta     snd_tempo_accum         ; store tempo accum lo
-        lda     snd_tempo_lo            ; tempo speed integer part
+        lda     snd_tempo_int           ; tempo speed integer part
         adc     #$00                    ; add carry from fractional
-        sta     snd_tempo_ticks         ; store tempo tick count
+        sta     snd_tempo_ticks         ; ticks to advance this frame
         lda     snd_channel_mask        ; load channel enable mask
         pha                             ; save channel mask
         ldx     #$03                    ; 4 channels (3 downto 0)
@@ -265,9 +265,9 @@ play_sound_clear_loop:  sta     $0700,y
 play_sound_id_return:  rts
 
 init_music_channels:  ldx     #$01                ; music init: first byte = 0
-        stx     snd_tempo_lo            ; tempo speed hi = 1
-        ldx     #$99                    ; tempo speed lo = $99
-        stx     snd_tempo_hi            ; set default tempo
+        stx     snd_tempo_int           ; tempo integer part = 1
+        ldx     #$99                    ; tempo fraction = $99
+        stx     snd_tempo_frac          ; default tempo $01.99 = ~1.6 ticks/frame
         sta     snd_tempo_accum         ; clear tempo accumulator
         sta     snd_pitch_offset        ; clear pitch transpose
         sta     snd_fade_rate           ; clear fade rate
@@ -706,10 +706,10 @@ store_control_flags:  sta     $0730,x             ; store updated control flags
 
         lda     #$00                    ; cmd 5: reset tempo fraction
         sta     snd_tempo_accum         ; clear tempo accumulator
-        jsr     read_sfx_byte               ; read tempo high byte
-        ldy     snd_temp                ; Y = previous arg (tempo lo)
-        sta     snd_tempo_hi            ; set tempo increment high
-        sty     snd_tempo_lo            ; set tempo increment low
+        jsr     read_sfx_byte               ; read tempo fraction byte
+        ldy     snd_temp                ; Y = previous arg (tempo integer)
+        sta     snd_tempo_frac          ; set tempo increment fraction
+        sty     snd_tempo_int           ; set tempo increment integer
         rts                             ; return after tempo update
 
         lda     snd_temp                ; cmd 6: set duration multiplier

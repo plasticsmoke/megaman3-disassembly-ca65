@@ -113,7 +113,7 @@ rendering_on:
 ;
 ; After return:
 ;   joy1_press ($14) = player 1 new presses (edges only, not held)
-;   joy1_press_alt ($15) = player 2 new presses
+;   joy2_press ($15) = player 2 new presses
 ;   joy1_held ($16) = player 1 held (raw state this frame)
 ;   $17 = player 2 held
 ;
@@ -133,7 +133,7 @@ read_ctrl_bit_loop:  lda     JOY1       ; player 1: bit 0 → $14
         rol     temp_00                 ; shift bit into DPCM verify byte
         lda     JOY2                    ; player 2: bit 0 → $15
         lsr     a                       ; shift out bit 0
-        rol     joy1_press_alt          ; shift bit into joy1_press_alt
+        rol     joy2_press              ; shift bit into joy2_press
         lsr     a                       ; shift out bit 1
         rol     $01                     ; shift bit into DPCM verify byte
         dex                             ; next controller bit
@@ -142,8 +142,8 @@ read_ctrl_bit_loop:  lda     JOY1       ; player 1: bit 0 → $14
         ora     joy1_press              ; to compensate for DPCM
         sta     joy1_press              ; bit-0 corruption
         lda     $01                     ; to compensate for DPCM
-        ora     joy1_press_alt          ; bit-0 corruption
-        sta     joy1_press_alt          ; store merged player 2 buttons
+        ora     joy2_press              ; bit-0 corruption
+        sta     joy2_press              ; store merged player 2 buttons
 
 ; --- edge detection: new presses = (current XOR previous) AND current ---
         ldx     #$01                    ; X=1 (P2), then X=0 (P1)

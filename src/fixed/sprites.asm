@@ -101,7 +101,7 @@ sprite_deactivate_offscreen:  lda     ent_flags,x ; load entity flags
         cpx     #$00                    ; not player? skip to sprite draw
         bne     sprite_landed_setup     ; not player → skip death check
 ; --- DEBUG (shipped in retail) — P2 Right = pit death immunity ---
-        lda     $17                     ; P2 held buttons
+        lda     joy2_held               ; P2 held buttons
         and     #$01                    ; bit 0 = Right held?
         bne     sprite_landed_check     ; yes → skip death trigger
         lda     ent_y_scr               ; player Y screen negative? draw
@@ -187,13 +187,13 @@ sprite_oam_id_check:  lda     ent_anim_id,x ; OAM ID = 0? no sprite
 ; Holding Up on controller 2 reduces animation speed to 1/8th.
 ; Holding A on controller 2 freezes all animation entirely.
 ; If both are held, A (freeze) takes priority over Up (slow-mo).
-        lda     $17                     ; P2 held buttons
+        lda     joy2_held               ; P2 held buttons
         and     #$08                    ; bit 3 = Up held? (slow-mo)
         beq     sprite_anim_freeze_check ; no → check global freeze
         lda     $95                     ; slow-mo: tick every 8th frame
         and     #$07                    ; frame counter mod 8
         bne     sprite_drawn_flag_check ; not 8th frame → skip tick
-        lda     $17                     ; also check P2 held buttons
+        lda     joy2_held               ; also check P2 held buttons
         and     #$80                    ; bit 7 = A held? (full freeze)
         bne     sprite_drawn_flag_check ; yes → skip tick entirely
 sprite_anim_freeze_check:  lda     $58  ; $58 = global animation freeze

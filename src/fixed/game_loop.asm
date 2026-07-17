@@ -19,8 +19,8 @@ main_game_entry:
         sta     irq_enable              ; enable IRQ processing
         lda     #MUSIC_TITLE            ; play title screen music
         jsr     submit_sound_ID_D9      ; start title music
-        lda     #$40                    ; $99 = $40 (initial $99,
-        sta     gravity                 ; set to $55 once gameplay starts)
+        lda     #$40                    ; $99 = $40 (player gravity;
+        sta     gravity                 ; entities use $55, both set per frame)
         lda     #$18                    ; map bank $18 to $8000-$9FFF
         sta     mmc3_select             ; set $8000 bank select
         jsr     select_PRG_banks        ; apply bank switch
@@ -255,7 +255,7 @@ gameplay_frame_loop:  lda     joy1_press ; Start button pressed?
         lda     player_state            ; skip pause if player state is:
         cmp     #PSTATE_REAPPEAR        ; $04 = reappear
         beq     gameplay_no_pause       ; reappearing → can't pause
-        cmp     #PSTATE_SPECIAL_DEATH   ; $09+ = boss_wait and above
+        cmp     #PSTATE_SPECIAL_DEATH   ; $07 = special death
         beq     gameplay_no_pause       ; special death, skip pause
         cmp     #PSTATE_BOSS_WAIT       ; check boss wait state
         bcs     gameplay_no_pause       ; state >= boss_wait, skip
@@ -351,8 +351,8 @@ frame_loop_track_screen_progress:  lda     ent_x_px ; player X pixel position
         and     #$02                    ; bit 1 = Left pressed?
         beq     frame_loop_debug_flag_check ; no → skip
         lda     #$01                    ; latch Right-held flag
-        ora     $17                     ; into P2 held state
-        sta     $17                     ; store updated P2 state
+        ora     joy2_held               ; into P2 held state
+        sta     joy2_held               ; store updated P2 state
 frame_loop_debug_flag_check:  jsr     shift_register_tick ; LFSR animation tick
         lda     $59                     ; $59 != 0: boss defeated
         bne     frame_loop_boss_defeated ; boss defeated → handle post-boss
@@ -640,8 +640,8 @@ prelude_reset_walk_speed:  lda     #$4C ; reset walk speed to $01.4C
         sta     ent_xvel                ; store walk whole speed
 
 ; --- per-frame setup ---
-prelude_setup_per_frame:  lda     #$40  ; gravity = $40 (stage select value)
-        sta     gravity                 ; store gravity value
+prelude_setup_per_frame:  lda     #$40  ; gravity = $40 for player physics
+        sta     gravity                 ; (process_sprites sets $55 for entities)
         ldx     #$00                    ; X = 0 (player slot), clear collision entity
         stx     $5D                     ; clear collision entity slot
         lda     $36                     ; if platform pushing: apply push velocity

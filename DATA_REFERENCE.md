@@ -495,7 +495,7 @@ Two bytes per room:
 | $30 | TILE_DAMAGE | Damage tile (lava/fire) |
 | $40 | TILE_LADDER_TOP | Ladder top (grab point) |
 | $50 | TILE_SPIKES | Instant kill spikes |
-| $70 | TILE_DISAPPEAR | Disappearing block (Gemini stages) |
+| $70 | TILE_BREAKABLE | Breakable block (Gemini stage; destroyed by weapons, spawns debris) |
 
 ---
 
@@ -927,7 +927,7 @@ $20  TILE_LADDER        climbable ladder
 $30  TILE_DAMAGE        damage tile (lava/fire)
 $40  TILE_LADDER_TOP    ladder top (grab point)
 $50  TILE_SPIKES        instant kill spikes
-$70  TILE_DISAPPEAR     disappearing block
+$70  TILE_BREAKABLE     breakable block
 ```
 
 ### Facing / Flags

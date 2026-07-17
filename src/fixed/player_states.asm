@@ -163,21 +163,22 @@ init_top_spin_exit:  rts                ; return to caller
 ; ===========================================================================
 ; init_shadow_blade — weapon $0A: Shadow Blade
 ; ===========================================================================
-; D-pad direction stored in ent_facing (bits: up=$08, down=FACING_LEFT, right=FACING_RIGHT).
+; D-pad direction stored in ent_facing (bits: up=$08, left=$02, right=$01).
 ; If no D-pad held, ent_facing=0 → blade fires horizontally (facing direction).
-; X speed $04.00 (4 px/f). Copies player position to blade (spawns at player).
+; Speed $04.00 (4 px/f), stored in the Y-velocity field for the blade AI.
+; Copies player position to blade (spawns at player).
 init_shadow_blade:
 
         jsr     init_weapon             ; spawn weapon; carry set = success
         bcc     shadow_blade_init_exit  ; no free slot → return
         lda     joy1_held               ; read D-pad held bits
-        and     #$0B                    ; mask Up($08)+Down($02)+Right($01)
+        and     #$0B                    ; mask Up($08)+Left($02)+Right($01)
         beq     shadow_blade_init_dir   ; no direction → skip (fire horizontal)
         sta     ent_facing,y            ; store throw direction for AI
 shadow_blade_init_dir:  lda     #$00    ; clear Y speed:
         sta     ent_yvel_sub,y          ; clear Y velocity sub-pixel
-        lda     #$04                    ; X speed whole = $04 (4 px/f)
-        sta     ent_yvel,y              ; Y speed whole = $04
+        lda     #$04                    ; blade speed = $04 (4 px/f)
+        sta     ent_yvel,y              ; stored in Y velocity whole
         lda     #$14                    ; AI routine = $14 (shadow blade)
         sta     ent_timer,y             ; set AI timer for shadow blade
         lda     ent_x_px,x              ; copy player X position to blade

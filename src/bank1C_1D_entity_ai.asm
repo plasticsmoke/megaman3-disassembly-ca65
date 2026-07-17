@@ -676,7 +676,7 @@ block_breaker_check_is_enemy:  cpx     #$10 ; only weapon/player slots break blo
         ldy     #$06                    ; check tile at foot height ahead
         jsr     check_tile_horiz        ; sample tile type at X position
         lda     tile_at_feet_max        ; tile type = breakable block ($70)?
-        cmp     #TILE_DISAPPEAR         ; is tile a breakable block?
+        cmp     #TILE_BREAKABLE         ; is tile a breakable block?
         bne     block_breaker_done         ; no → return
         lda     ent_x_px,x              ; entity X - camera X
         sec                             ; = screen-relative position

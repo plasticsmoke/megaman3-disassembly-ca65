@@ -65,10 +65,10 @@ The engine divides zero page into functional regions:
 | Range | Purpose | Key Variables |
 |-------|---------|---------------|
 | `$00-$0F` | Scratch temps | `temp_00` through `temp_0F` — freely reused |
-| `$14-$16` | Controller input | `joy1_press`, `joy1_press_alt`, `joy1_held` |
+| `$14-$17` | Controller input | `joy1_press`, `joy2_press`, `joy1_held`, `joy2_held` |
 | `$18-$1A` | PPU dirty flags | `palette_dirty`, `nametable_dirty`, `nt_column_dirty` |
 | `$22` | Stage | `stage_id` |
-| `$30-$44` | Player state | `player_state`, `player_facing`, `walk_flag`, `invincibility_timer`, `jump_counter`, `hazard_pending`, `tile_at_feet_*` |
+| `$30-$44` | Player state | `player_state`, `player_facing`, `walk_flag`, `invincibility_timer`, `force_full_jump`, `hazard_pending`, `tile_at_feet_*` |
 | `$50-$7B` | Scroll / screen | `scroll_lock`, `boss_active`, `bosses_beaten`, `screen_mode`, `scroll_x_fine`, `nt_select`, `irq_scanline` |
 | `$80-$8F` | Scheduler / envelopes | 4 task slots (4 bytes each), also used as sound envelope timers |
 | `$90-$9B` | NMI / timing | `nmi_occurred`, `frame_counter`, `oam_ptr`, `gravity`, `irq_enable` |
@@ -391,7 +391,7 @@ The upper nibble of each entry in the `$BF00` collision table determines the til
 | `$30` | `TILE_DAMAGE` | Damage on contact (lava, fire) |
 | `$40` | `TILE_LADDER_TOP` | Ladder grab point (stand on top, press Down to climb) |
 | `$50` | `TILE_SPIKES` | Instant kill |
-| `$70` | `TILE_DISAPPEAR` | Breakable block (Gemini stages) |
+| `$70` | `TILE_BREAKABLE` | Breakable block (Gemini stage) |
 
 ### Special Overrides
 
@@ -709,13 +709,13 @@ To play a sound, game code calls `submit_sound_ID` which writes to a circular bu
 
 1. Check bit 0 of `snd_flags` (`$C0`). If set, driver is paused — exit immediately.
 2. If the global data pointer (`$D0/$D1`) is non-null, parse the global music stream for channel enable/duration/tempo/transpose commands.
-3. Update the fractional tempo accumulator: add `snd_tempo_hi` (`$CA`) to `snd_tempo_accum` (`$C8`); carry propagates into `snd_tempo_ticks` (`$C7`). This produces the number of logical ticks elapsed this frame.
+3. Update the fractional tempo accumulator: add `snd_tempo_frac` (`$CA`) to `snd_tempo_accum` (`$C8`); `snd_tempo_ticks` (`$C7`) = `snd_tempo_int` (`$C9`) plus the carry. This produces the number of logical ticks elapsed this frame.
 4. Loop X from 3 down to 0 (4 channels). For each: if the music channel is active (per `snd_channel_mask`), call `process_music_channel`. Then, unless SFX are muted (bit 1 of `snd_flags`), call `process_sfx_channel`.
 5. If `snd_fade_rate` (`$CC`) is nonzero, advance the global volume fade.
 
 ### Tempo System
 
-The driver uses an **8.8 fixed-point tempo accumulator**. Each frame, `snd_tempo_hi` (fractional part) is added to an accumulator, and the carry feeds into `snd_tempo_ticks` (integer ticks). The default tempo `$01.$99` produces approximately 1.6 ticks per frame — sometimes 1 tick, sometimes 2 — but the long-term average is precise. This avoids the tempo quantization problem that simpler NES drivers have, where only integer tick rates are possible.
+The driver uses an **8.8 fixed-point tempo accumulator**. Each frame, `snd_tempo_frac` (fractional part) is added to an accumulator, and `snd_tempo_ticks` becomes `snd_tempo_int` plus the carry (integer ticks). The default tempo `$01.$99` produces approximately 1.6 ticks per frame — sometimes 1 tick, sometimes 2 — but the long-term average is precise. This avoids the tempo quantization problem that simpler NES drivers have, where only integer tick rates are possible.
 
 Note duration countdown subtracts `snd_tempo_ticks` each frame, so both music and SFX are tied to the same tempo clock.
 
@@ -939,7 +939,7 @@ $BB00/$BC00/$BD00/$BE00 ──→ 16 CHR tile IDs ──→ $06C0 buffer ──�
 | `$30` | `TILE_DAMAGE` | Damage (lava/fire) |
 | `$40` | `TILE_LADDER_TOP` | Ladder grab point |
 | `$50` | `TILE_SPIKES` | Instant kill |
-| `$70` | `TILE_DISAPPEAR` | Breakable block |
+| `$70` | `TILE_BREAKABLE` | Breakable block |
 
 - **Lower 2 bits**: palette index for NES attribute table generation
 
