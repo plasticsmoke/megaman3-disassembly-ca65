@@ -115,10 +115,10 @@ load_game_over_chr_banks_loop:  lda     game_over_chr_bank_table,y ; load CHR ba
         jsr     load_ppu_write_buffer               ; load PPU write buffer (writes "GAME OVER" text)
         jsr     task_yield              ; yield to let NMI process the buffer
 ; --- set up background stage for falling animation ---
-        jsr     fade_palette_in         ; fade palette out (prepare for stage bg)
+        jsr     fade_palette_in         ; fade in (reveal GAME OVER text)
         ldx     #$F0                    ; delay $F0 frames
         jsr     task_yield_x            ; wait 240 frames (~4 seconds)
-        jsr     fade_palette_out        ; fade palette back in
+        jsr     fade_palette_out        ; fade to black (prepare stage bg)
         lda     #$16                    ; stage ID for game over bg
         sta     stage_id                ; stage $16 = game over background stage
         lda     #$02                    ; screen column offset 2
@@ -176,7 +176,7 @@ load_fixed_sprites_oam_loop:  lda     game_over_fixed_sprites_oam_table,y ; 8 by
         lda     #$C0                    ; PPU ctrl: NMI on + bg $1000
         sta     $5E                     ; set PPU control mirror (enable NMI, etc.)
         jsr     task_yield              ; yield one frame
-        jsr     fade_palette_in         ; fade palette out
+        jsr     fade_palette_in         ; fade in (reveal falling scene)
         lda     #$00                    ; A = 0 for clearing
         sta     $0104                   ; palette cycle index = 0
         sta     ent_var1                ; clear entity variable (delay counter)
@@ -402,7 +402,7 @@ load_results_chr_banks_loop:  lda     results_screen_chr_bank_table,y ; results 
         sta     ent_var2                ; clear section index
         sta     ent_var3                ; clear saved OAM pointer
         jsr     task_yield              ; yield one frame
-        jsr     fade_palette_in         ; fade palette out
+        jsr     fade_palette_in         ; fade in (reveal)
 ; --- main scrolling loop ---
 ; Mega Man walks left while the camera scrolls. Every 4 pixels of scroll,
 ; a new metatile column is loaded. Music sections play at intervals.
@@ -545,8 +545,8 @@ credits_nametable_setup:  lda     #$01                ; set H-mirroring
         sta     nmi_skip                ; enable NMI
         sta     game_mode               ; reset game mode
 ; --- load credits nametable ---
-        lda     #$06                    ; stage $06 = credits layout
-        jsr     metatile_screen_ptr_by_id ; load metatile column pointers (credits)
+        lda     #$06                    ; layout ID $06 = credits screen
+        jsr     metatile_screen_ptr_by_id ; set screen layout pointer (credits)
 fill_credits_nametable_loop:  lda     #$08                ; nametable flags
         sta     $10                     ; nametable flags
         jsr     fill_nametable_progressive ; fill nametable progressively
@@ -625,11 +625,11 @@ flyby_animation_loop:  lda     $95                 ; read frame parity
         lda     $0502                   ; entity 2 timer / oscillation index
         and     #$03                    ; 4-step cycle
         tay                             ; use as table index
-        lda     credits_flyby_y_oscillation_table,y ; 0=down, FF(-1)=up, FF(-1)=up, 0=down
-        bne     flyby_move_y_up               ; nonzero = move up (INC wraps to up)
-        dec     $03C2                   ; move Y down
+        lda     credits_flyby_y_oscillation_table,y ; 0 = up (DEC Y), $FF = down (INC Y)
+        bne     flyby_move_y_down             ; nonzero → move down
+        dec     $03C2                   ; Y -= 1 = move UP on screen
         bne     flyby_advance_phase               ; skip to inc (always taken)
-flyby_move_y_up:  inc     $03C2               ; move Y up
+flyby_move_y_down:  inc     $03C2             ; Y += 1 = move DOWN on screen
 ; --- advance oscillation phase ---
 flyby_advance_phase:  dec     $0522               ; decrement sub-timer
         bne     flyby_process_frame               ; sub-timer not zero yet
@@ -710,7 +710,7 @@ load_password_palette_loop:  lda     password_screen_palette_table,y ; 16-byte p
         ldx     #$13                    ; PPU write buffer index $13
         jsr     load_ppu_write_buffer               ; load nametable text data
         jsr     task_yield              ; wait one frame
-        jsr     fade_palette_in         ; fade palette out
+        jsr     fade_palette_in         ; fade in (reveal)
         ldx     #$B4                    ; hold $B4 frames
         jsr     task_yield_x            ; wait 180 frames
         lda     #$00                    ; A = 0
@@ -945,7 +945,7 @@ credits_flyby_anim_id_table:  .byte   $66,$63 ; animation IDs for fly-by entitie
 credits_flyby_y_pos_table:  .byte   $38,$10 ; Y positions
 credits_flyby_x_pos_table:  .byte   $30,$F8 ; X positions
 ; --- fly-by Y oscillation pattern (4-step cycle) ---
-credits_flyby_y_oscillation_table:  .byte   $00,$FF,$FF,$00 ; 0=down, -1=up, -1=up, 0=down
+credits_flyby_y_oscillation_table:  .byte   $00,$FF,$FF,$00 ; 0=up (DEC Y), $FF=down (INC Y)
 ; --- fly-by palette (8 bytes, BG palette 3) ---
 credits_flyby_palette_table:  .byte   $0F,$2C,$2C,$2C,$0F,$3C,$2C,$1C
 ; --- robot master portrait data (8 entries, one per RM) ---

@@ -10,7 +10,7 @@
 ;       title music plays via bank $0E music driver, palette fade cycling.
 ;   Phase 2 ($81B0): "Flying on Rush" — Proto Man scene: Mega Man rides Rush
 ;       upward through star field, wind SFX ($28), palette flashing.
-;   Phase 3 ($8291): "Proto Man confrontation" — Mega Man descends, Proto Man
+;   Phase 3 ($8291): "Proto Man confrontation" — Mega Man rises into view, Proto Man
 ;       appears with whistle ($5D), they meet, Proto Man departs.
 ;
 ; After all three intro phases, jumps to Doc Robot stage entry ($8439)
@@ -53,11 +53,11 @@ select_PRG_banks           := $FF6B     ; select PRG banks
 ; Entry point jump table
 ; ===========================================================================
 ; $8000: intro sequence (called from game mode handler)
-; $8003: Doc Robot Shadow Man stage entry
+; $8003: Wily castle map screen (between fortress stages)
 ; ===========================================================================
         jmp     intro_phase1_init       ; entry: intro sequence
 
-        jmp     doc_robot_stage_init               ; entry: Doc Robot stage
+        jmp     wily_map_init               ; entry: Wily castle map screen
 
 ; ===========================================================================
 ; Phase 1 Init: "Mountain Top" — Mega Man falls, Rush slides in
@@ -144,7 +144,7 @@ load_mountain_oam_loop:  lda     intro_phase1_mountain_oam_table,y ; load mounta
         lda     #$C0                    ; scroll limit = $C0
         sta     $5E                     ; scroll limit
         jsr     task_yield              ; wait for NMI
-        jsr     fade_palette_in         ; fade palette out (reveal scene)
+        jsr     fade_palette_in         ; fade in (reveal scene)
 ; --- init phase 1 state variables ---
         lda     #$08                    ; start at track $08 (Shadow Man)
         sta     ent_timer               ; music track index
@@ -156,14 +156,14 @@ load_mountain_oam_loop:  lda     intro_phase1_mountain_oam_table,y ; load mounta
 ; Phase 1 Main Loop: Mega Man falling + Rush sliding in
 ; ===========================================================================
 ; Mega Man (entity 0) falls with gravity until Y >= $A4 (ground level),
-; then plays landing anim. Rush (entity 1, anim $04) slides left until
-; X < $98, then changes to standing anim. Meanwhile, palette cycles
-; through sunset colors and title music plays track-by-track.
+; then plays landing anim ($04) and walks left until X < $98, where he
+; switches to standing ($01). Meanwhile, palette cycles through sunset
+; colors and title music plays track-by-track.
 ; ===========================================================================
 phase1_main_loop:  ldx     #$00                ; X = entity 0 (Mega Man)
         lda     ent_anim_id             ; check Mega Man's current animation
         cmp     #$04                    ; anim $04 = landed?
-        beq     rush_slide_update               ; branch if Rush sliding anim (== $04)
+        beq     megaman_walk_left               ; landed → walk-left phase
         cmp     #$01                    ; anim $01 = standing?
         beq     phase1_palette_music               ; branch if standing idle (== $01)
 ; --- Mega Man is still falling ---
@@ -180,19 +180,19 @@ phase1_main_loop:  ldx     #$00                ; X = entity 0 (Mega Man)
 megaman_reset_anim_frame:  lda     #$00                ; A = 0
         sta     ent_anim_frame          ; reset animation frame
         jmp     phase1_palette_music               ; skip to palette/music update
-; --- Rush is sliding leftward ---
-rush_slide_update:  lda     ent_anim_id         ; check Rush animation ID
+; --- Mega Man (slot 0) walks leftward after landing ---
+megaman_walk_left:  lda     ent_anim_id         ; check Mega Man animation ID
         cmp     #$01                    ; anim $01 = standing?
         beq     phase1_palette_music               ; already standing, skip
-        lda     ent_x_sub               ; load Rush X sub-pixel
+        lda     ent_x_sub               ; Mega Man X -= 1.5 px/frame
         sec                             ; set carry for subtraction
-        sbc     #$80                    ; subtract 1.5 px per frame (sub)
+        sbc     #$80                    ; subtract sub-pixel part
         sta     ent_x_sub               ; store updated X sub-pixel
-        lda     ent_x_px                ; load Rush X pixel
+        lda     ent_x_px                ; load X pixel (slot 0)
         sbc     #$01                    ; subtract 1 px (whole)
         sta     ent_x_px                ; store updated X pixel
         cmp     #$98                    ; reached target X ($98)?
-        bcs     phase1_palette_music               ; Rush hasn't reached target X yet
+        bcs     phase1_palette_music               ; not at target yet
         lda     #$01                    ; set anim $01 (standing)
         jsr     reset_sprite_anim       ; reset sprite animation
 ; --- palette cycling for sunset sky effect ---
@@ -331,7 +331,7 @@ load_phase2_chr_loop:  lda     intro_phase2_chr_bank_table,y ; phase 2 CHR bank 
         lda     #$04                    ; X speed = 4 px/frame
         sta     ent_xvel                ; horizontal speed = 4 px/frame
         jsr     task_yield              ; wait for NMI
-        jsr     fade_palette_in         ; fade palette out (reveal scene)
+        jsr     fade_palette_in         ; fade in (reveal scene)
 ; ===========================================================================
 ; Phase 2 Main Loop: Flying upward on Rush Jet
 ; ===========================================================================
@@ -426,19 +426,19 @@ clear_bg_palette_loop:  lda     #$0F
 ; ===========================================================================
 ; State machine controlled by ent_status low nibble and ent_x_scr:
 ;   ent_x_scr != 0 → done, jump to Doc Robot stage entry
-;   status & $0F == 0 → Mega Man descending to Y=$60
+;   status & $0F == 0 → Mega Man rising from bottom to Y=$60
 ;   status & $0F != 0 → Proto Man sequence (appear, whistle, depart)
 ; ===========================================================================
 phase3_main_loop:  lda     ent_x_scr           ; check if phase 3 complete
         beq     phase3_check_substate               ; still in phase 3
-        jmp     doc_robot_stage_init               ; phase 3 complete → Doc Robot stage
+        jmp     wily_map_init               ; phase 3 complete → Wily map screen
 
 phase3_check_substate:  lda     ent_status          ; get entity status
         and     #$0F                    ; check sub-state
-        beq     megaman_descend               ; 0 = still descending
+        beq     megaman_rise               ; 0 = still rising into view
         jmp     flight_accelerate_upward               ; nonzero = Proto Man sequence
-; --- Mega Man descending to Y=$60 ---
-megaman_descend:  lda     ent_y_px            ; get current Y position
+; --- Mega Man rising (from Y=$E8 at bottom) to Y=$60 ---
+megaman_rise:  lda     ent_y_px            ; get current Y position
         cmp     #$60                    ; reached target Y?
         beq     check_spawn_proto_man               ; yes — transition
         dec     ent_y_px                ; move up 1 pixel per frame
@@ -492,8 +492,8 @@ proto_man_whistle_phase:  lda     $0521               ; ent_var1[1] = whistle de
         cmp     #$78                    ; at $78: change to whistle anim
         bne     proto_man_whistle_skip               ; not at whistle trigger yet
         ldx     #$00                    ; entity 0 = Mega Man
-        lda     #$5E                    ; anim $5E = Proto Man whistling
-        jsr     reset_sprite_anim       ; set Proto Man whistle animation
+        lda     #$5E                    ; anim $5E = MM whistle-scene pose
+        jsr     reset_sprite_anim       ; (plays while Proto Man whistles)
 proto_man_whistle_skip:  jmp     star_field_update
 ; --- Proto Man departure: prepare MM for flight ---
 proto_man_depart_init:  lda     #$00                ; A = 0
@@ -586,15 +586,16 @@ phase3_process_frame:  jsr     process_frame_yield ; process frame + yield
         jmp     phase3_main_loop               ; loop phase 3
 
 ; ===========================================================================
-; Doc Robot Shadow Man Stage Entry + Cutscene
+; WILY CASTLE MAP SCREEN (previously mislabeled "Doc Robot stage entry")
 ; ===========================================================================
-; Called after intro completes, or directly via $8003 jump.
-; Fades to black, plays title music ($36), loads stage $16 nametable
-; using bank $0E tile data, then runs the Doc Robot cutscene showing
-; which robot master will be fought. Ends by jumping to the selected
-; stage's PRG bank.
+; Called after the intro completes, or directly via the $8003 entry (between
+; Wily fortress stages). Fades to black, plays music $36, loads the stage
+; $16 layout (bank $0E data) as the map background, shows the 6 fortress
+; stage markers (skipping the current one, then revealing it sprite-by-
+; sprite with SFX), and finally jumps to stage $0C + $75 — i.e. the next
+; WILY stage selected by the fortress progression counter.
 ; ===========================================================================
-doc_robot_stage_init:  lda     #$00                ; A = 0
+wily_map_init:  lda     #$00                ; A = 0
         sta     nmi_skip                ; disable NMI
         jsr     fade_palette_out        ; fade palette to black
         lda     #MUSIC_DOC_ROBOT        ; music ID $36
@@ -605,7 +606,7 @@ doc_robot_stage_init:  lda     #$00                ; A = 0
         jsr     clear_entity_table      ; clear entity table
         jsr     task_yield              ; wait for NMI
         lda     #$16                    ; stage ID = $16
-        sta     stage_id                ; stage $16 = Doc Robot Shadow Man
+        sta     stage_id                ; $16 = Doc intro cutscene bg (bank $0E)
         lda     #$00                    ; reset column counter
         sta     $70                     ; nametable column counter
         lda     #$0E                    ; bank $0E = tile data
@@ -622,28 +623,28 @@ doc_robot_fill_nt_loop:  lda     #$00                ; clear temp
         bne     doc_robot_fill_nt_loop               ; loop until complete
 ; --- load palette, CHR banks, and OAM scenery ---
         ldy     #$1F                    ; copy 32 palette bytes
-load_doc_palette_loop:  lda     intro_doc_robot_palette_table,y ; Doc Robot stage palette
+load_doc_palette_loop:  lda     wily_map_palette_table,y ; Doc Robot stage palette
         sta     $0620,y                 ; write to palette buffer
         dey                             ; next palette byte
         bpl     load_doc_palette_loop               ; loop until all 32 done
         ldy     #$05                    ; copy 6 CHR bank values
-load_doc_chr_loop:  lda     intro_doc_robot_chr_bank_table,y ; Doc Robot CHR bank assignments
+load_doc_chr_loop:  lda     wily_map_chr_bank_table,y ; Doc Robot CHR bank assignments
         sta     $E8,y                   ; write to CHR bank shadow
         dey                             ; next CHR bank
         bpl     load_doc_chr_loop               ; loop until all 6 done
         jsr     update_CHR_banks        ; update CHR banks via MMC3
 ; --- load background sprite decoration ---
         ldy     #$27                    ; copy 40 OAM bytes
-load_doc_scenery_oam_loop:  lda     intro_doc_robot_scenery_oam_table,y ; 40 bytes of OAM sprites (scenery)
+load_doc_scenery_oam_loop:  lda     wily_map_scenery_oam_table,y ; 40 bytes of OAM sprites (scenery)
         sta     $0200,y                 ; write to OAM buffer
         dey                             ; next OAM byte
         bpl     load_doc_scenery_oam_loop               ; loop until all 40 done
         jsr     clear_entity_table      ; clear entity table
         jsr     task_yield              ; wait for NMI
-        jsr     fade_palette_in         ; fade palette out (reveal scene)
+        jsr     fade_palette_in         ; fade in (reveal scene)
 ; --- load robot master portrait position sprites ---
         ldy     #$13                    ; copy 20 bytes (5 icons)
-load_doc_icon_pos_loop:  lda     intro_doc_robot_icon_position_table,y ; 5 robot master icon positions
+load_doc_icon_pos_loop:  lda     wily_map_marker_pos_table,y ; 5 robot master icon positions
         sta     $0228,y                 ; OAM: Y, tile, attr, X per icon
         dey                             ; next icon byte
         bpl     load_doc_icon_pos_loop               ; loop until all 5 done
@@ -671,7 +672,7 @@ doc_palette_flash_loop:  lda     $95                 ; get frame counter
         and     #$07                    ; every 8 frames
         bne     doc_flash_frame_tick               ; skip if not 8th frame
         lda     $10                     ; get current flash color
-        sta     $0610                   ; set BG palette color
+        sta     $0610                   ; sprite palette 0 color 0 (Doc flash)
         inc     palette_dirty           ; request palette upload
         lda     $10                     ; reload flash color
         eor     #$2F                    ; toggle between $20 and $0F (flash)
@@ -682,31 +683,31 @@ doc_flash_frame_tick:  jsr     task_yield          ; wait for NMI
         cmp     #$30                    ; 48 frames of flashing
         bcc     doc_palette_flash_loop               ; loop until 48 frames done
 ; --- draw all robot master icons except the selected one ---
-        jsr     draw_boss_icons               ; place robot master icon sprites
+        jsr     wm_draw_markers               ; place robot master icon sprites
         lda     #$00                    ; A = 0
         sta     nmi_skip                ; re-enable NMI processing
 ; --- wait 60 frames (showing all icons) ---
         lda     #$3C                    ; 60 frame delay
 doc_show_icons_delay_loop:  pha                         ; save loop counter
-        jsr     doc_robot_animate_frame               ; animate Doc Robot + process frame
+        jsr     wily_map_frame               ; animate Doc Robot + process frame
         pla                             ; restore loop counter
         sec                             ; prepare for decrement
         sbc     #$01                    ; decrement delay counter
         bne     doc_show_icons_delay_loop               ; loop for 60 frames
 ; --- reveal selected robot master icon one sprite at a time ---
-        jsr     reveal_selected_boss               ; animate reveal of selected boss
+        jsr     wm_reveal_marker               ; animate reveal of selected boss
 ; --- wait another 60 frames ---
         lda     #$3C                    ; 60 frame delay
 doc_reveal_delay_loop:  pha                         ; save loop counter
-        jsr     doc_robot_animate_frame               ; animate Doc Robot + process frame
+        jsr     wily_map_frame               ; animate Doc Robot + process frame
         pla                             ; restore loop counter
         sec                             ; prepare for subtract
         sbc     #$01                    ; decrement frame counter
         bne     doc_reveal_delay_loop               ; loop for 60 frames
 ; --- transition to selected stage ---
-        lda     $75                     ; Doc Robot boss selection index
+        lda     $75                     ; Wily fortress progression (0-5)
         clc                             ; prepare for add
-        adc     #$0C                    ; stage bank = $0C + boss index
+        adc     #$0C                    ; stage = $0C + progression = Wily 1-6
         sta     stage_id                ; set target stage ID
         sta     prg_bank                ; set PRG bank to stage bank
         jmp     select_PRG_banks        ; select PRG banks and run stage
@@ -718,7 +719,7 @@ doc_reveal_delay_loop:  pha                         ; save loop counter
 ; icon blinking (tile alternates between $02 and $03 every 8 frames),
 ; then processes frame and yields. Skips blink if boss >= 4.
 ; ===========================================================================
-doc_robot_animate_frame:  txa                         ; save X
+wily_map_frame:  txa                         ; save X
         pha                             ; push X to stack
         tya                             ; save Y
         pha                             ; push Y to stack
@@ -727,7 +728,7 @@ doc_robot_animate_frame:  txa                         ; save X
         ldy     $75                     ; boss selection index
         cpy     #$04                    ; bosses 4-5 have no blink
         bcs     doc_animate_done               ; skip blink for bosses 4-5
-        ldx     intro_doc_robot_boss_icon_oam_offset_table,y ; OAM offset for this boss's icon
+        ldx     wily_map_marker_oam_off_table,y ; OAM offset for this boss's icon
         lda     $95                     ; load frame counter for blink
         lsr     a                       ; divide by 2
         lsr     a                       ; divide by 4
@@ -748,27 +749,27 @@ doc_animate_done:  jsr     process_frame_yield ; process frame + yield
 ; ===========================================================================
 ; Iterates through boss indices 0-5, skipping the one matching $75
 ; (the selected boss). Each boss's icon is a group of OAM sprites
-; defined in intro_doc_robot_boss_icon_sprite_data_table (Y, tile, attr, X quads). Sprite data index and
-; count come from intro_doc_robot_boss_sprite_data_offset_table/intro_doc_robot_boss_sprite_count_table tables.
+; defined in wily_map_marker_sprite_data (Y, tile, attr, X quads). Sprite data index and
+; count come from wily_map_marker_data_off_table/wily_map_marker_count_table tables.
 ; ===========================================================================
-draw_boss_icons:  lda     #$40
+wm_draw_markers:  lda     #$40
         sta     $10                     ; OAM write cursor (starts at $40)
         lda     #$00                    ; initialize counter to 0
         sta     ent_timer               ; boss loop counter
-draw_boss_icons_loop:  ldy     ent_timer
+wm_draw_markers_loop:  ldy     ent_timer
         cpy     $75                     ; is this the selected boss?
-        beq     draw_boss_icons_done               ; yes — skip it (will be revealed later)
-        ldx     intro_doc_robot_boss_sprite_data_offset_table,y ; sprite data offset for this boss
-        lda     intro_doc_robot_boss_sprite_count_table,y ; sprite count for this boss
+        beq     wm_draw_markers_done               ; yes — skip it (will be revealed later)
+        ldx     wily_map_marker_data_off_table,y ; sprite data offset for this boss
+        lda     wily_map_marker_count_table,y ; sprite count for this boss
         sta     $00                     ; save sprite countdown
         ldy     $10                     ; OAM cursor
-copy_boss_sprite_loop:  lda     intro_doc_robot_boss_icon_sprite_data_table,x ; sprite Y
+copy_boss_sprite_loop:  lda     wily_map_marker_sprite_data,x ; sprite Y
         sta     $0200,y                 ; write Y pos to OAM
-        lda     intro_doc_robot_boss_icon_tile_continuation,x ; sprite tile
+        lda     wily_map_marker_tiles,x ; sprite tile
         sta     $0201,y                 ; write tile to OAM
-        lda     intro_doc_robot_boss_icon_attr_continuation,x ; sprite attribute
+        lda     wily_map_marker_attrs,x ; sprite attribute
         sta     $0202,y                 ; write attribute to OAM
-        lda     intro_doc_robot_boss_icon_x_continuation,x ; sprite X
+        lda     wily_map_marker_xpos,x ; sprite X
         sta     $0203,y                 ; write X pos to OAM
         inx                             ; advance source index +1
         inx                             ; +2
@@ -782,8 +783,8 @@ copy_boss_sprite_loop:  lda     intro_doc_robot_boss_icon_sprite_data_table,x ; 
         dec     $00                     ; more sprites for this boss?
         bpl     copy_boss_sprite_loop   ; loop if sprites remain
         inc     ent_timer               ; next boss
-        bne     draw_boss_icons_loop               ; loop to next boss
-draw_boss_icons_done:  rts                         ; return
+        bne     wm_draw_markers_loop               ; loop to next boss
+wm_draw_markers_done:  rts                         ; return
 
 ; ===========================================================================
 ; Subroutine: Reveal selected robot master icon (animated)
@@ -793,19 +794,19 @@ draw_boss_icons_done:  rts                         ; return
 ; sequential reveal animation. If boss 5 is selected, spawns a second
 ; Doc Robot entity.
 ; ===========================================================================
-reveal_selected_boss:  ldy     ent_timer           ; selected boss index
-        ldx     intro_doc_robot_boss_sprite_data_offset_table,y ; sprite data offset
-        lda     intro_doc_robot_boss_sprite_count_table,y ; sprite count
+wm_reveal_marker:  ldy     ent_timer           ; selected boss index
+        ldx     wily_map_marker_data_off_table,y ; sprite data offset
+        lda     wily_map_marker_count_table,y ; sprite count
         sta     $0F                     ; save sprite count
-        lda     intro_doc_robot_boss_reveal_oam_base_table,y ; OAM base offset for this boss
+        lda     wily_map_reveal_oam_base_table,y ; OAM base offset for this boss
         tay                             ; use OAM base as Y index
-reveal_sprite_loop:  lda     intro_doc_robot_boss_icon_sprite_data_table,x ; copy one sprite to OAM
+reveal_sprite_loop:  lda     wily_map_marker_sprite_data,x ; copy one sprite to OAM
         sta     $0240,y                 ; Y pos (at $0240+ for reveal area)
-        lda     intro_doc_robot_boss_icon_tile_continuation,x ; sprite tile ID
+        lda     wily_map_marker_tiles,x ; sprite tile ID
         sta     $0241,y                 ; tile
-        lda     intro_doc_robot_boss_icon_attr_continuation,x ; sprite palette/flip
+        lda     wily_map_marker_attrs,x ; sprite palette/flip
         sta     $0242,y                 ; attribute
-        lda     intro_doc_robot_boss_icon_x_continuation,x ; sprite X position
+        lda     wily_map_marker_xpos,x ; sprite X position
         sta     $0243,y                 ; X pos
         inx                             ; advance source index +1
         inx                             ; +2
@@ -818,10 +819,10 @@ reveal_sprite_loop:  lda     intro_doc_robot_boss_icon_sprite_data_table,x ; cop
         sty     $10                     ; save OAM cursor
         lda     #SFX_HP_FILL            ; HP fill sound for reveal
         jsr     submit_sound_ID         ; reveal SFX $1C
-        jsr     doc_robot_animate_frame               ; wait 4 frames (with Doc Robot anim)
-        jsr     doc_robot_animate_frame               ; frame 2 of 4
-        jsr     doc_robot_animate_frame               ; frame 3 of 4
-        jsr     doc_robot_animate_frame               ; frame 4 of 4
+        jsr     wily_map_frame               ; wait 4 frames (with Doc Robot anim)
+        jsr     wily_map_frame               ; frame 2 of 4
+        jsr     wily_map_frame               ; frame 3 of 4
+        jsr     wily_map_frame               ; frame 4 of 4
         dec     $0F                     ; more sprites to reveal?
         bpl     reveal_sprite_loop      ; loop if sprites remain
 ; --- special case: boss 5 spawns second Doc Robot entity ---
@@ -904,7 +905,7 @@ intro_phase2_palette_table:  .byte   $0F,$20,$1B,$0B,$0F,$1C,$11,$01
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$27
 ; --- Doc Robot stage palette (32 bytes) ---
-intro_doc_robot_palette_table:  .byte   $0F,$20,$27,$17,$0F,$3B,$2A,$1A
+wily_map_palette_table:  .byte   $0F,$20,$27,$17,$0F,$3B,$2A,$1A
         .byte   $0F,$3C,$2C,$1C,$0F,$33,$23,$17
         .byte   $0F,$2A,$27,$17,$0F,$3C,$2C,$1C
         .byte   $0F,$0F,$30,$37,$0F,$0F,$30,$27
@@ -914,7 +915,7 @@ intro_phase1_chr_bank_table:  .byte   $78,$7A,$00,$01,$1B,$3B
 ; Phase 2 CHR banks
 intro_phase2_chr_bank_table:  .byte   $50,$52,$39,$25,$36,$17
 ; Doc Robot stage CHR banks
-intro_doc_robot_chr_bank_table:  .byte   $70,$72,$09,$39,$36,$35
+wily_map_chr_bank_table:  .byte   $70,$72,$09,$39,$36,$35
 ; --- Phase 1 sunset palette cycle (6 steps x 3 bytes) ---
 intro_phase1_palette_cycle_table:  .byte   $1C,$27,$16,$0F,$1C,$1A,$16,$0F
         .byte   $0F,$0F,$1A,$16,$17,$0F,$0F,$1A
@@ -930,14 +931,14 @@ intro_phase1_entity_y_table:  .byte   $00,$A4 ; y: $00=top (MM), $A4=ground (Rus
 ; --- Phase 1 mountain decoration OAM sprites (2 sprites x 4 bytes) ---
 intro_phase1_mountain_oam_table:  .byte   $68,$BE,$02,$18,$68,$BF,$02,$20
 ; --- Doc Robot stage scenery OAM sprites (10 sprites x 4 bytes) ---
-intro_doc_robot_scenery_oam_table:  .byte   $40,$9D,$01,$70,$B8,$9B,$00,$C0
+wily_map_scenery_oam_table:  .byte   $40,$9D,$01,$70,$B8,$9B,$00,$C0
         .byte   $88,$97,$00,$78,$88,$98,$00,$80
         .byte   $90,$99,$00,$78,$90,$9A,$00,$80
         .byte   $48,$9C,$01,$80,$68,$9C,$01,$78
         .byte   $68,$9C,$01,$80,$68,$9C,$01,$88
 ; --- Doc Robot cutscene: robot master portrait position sprites ---
 ; 5 icon positions (Y, tile, attr, X) at OAM offset $0228
-intro_doc_robot_icon_position_table:  .byte   $C8,$0F,$03,$D8,$A0,$0F,$03,$C8
+wily_map_marker_pos_table:  .byte   $C8,$0F,$03,$D8,$A0,$0F,$03,$C8
         .byte   $78,$0F,$03,$C8,$58,$0F,$03,$B0
         .byte   $30,$0F,$03,$88
 ; --- Sinusoidal X acceleration table (4 phases) ---
@@ -956,18 +957,18 @@ intro_star_field_x_table:  .byte   $10,$18,$F1,$00,$20,$D0,$F1,$00
         .byte   $B8,$B8,$F1,$00,$D0,$28,$F1,$00
         .byte   $E0,$88,$F1,$00,$E8,$28
 ; --- OAM offsets for boss icon blink animation (bosses 0-3) ---
-intro_doc_robot_boss_icon_oam_offset_table:  .byte   $2C,$30,$34,$38
+wily_map_marker_oam_off_table:  .byte   $2C,$30,$34,$38
 ; --- Robot master icon sprite data indices and counts ---
-intro_doc_robot_boss_sprite_data_offset_table:  .byte   $00,$18,$28,$40,$64,$7C ; sprite data offset per boss (into intro_doc_robot_boss_icon_sprite_data_table)
-intro_doc_robot_boss_sprite_count_table:  .byte   $05,$03,$05,$08,$05,$03 ; sprite count per boss (0-indexed)
+wily_map_marker_data_off_table:  .byte   $00,$18,$28,$40,$64,$7C ; sprite data offset per boss (into wily_map_marker_sprite_data)
+wily_map_marker_count_table:  .byte   $05,$03,$05,$08,$05,$03 ; sprite count per boss (0-indexed)
 ; --- OAM base offset for reveal animation per boss ---
-intro_doc_robot_boss_reveal_oam_base_table:  .byte   $00,$18,$28,$40,$64,$7C
+wily_map_reveal_oam_base_table:  .byte   $00,$18,$28,$40,$64,$7C
 ; --- Robot master icon sprite data (Y, tile, attr, X quads) ---
-; 6 bosses, variable sprite counts. Used by draw_boss_icons and reveal_selected_boss.
-intro_doc_robot_boss_icon_sprite_data_table:  .byte   $C0
-intro_doc_robot_boss_icon_tile_continuation:  .byte   $7F
-intro_doc_robot_boss_icon_attr_continuation:  .byte   $03
-intro_doc_robot_boss_icon_x_continuation:  .byte   $D8,$B8,$7F,$03,$D8,$B0,$7F,$03
+; 6 bosses, variable sprite counts. Used by wm_draw_markers and wm_reveal_marker.
+wily_map_marker_sprite_data:  .byte   $C0
+wily_map_marker_tiles:  .byte   $7F
+wily_map_marker_attrs:  .byte   $03
+wily_map_marker_xpos:  .byte   $D8,$B8,$7F,$03,$D8,$B0,$7F,$03
         .byte   $D8,$A8,$7F,$03,$D8,$A0,$7D,$03
         .byte   $D8,$A0,$7E,$03,$D0,$98,$7F,$03
         .byte   $C8,$90,$7F,$03,$C8,$88,$7F,$03

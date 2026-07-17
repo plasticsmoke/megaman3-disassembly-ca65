@@ -98,15 +98,15 @@ read_ptr_bank18_check:  sec
         sbc     #$20                    ; high byte -= $20
         sta     snd_ptr_hi              ; (get into $A0~$BF range)
         lda     #$07                    ; MMC3 bank reg 7 ($A000)
-        sta     driver_entry_jump       ; set $A000~$BFFF bank
+        sta     MMC3_BANK_SELECT        ; ($8000 = driver_entry_jump bytes)
         lda     #$18                    ; bank $18 for overflow data
-        sta     driver_entry_bank       ; swap bank $18 into $A000
+        sta     MMC3_BANK_DATA          ; swap bank $18 into $A000
         lda     (snd_ptr_lo),y          ; read byte from bank $18
         pha                             ; save read value
         lda     #$07                    ; MMC3 bank reg 7 ($A000)
-        sta     driver_entry_jump       ; set $A000~$BFFF bank
+        sta     MMC3_BANK_SELECT        ; select $A000 bank register
         lda     #$17                    ; restore bank $17
-        sta     driver_entry_bank       ; swap bank $17 back in
+        sta     MMC3_BANK_DATA          ; swap bank $17 back in
         lda     #$20                    ; offset to undo -$20
         clc                             ; and (falsely) go back into
         adc     snd_ptr_hi              ; $C0~$DF range for high byte
@@ -302,7 +302,7 @@ dispatch_sound_command:  sty     snd_temp ; save Y in temp
         .byte   $C5,$81,$C8,$81,$E4,$81,$1E,$82
         .byte   $26,$82,$2D,$82,$34,$82,$4A,$82
         jsr     clear_channel_ptrs               ; cmd $F0: init + stop
-stop_music:  lda     #$00                ; cmd $F2: stop music
+stop_music:  lda     #$00                ; cmd $F1: stop music parser
         sta     snd_priority            ; clear priority
         sta     $D0                     ; clear data ptr lo
         sta     $D1                     ; clear data ptr hi
@@ -317,7 +317,7 @@ mute_active_channels:  lda     snd_channel_mask ; mute unused channels
         sta     snd_channel_mask        ; all channels off
 mute_channels_done:  rts
 
-clear_channel_ptrs:  lda     #$00                ; clear all channel ptrs
+clear_channel_ptrs:  lda     #$00        ; cmd $F2 (SNDCMD_STOP): clear ch ptrs
         ldx     #$03                    ; 4 channels
 clear_channel_ptrs_loop:  sta     $0754,x             ; clear ch ptr hi
         sta     $0750,x                 ; clear ch ptr lo
@@ -461,8 +461,8 @@ check_new_note:  lda     snd_flags      ; load driver flags
         jsr     update_volume_envelope               ; update channel output
         lda     $D3                     ; check note duration
         beq     music_channel_done               ; zero: done with this note
-        cpx     #$01                    ; channel 1 (pulse 2)?
-        beq     dec_note_timer_ch1               ; special handling for ch 1
+        cpx     #$01                    ; channel 1 (triangle)?
+        beq     dec_note_timer_ch1               ; special handling for triangle
         lda     $D5                     ; check total duration left
         beq     check_sustain_flag               ; zero: note finished
 music_channel_done:  rts
@@ -865,9 +865,9 @@ clear_portamento_flag:  lda     $0704,x             ; load channel flags
 store_current_note:  sta     $071C,x             ; update current note index
 lookup_freq_table:  asl     snd_temp    ; note * 2 for table index
         ldy     snd_temp                ; Y = table offset
-        lda     frequency_high_start,y  ; load freq timer high
+        lda     note_freq_lo,y          ; load freq timer LOW byte
         sta     snd_temp                ; store in temp
-        lda     frequency_period_table,y ; load freq timer low
+        lda     note_freq_hi,y          ; load freq timer HIGH byte
 write_freq_registers:  sta     $0724,x             ; store freq hi register
         lda     snd_temp                ; get freq high from temp
         sta     $0720,x                 ; store freq lo register
@@ -953,7 +953,7 @@ update_volume_envelope:  lda     $0710,x             ; load current volume
         tay                             ; Y = attack increment idx
         lda     snd_param               ; load current volume
         clc                             ; add attack increment
-        adc     duty_cycle_table,y      ; from duty cycle table
+        adc     envelope_rate_table,y      ; from duty cycle table
         bcs     clamp_attack_max               ; if overflow, clamp
         cmp     #$F0                    ; reached max ($F0)?
         bcc     store_envelope_volume               ; if not, keep volume
@@ -965,7 +965,7 @@ clamp_attack_max:  lda     #$F0                ; clamp to max volume $F0
         tay                             ; Y = decay decrement idx
         lda     snd_param               ; load current volume
         sec                             ; subtract decay amount
-        sbc     duty_cycle_table,y      ; from duty cycle table
+        sbc     envelope_rate_table,y      ; from duty cycle table
         bcc     load_sustain_level               ; if underflow, use sustain
         ldy     #$02                    ; offset 2 = sustain level
         cmp     (snd_inst_lo),y         ; above sustain level?
@@ -984,7 +984,7 @@ load_sustain_level:  ldy     #$02                ; reached sustain level
         tay                             ; Y = release decrement idx
         lda     snd_param               ; load current volume
         sec                             ; subtract release amount
-        sbc     duty_cycle_table,y      ; from duty cycle table
+        sbc     envelope_rate_table,y      ; from duty cycle table
         bcs     store_envelope_volume               ; if underflow, set to zero
 set_volume_zero:  lda     #$00                ; volume = 0 (silent)
 advance_envelope_phase:  inc     $0704,x             ; advance envelope phase
@@ -995,20 +995,20 @@ route_volume_output:  cpx     #$28                ; is this a SFX channel?
         bpl     apply_fade_volume               ; if SFX not active, mix
         jmp     update_portamento               ; SFX active: write directly
 
-apply_fade_volume:  lda     snd_fade_level ; load master volume high
-        ldy     snd_fade_rate           ; load master volume control
-        bmi     check_fade_max               ; pitch bend sign is negative?
-        eor     #$FF                    ; negate to get absolute value
-check_fade_max:  cmp     #$FF                ; check if pitch bend is max
-        bne     check_noise_volume               ; nonzero: apply volume scaling
+apply_fade_volume:  lda     snd_fade_level ; load master fade level
+        ldy     snd_fade_rate           ; load fade rate (bit 7 = direction)
+        bmi     check_fade_max               ; fading down → use level as-is
+        eor     #$FF                    ; fading up → invert level
+check_fade_max:  cmp     #$FF                ; fade level at max?
+        bne     check_noise_volume               ; not max: apply volume scaling
 get_music_channel_vol:  txa                         ; get channel index (0-3)
         and     #$03                    ; mask to music channel 0-3
-        cmp     #$01                    ; channel 1 = pulse 2?
-        bne     use_envelope_volume               ; not pulse 2: use envelope vol
-        beq     load_envelope_volume               ; pulse 2: use envelope vol only
+        cmp     #$01                    ; channel 1 = triangle?
+        bne     use_envelope_volume               ; not triangle: use envelope vol
+        beq     load_envelope_volume               ; triangle: use envelope vol only
 check_noise_volume:  cpx     #$29                ; is this the noise channel?
         bne     compare_fade_envelope               ; not noise: compare volumes
-        sta     snd_param               ; pitch bend as multiplier
+        sta     snd_param               ; fade level as multiplier
         lda     $0740,x                 ; load note duration timer
         sta     snd_ptr_lo              ; store for multiply
         jsr     multiply_8x8               ; multiply bend * duration
@@ -1018,7 +1018,7 @@ load_envelope_volume:  lda     $0710,x             ; load current envelope volum
         beq     write_volume_to_apu               ; zero: use as volume output
         lda     #$FF                    ; set full volume ($FF)
         bne     write_volume_to_apu               ; always branch to write vol
-compare_fade_envelope:  cmp     $0710,x             ; compare bend with envelope
+compare_fade_envelope:  cmp     $0710,x             ; compare fade level with envelope
         bcc     compute_volume_atten               ; use smaller of the two
 use_envelope_volume:  lda     $0710,x             ; load current envelope volume
 compute_volume_atten:  lsr     a                   ; shift high nibble to low
@@ -1133,14 +1133,14 @@ check_sweep_active:  cpx     #$28                ; is this a music channel?
         tay                             ; Y = swept freq hi
 write_freq_to_apu:  txa                         ; get channel index
         and     #$03                    ; mask to channel 0-3
-        bne     calc_pulse_freq               ; nonzero: not triangle
-        tya                             ; A = freq hi for triangle
-        and     #$0F                    ; mask to low nibble
+        bne     calc_pulse_freq               ; nonzero: not noise channel
+        tya                             ; ch 0 = NOISE: A = freq hi
+        and     #$0F                    ; mask to 4-bit noise period
         ldy     #$07                    ; instrument offset 7
-        ora     (snd_inst_lo),y         ; OR with linear counter val
-        sta     snd_ptr_hi              ; store as $4008 value
-        lda     #$00                    ; clear freq hi
-        sta     snd_ptr_lo              ; freq hi = 0 for triangle
+        ora     (snd_inst_lo),y         ; OR noise mode bits
+        sta     snd_ptr_hi              ; store as $400E value
+        lda     #$00                    ; no freq-hi write for noise
+        sta     snd_ptr_lo              ; clear freq hi
         beq     write_freq_lo_reg               ; jump to write freq regs
 calc_pulse_freq:  tya                         ; A = freq hi
         ldy     #$08                    ; Y = 8 for threshold scan
@@ -1213,10 +1213,10 @@ apply_slide_rate:  clc
         tay                             ; Y = table offset
         sec                             ; prepare frequency comparison
         lda     $0720,x                 ; compare freq lo with target
-        sbc     frequency_high_start,y  ; subtract target freq lo
+        sbc     note_freq_lo,y  ; subtract target freq lo
         lda     $0724,x                 ; compare freq hi with target
         and     #$3F                    ; mask off upper 2 bits
-        sbc     frequency_period_table,y ; subtract target freq hi
+        sbc     note_freq_hi,y ; subtract target freq hi
         lda     #$FF                    ; set borrow test value
         adc     #$00                    ; A = 0 if borrow, 1 if not
         plp                             ; restore slide direction
@@ -1224,9 +1224,9 @@ apply_slide_rate:  clc
         bne     update_vibrato_phase               ; nonzero: not at target yet
         txa                             ; check if channel 0
         beq     update_vibrato_phase               ; channel 0: skip clamp
-        lda     frequency_high_start,y  ; clamp to target freq lo
+        lda     note_freq_lo,y  ; clamp to target freq lo
         sta     $0720,x                 ; store clamped freq lo
-        lda     frequency_period_table,y ; clamp to target freq hi
+        lda     note_freq_hi,y ; clamp to target freq hi
         sta     $0724,x                 ; store clamped freq hi
 clear_portamento_done:  lda     $0704,x             ; load channel flags
         and     #$DF                    ; clear portamento bit
@@ -1249,13 +1249,17 @@ frequency_scale_factors_table:  .byte   $02,$04,$08,$10,$20,$40,$80
 frequency_scale_alt_table:  .byte   $03,$06,$0C,$18,$30,$60,$C0
 pitch_offset_table:  .byte   $00,$0C,$18,$24,$30,$3C,$48,$54
         .byte   $18,$24,$30,$3C,$48,$54,$60,$6C
-duty_cycle_table:  .byte   $00,$01,$02,$03,$04,$05,$06,$07
+; envelope rate curve: index (0-31) → per-tick volume delta (was
+; mislabeled duty_cycle_table)
+envelope_rate_table:  .byte   $00,$01,$02,$03,$04,$05,$06,$07
         .byte   $08,$09,$0A,$0B,$0C,$0E,$0F,$10
         .byte   $12,$13,$14,$16,$18,$1B,$1E,$23
         .byte   $28,$30,$3C,$50,$7E,$7F,$FE,$FF
 volume_thresholds_table:  .byte   $00,$07,$0E,$15,$1C,$23
-frequency_high_start:  .byte   $2A
-frequency_period_table:  .byte   $31,$5C,$37,$9C,$36,$E7,$35,$3C
+; 16-bit frequency values, one (lo,hi) pair per note — the two labels are
+; interleaved views (lo = pair byte 0, hi = pair byte 1), indexed by note*2.
+note_freq_lo:  .byte   $2A
+note_freq_hi:  .byte   $31,$5C,$37,$9C,$36,$E7,$35,$3C
         .byte   $35,$9B,$34,$02,$34,$72,$33,$EA
         .byte   $32,$6A,$32,$F1,$31,$80,$31,$14
         .byte   $31,$5C,$30,$9C,$2F,$E7,$2E,$3C

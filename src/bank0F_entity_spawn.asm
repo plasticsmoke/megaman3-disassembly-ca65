@@ -180,7 +180,8 @@ star_sprite_loop:  lda     credits_star_sprites_oam_y,y ; sprite Y position (bas
         lda     credits_star_sprites_oam_tile,y ; tile ID
         sta     $0201,y                 ; write to OAM tile
         lda     credits_star_sprites_oam_attr,y ; sprite attributes
-        sta     $0202                   ; write to OAM attr
+        sta     $0202                   ; NOTE: no ,y — original code only ever
+                                        ; writes sprite 0's attr byte here
         lda     credits_star_sprites_oam_x,y ; sprite X position
         sta     $0203,y                 ; write to OAM X
         iny                             ; skip Y byte
@@ -241,7 +242,7 @@ init_character_slot_loop:  lda     #$80                ; active flag value
         sta     $0786                   ; tile count row 2 = 0 (clear)
         sta     ent_timer               ; reset animation timer
 ; --- character walk + text reveal animation ---
-walkon_anim_update:  dec     $0361               ; decrement slot 1 X timer
+walkon_anim_update:  dec     $0361               ; slot 1 X position doubles as countdown
         bne     walkon_check_anim               ; skip if timer not zero
         lda     #$00                    ; zero = inactive
         sta     $0301                   ; deactivate slot 1

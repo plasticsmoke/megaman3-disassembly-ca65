@@ -12,7 +12,7 @@
 ; (forward on even frames, reverse on odd) for OAM priority fairness.
 ;
 ; Animation sequence format at ($00):
-;   byte 0 = total frames in sequence
+;   byte 0 = frame count - 1 (sequence plays frames 0..byte0)
 ;   byte 1 = ticks per frame (duration)
 ;   byte 2+ = sprite definition IDs per frame (0 = deactivate entity)
 ;

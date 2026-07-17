@@ -51,7 +51,7 @@ password_cursor_oam_setup           := $93E9
 proto_man_sprite_control           := $93FE
 robot_master_intro           := $9410
 robot_master_intro_loop           := $94D6
-boss_energy_fill_loop           := $954A
+fade_palette_group           := $954A  ; = fade_palette_to_black (runtime addr)
 stage_loading_entry           := $9581
 boss_intro_sprite_loop           := $9681
 normal_stage_return           := $968C
@@ -92,6 +92,9 @@ task_yield           := $FF21
 update_CHR_banks           := $FF3C
 select_CHR_banks           := $FF45
 select_PRG_banks           := $FF6B
+
+; entry point of whichever bank is currently mapped at $A000
+banked_A000_entry           := $A000
 
 ; =============================================================================
 ; COMPRESSED NAMETABLE / PALETTE DATA ($A000-$AFFF)
@@ -1260,7 +1263,7 @@ transition_palette_load_loop:  lda     $9C53,y ; copy 16 bytes from $9C53
         sta     prg_bank                ; set PRG bank register
         jsr     select_PRG_banks        ; switch to bank $03
         ldy     $0F                     ; Y = adjusted grid index
-        jmp     data_compressed_nametable_start ; → bank03 stage_transition_entry
+        jmp     banked_A000_entry       ; → bank03 stage_transition_entry
 
 ; --- call_bank01_set_chr ($938B) ---
 ; Trampoline: calls bank01 set_room_chr_and_palette, then restores bank03.
@@ -1271,7 +1274,7 @@ call_bank01_set_chr:
         sta     prg_bank                ; set PRG bank register
         jsr     select_PRG_banks        ; apply bank switch
         pla                             ; restore A from stack
-        jsr     data_compressed_nametable_start ; call into bank $01
+        jsr     banked_A000_entry       ; call into bank $01 ($A000 entry)
         lda     #$03                    ; switch back to bank $03
         sta     prg_bank                ; set PRG bank register
         jmp     select_PRG_banks        ; apply and return
@@ -1381,7 +1384,7 @@ password_cursor_done:  rts
 ;   - Boss sprite centered at ~x=124, y=112 (42×30 px bounding box)
 ;   - Boss name text at y=136-143 (tile row 17, col 11 = PPU $222B)
 ;   - Boss drops from y=$E8 (232) to y=$74 (116) at 4px/frame = 29 frames
-;   - Mega Man rises from y=$80 (128) to y=$C0 (192) at 2px/frame = 32 frames
+;   - Entity slot 0 X slides $80 (128) → $C0 (192) at 2px/frame = 32 frames
 ; ---------------------------------------------------------------------------
 
         ldy     #$0B                    ; refill weapon energy
@@ -1497,15 +1500,16 @@ boss_drop_frame_process_loop:  jsr     process_frame_yield_full ; process sprite
         ldx     #$3C                    ; wait $3C (60) frames
         jsr     task_yield_x            ; (boss stands idle)
 
-; --- Mega Man teleport-in animation ---
-; Mega Man rises from Y=$80 to Y=$C0, 2px/frame = 32 frames.
-; (Teleporting from below the blue band upward into view.)
+; --- entity X slide: slot-0 entity X moves $80 → $C0 at 2 px/frame ---
+; NOTE: the code moves ent_x_px (X position), 32 frames total. Earlier
+; prose called this "Mega Man rises Y=$80→$C0" — the axis was wrong;
+; on-screen effect unverified (flagged for emulator check).
         lda     ent_x_px                ; if X == $C0, done
         cmp     #$C0                    ; target X = $C0
         beq     boss_idle_wait_before_fadeout ; done → proceed to fadeout
         clc                             ; X += 2
-        adc     #$02                    ; (note: using ent_x_px which is
-        sta     ent_x_px                ; the X position for the entity)
+        adc     #$02                    ; slide entity X right
+        sta     ent_x_px                ; store updated X position
         jsr     process_frame_yield_full ; process sprites + wait for NMI
         jmp     robot_master_intro_loop ; loop back for next frame
 
@@ -1519,11 +1523,11 @@ boss_idle_wait_before_fadeout:  ldx     #$3C ; wait $3C (60) frames
         lda     #$00                    ; clear NMI skip flag
         sta     nmi_skip                ; allow NMI processing
         ldy     #$03                    ; fade BG palette 0 (bytes $00-$03)
-        jsr     boss_energy_fill_loop   ; fade palette group 0 to black
+        jsr     fade_palette_group   ; fade palette group 0 to black
         ldy     #$07                    ; fade BG palette 1 (bytes $04-$07)
-        jsr     boss_energy_fill_loop   ; fade palette group 1 to black
+        jsr     fade_palette_group   ; fade palette group 1 to black
         ldy     #$0B                    ; fade BG palette 2 (bytes $08-$0B)
-        jsr     boss_energy_fill_loop   ; fade palette group 2 to black
+        jsr     fade_palette_group   ; fade palette group 2 to black
         ldx     #$B4                    ; wait $B4 (180) frames
         jsr     task_yield_x            ; (3 seconds on black screen)
         jmp     stage_loading_entry     ; → stage loading
@@ -2157,7 +2161,7 @@ wily_stage_via_bank03:  lda     #$03    ; bank $03
 ; ---------------------------------------------------------------------------
 
         lda     #$00                    ; zero accumulator
-        sta     data_compressed_nametable_start ; clear mapped bank flag
+        sta     MMC3_MIRRORING          ; set vertical mirroring ($A000 reg)
         sta     $59                     ; game sub-state
         sta     camera_screen           ; camera/scroll page
         sta     ent_x_scr               ; entity 0 screen page (Y high)
@@ -2391,11 +2395,11 @@ wily_palette_load_loop:  lda     $9E1A,y ; Wily sprite palette data
 ; approach background, sets up Mega Man entity at X=$30, plays music $0C
 ; (Wily stage theme), then jumps to the fixed bank gate animation at $C9B3.
 ; ===========================================================================
-wily_gate_discard_ret:                  ; submit PPU update buffer
+wily_gate_discard_ret:
         pla                             ; discard return address (2 bytes)
         pla                             ; discard return address low
 ; --- Wily gate entry point (also called from $9006 jump table) ---
-wily_gate_init:                         ; y += 2
+wily_gate_init:
         jsr     fade_palette_out        ; disable rendering
         jsr     reset_stage_state       ; clear scroll/weapon state
         lda     #$04                    ; OAM page 4 ($0400)
@@ -2404,8 +2408,8 @@ wily_gate_init:                         ; y += 2
         jsr     task_yield              ; wait for NMI
         jsr     clear_entity_table      ; clear all entity slots
 ; --- Set up fortress approach ---
-        lda     #$01                    ; set flag = 1
-        sta     data_compressed_nametable_start ; enable compressed NT data
+        lda     #$01                    ; A = 1
+        sta     MMC3_MIRRORING          ; set horizontal mirroring ($A000 reg)
         lda     #$00                    ; zero accumulator
         sta     game_mode               ; game mode $00
         sta     $9E                     ; clear unknown state var
@@ -2520,7 +2524,7 @@ fortress_palette_loop:  lda     $9E2A,y ; fortress palette data (32 bytes)
 ; $9BB7-$9BF6: boss_face_palettes — 8 bosses × 8 bytes (bright + dark SP palettes)
 ; $9BF7-$9BFC: chr_bank_table — 6 CHR bank IDs for stage select screen
 ; $9BFD-$9BFE: music_track_table — [0]=fresh start music, [1]=return music
-; $9BFF-$9C00: password_cursor_y — [0]=$30 (down), [1]=$40 (up)
+; $9BFF-$9C00: title_cursor_y — [0]=$A7 (Down/PASSWORD), [1]=$97 (Up/GAME START)
 ; $9C01-$9C02: palette_offset_table — BG palette offsets for fresh/return
 ; $9C03-$9C22: bg_palette_data — BG palette sets (fresh=$9C33, return=$9C43)
 ; $9C23-$9C32: sprite_palette_data — 16 bytes sprite palettes
@@ -2558,48 +2562,49 @@ fortress_palette_loop:  lda     $9E2A,y ; fortress palette data (32 bytes)
 ; $9E4A-$9FFF: password screen RLE data / unused padding
 ; =============================================================================
 
-; --- boss_face_palettes ($9BB7) ---
-; 8 bosses × 8 bytes: 4 bright + 4 dark palette colors.
-; Used by boss_face_palette_flash to alternate during intro fadeout.
-; Order: Needle, Magnet, Gemini, Hard, Top, Snake, Spark, Shadow
+; --- data region $9BB7-$9FFF (see address map above) ---
+; boss_face_palettes ($9BB7): 8 bosses × 8 bytes (bright + dark), order
+; Needle, Magnet, Gemini, Hard, Top, Snake, Spark, Shadow — used by
+; boss_face_palette_flash. (Former per-boss labels here sat at wrong
+; offsets and were removed; all access is via raw $9xxx addresses.)
         .byte   $0F,$30,$30,$17,$0F,$07,$30,$17,$0F,$30,$10,$16,$0F,$06,$10,$16
         .byte   $0F,$30,$30,$21,$0F,$11,$30,$21,$0F,$30,$10,$01,$0F,$0C,$10
 
-palette_data_spark_bright:.byte   $01,$0F,$30,$27,$00,$0F,$00,$28,$00,$0F,$30,$30
+        .byte   $01,$0F,$30,$27,$00,$0F,$00,$28,$00,$0F,$30,$30
 
-palette_data_snake_dark:.byte   $19,$0F,$09,$30,$19,$0F,$30,$30
+        .byte   $19,$0F,$09,$30,$19,$0F,$30,$30
 
-palette_data_needle_bright:.byte   $26,$0F,$16,$30,$26,$0F,$30,$34,$14,$0F,$04,$34,$14,$7C,$76,$38
+        .byte   $26,$0F,$16,$30,$26,$0F,$30,$34,$14,$0F,$04,$34,$14,$7C,$76,$38
 
-palette_data_gemini_dark:.byte   $39,$36,$25,$10,$0E,$A7
+        .byte   $39,$36,$25,$10,$0E,$A7
 
-palette_data_hard_bright:.byte   $97
+        .byte   $97
 
-palette_data_hard_dark:.byte   $30,$40,$0F,$20,$21,$0F,$0F,$21,$20,$09,$0F,$16
+        .byte   $30,$40,$0F,$20,$21,$0F,$0F,$21,$20,$09,$0F,$16
 
-palette_data_top_bright:.byte   $20,$06,$0F,$20,$37
+        .byte   $20,$06,$0F,$20,$37
 
-palette_data_top_dark:.byte   $0F,$0F,$30,$3C,$11,$0F,$16,$26,$27,$0F,$01,$2C,$11,$0F,$30,$37
+        .byte   $0F,$0F,$30,$3C,$11,$0F,$16,$26,$27,$0F,$01,$2C,$11,$0F,$30,$37
         .byte   $26,$0F,$30,$15
 
-palette_data_magnet_dark:.byte   $11,$0F,$37,$21,$10,$0F,$37,$26,$15,$0F,$37,$26,$0F,$0F,$20,$21
+        .byte   $11,$0F,$37,$21,$10,$0F,$37,$26,$15,$0F,$37,$26,$0F,$0F,$20,$21
         .byte   $11,$0F,$20,$37,$29,$0F,$20,$26,$16,$0F,$20,$10,$21
 
-palette_data_shadow_dark:.byte   $0F,$20,$21,$11,$0F,$20,$37,$11,$0F,$20,$10,$0F,$0F,$20,$37,$0F
+        .byte   $0F,$20,$21,$11,$0F,$20,$37,$11,$0F,$20,$10,$0F,$0F,$20,$37,$0F
         .byte   $0F,$20,$21,$11,$0F,$27
 
-palette_data_section_end:.byte   $17,$06,$0F,$27,$17,$21,$0F,$20,$10,$21,$04,$02,$04,$FC,$00,$FF
+        .byte   $17,$06,$0F,$27,$17,$21,$0F,$20,$10,$21,$04,$02,$04,$FC,$00,$FF
         .byte   $97,$ED,$01,$28,$47,$67,$01,$C0,$47,$68,$01,$C8,$F0,$03,$F1,$03
         .byte   $F2
 
-megaman_eye_pos0_tiles:.byte   $03,$F3,$03,$F4,$03,$F5,$03,$F6,$03,$F7,$03,$F6,$43,$F8,$03,$F9
+        .byte   $03,$F3,$03,$F4,$03,$F5,$03,$F6,$03,$F7,$03,$F6,$43,$F8,$03,$F9
         .byte   $03,$F8,$43,$F2,$43,$F1,$43,$F0,$43,$F5,$43,$F4,$43,$F3,$43,$E6
         .byte   $03,$6F,$03,$E6,$43,$FA,$03,$FB,$03,$FC,$03,$E6,$03,$6F,$03,$E6
         .byte   $43,$E7,$03,$E8,$03,$E7,$43,$E6,$03,$6F,$03,$E6,$43,$FC,$43,$FB
         .byte   $43,$FA,$43,$E6,$03,$6F,$03,$E6,$43,$FD,$03,$FE,$03,$FF,$03,$E6
         .byte   $03,$6F,$03,$E6,$43,$80,$03,$81,$03,$80,$43,$E6
 
-megaman_eye_pos8_tiles:.byte   $03,$6F,$03,$E6,$43,$FF,$43,$FE,$43,$FD,$43,$06,$05,$00,$03,$FF
+        .byte   $03,$6F,$03,$E6,$43,$FF,$43,$FE,$43,$FD,$43,$06,$05,$00,$03,$FF
         .byte   $04,$02,$01,$07,$0A,$FF,$08,$FF,$FF,$FF,$09,$FF,$0B,$18,$18,$18
         .byte   $58,$58,$58,$98,$98,$98,$17,$67,$B7,$17,$67,$B7,$17,$67,$B7,$00
         .byte   $00,$26,$26,$00,$2A,$00,$2A,$00,$01,$FF,$00,$03,$00,$00,$00,$FD
@@ -2610,7 +2615,7 @@ megaman_eye_pos8_tiles:.byte   $03,$6F,$03,$E6,$43,$FF,$43,$FE,$43,$FD,$43,$06,$
         .byte   $20,$20,$21,$21,$21,$22,$22,$22,$00,$00,$07,$45,$E0,$E1,$E2,$E2
         .byte   $E3,$E4,$4B,$00,$21,$05
 
-center_portrait_border_row1_data:.byte   $D5,$24,$24,$24,$24,$D6,$00,$41,$05,$E5,$24,$24,$24,$24,$E6,$00
+        .byte   $D5,$24,$24,$24,$24,$D6,$00,$41,$05,$E5,$24,$24,$24,$24,$E6,$00
         .byte   $61,$05,$E5,$24,$24,$24,$24,$E6,$00,$81,$05,$F5,$24,$24,$24,$24
         .byte   $F6,$00,$A0,$07,$55,$F0,$F1,$F2,$F2,$F3,$F4,$5B,$FF,$C8,$C9,$CA
         .byte   $CB,$D8,$D9,$DA,$DB,$E8,$E9,$EA,$EB,$F8,$F9,$FA,$FB,$09,$00,$0E
@@ -2620,76 +2625,76 @@ center_portrait_border_row1_data:.byte   $D5,$24,$24,$24,$24,$D6,$00,$41,$05,$E5
         .byte   $54,$10,$28,$98,$40,$18,$64,$00,$07,$03,$01,$05,$08,$04,$03,$04
         .byte   $03,$40,$20,$01,$08,$00,$10,$04,$02,$80,$63,$83
 
-stage_lookup_table_data:.byte   $02,$7E,$6B,$82,$03,$76,$6B,$84,$02,$7E,$6B,$85,$02,$86,$6B
+        .byte   $02,$7E,$6B,$82,$03,$76,$6B,$84,$02,$7E,$6B,$85,$02,$86,$6B
 
-cursor_y_position_table:.byte   $86,$01,$8E,$6B,$87,$01,$96,$73,$88,$02,$86,$73,$89,$01,$8E,$73
+        .byte   $86,$01,$8E,$6B,$87,$01,$96,$73,$88,$02,$86,$73,$89,$01,$8E,$73
         .byte   $8A,$01,$96,$0F,$30,$15,$11,$0F,$0F,$27,$17,$0F,$10,$27,$17,$0F
         .byte   $37,$3C,$0F,$0F,$37,$27,$06,$0F,$07,$08,$09
 
-cursor_bolt_y_offset_table:.byte   $0F,$39,$29,$19,$0F,$21,$08,$30,$0F,$0F,$2C,$11,$0F,$0F,$30,$37
+        .byte   $0F,$39,$29,$19,$0F,$21,$08,$30,$0F,$0F,$2C,$11,$0F,$0F,$30,$37
         .byte   $0F,$0F,$10,$15,$0F,$0F,$00,$00
 
-cursor_bolt_x_offset_table:.byte   $20,$40
+        .byte   $20,$40
 
 
-cursor_direction_offset_table:.byte   $00,$00,$20,$00,$81,$00,$00,$10,$20,$10,$00
+        .byte   $00,$00,$20,$00,$81,$00,$00,$10,$20,$10,$00
 
-intro_palette_table:.byte   $00,$00,$00,$00
+        .byte   $00,$00,$00,$00
 
-intro_chr_bank_table:.byte   $00,$00,$00,$00,$00,$00,$00,$40,$00,$00,$00,$00,$00,$00,$01,$00
+        .byte   $00,$00,$00,$00,$00,$00,$00,$40,$00,$00,$00,$00,$00,$00,$01,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
-portrait_addr_lo_table:.byte   $00,$00,$00,$00
+        .byte   $00,$00,$00,$00
 
-portrait_addr_hi_table:.byte   $00,$00,$00,$02,$00,$00,$00,$00,$04,$00,$40,$00,$00,$00,$00,$20
+        .byte   $00,$00,$00,$02,$00,$00,$00,$00,$04,$00,$40,$00,$00,$00,$00,$20
         .byte   $04,$80,$00,$00,$00,$00,$00,$04,$00,$42,$01,$00,$00,$40,$00,$02
         .byte   $00,$00,$00,$00,$00,$80,$00,$02,$05,$00,$00,$00,$00,$40,$00,$00
 
-cursor_x_position_table:.byte   $10,$80,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte   $10,$80,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
         .byte   $10,$00
 
-portrait_frame_tile_table:.byte   $00,$00,$00,$00,$00,$40,$10,$01,$48
+        .byte   $00,$00,$00,$00,$00,$40,$10,$01,$48
 
-face_tile_row0_table:.byte   $40,$04,$00,$00,$40,$10,$01,$00
+        .byte   $40,$04,$00,$00,$40,$10,$01,$00
 
-face_tile_row1_table:.byte   $00,$00,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$00
+        .byte   $00,$00,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$00
         .byte   $00,$10,$00
 
-face_tile_row2_table:.byte   $00,$30,$00
+        .byte   $00,$30,$00
 
-face_tile_row3_table:.byte   $20,$00,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte   $20,$00,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$40,$00
         .byte   $01,$00,$00,$00,$01,$00,$80,$00,$00,$00,$02,$04,$00,$00,$00,$00
         .byte   $08,$00,$01,$00,$00,$01,$04,$00,$0A,$00,$00,$01,$20,$00,$20,$00
         .byte   $00,$00,$00,$00,$01,$00,$00,$10,$00
 
-face_addr_hi_table:.byte   $00,$00,$00,$00,$04,$10,$00
+        .byte   $00,$00,$00,$00,$04,$10,$00
 
-face_addr_lo_table:.byte   $10,$00
+        .byte   $10,$00
 
-face_attr_offset_table:.byte   $00,$00,$00,$00,$00,$00,$00,$00,$10,$40,$81,$00,$10,$40,$00,$00
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00,$10,$40,$81,$00,$10,$40,$00,$00
         .byte   $00,$10,$00,$00,$10,$00,$00,$00,$00,$00,$04,$00,$01,$00,$00,$00
         .byte   $08,$10,$00,$00,$00,$04,$10,$00
 
-center_portrait_tile_row3:.byte   $00,$00,$00,$00,$0C,$00,$20,$00,$00,$00,$02,$10,$00
+        .byte   $00,$00,$00,$00,$0C,$00,$20,$00,$00,$00,$02,$10,$00
 
-center_portrait_addr_ppu:.byte   $00,$22,$00,$00,$00,$00,$00,$00,$00,$00,$00,$08,$00,$01,$00,$00
+        .byte   $00,$22,$00,$00,$00,$00,$00,$00,$00,$00,$00,$08,$00,$01,$00,$00
         .byte   $00,$00,$00,$00,$00
 
-center_attr_ppu_addr:.byte   $10,$00
+        .byte   $10,$00
 
-center_attr_table_data:.byte   $20,$01
+        .byte   $20,$01
 
-portrait_oam_offset_table:.byte   $00,$00,$50,$00
+        .byte   $00,$00,$50,$00
 
-portrait_sprite_count_table:.byte   $01,$00,$80,$00,$00,$04,$08,$00,$08,$10,$00
+        .byte   $01,$00,$80,$00,$00,$04,$08,$00,$08,$10,$00
 
-boss_bitmask_table:.byte   $00,$08,$00,$00,$00,$00,$04,$02,$00,$00,$00,$80,$00,$00,$00,$00
+        .byte   $00,$08,$00,$00,$00,$00,$04,$02,$00,$00,$00,$80,$00,$00,$00,$00
         .byte   $00,$1C,$00,$00,$05,$00,$00,$00,$00,$C4,$00,$00,$00,$00,$00,$02
         .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$10,$20,$00,$00
         .byte   $04,$05,$00,$00,$00,$40,$00,$00,$00,$00,$00,$00,$40,$00,$01,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$20,$00,$00
 
-wily_center_sprite_table:.byte   $00,$00,$00,$02,$00,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte   $00,$00,$00,$02,$00,$04,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$40,$00,$00,$00,$40,$00,$00,$00,$00,$20,$00,$00,$00,$49
         .byte   $F1

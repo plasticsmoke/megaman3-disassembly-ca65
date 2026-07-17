@@ -182,7 +182,7 @@ close_door_done:  lda     stage_id            ; get current stage ID
 ; ===========================================================================
 ; DOOR CLOSE DATA TABLES
 ; ===========================================================================
-; Indexed by Y (set by ensure_stage_bank based on stage_id * 6).
+; Indexed by Y (per-stage table offset supplied by the caller).
 ; Each stage has 4 groups of 6 bytes for the 4 door columns.
 ;
 ; boss_door_close_ppu_addr_high/boss_door_close_ppu_addr_low: starting PPU nametable address (high/low)

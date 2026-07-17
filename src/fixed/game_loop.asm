@@ -449,7 +449,7 @@ stage_clear_handler:  pha               ; save $74 (stage clear type)
         pla                             ; $74 AND $7F: 0 = normal stage clear
         and     #$7F                    ; mask off high bit
         bne     frame_loop_special_clear_check ; nonzero = special clear (Wily/Doc Robot)
-        jsr     banked_8000             ; normal stage clear sequence (bank $0E)
+        jsr     banked_8000             ; normal stage clear seq (bank $0B code)
         jmp     game_entry_stage_reinit ; → stage_reinit
 
 ; --- special stage clear (Wily/Doc Robot stages) ---
@@ -457,7 +457,7 @@ stage_clear_handler:  pha               ; save $74 (stage clear type)
 frame_loop_special_clear_check:  lda     $75 ; $75 = stage clear sub-type
         cmp     #$06                    ; $06 = final boss / ending
         beq     frame_loop_ending_sequence ; $06 = ending → special path
-        jsr     banked_8003             ; Wily/Doc Robot clear (bank $0E)
+        jsr     banked_8003             ; Wily clear → map screen (bank $0B)
         jmp     game_entry_stage_reinit ; → stage_reinit
 
 ; --- game ending sequence ---
@@ -469,7 +469,7 @@ frame_loop_ending_sequence:  lda     #$0C ; switch to banks $0C/$0E
         jsr     select_PRG_banks        ; switch banks
         lda     #$11                    ; $F8 = $11 (ending game mode)
         sta     game_mode               ; set ending game mode
-        jsr     banked_8000             ; run ending sequence
+        jsr     banked_8000             ; run ending sequence (bank $0C $8000)
         jmp     game_entry_stage_reinit ; → stage_reinit (title screen)
 
 handle_checkpoint:  lda     stage_id    ; store current level

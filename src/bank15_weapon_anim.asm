@@ -6,12 +6,14 @@
 ; sprite renderer when the weapon sprite bank override is nonzero.
 ;
 ; Structure:
-;   $8000-$807F: pointer table low bytes (128 entries, indexed by OAM ID)
-;   $8080-$80FF: pointer table high bytes (companion to $8000)
-;   $8100-$9FFF: animation sequence data (variable-length records)
+;   $8000-$807F: anim sequence pointer lo bytes (128 entries, by OAM ID)
+;   $8080-$80FF: anim sequence pointer hi bytes (companion to $8000)
+;   $8100-$81FF: sprite definition pointer lo bytes (256 entries, by def ID)
+;   $8200-$82FF: sprite definition pointer hi bytes
+;   $8300-$9FFF: animation sequences + sprite definitions (variable length)
 ;
 ; Each animation sequence:
-;   byte 0 = total frame count
+;   byte 0 = frame count - 1
 ;   byte 1 = ticks per frame (animation speed)
 ;   byte 2+ = sprite definition IDs, one per frame
 ;
@@ -77,13 +79,10 @@
         .byte   $85,$85,$85,$85,$85,$85,$85,$85
 
 ; =============================================================================
-; ANIMATION SEQUENCE DATA ($8100-$9FFF)
+; SPRITE DEFINITION POINTER TABLE — LOW BYTES ($8100-$81FF)
 ; =============================================================================
-; Variable-length animation sequences. Each sequence:
-;   byte 0 = total frame count
-;   byte 1 = ticks per frame (animation speed)
-;   byte 2+ = sprite definition IDs, one per frame
-; Indexed via the pointer tables at $8000/$8080.
+; 256 entries indexed by sprite definition ID; read by write_entity_oam
+; via $8100,y / $8200,y. High bytes follow at $8200.
 ; =============================================================================
 
         .byte   $67,$67,$89,$AB,$D5,$01,$2B,$59
@@ -118,6 +117,10 @@
         .byte   $A3,$AD,$B7,$C1,$CB,$D5,$DF,$01
         .byte   $23,$2D,$49,$53,$5D,$67,$71,$7B
         .byte   $85,$8F,$A1,$B3,$C7,$E9,$F3,$09
+
+; =============================================================================
+; SPRITE DEFINITION POINTER TABLE — HIGH BYTES ($8200-$82FF)
+; =============================================================================
         .byte   $85,$85,$85,$85,$85,$86,$86,$86
         .byte   $86,$86,$86,$86,$87,$87,$87,$87
         .byte   $87,$87,$88,$88,$88,$88,$88,$88
