@@ -1,12 +1,11 @@
-main_yellow_devil:
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $12 — FORTRESS BOSSES + SPECIAL ENTITIES
 ; =============================================================================
 ; Mapped to $A000-$BFFF. AI routines for Wily fortress bosses (Yellow Devil,
 ; Clone Mega Man, Wily Machine, Gamma) and special entities (breakable blocks,
 ; Wily capsule). Dispatched from bank1C_1D for routine indices $E0-$FF.
-; Known bosses: main_yellow_devil, main_wily_machine_A, main_wily_machine_B,
-; main_gamma_B, main_gamma_F.
+; Known bosses: yellow_devil_dispatch ($E0), main_wily_machine_A/B,
+; main_gamma_B, main_gamma_F, kamegoro, holograph, giant met.
 ; Also serves as stage data for stage $12 (special/ending) via ensure_stage_bank_table.
 ; =============================================================================
 
@@ -48,75 +47,53 @@ update_CHR_banks           := $FF3C
 
 .segment "BANK12"
 
-        jmp     yellow_devil_dispatch   ; $E0 cmd 0: Yellow Devil AI
-                                        ; $E0 cmd 1:
-        jmp     yellow_devil_piece_left_update ; piece horizontal update
-                                        ; $E1 cmd 0:
-        jmp     yellow_devil_piece_falling ; falling piece update
+; ---------------------------------------------------------------------------
+; Dispatch jmp table — one 3-byte slot per routine ID $E0-$FC.
+; bank1C's sprite_main_ptr sends routine ID $E0+n to $A000+3n.
+; ($ED is inline nop/nop/rts; $FD-$FF overlap the code that follows the
+; table and are not assigned by any spawner.)
+; ---------------------------------------------------------------------------
+        jmp     yellow_devil_dispatch   ; $E0: Yellow Devil AI
+        jmp     yellow_devil_piece_left_update ; $E1: devil piece horizontal
+        jmp     yellow_devil_piece_falling ; $E2: devil piece falling
 main_wily_machine_A:
-                                        ; $E2 cmd 0:
-        jmp     wily_machine_a_dispatch ; Wily Machine phase A AI
-                                        ; $E2 cmd 1:
-        jmp     wily_machine_b_move_dir ; Wily Machine B movement
+        jmp     wily_machine_a_dispatch ; $E3: Wily Machine phase A AI
+        jmp     wily_machine_b_move_dir ; $E4: Wily Machine B movement
 main_wily_machine_B:
-                                        ; $E3 cmd 0:
-        jmp     wily_machine_b_dispatch ; Wily Machine phase B AI
-                                        ; $E3 cmd 1:
-        jmp     wily_machine_b_attack_vert ; vertical attack movement
+        jmp     wily_machine_b_dispatch ; $E5: Wily Machine phase B AI
+        jmp     wily_machine_b_attack_vert ; $E6: vertical attack movement
 main_gamma_B:
-                                        ; $E4 cmd 0:
-        jmp     gamma_b_init            ; Gamma phase B init
-                                        ; $E4 cmd 1:
-        jmp     gamma_b_main_update     ; Gamma phase B main loop
-                                        ; $E4 cmd 2:
-        jmp     gamma_f_main            ; Gamma fist main AI
+        jmp     gamma_b_init            ; $E7: Gamma phase B init
+        jmp     gamma_b_main_update     ; $E8: Gamma phase B main loop
+        jmp     gamma_f_main            ; $E9: Gamma fist main AI
 main_gamma_F:
-                                        ; $E5 cmd 0:
-        jmp     gamma_f_collision_check ; Gamma fist collision
+        jmp     gamma_f_collision_check ; $EA: Gamma fist collision
 main_teleporter:
-                                        ; $E6 cmd 0:
-        jmp     teleporter_collision    ; teleporter collision check
-                                        ; $E6 cmd 1:
-        jmp     teleporter_pos_check_y  ; teleporter Y position check
+        jmp     teleporter_collision    ; $EB: teleporter pod collision
+        jmp     teleporter_pos_check_y  ; $EC: teleporter Y position check
 main_wily_machine_C:
-                                        ; $E7 cmd 0:
-        nop                             ; Wily Machine C stub (unused)
+        nop                             ; $ED: inline stub (nop/nop/rts)
         nop                             ; padding
         rts                             ; return immediately
-                                        ; $E7 cmd 1:
-        jmp     teleporter_activate_check ; teleporter activation
-                                        ; $E7 cmd 2:
-        jmp     teleporter_fall         ; teleporter fall handler
+        jmp     break_man_descend       ; $EE: Break Man cutscene AI (aw spawn)
+        jmp     teleporter_fall         ; $EF: teleporter fall handler
 main_kamegoro_maker:
-                                        ; $E8 cmd 0:
-        jmp     kamegoro_maker_init   ; Kamegoro Maker init
-                                        ; $E8 cmd 1:
-        jmp     kamegoro_maker_phase_init ; Kamegoro Maker phase init
-                                        ; $E8 cmd 2:
-        jmp     kamegoro_room_block_init    ; Kamegoro room block init
+        jmp     kamegoro_maker_init     ; $F0: Kamegoro Maker init
+        jmp     kamegoro_maker_phase_init ; $F1: Kamegoro Maker phase init
+        jmp     kamegoro_room_block_init ; $F2: Kamegoro room block init
 main_kamegoro_spawner:
-                                        ; $E9 cmd 0:
-        jmp     kamegoro_spawner_init     ; Kamegoro current spawner init
-                                        ; $E9 cmd 1:
-        jmp     kamegoro_room_current_dir_init ; water current direction init
+        jmp     kamegoro_spawner_init   ; $F3: Kamegoro current spawner init
+        jmp     kamegoro_room_current_dir_init ; $F4: water current direction
 main_holograph:
-                                        ; $EA cmd 0:
-        jmp     holograph_boss_init     ; holograph boss init
-                                        ; $EA cmd 1:
-        jmp     yellow_devil_noop       ; unused (noop)
-                                        ; $EA cmd 2:
-        jmp     yellow_devil_noop       ; unused (noop)
-                                        ; $EA cmd 3:
-        jmp     yellow_devil_noop       ; unused (noop)
-                                        ; $EA cmd 4:
-        jmp     teleporter_fall_rts     ; teleporter fall return
-                                        ; $EA cmd 5:
-        jmp     wily_machine_c_block_fall ; falling block AI
-                                        ; $EA cmd 6:
-        jmp     wily_machine_c_block_y_update ; block Y position update
+        jmp     holograph_boss_init     ; $F5: holograph boss init
+        jmp     yellow_devil_noop       ; $F6: unused (noop)
+        jmp     yellow_devil_noop       ; $F7: unused (noop)
+        jmp     yellow_devil_noop       ; $F8: unused (noop)
+        jmp     teleporter_fall_rts     ; $F9: teleporter fall (Y-clamped)
+        jmp     wily_machine_c_block_fall ; $FA: falling block AI
+        jmp     wily_machine_c_block_y_update ; $FB: block Y position update
 main_giant_met:
-                                        ; $EB cmd 0:
-        jmp     giant_met_init     ; Giant Met init (Doc Needle mid-boss)
+        jmp     giant_met_init          ; $FC: Giant Met init (Doc Needle mid-boss)
 
 yellow_devil_noop:  rts
 
@@ -1909,7 +1886,11 @@ teleporter_set_facing:  sta     ent_facing,x ; store facing direction
         sta     $38                     ; set push pixel velocity
 teleporter_door_return:  rts
 
-teleporter_activate_check:  lda     ent_y_px,x ; current Y position
+; --- Break Man cutscene AI (routine $EE, spawned by player_auto_walk) ---
+; Descends 4 px/frame to Y=$A8, switches to anim $6C on landing, then when
+; the auto-walk code sets anim $6E (teleport-out) holds it while ent_timer
+; counts down.
+break_man_descend:  lda     ent_y_px,x ; current Y position
         cmp     #$A8                    ; target Y = $A8 (ground)
         beq     teleporter_anim_check   ; at ground → check anim
         clc                             ; prepare for addition
@@ -1917,15 +1898,15 @@ teleporter_activate_check:  lda     ent_y_px,x ; current Y position
         sta     ent_y_px,x              ; update Y position
         cmp     #$A8                    ; reached ground level?
         bne     teleporter_anim_end     ; not yet → done
-        lda     #$6C                    ; anim $6C = closed teleporter
-        cmp     ent_anim_id,x           ; already closed?
+        lda     #$6C                    ; anim $6C = landed pose
+        cmp     ent_anim_id,x           ; already set?
         beq     teleporter_anim_check   ; yes → skip to timer check
-        jsr     reset_sprite_anim       ; set closed teleporter anim
+        jsr     reset_sprite_anim       ; set landing animation
         lda     #$10                    ; delay timer = 16 frames
-        sta     ent_timer,x             ; set open delay timer
+        sta     ent_timer,x             ; set delay timer
 teleporter_anim_check:  lda     ent_anim_id,x ; current animation ID
-        cmp     #$6E                    ; anim $6E = fully open
-        bne     teleporter_anim_end     ; not fully open → done
+        cmp     #$6E                    ; anim $6E = teleport-out beam
+        bne     teleporter_anim_end     ; not teleporting → done
         lda     ent_timer,x             ; check delay timer
         beq     teleporter_anim_end     ; expired → done
         dec     ent_timer,x             ; count down delay
@@ -2781,7 +2762,7 @@ kamegoro_room_block_init:  lda     ent_status,x ; check sub-state
         sta     ent_var1,x              ; set block lifetime
         inc     ent_status,x            ; advance to active state
 kamegoro_room_block_collision:  jsr     check_sprite_weapon_collision ; check if weapon hit block
-        bcs     kamegoro_room_block_damage  ; no hit — take damage path
+        bcs     kamegoro_room_block_move    ; C=1: no hit → normal movement
         lda     #SFX_ENEMY_HIT          ; play enemy hit sound
         jsr     submit_sound_ID         ; queue the sound effect
         ldy     $10                     ; Y = weapon slot that hit
@@ -2789,7 +2770,7 @@ kamegoro_room_block_collision:  jsr     check_sprite_weapon_collision ; check if
         sta     ent_status,y            ; destroy the weapon entity
         jmp     kamegoro_room_block_death   ; block destroyed by weapon
 
-kamegoro_room_block_damage:  lda     ent_status,x ; check sub-state bits
+kamegoro_room_block_move:  lda     ent_status,x ; check sub-state bits
         and     #$02                    ; bit 1 = oscillation phase
         bne     kamegoro_room_block_facing  ; oscillation started?
         jsr     move_sprite_up          ; move block upward

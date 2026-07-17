@@ -28,6 +28,13 @@
 ;   $9BB7-$9FFF  Data tables: boss palettes, CHR banks, eye sprites, lookup tables
 ; =============================================================================
 
+; NOTE: bank $18 is mapped at BOTH CPU windows depending on context: the
+; stage-select/title code runs with the bank in the $8000-$9FFF slot (all
+; absolute refs to it use the := $9xxx equates below or raw $9xxx operands),
+; while other references rely on the $A000-$BFFF mapping (file-internal
+; labels, which resolve from this segment's $A000 base). Rebasing the
+; segment to $8000 breaks the byte-perfect build — both views are real.
+
         .setcpu "6502"
 
 .include "include/zeropage.inc"
@@ -720,8 +727,8 @@ oam_sentinel_load_loop:  lda     $9C69,x ; initial OAM data (4 bytes)
 ; ===========================================================================
 ; Title screen Start button wait loop ($90B4)
 ; ===========================================================================
-; Waits for Start button press. D-pad Up/Down moves password cursor
-; (OAM sprite 0 Y position: $B7 = top, $C7 = bottom).
+; Waits for Start button press. D-pad Up/Down moves the title menu cursor
+; (OAM sprite 0 Y: Up → $97 = GAME START row, Down → $A7 = PASSWORD row).
 ; Start press → jump to stage_select_init.
 ; ===========================================================================
 title_wait_start_loop:
@@ -735,7 +742,7 @@ title_wait_start_loop:
         lsr     a                       ; continue shifting
         lsr     a                       ; $08→$01, $04→$00
         tay                             ; use as table index
-        lda     $9BFF,y                 ; Y position lookup: [$00]=$30, [$01]=$40
+        lda     $9BFF,y                 ; Y lookup: [0]=$A7 (PASSWORD), [1]=$97 (GAME START)
         sta     $0200                   ; update sprite 0 Y position
 title_wait_yield:  jsr     task_yield
         jmp     title_screen_wait_start ; loop back to wait

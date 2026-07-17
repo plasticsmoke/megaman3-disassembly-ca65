@@ -1,8 +1,9 @@
 ; =============================================================================
 ; MEGA MAN 3 (U) — BANK $0B — INTRO SEQUENCE + DOC ROBOT SHADOW STAGE
 ; =============================================================================
-; Mapped to $8000-$9FFF. Contains the game intro/opening cutscene and
-; the Doc Robot Shadow Man stage data (stage_id $16, bank pair $0B).
+; Mapped to $8000-$9FFF for the intro/opening cutscene code, and to
+; $A000-$BFFF when serving as the Doc Robot Shadow Man stage data bank
+; (stage_id $0B → bank $0B via ensure_stage_bank_table).
 ;
 ; The intro sequence has three phases:
 ;   Phase 1 ($8006): "Mountain top" — Mega Man falls from sky, Rush slides in,

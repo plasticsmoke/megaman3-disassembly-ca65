@@ -35,8 +35,8 @@ init_rush_spawn_entity:  ldy     #$01   ; spawn entity $13 (Rush) in slot 1
         lda     ent_x_scr               ; Rush X screen = player X screen + carry
         adc     rush_spawn_x_scr,x      ; add screen carry for X
         sta     $0381                   ; store Rush X screen
-        lda     #$80                    ; set Rush main routine = $80 (active)
-        sta     ent_routine,y           ; set Rush routine to active
+        lda     #$80                    ; Rush main routine = $80
+        sta     ent_routine,y           ; (item drop/capsule AI in bank1C)
         lda     #$AB                    ; Rush Y speed = $FF.AB (slight downward drift
         sta     $0441                   ; = -1 entity gravity tick)
         lda     #$FF                    ; Rush Y velocity whole = $FF

@@ -333,13 +333,13 @@ frame_loop_track_screen_progress:  lda     ent_x_px ; player X pixel position
         lda     #$09                    ; select bank $09
         sta     mmc3_select             ; (per-frame subsystems)
         jsr     select_PRG_banks        ; switch to per-frame subsystem bank
-        jsr     banked_8003             ; bank $09 subsystems:
-        jsr     banked_8006             ; screen scroll, HUD update,
-        jsr     banked_800F             ; sound processing,
-        jsr     banked_8009             ; background animation,
-        jsr     banked_800C             ; item pickup,
-        jsr     banked_8000             ; checkpoint tracking,
-        jsr     banked_8012             ; etc.
+        jsr     banked_8003             ; bank $09: stage-clear spawner
+        jsr     banked_8006             ; Wily4 refight teleporter spawner
+        jsr     banked_800F             ; palette animation cycling
+        jsr     banked_8009             ; Gemini platform animation
+        jsr     banked_800C             ; item pickup/drop spawning
+        jsr     banked_8000             ; Wily 2 camera Y transition
+        jsr     banked_8012             ; Doc Robot Gemini nametable prep
         jsr     palette_fade_tick       ; update palette fade animation
         jsr     process_frame_yield_with_player ; build OAM + yield 1 frame
 ; --- DEBUG (shipped in retail) — controller 2 left-press latches right-held ---

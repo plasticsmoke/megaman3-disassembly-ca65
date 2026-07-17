@@ -4,7 +4,7 @@
 ; Mapped to $8000-$9FFF. Called 7 times every gameplay frame from the fixed
 ; bank's gameplay_frame_loop. Contains per-frame subsystems for:
 ;   1. Stage clear entity spawning (falling debris / transition effects)
-;   2. Wily 3 entity spawning (scripted enemy placement)
+;   2. Wily 4 teleporter-pod spawning (boss refight room)
 ;   3. Palette animation cycling (water, lava, conveyor colors)
 ;   4. Gemini Man platform animation (stage $05 only)
 ;   5. Item pickup/drop entity spawning
@@ -50,7 +50,7 @@ select_PRG_banks            := $FF6B    ; MMC3 PRG bank switch
 ; The fixed bank dispatches these 7 per-frame calls in order:
 ;   $8000 → Wily 2 camera Y transition
 ;   $8003 → Stage clear / scroll-triggered entity spawning
-;   $8006 → Wily 3 scripted entity spawning
+;   $8006 → Wily 4 boss-refight teleporter spawning
 ;   $8009 → Gemini Man platform animation
 ;   $800C → Item pickup / drop entity spawning
 ;   $800F → Palette animation cycling
@@ -59,7 +59,7 @@ select_PRG_banks            := $FF6B    ; MMC3 PRG bank switch
 ; ===========================================================================
 subsys_wily_camera_y:  jmp     wily_camera_y_check ; entry 0: $8000
 subsys_stage_clear:  jmp     stage_clear_spawner ; entry 1: $8003
-        jmp     wily3_entity_spawn      ; entry 2: $8006
+        jmp     wily4_teleporter_spawn      ; entry 2: $8006
         jmp     gemini_platform_update  ; entry 3: $8009
         jmp     item_drop_update        ; entry 4: $800C
         jmp     palette_anim_update     ; entry 5: $800F
@@ -567,42 +567,43 @@ clear_spawn_y:  .byte   $01,$98,$40,$00,$88,$00,$58,$00
         .byte   $00,$98,$00,$88,$00,$68,$00,$59
         .byte   $00,$98,$00,$98,$00,$88,$00,$68
 ; ===========================================================================
-; SUBSYSTEM 2: Wily 3 scripted entity spawning
+; SUBSYSTEM 2: Wily 4 boss-refight teleporter spawning
 ; ===========================================================================
-; On Wily 3 (stage $0F), screen $08: places 8 entities into slots 24-31
-; using a bitmask ($6E) to track which have already been spawned.
-; Skipped when entity[31] is active ($031F bit 7) or game state = $11.
+; On Wily 4 (stage $0F), screen $08 (the refight room): places the 8
+; teleporter pods (routine $EB, OAM $67) into slots 24-31, skipping bosses
+; already beaten per the $6E bitmask.
+; Skipped when entity[31] is active ($031F bit 7) or player state = $11.
 ; ===========================================================================
-wily3_entity_spawn:  lda     stage_id   ; check current stage
-        cmp     #STAGE_WILY4            ; Wily 3 stage?
-        bne     wily3_rts               ; not Wily 4 → exit
+wily4_teleporter_spawn:  lda     stage_id   ; check current stage
+        cmp     #STAGE_WILY4            ; Wily 4 stage ($0F)?
+        bne     wily4_tp_rts               ; not Wily 4 → exit
         lda     camera_screen           ; check camera screen
         cmp     #$08                    ; screen $08?
-        bne     wily3_rts               ; not screen $08 → exit
+        bne     wily4_tp_rts               ; not screen $08 → exit
         lda     $031F                   ; entity[31] flags
-        bmi     wily3_rts               ; active → skip
+        bmi     wily4_tp_rts               ; active → skip
         lda     player_state            ; game substate
         cmp     #PSTATE_WARP_INIT       ; warping out?
-        beq     wily3_rts               ; state $11 → skip
+        beq     wily4_tp_rts               ; state $11 → skip
         ldy     #$07                    ; 8 entities (slots 24-31)
         lda     $6E                     ; spawn bitmask
         sta     $00                     ; copy to temp for shifting
-wily3_spawn_loop:  asl     $00          ; shift out next bit
-        bcs     wily3_spawn_skip        ; bit=1: already spawned, skip
+wily4_tp_spawn_loop:  asl     $00          ; shift out next bit
+        bcs     wily4_tp_spawn_skip        ; bit=1: already spawned, skip
         lda     #$80                    ; status = active ($80)
-        sta     $0318,y                 ; entity_flags[24+Y] = active
+        sta     $0318,y                 ; ent_status[24+Y] = active
         lda     #$90                    ; flags = $90
-        sta     $0598,y                 ; entity_flags[24+Y] = $90
-        lda     #$EB                    ; routine = $EB
-        sta     $0338,y                 ; entity_health[24+Y]
+        sta     $0598,y                 ; ent_flags[24+Y] = $90
+        lda     #$EB                    ; routine = $EB (teleporter pod)
+        sta     $0338,y                 ; ent_routine[24+Y]
         lda     #$67                    ; anim ID = $67
-        sta     $05D8,y                 ; entity_anim[24+Y]
+        sta     $05D8,y                 ; ent_anim_id[24+Y]
         lda     #$00                    ; A = 0
         sta     $05F8,y                 ; clear anim frame[24+Y]
         sta     $05B8,y                 ; clear anim state[24+Y]
         sta     $03F8,y                 ; clear Y screen[24+Y]
         lda     #$0B                    ; hitbox type = $0B
-        sta     $0498,y                 ; entity_behavior[24+Y]
+        sta     $0498,y                 ; ent_hitbox[24+Y]
         lda     camera_screen           ; use camera screen
         sta     $0398,y                 ; entity_screen[24+Y]
         lda     wily3_spawn_x,y         ; load X position from table
@@ -611,9 +612,9 @@ wily3_spawn_loop:  asl     $00          ; shift out next bit
         sta     $03D8,y                 ; entity_y[24+Y]
         lda     wily3_spawn_type,y      ; load entity subtype
         sta     $04D8,y                 ; entity_subtype[24+Y]
-wily3_spawn_skip:  dey                  ; next slot (7..0)
-        bpl     wily3_spawn_loop        ; loop until all 8 done
-wily3_rts:  rts                         ; return
+wily4_tp_spawn_skip:  dey                  ; next slot (7..0)
+        bpl     wily4_tp_spawn_loop        ; loop until all 8 done
+wily4_tp_rts:  rts                         ; return
 
 ; --- Wily 3 spawn position tables (8 entities) ---
 wily3_spawn_x:  .byte   $30,$30,$30,$70,$90,$D0,$D0,$D0
