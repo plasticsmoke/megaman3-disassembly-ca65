@@ -174,7 +174,7 @@ camera_room_transition_right:  ldy     $2B ; current room entry
         lda     stage_id                ; stage-specific transition blocks:
         cmp     #STAGE_DOC_NEEDLE       ; stage $08 (Doc Robot Needle)
         bne     camera_screen_offset_check ; skip if not stage $08
-        lda     camera_screen           ; Rush Marine water boundary screens
+        lda     camera_screen           ; Doc Needle gate screens
         cmp     #$15                    ; $15 and $1A have special gate
         beq     camera_entity_slot_check ; screen $15 → check gate
         cmp     #$1A                    ; screen $1A → check gate

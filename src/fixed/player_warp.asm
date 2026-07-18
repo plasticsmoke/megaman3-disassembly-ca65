@@ -7,7 +7,7 @@
 ; ===========================================================================
 
 warp_position_table:  .byte   $00,$00,$00,$00,$00,$06,$06,$06
-player_screen_scroll:  ldy     #$00  ; state $10: vertical scroll transition
+player_screen_scroll:  ldy     #$00     ; state $10: vertical scroll transition
         jsr     move_vertical_gravity   ; apply gravity, carry = landed
         bcc     warp_shutter_nt_init    ; airborne → skip standing check
         lda     #$01                    ; set standing OAM when grounded
@@ -340,8 +340,8 @@ beam_rise_phase:  lda     ent_anim_state ; nonzero = still in landing anim
 
 beam_offscreen_ending:  lda     #$00    ; reset player state
         sta     player_state            ; return to ground state
-        lda     #$80                    ; $74 = $80 → trigger stage clear path
-        sta     $74                     ; store stage clear flag
+        lda     #$80                    ; $74 = $80 → Wily reveal cutscene
+        sta     $74                     ; (game_loop stage_clear_handler)
         lda     #$FF                    ; $60 = $FF → all Doc Robots beaten
         sta     stage_select_page       ; mark all Doc Robots beaten
         ldy     #$0B                    ; fill all 12 ammo slots to $9C (full)

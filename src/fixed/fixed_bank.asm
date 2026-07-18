@@ -132,7 +132,8 @@
 ;   $40 = ladder top (climbable, grab point from above)
 ;   $50 = spikes (instant kill, solid)
 ;   $70 = breakable block (Gemini Man stages $02/$09; weapons destroy, spawns debris)
-;   $80 = water (Rush Marine buoyancy/sink physics)
+;   $60 = behind-background (passthrough; entities render behind BG)
+;   $80 = water (Rush Marine physics; Gemini/Doc Gemini/Wily 1/Wily 4)
 ;   Solid test: accumulate tile types in $10, then AND #$10 — nonzero = on solid ground
 ;   Hazard priority: $41 tracks max type, $30→damage, $50→death
 ;   $BF00 table is per-stage, loaded from the stage's PRG bank

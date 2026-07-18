@@ -25,15 +25,15 @@ BANK_SRCS = \
 	src/bank08_stage_doc_needle.asm \
 	src/bank09_per_frame.asm \
 	src/bank0A_damage_tables.asm \
-	src/bank0B_intro.asm \
-	src/bank0C_game_over.asm \
+	src/bank0B_cutscenes.asm \
+	src/bank0C_ending.asm \
 	src/bank0D_oam_sprites.asm \
 	src/bank0E_anim_frames.asm \
 	src/bank0F_entity_spawn.asm \
 	src/bank10_stage_setup.asm \
-	src/bank11_ending_data.asm \
+	src/bank11_wily6_stage.asm \
 	src/bank12_fortress_bosses.asm \
-	src/bank13_ending_data2.asm \
+	src/bank13_password_stage.asm \
 	src/bank14_sprite_offsets_alt.asm \
 	src/bank15_weapon_anim.asm \
 	src/bank16_sound_driver.asm \

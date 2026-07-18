@@ -570,7 +570,8 @@ weapon_damage_ptr_hi_special:  .byte   $A6,$A7,$A1,$A8,$A1,$A9,$A1 ; TopSpin, Sn
 ; $00=ret_A(hidden rts)  $01/$1B/$2D/$3C/$40/$41/$51=block_breaker(horiz mover)
 ; $02=dada $03=potton $04=copipi $05=new_shotman $06=hammer_joe $07=peterchy
 ; $08=bubukan $09=bubukan_projectile $0A/$3D=bomb_flier ($8E14, overlapped entry)
-; $0B=shotman_debris $0C=shotman_bullet $0D=yambow $0E=met $0F/$36/$43=pole
+; $0B=shotman_debris $0C=shotman_bullet $0D=yambow $0E=met
+; $0F/$36/$43=linear_projectile (Met bullets/turret shots/Pole entity)
 ; $10=velocity_mover $11=velocity_mover_check $12=cannon $13=cannon_shell
 ; $14=cloud_platform $15/$16=jamacy $17/$18=giant_metall_met
 ; $19/$39/$3A/$48/$56=part_spawner $1A=mag_fly $1C/$3F/$54/$55/$57/$60/$6B/$6F/
@@ -3117,17 +3118,20 @@ met_hide_delay:  asl     petit_snakey_data,x
         .byte   $3C
 
 ; ===========================================================================
-; main_pole — Pole (climbing pole enemy, Spark Man stage)
+; main_linear_projectile — Pole (climbing pole enemy, Spark Man stage)
 ; ===========================================================================
 ; Moves vertically at set speed, walks horizontally (via code_1C9776).
 ; Despawns when Y screen changes (goes offscreen).
-main_pole:
+; generic linear projectile (routines $0F/$36/$43): applies signed 16-bit
+; Y velocity + horizontal flight, despawns offscreen. Used by Met bullets,
+; turret shots, and the "Pole" stage entity (global enemy ID $32).
+main_linear_projectile:
         lda     #$00                    ; sign extend = 0 (positive)
         sta     temp_00                 ; temp $00 = sign extension byte
         lda     ent_yvel,x              ; check Y velocity sign
-        bpl     pole_apply_yvel_sub     ; positive → skip sign extend
+        bpl     linproj_apply_yvel     ; positive → skip sign extend
         dec     temp_00                 ; negative → sign = $FF
-pole_apply_yvel_sub:  lda     ent_y_sub,x ; apply Y speed: Y.sub += Yspd.sub
+linproj_apply_yvel:  lda     ent_y_sub,x ; apply Y speed: Y.sub += Yspd.sub
         clc                             ; clear carry for sub-pixel add
         adc     ent_yvel_sub,x          ; add Y vel sub
         sta     ent_y_sub,x             ; store updated Y sub
@@ -3136,10 +3140,10 @@ pole_apply_yvel_sub:  lda     ent_y_sub,x ; apply Y speed: Y.sub += Yspd.sub
         sta     ent_y_px,x              ; store updated Y pixel
         lda     ent_y_scr,x             ; Y.screen += sign
         adc     temp_00                 ; add sign extend to Y screen
-        bne     pole_despawn            ; offscreen → despawn
+        bne     linproj_despawn            ; offscreen → despawn
         jmp     yambow_fly_forward      ; on-screen → walk horizontally
 
-pole_despawn:  lda     #$00             ; despawn
+linproj_despawn:  lda     #$00             ; despawn
         sta     ent_status,x            ; clear entity status
         rts                             ; return (entity despawned)
 

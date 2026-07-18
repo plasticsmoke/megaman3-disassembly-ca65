@@ -17,7 +17,7 @@
 ;   byte 2+ = sprite definition IDs per frame (0 = deactivate entity)
 ;
 ; Sprite definition format:
-;   byte 0 = sprite count (bit 7: use CHR bank $14 instead of $19)
+;   byte 0 = sprite count (bit 7: offsets in PRG bank $14 instead of $19)
 ;   byte 1 = position offset table index (for Y/X offsets)
 ;   byte 2+ = pairs of (CHR tile, OAM attribute) per sprite
 ; ===========================================================================
@@ -269,7 +269,7 @@ sprite_render_skip_draw:  rts            ; return without drawing
 ;   $13 = entity screen X position
 ;   oam_ptr = OAM buffer write pointer
 ; Sprite definition format:
-;   byte 0 = sprite count (bit 7: use CHR bank $14 instead of $19)
+;   byte 0 = sprite count (bit 7: offsets in PRG bank $14 instead of $19)
 ;   byte 1 = position offset table index (for Y/X offsets)
 ;   byte 2+ = pairs of (CHR tile, OAM attribute) per sprite
 ; Position offset table at ($05/$06): Y offset, X offset per sprite
@@ -282,12 +282,12 @@ write_entity_oam:  tay                  ; sprite def ID → index
         ldy     #$00                    ; start at byte 0 of definition
         lda     ($02),y                 ; byte 0 = sprite count + bank flag
         pha                             ; save sprite count + bank flag
-        ldy     #$19                    ; default CHR bank = $19
+        ldy     #$19                    ; default offset PRG bank = $19
         pla                             ; restore count + bank flag
-        bpl     write_oam_set_chr_bank  ; bit 7 clear → use bank $19
+        bpl     write_oam_set_prg_bank  ; bit 7 clear → use bank $19
         and     #$7F                    ; strip bank flag from count
-        ldy     #$14                    ; use CHR bank $14 instead
-write_oam_set_chr_bank:  sta     $04    ; $04 = sprite count (0-based loop counter)
+        ldy     #$14                    ; use PRG bank $14 instead
+write_oam_set_prg_bank:  sta     $04    ; $04 = sprite count (0-based loop counter)
         cpy     prg_bank                ; current PRG bank already correct?
         beq     write_oam_position_offsets ; yes → skip bank switch
         sty     prg_bank                ; set new PRG bank
@@ -319,10 +319,10 @@ write_oam_sprite_loop:  lda     #$F0    ; default Y clip boundary = $F0
         cmp     #STAGE_DOC_NEEDLE       ; Doc Robot Needle stage?
         bne     write_oam_read_tile     ; no → use default clip
         lda     camera_screen           ; camera screen position
-        cmp     #$15                    ; screen $15? underwater area
-        beq     write_oam_y_clip        ; yes → reduce Y clip
-        cmp     #$1A                    ; screen $1A? underwater area
-        bne     write_oam_read_tile     ; not underwater → default clip
+        cmp     #$15                    ; screens $15/$1A: clip sprites
+        beq     write_oam_y_clip        ; below Y=$B0 (stage-specific
+        cmp     #$1A                    ; effect; no $80 water tiles exist
+        bne     write_oam_read_tile     ; in this bank — not water-related)
 write_oam_y_clip:  lda     #$B0         ; Y clip = $B0 for these screens
         sta     temp_00                 ; store reduced Y clip boundary
 write_oam_read_tile:  iny               ; read CHR tile from def

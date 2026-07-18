@@ -1,9 +1,14 @@
 ; =============================================================================
-; MEGA MAN 3 (U) — BANK $15 — WEAPON SPRITE ANIMATION SEQUENCES
+; MEGA MAN 3 (U) — BANK $15 — BOSS-NAMESPACE SPRITE ANIMATIONS
 ; =============================================================================
-; Mapped to $8000-$9FFF. Contains OAM animation sequence data for weapon
-; and projectile sprites. Selected via `LDY #$15 / STY prg_bank` in the
-; sprite renderer when the weapon sprite bank override is nonzero.
+; Mapped to $8000-$9FFF. While a boss fight is active (boss_active bit 7),
+; entities in slots $10-$1F read their ENTIRE sprite pipeline (animation
+; sequences + sprite definitions) from this bank instead of $1A/$1B
+; (fixed/sprites.asm setup_sprite_render). Boss anim IDs are a separate
+; namespace reusing the same numbers as regular enemy anims.
+; RM boss blocks: $1E-$21 Magnet, $22-$25 Snake, $26-$2A Needle, $2B-$30
+; Hard, $32-$35 Gemini, $36-$3C Spark, $3D-$43 Shadow, $44-$49 Top;
+; Doc Robot body = $01-$1D.
 ;
 ; Structure:
 ;   $8000-$807F: anim sequence pointer lo bytes (128 entries, by OAM ID)

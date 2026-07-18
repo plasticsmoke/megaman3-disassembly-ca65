@@ -235,7 +235,8 @@ gravity_airborne_exit:  clc             ; C=0: airborne
 ; -----------------------------------------------
 ; $10 = tile collision result from check_tile_collision
 ; tile_at_feet_max = tile type from last collision (upper nibble of $BF00)
-; Updates ent_flags bit 5 (on-ladder) based on tile type $60 (ladder).
+; Tile $60 (TILE_BEHIND_BG) sets ent_flags bit 5, which write_entity_oam
+; copies into the OAM attribute (bit 5 = render behind background).
 
 update_collision_flags:  lda     $10    ; bit 4 = solid tile hit?
         and     #$10                    ; isolate solid tile bit
@@ -244,11 +245,11 @@ update_collision_flags:  lda     $10    ; bit 4 = solid tile hit?
         and     #$DF                    ; mask off bit 5 (on-ladder)
         sta     ent_flags,x             ; store updated flags
         lda     tile_at_feet_max        ; check tile type at feet
-        cmp     #$60                    ; $60 = ladder body tile type
-        bne     collision_flags_done    ; not ladder → done
-        lda     ent_flags,x             ; set on-ladder flag (bit 5)
-        ora     #$20                    ; (used by OAM: behind-background priority)
-        sta     ent_flags,x             ; store on-ladder flag
+        cmp     #TILE_BEHIND_BG         ; $60 = behind-background tile
+        bne     collision_flags_done    ; not behind-BG tile → done
+        lda     ent_flags,x             ; set behind-BG flag (bit 5 →
+        ora     #$20                    ; OAM attr bit 5 = behind background)
+        sta     ent_flags,x             ; store updated flags
 collision_flags_done:  rts              ; return
 
 ; moves sprite right by its X speeds

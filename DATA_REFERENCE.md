@@ -176,15 +176,15 @@ Complete mapping of global enemy IDs ($00-$8F) used in spawn tables ($AE00) and 
 | $02 | New Shotman | 3 | 4 | $22 | Needle Press | $FF | 4 |
 | $03 | Hammer Joe | 8 | 4 | $23 | Needle Press (variant) | $FF | 4 |
 | $04 | Bubukan | 4 | 4 | $24 | Elec'n | 1 | 4 |
-| $05 | Jamacy | 1 | 2 | $25 | Magnet Pull | $FF | — |
+| $05 | Jamacy | 1 | 2 | $25 | (no AI) | $FF | — |
 | $06 | Bomb Flier | 3 | 2 | $26 | Mechakkero | 1 | 3 |
 | $07 | (projectile) | 3 | — | $27 | Top Man Platform | $FF | — |
-| $08 | Yambow | 3 | 3 | $28 | (no-op) | 1 | — |
-| $09 | Metall DX | 1 | 4 | $29 | (no-op) | 1 | — |
+| $08 | Yambow | 3 | 3 | $28 | Part Spawner | 1 | — |
+| $09 | Met | 1 | 4 | $29 | Part Spawner | 1 | — |
 | $0A | Cannon | 3 | 6 | $2A | Chibee | 1 | 3 |
 | $0B | Cloud Platform | $FF | — | $2B | Block Breaker | 1 | 8 |
-| $0C | Giant Metall Met | 1 | 2 | $2C | Penpen | 1 | 4 |
-| $0D | Giant Metall Met | 1 | 2 | $2D | Electric Gabyoall | $FF | 4* |
+| $0C | Giant Metall Met | 1 | 2 | $2C | Bomb Flier (variant) | 1 | 4 |
+| $0D | Giant Metall Met | 1 | 2 | $2D | Spark Falling Platform | $FF | — |
 | $0E | Gyoraibo | 2 | 6 | $2E | (no-op) | 1 | — |
 | $0F | Mag Fly | 1 | 4 | $2F | Block Breaker | 6 | 3 |
 | $10 | Block Breaker | 2 | 2 | $30 | Block Breaker | 1 | 2 |
@@ -192,21 +192,21 @@ Complete mapping of global enemy IDs ($00-$8F) used in spawn tables ($AE00) and 
 | $12 | Pickelman Bull | 3 | 6 | $32 | Pole | $FF | 2 |
 | $13 | Bikky | 6 | 8 | $33 | Holograph | 28 | 6 |
 | $14 | Giant Metall | $FF | — | $34 | Needle Press | $FF | 4 |
-| $15 | Jamacy | 1 | 2 | $35 | (no-op) | $FF | — |
+| $15 | Jamacy | 1 | 2 | $35 | Part Spawner | $FF | — |
 | $16 | Mag Force | $FF | — | $36 | Peterchy | 3 | 4 |
 | $17 | Junk Block Thrown | 6 | 4 | $37 | Walking Bomb | 1 | 4 |
 | $18 | Nitron | 1 | 4 | $38 | Parasyu | 3 | 4 |
-| $19 | Pole | 1 | 1 | $39 | Hologran | 3 | 3 |
+| $19 | Block Debris | 1 | 1 | $39 | Hologran | 3 | 3 |
 | $1A | Gyoraibo | 2 | 6 | $3A | Hologran | 3 | 3 |
 | $1B | Hari Harry | 6 | 6 | $3B | Bomber Pepe | 6 | 6 |
 | $1C | Penpen Maker | 10 | 8 | $3C | Metall DX (walk) | 1 | 4 |
-| $1D | Returning Monking | 8 | 3 | $3D | Magnet Push | $FF | — |
+| $1D | Returning Monking | 8 | 3 | $3D | Mag Force (push variant) | $FF | — |
 | $1E | Block Breaker | 1 | 2 | $3E | Proto Man | 28 | 4 |
 | $1F | Have 'Su' Bee | 3 | 6 | $3F | (no-op) | $FF | — |
 
 HP = $FF means invincible (immune to all damage). Dmg = contact damage in HP bars from `contact_damage_table` (bank $0A, $A000), indexed by `ent_routine`. — = non-combat entity (platform, projectile, or no-op).
 
-*Electric Gabyoall: standard table entry is $00 at its init routine ($3E); effective damage (4) applied via AI-driven dual-hitbox collision using alternate routine indices ($78/$79).
+Electric Gabyoall entities are global IDs $64-$65 (routines $78/$79); damage is applied via their AI-driven dual-hitbox collision.
 
 Enemy names follow official Capcom Rockman 3 documentation. Pickelman Bull = "Picket Man" in English fan translations. All damage values verified against the [Mega Man Knowledge Base](https://megaman.fandom.com/wiki/List_of_Mega_Man_3_enemies).
 
@@ -219,7 +219,7 @@ Enemies that fire projectiles spawn separate entities with their own `ent_routin
 | Potton | Copipi bomb | $04 | 4 |
 | New Shotman | Bullets (horiz / falling) | $1B / $0C | 2 |
 | Hammer Joe | Thrown hammer | $2D | 2 |
-| Metall DX | Bullets (3-round burst) | $0F | 2 |
+| Met / Metall DX | Bullets (linear projectile) | $0F | 2 |
 | Cannon | Arcing shell | $13 | 2 |
 | Gyoraibo | Torpedo | $29 / $45 | 2 |
 | Nitron | Falling bomb | $26 | 2 |
@@ -228,7 +228,7 @@ Enemies that fire projectiles spawn separate entities with their own `ent_routin
 | Have 'Su' Bee | Dropped beehive | $2F | 2 |
 | Bomber Pepe | Egg bomb | $1D | 3 |
 
-Most projectile routines are shared: $0F (linear) is used by both Metall DX and fortress turrets; $0C (falling) by New Shotman and other droppers. To change a specific enemy's projectile damage, find its routine index above and edit `contact_damage_table` at that offset in bank $0A.
+Most projectile routines are shared: $0F (main_linear_projectile) is used by Met bullets and fortress turrets; $0C (falling) by New Shotman and other droppers. To change a specific enemy's projectile damage, find its routine index above and edit `contact_damage_table` at that offset in bank $0A.
 
 **Doc Robot Screen Markers & Robot Masters ($40-$4F):**
 
@@ -255,19 +255,20 @@ values are from the fight AI combat routines.
 
 | ID | Entity | HP | Dmg |
 |----|--------|-----|-----|
-| $50-$51 | Robot Master intros (Needle, Magnet) | $FF | — |
-| $52-$53 | Robot Master intros (Gemini, Hard) | $1C (28) | — |
-| $54-$56 | Robot Master intros (Top, Snake, Spark) | $FF | — |
+| $50-$55 | Item pickups (routines $64-$69; small/large hitbox variants) | $FF/$1C | — |
+| $56 | Surprise Box (routine $6A) | $FF | — |
 | $57 | Giant Met (Doc Needle mid-boss, bank $12 AI) | 10 | 8 |
-| $58-$5B | Tama segments | $FF/0 | — |
+| $58-$59 | Spinning Wheel (routine $6E) | $FF/0 | — |
+| $5A | Trap Platform (routine $70) | 0 | — |
+| $5B | (no AI) | 0 | — |
 | $5C | Giant Springer | 8 | 6 |
-| $5D | Tama segment | 8 | — |
+| $5D | Breakable Wall (routine $74) | 8 | — |
 | $5E | Kamegoro Maker (Wily 1 boss) | 1 | 8 |
 | $5F | Kamegoro-room current spawner (Wily 1) | 0 | — |
 | $60-$61 | Petit Snakey (idle right/left) | 2 | — |
 | $62 | Komasaburo | 6 | 8 |
-| $63 | Surprise Box | 8 | — |
-| $64-$65 | Item Pickup | 1 | — |
+| $63 | Junk Block (routine $6C) | 8 | — |
+| $64-$65 | Electric Gabyoall (routines $78/$79) | 1 | 4 |
 | $66-$67 | (unused) | 0 | — |
 
 **Doc Robots ($68-$6F):**
@@ -295,8 +296,10 @@ intro routine; damage values are from the fight AI combat routines.
 | ID | Entity | HP |
 |----|--------|-----|
 | $70 | (boss projectile) | 0 |
-| $71 | (boss projectile) | 10 |
-| $72-$76 | (boss projectiles) | 0 |
+| $71 | Big Snakey (Snake Man mid-boss, routine $89) | 10 |
+| $72, $74-$75 | (no AI) | 0 |
+| $73 | Tama phase A (routine $8A) | 0 |
+| $76 | Tama phase B (routine $8C) | 0 |
 | $77 | Tama (Top Man stage cat mid-boss, `init_tama`) | 0 |
 | $78 | Proto Man (Gemini cutscene) | 0 |
 | $79-$7D | Gamma + body parts (Wily 6; $7A = main, routine $E7) | 0 |
@@ -310,7 +313,7 @@ intro routine; damage values are from the fight AI combat routines.
 | $81 | Yellow Devil | 28 | $E0 | 8 |
 | $82 | Wily Machine (phase A) | 28 | $E3 | 8 |
 | $83 | Wily Machine (phase B) | 28 | $E5 | 4 |
-| $84 | Break Man | 0 | $ED | — |
+| $84 | (stub — routine $ED is nop/nop/rts; Break Man spawns via code with routine $EE) | 0 | $ED | — |
 | $85-$89 | Wily Machine parts / landing dust | 0 | $00 | — |
 | $8A | Rematch teleporter | 0 | $EB | — |
 | $8B-$8D | Rematch teleporters | 0 | $EC | — |
@@ -338,7 +341,7 @@ half the player's HP in a single hit. The Kamegoro Maker boss is entity $5E
 | $30 | `player_state` | Player state machine index (22 states) |
 | $31 | `player_facing` | 1=right, 2=left |
 | $39 | `invincibility_timer` | I-frames countdown (nonzero = immune) |
-| $99 | `gravity` | Gravity sub-pixel value ($55 gameplay, $40 stage select) |
+| $99 | `gravity` | Gravity per frame: $40 for player, $55 for entities (both set every frame) |
 
 ### Initialization (game_loop.asm)
 

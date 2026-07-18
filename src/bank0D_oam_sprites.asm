@@ -3,15 +3,20 @@
 ; =============================================================================
 ; Mapped to $A000-$BFFF. Contains two unrelated data sets sharing a bank:
 ;
-;   1. INTRO CUTSCENE SPRITE DATA ($A000-$A5AA)
-;      - OAM sprite frame copier: copies pre-built OAM quads (Y, tile,
-;        attribute, X) into the OAM buffer at $0200+ for the intro cutscene
-;        robot master portraits.
-;      - 9 sprite frame groups (one per robot master), indexed by ent_var2.
-;      - Palette data for each robot master portrait (8 bytes each).
-;      - Encoded text strings for the intro credits (robot master names,
-;        weapon names, Doc Robot descriptions). Each credit block is a
-;        series of PPU nametable write commands terminated by $FF.
+;   1. ENDING "ROBOT NUMBER LIST" DATA ($A000-$A5AA)
+;      Used by the bank $0C ending scroller ("NUMBER LIST OF ROBOTS MADE
+;      BY DR. RIGHT" — the nine MM1-era robots, NO.000-008):
+;      - OAM sprite frame copier at $A000 (ending_portrait_draw): copies
+;        pre-built OAM quads (Y, tile, attribute, X) into the OAM buffer
+;        at $0200+ for the robot portraits; one call per list section,
+;        auto-advancing ent_var2.
+;      - 9 portrait frame groups in list order: Elec Man, Fire Man,
+;        Bomb Man, Ice Man, Guts Man, Cut Man, Roll, Mega Man, Proto Man.
+;      - Palette data for each portrait (8 bytes each).
+;      - PPU text blocks: "EPILOGUE" title card + one number-list entry
+;        per robot ("NO.008 ELECMAN / ATOMIC ENERGY CONTROLLER" etc.),
+;        each a series of PPU nametable write commands terminated by $FF
+;        (referenced by bank $0C's pointer tables, entries $06-$0F/$12).
 ;
 ;   2. WILY FORTRESS STAGE DATA ($A5AB-$BFFF)
 ;      Standard stage data layout (see fixed bank $C816 for loader):
@@ -45,9 +50,10 @@
 .segment "BANK0D"
 
 ; ===========================================================================
-; INTRO CUTSCENE SPRITE FRAME COPIER ($A000)
+; ENDING PORTRAIT FRAME COPIER ($A000)
 ; ===========================================================================
-; Called during the intro cutscene to display robot master portraits.
+; Called from the bank $0C robot-number-list scroller (one call per list
+; section) to display the next robot portrait.
 ; Copies a pre-built OAM sprite frame (selected by ent_var2 index) into
 ; the OAM shadow buffer at $0200. Each frame consists of 4-byte OAM quads
 ; (Y position, tile index, attributes, X position), terminated by $FF.
@@ -62,9 +68,9 @@
         sta     $01                     ; (high bytes overlap with sprite data start)
         ldy     #$00                    ; start at beginning of OAM buffer
 ; --- copy OAM quads until $FF terminator ---
-copy_oam_quad_loop:  lda     ($00),y             ; read Y position (or terminator)
+copy_oam_quad_loop:  lda     ($00),y    ; read Y position (or terminator)
         cmp     #$FF                    ; end of sprite frame?
-        beq     copy_portrait_palette               ; yes -- done copying
+        beq     copy_portrait_palette   ; yes -- done copying
         sta     $0200,y                 ; write Y position to OAM buffer
         iny                             ; advance to tile index byte
         lda     ($00),y                 ; read tile index
@@ -76,9 +82,9 @@ copy_oam_quad_loop:  lda     ($00),y             ; read Y position (or terminato
         lda     ($00),y                 ; read X position
         sta     $0200,y                 ; write X position
         iny                             ; advance to next quad
-        bne     copy_oam_quad_loop               ; loop (max 64 sprites)
+        bne     copy_oam_quad_loop      ; loop (max 64 sprites)
 ; --- copy palette for this portrait ---
-copy_portrait_palette:  sty     oam_ptr             ; save OAM write position
+copy_portrait_palette:  sty     oam_ptr ; save OAM write position
         sty     ent_var3                ; also store in entity var3
         lda     ent_var2                ; current portrait index
         asl     a                       ; * 8 (each palette is 8 bytes)
@@ -101,8 +107,9 @@ palette_copy_loop:  lda     robot_master_palette_data,y ; read palette byte
 ; ===========================================================================
 ; robot_master_portrait_pointer_low: 9-entry pointer low bytes  (high bytes in robot_master_portrait_pointer_high)
 ; Together they form 16-bit pointers to the OAM sprite data for each of
-; the 9 intro cutscene robot master portraits. Each portrait frame is a
-; list of 4-byte OAM quads (Y, tile, attr, X), terminated by $FF.
+; the 9 robot-number-list portraits (Elec Man ... Proto Man, in list
+; order). Each frame is a list of 4-byte OAM quads (Y, tile, attr, X),
+; terminated by $FF.
 ; ---------------------------------------------------------------------------
 robot_master_portrait_pointer_low:  .byte   $5F,$BC,$01,$56,$A3,$04,$55,$A2 ; pointer low bytes [0-7]
         .byte   $FB                     ; pointer low byte  [8]
@@ -111,12 +118,13 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
 ; ===========================================================================
 ; OAM SPRITE FRAME DATA ($A05F)
 ; ===========================================================================
-; Pre-built OAM quad lists for each robot master portrait shown during
-; the intro cutscene. Format per quad: Y, tile, attribute, X.
+; Pre-built OAM quad lists for each robot portrait shown during the
+; ending number list. Format per quad: Y, tile, attribute, X.
 ; Each frame is terminated by $FF. Frames are indexed 0-8 via the
-; pointer table above.
+; pointer table above, in list order (NO.008 Elec Man ... NO.000
+; Proto Man); palettes below match the MM1 robot colors.
 ; ---------------------------------------------------------------------------
-; --- portrait 0: Needle Man ---
+; --- portrait 0: Elec Man (NO.008) ---
         .byte   $A8,$80,$03,$40,$A8,$81,$03
         .byte   $48,$A8,$82,$03,$50,$A8,$83,$03
         .byte   $58,$B0,$84,$03,$40,$B0,$85,$03
@@ -128,7 +136,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $58,$BC,$8D,$02,$40,$BC,$8D,$42
         .byte   $58,$B8,$90,$02,$4C,$C0,$8E,$02
         .byte   $48,$C0,$8F,$02,$50,$A8,$8A,$00
-; --- portrait 1: Magnet Man ---
+; --- portrait 1: Fire Man (NO.007) ---
         .byte   $44,$B8,$8B,$00,$4C,$FF,$A8,$91
         .byte   $03,$44,$A8,$92,$03,$4C,$A8,$93
         .byte   $03,$54,$B0,$94,$03,$40,$B0,$95
@@ -138,7 +146,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $43,$58,$C0,$99,$03,$44,$C0,$9A
         .byte   $03,$4C,$C0,$9B,$03,$54,$B3,$9C
         .byte   $00,$4C,$BD,$9D,$01,$48,$BD,$9E
-; --- portrait 2: Gemini Man ---
+; --- portrait 2: Bomb Man (NO.006) ---
         .byte   $01,$50,$FF,$A8,$9F,$03,$44,$A8
         .byte   $A0,$03,$4C,$A8,$A1,$03,$54,$B0
         .byte   $A2,$03,$40,$B0,$A3,$03,$48,$B0
@@ -150,7 +158,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $AE,$02,$40,$B0,$AD,$02,$4C,$B0
         .byte   $AE,$42,$58,$B8,$AF,$02,$40,$B8
         .byte   $AF,$42,$58,$B3,$9C,$00,$4C,$FF
-; --- portrait 3: Hard Man ---
+; --- portrait 3: Ice Man (NO.005) ---
         .byte   $A8,$B0,$02,$40,$A8,$B1,$02,$48
         .byte   $A8,$B2,$02,$50,$A8,$B0,$42,$58
         .byte   $B0,$B3,$03,$40,$B0,$B4,$03,$48
@@ -160,7 +168,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $C0,$B8,$03,$40,$C0,$B9,$03,$48
         .byte   $C0,$BA,$03,$50,$C0,$B8,$43,$58
         .byte   $B0,$BB,$02,$40,$B0,$BB,$42,$58
-; --- portrait 4: Top Man ---
+; --- portrait 4: Guts Man (NO.004) ---
         .byte   $B8,$BC,$02,$4C,$FF,$A8,$BD,$02
         .byte   $44,$A8,$BE,$02,$4C,$A8,$BF,$02
         .byte   $54,$B0,$C0,$02,$40,$B0,$C1,$02
@@ -173,7 +181,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $40,$B8,$CD,$02,$48,$B8,$CD,$42
         .byte   $50,$B8,$CC,$42,$58,$A8,$C9,$00
         .byte   $44,$A8,$CA,$00,$4C,$A8,$C9,$40
-; --- portrait 5: Snake Man ---
+; --- portrait 5: Cut Man (NO.003) ---
         .byte   $54,$B0,$9C,$00,$4C,$FF,$A8,$CE
         .byte   $03,$44,$A8,$CF,$03,$4C,$A8,$D0
         .byte   $03,$54,$B0,$D1,$03,$44,$B0,$D2
@@ -184,7 +192,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $02,$4C,$B3,$DB,$02,$40,$B3,$DC
         .byte   $02,$48,$B3,$DC,$42,$50,$B3,$DB
         .byte   $42,$58,$BB,$DD,$02,$40,$BB,$DD
-; --- portrait 6: Spark Man ---
+; --- portrait 6: Roll (NO.002) ---
         .byte   $42,$58,$B4,$9C,$00,$4C,$FF,$A8
         .byte   $DE,$03,$40,$A8,$DF,$03,$48,$A8
         .byte   $E0,$03,$50,$A8,$E1,$03,$58,$B0
@@ -195,7 +203,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $E9,$02,$47,$C0,$EA,$02,$4F,$C0
         .byte   $EB,$03,$57,$B0,$EC,$02,$48,$B0
         .byte   $EC,$42,$50,$B8,$ED,$03,$4C,$B8
-; --- portrait 7: Shadow Man ---
+; --- portrait 7: Mega Man (NO.001) ---
         .byte   $EE,$02,$58,$FF,$A8,$EF,$03,$40
         .byte   $A8,$F0,$03,$48,$A8,$F1,$03,$50
         .byte   $A8,$F2,$03,$58,$B0,$F3,$03,$40
@@ -207,7 +215,7 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $B0,$FC,$02,$44,$B0,$FC,$42,$54
         .byte   $B8,$FD,$02,$40,$B8,$FE,$03,$4C
         .byte   $B8,$FD,$42,$58,$C0,$FF,$03,$40
-; --- portrait 8: Doc Robot ---
+; --- portrait 8: Proto Man (NO.000) ---
         .byte   $C0,$FF,$43,$58,$FF,$A8,$67,$03
         .byte   $44,$A8,$68,$03,$4C,$A8,$69,$03
         .byte   $54,$B0,$55,$03,$40,$B0,$56,$03
@@ -223,36 +231,44 @@ robot_master_portrait_pointer_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A2,$A2,$A2 ; p
         .byte   $50,$C0,$63,$01,$48,$C0,$64,$01
         .byte   $50,$FF
 ; ===========================================================================
-; INTRO PORTRAIT PALETTE DATA ($A360)
+; PORTRAIT PALETTE DATA ($A360)
 ; ===========================================================================
 ; 9 palette blocks, 8 bytes each (2 sub-palettes of 4 colors).
-; Copied into $0618 (sprite palette staging) for each robot master portrait.
-; Index 0 = Needle Man, 1 = unused/blank, 2 = Magnet Man, 3 = Hard Man,
-; 4 = Top Man, 5 = Snake Man, 6 = Spark Man, 7 = Gemini Man, 8 = Shadow Man
+; Copied into $0618 (sprite palette staging) for each robot portrait.
+; Same index order as the frames: 0 = Elec Man ... 8 = Proto Man
+; (colors match: 0 = yellow/orange Elec, 3 = white/blue Ice,
+; 5 = white/gray Cut, 8 = red/orange Proto).
 ; ---------------------------------------------------------------------------
-robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Needle Man)
-        .byte   $0F,$00,$00,$00,$0F,$30,$26,$10 ; palette 1
-        .byte   $0F,$15,$05,$10,$0F,$30,$27,$26 ; palette 2 (Magnet Man)
-        .byte   $0F,$30,$11,$29,$0F,$30,$37,$26 ; palette 3 (Hard Man)
-        .byte   $0F,$30,$27,$15,$0F,$37,$26,$10 ; palette 4 (Top Man)
-        .byte   $0F,$30,$00,$10,$0F,$30,$15,$05 ; palette 5 (Snake Man)
-        .byte   $0F,$30,$37,$26,$0F,$29,$27,$26 ; palette 6 (Spark Man)
-        .byte   $0F,$30,$37,$26,$0F,$30,$2C,$11 ; palette 7 (Gemini Man)
-        .byte   $0F,$26,$27,$10,$0F,$30,$15,$05 ; palette 8 (Shadow Man)
+robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 (Elec Man)
+        .byte   $0F,$00,$00,$00,$0F,$30,$26,$10 ; palette 1 (Fire Man)
+        .byte   $0F,$15,$05,$10,$0F,$30,$27,$26 ; palette 2 (Bomb Man)
+        .byte   $0F,$30,$11,$29,$0F,$30,$37,$26 ; palette 3 (Ice Man)
+        .byte   $0F,$30,$27,$15,$0F,$37,$26,$10 ; palette 4 (Guts Man)
+        .byte   $0F,$30,$00,$10,$0F,$30,$15,$05 ; palette 5 (Cut Man)
+        .byte   $0F,$30,$37,$26,$0F,$29,$27,$26 ; palette 6 (Roll)
+        .byte   $0F,$30,$37,$26,$0F,$30,$2C,$11 ; palette 7 (Mega Man)
+        .byte   $0F,$26,$27,$10,$0F,$30,$15,$05 ; palette 8 (Proto Man)
 ; ===========================================================================
-; INTRO CREDITS TEXT DATA ($A3A5)
+; ENDING TEXT DATA — "EPILOGUE" + ROBOT NUMBER LIST ($A3A8)
 ; ===========================================================================
-; PPU nametable write commands for the robot master intro credits.
-; Format: [PPU addr hi] [PPU addr lo] [length] [tile data...] $FF
-; Each block writes text strings to the nametable to display the robot
-; master's number, name, weapon name, and Doc Robot assignment.
-; The tile encoding maps: $00=space, $01-$1A=A-Z, $23='.', $25=copyright,
-; $26='!', $2D='-', etc.
+; PPU nametable write commands for the ending (referenced via bank $0C's
+; pointer tables: entry $12 = "EPILOGUE", entries $07-$0F = list text;
+; entry $06, the "NUMBER LIST OF ROBOTS MADE BY DR. RIGHT" title, sits
+; between "EPILOGUE" and the Elec Man block).
+; Format: [PPU addr hi] [PPU addr lo] [length-1] [tile data...], repeat;
+; a byte with bit 7 set ($FF) ends the block.
+; Tile font: $00=space, $01-$0A='0'-'9', $0B-$24=A-Z, $25='R' (in "DR."),
+; $26='.', $2B=',', $2C='-'.
 ;
-; Credit blocks in order:
-;   Copyright notice, then for each robot master (#009 down to #001):
-;   Elec Man, Fire Man, Bomb Man, Ice Man, Guts Man, Cut Man, Roll,
-;   Mega Man, Proto Man
+; Blocks in order (ROM-decoded):
+;   "EPILOGUE" title card, "NUMBER LIST OF ROBOTS MADE BY DR. RIGHT",
+;   then one entry per robot, NO.008 down to NO.000:
+;   ELECMAN (ATOMIC ENERGY CONTROLLER), FIREMAN (WASTE DISPOSAL ROBOT),
+;   BOMBMAN (GROUND DISRUPTION ROBOT), ICEMAN (ANTARCTIC INVESTIGATION
+;   ROBOT), GUTSMAN (WILDERNESS RECLAMATION ROBOT), CUTMAN
+;   (TIMBER-FELLING ROBOT), ROLL (HOUSEKEEPING ROBOT), MEGAMAN (FORMER
+;   ASSISTANT TO DR.RIGHT), PROTO MAN (NEW ROBOT PROTOTYPE, BROTHER OF
+;   MEGAMAN)
 ; ---------------------------------------------------------------------------
         .byte   $21,$8C,$07,$0F,$1A,$13,$16,$19
         .byte   $11,$1F,$0F,$FF,$22,$89,$0A,$18
@@ -318,7 +334,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $1A,$0F,$2B,$23,$2D,$09,$0C,$1C
         .byte   $19,$1E,$12,$0F,$1C,$00,$19,$10
         .byte   $23,$6D,$06,$17,$0F,$11,$0B,$17
-        .byte   $0B,$18,$FF             ; end of credit text
+        .byte   $0B,$18,$FF             ; end of number-list text
 ; =============================================================================
 ; WILY FORTRESS STAGE DATA ($A5AB-$BFFF)
 ; =============================================================================
@@ -326,7 +342,7 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
 ; shared by stage IDs $0D (Wily 2), $0E (Wily 3), and $10 (Wily 5) — all
 ; mapped to bank $0D via the ensure_stage_bank_table lookup table at $C8B9.
 ;
-; The intro cutscene data above ($A000-$A5AA) occupies what is normally the
+; The ending number-list data above ($A000-$A5AA) occupies what is normally the
 ; enemy flag/property table region ($A000-$A4FF) in other stage banks, so
 ; this bank's RLE nametable data starts at $A5AB instead of $A500.
 ;

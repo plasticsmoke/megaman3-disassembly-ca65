@@ -75,15 +75,15 @@ src/
   bank08_stage_doc_needle.asm   Doc Robot Needle stage data
   bank09_per_frame.asm          Per-frame entity subsystems + Doc Robot Gemini stage
   bank0A_damage_tables.asm      Weapon damage tables + Doc Robot Spark stage
-  bank0B_intro.asm              Intro sequence + Doc Robot Shadow stage
-  bank0C_game_over.asm          Game over / results + Wily 1 stage
+  bank0B_cutscenes.asm          Wily reveal cutscene + Wily map + Doc Robot Shadow stage
+  bank0C_ending.asm             Ending sequence (epilogue, robot list, credits) + Wily 1 stage
   bank0D_oam_sprites.asm        OAM sprite animation + Wily 2/3/5 stages
   bank0E_anim_frames.asm        Animation frame management + Wily 6 stage
   bank0F_entity_spawn.asm       Entity spawning / projectile dispatch + Wily 4 stage
   bank10_stage_setup.asm        Stage setup / boss post-defeat
-  bank11_ending_data.asm        Special / ending stage data
+  bank11_wily6_stage.asm        Wily 6 stage data
   bank12_fortress_bosses.asm    Fortress boss AI + special entities
-  bank13_ending_data2.asm       Additional ending stage data
+  bank13_password_stage.asm     Password / game over screen stage data
   bank14_sprite_offsets_alt.asm Sprite offset data (alternate)
   bank15_weapon_anim.asm        Weapon sprite animation sequences
   bank16_sound_driver.asm       NES APU sound driver

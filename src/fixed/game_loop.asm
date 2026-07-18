@@ -24,7 +24,7 @@ main_game_entry:
         lda     #$18                    ; map bank $18 to $8000-$9FFF
         sta     mmc3_select             ; set $8000 bank select
         jsr     select_PRG_banks        ; apply bank switch
-        jsr     stage_select_title ; title screen / stage select (bank $18)
+        jsr     stage_select_title      ; title screen / stage select (bank $18)
         lda     #HEALTH_FULL            ; full Rush Coil ammo
         sta     $A9                     ; store to ammo slot
         lda     #$02                    ; $AE = 2 $AE (display as 3)
@@ -375,7 +375,7 @@ frame_loop_boss_defeated:  lda     #$00 ; clear rendering/overlay/scroll state
         lda     #$10                    ; bank $10 for post-defeat
         sta     prg_bank                ; bank $10 = boss post-defeat code
         jsr     select_PRG_banks        ; switch banks
-        jsr     stage_select_rm_intro ; boss post-defeat (bank $10)
+        jsr     stage_select_rm_intro   ; boss post-defeat (bank $10)
         jmp     game_entry_stage_reinit ; → stage_reinit
 
 ; --- death_handler ($3C != 0) ---
@@ -410,7 +410,7 @@ frame_loop_bcd_lives_correction:  lda     #$00 ; clear rendering/overlay state
 frame_loop_wily_respawn:  lda     #$18  ; select bank $18
         sta     mmc3_select             ; bank $18 for Wily respawn
         jsr     select_PRG_banks        ; switch banks
-        jmp     stage_select_wily_gate ; Wily respawn (bank $18)
+        jmp     stage_select_wily_gate  ; Wily respawn (bank $18)
 
 ; --- game_over ($AE underflowed) ---
 
@@ -425,11 +425,15 @@ game_over:  lda     #$00                ; clear all state
         lda     #$13                    ; bank $13 for game over
         sta     prg_bank                ; bank $13 = game over handler
         jsr     select_PRG_banks        ; apply bank switch
-        jsr     stage_select_password ; game over sequence (bank $18)
+        jsr     stage_select_password   ; game over sequence (bank $18)
         jmp     game_entry_stage_reinit ; → stage_reinit (continue/retry)
 
 ; --- stage_clear_handler ($74 != 0: stage completion triggered) ---
-; $74 bit 7 distinguishes: 0 = normal stage clear, 1 = special/Wily clear.
+; $74 = $80 (set by beam_offscreen_ending, Break Man gate event): masked
+; value 0 → Wily reveal cutscene. $74 = $FF (wily_stage_clear): masked
+; value $7F → Wily map screen, or the ending when $75 = $06. Normal
+; Robot Master stage clears never set $74 (handled by the boss victory
+; path instead).
 
 stage_clear_handler:  pha               ; save $74 (stage clear type)
         lda     #$00                    ; clear game state for transition
@@ -446,13 +450,13 @@ stage_clear_handler:  pha               ; save $74 (stage clear type)
         lda     #$0E                    ; bank $0E for clear handler
         sta     prg_bank                ; store PRG bank number
         jsr     select_PRG_banks        ; switch banks
-        pla                             ; $74 AND $7F: 0 = normal stage clear
+        pla                             ; $74 AND $7F: 0 = Break Man gate event
         and     #$7F                    ; mask off high bit
-        bne     frame_loop_special_clear_check ; nonzero = special clear (Wily/Doc Robot)
-        jsr     banked_8000             ; normal stage clear seq (bank $0B code)
+        bne     frame_loop_special_clear_check ; nonzero = fortress stage clear
+        jsr     banked_8000             ; Wily reveal cutscene (bank $0B)
         jmp     game_entry_stage_reinit ; → stage_reinit
 
-; --- special stage clear (Wily/Doc Robot stages) ---
+; --- fortress stage clear ($74 = $FF) ---
 
 frame_loop_special_clear_check:  lda     $75 ; $75 = stage clear sub-type
         cmp     #$06                    ; $06 = final boss / ending
@@ -602,14 +606,14 @@ dead_code_refill_all_ammo:
 rush_handler_ptr_lo:  lda     #HEALTH_FULL ; all to full (28 units)
 ; --- overlap trick: $99,$A2,$00 = sta $00A2,y (sta ammo_array,y) ---
 ; Fall-through fills ammo slots; entry at ready_sprite_table loads X=0.
-frame_loop_ammo_refill_loop:  .byte   $99   ; opcode: sta abs,y
+frame_loop_ammo_refill_loop:  .byte   $99 ; opcode: sta abs,y
 rush_handler_ptr_hi:  ldx     #$00      ; code: ldx #$00 | addr: $00A2
         dey                             ; next ammo slot
         bpl     frame_loop_ammo_refill_loop ; loop until all 12 filled
 frame_loop_ammo_refill_exit:  rts
 frame_loop_ready_overlay_data:  .byte   $80 ; READY overlay: Y pos (5 sprites, stride 4)
-ready_overlay_tiles:  .byte   $40      ; tiles $40-$44 = letters R,E,A,D,Y
-ready_overlay_attrs:  .byte   $00      ; attribute (palette 0)
+ready_overlay_tiles:  .byte   $40       ; tiles $40-$44 = letters R,E,A,D,Y
+ready_overlay_attrs:  .byte   $00       ; attribute (palette 0)
 ready_overlay_xpos:  .byte   $6C,$80,$41,$00,$74,$80,$42,$00 ; X: $6C,$74,$7C,$84,$8C
         .byte   $7C,$80,$43,$00,$84,$80,$44,$00
         .byte   $8C

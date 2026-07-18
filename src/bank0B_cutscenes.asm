@@ -1,21 +1,27 @@
 ; =============================================================================
-; MEGA MAN 3 (U) — BANK $0B — INTRO SEQUENCE + DOC ROBOT SHADOW STAGE
+; MEGA MAN 3 (U) — BANK $0B — WILY REVEAL CUTSCENE + WILY MAP + DOC SHADOW STAGE
 ; =============================================================================
-; Mapped to $8000-$9FFF for the intro/opening cutscene code, and to
+; Mapped to $8000-$9FFF for the cutscene/Wily-map code, and to
 ; $A000-$BFFF when serving as the Doc Robot Shadow Man stage data bank
 ; (stage_id $0B → bank $0B via ensure_stage_bank_table).
 ;
-; The intro sequence has three phases:
-;   Phase 1 ($8006): "Mountain top" — Mega Man falls from sky, Rush slides in,
-;       title music plays via bank $0E music driver, palette fade cycling.
-;   Phase 2 ($81B0): "Flying on Rush" — Proto Man scene: Mega Man rides Rush
-;       upward through star field, wind SFX ($28), palette flashing.
-;   Phase 3 ($8291): "Proto Man confrontation" — Mega Man rises into view, Proto Man
-;       appears with whistle ($5D), they meet, Proto Man departs.
+; The $8000 entry is reached from game_loop's stage_clear_handler when
+; $74 = $80 — set by beam_offscreen_ending (player_warp.asm) after the
+; Break Man gate event — NOT after normal Robot Master stage clears.
+; It plays the "Wily stole Gamma" cutscene in three phases:
+;   Phase 1 ($8006): Cliff top — Mega Man teleports in (anim $13), walks
+;       to Dr. Light, and dialogue strings $08/$09 stream letter-by-letter
+;       via the bank $0E text streamer: "OH NO! RIGHT AFTER WE RECEIVED
+;       THE LAST ELEMENT..." / "WILEY RAN OFF WITH GAMMA!". Sunset
+;       palette cycling runs throughout.
+;   Phase 2 ($81B0): Mega Man rides Rush Jet up through a night-sky
+;       star field toward Wily's fortress; wind SFX ($28), palette flash.
+;   Phase 3 ($8291): Proto Man appears mid-flight, whistles, and departs;
+;       Mega Man flies on.
 ;
-; After all three intro phases, jumps to Doc Robot stage entry ($8439)
-; which loads the Shadow Man stage nametable and runs the Doc Robot
-; cutscene showing boss selection sprites.
+; The cutscene then falls into the WILY CASTLE MAP screen ($8439), also
+; reachable directly via the $8003 entry (between fortress stages), which
+; ends by loading the next Wily stage (stage $0C + $75).
 ;
 ; Stage data (metatile columns, enemy/object layouts, tile attribute maps)
 ; fills the $A000-$BFFF half of this bank pair.
@@ -28,13 +34,13 @@
 .include "include/hardware.inc"
 
 ; --- External references (fixed bank + swappable bank $0E) ---
-music_driver_init := $A000              ; init music driver (bank $0E)
-music_driver_tick := $A003              ; continue music playback (bank $0E)
-music_start_track := $A006              ; start music track X (bank $0E)
+text_clear_rows := $A000                ; blank dialogue text rows (bank $0E)
+text_stream_tick := $A003               ; write next dialogue character (bank $0E)
+text_stream_start := $A006              ; start streaming text string X (bank $0E)
 prepare_oam_buffer           := $C5E9   ; prepare OAM buffer
 clear_entity_table           := $C628   ; clear entity table
-fade_palette_in           := $C74C     ; fade palette in (reveal)
-fade_palette_out          := $C752     ; fade palette out (to black)
+fade_palette_in           := $C74C      ; fade palette in (reveal)
+fade_palette_out          := $C752      ; fade palette out (to black)
 metatile_screen_ptr_by_id           := $E8B4 ; init metatile column pointers
 fill_nametable_progressive           := $EF8C ; fill one nametable column
 apply_y_speed           := $F797        ; apply Y speed (gravity)
@@ -52,20 +58,21 @@ select_PRG_banks           := $FF6B     ; select PRG banks
 ; ===========================================================================
 ; Entry point jump table
 ; ===========================================================================
-; $8000: intro sequence (called from game mode handler)
+; $8000: Wily reveal cutscene (from game_loop, $74 = $80 Break Man gate event)
 ; $8003: Wily castle map screen (between fortress stages)
 ; ===========================================================================
-        jmp     intro_phase1_init       ; entry: intro sequence
+        jmp     cutscene_phase1_init    ; entry: Wily reveal cutscene
 
-        jmp     wily_map_init               ; entry: Wily castle map screen
+        jmp     wily_map_init           ; entry: Wily castle map screen
 
 ; ===========================================================================
-; Phase 1 Init: "Mountain Top" — Mega Man falls, Rush slides in
+; Phase 1 Init: Cliff top — Mega Man teleports in to meet Dr. Light
 ; ===========================================================================
-; Fade in, load stage $16 nametable, set up Mega Man (entity 0) and
-; Rush (entity 1) sprites, start title music, then enter main loop.
+; Fade in, load stage $16 (cutscene backdrop) nametable, set up Mega Man
+; (entity 0, teleporting in) and Dr. Light (entity 1), then enter the
+; main loop where the "Wily stole Gamma" dialogue streams.
 ; ===========================================================================
-intro_phase1_init:  lda     #$00        ; A = 0
+cutscene_phase1_init:  lda     #$00     ; A = 0
         sta     nmi_skip                ; disable NMI processing
         jsr     fade_palette_out        ; fade palette to black
         lda     #$04                    ; OAM starts at byte 4
@@ -76,48 +83,48 @@ intro_phase1_init:  lda     #$00        ; A = 0
         lda     #SNDCMD_INIT            ; silence all sound channels
         jsr     submit_sound_ID_D9      ; submit sound $F0 (silence/init)
         lda     #$00                    ; A = 0 for clearing
-        sta     $B1                     ; clear music state vars
-        sta     $B2                     ; clear music state var 2
-        sta     $B3                     ; clear music state var 3
+        sta     $B1                     ; clear HUD bar lengths (HP bar)
+        sta     $B2                     ; clear boss HP bar length
+        sta     $B3                     ; clear weapon bar length
         sta     $70                     ; nametable column progress counter
         sta     camera_x_hi             ; clear camera X high byte
         sta     camera_x_lo             ; clear camera X low byte
-        sta     $B8                     ; music continuation flag
-        lda     #$16                    ; stage $16 = intro background
-        sta     stage_id                ; stage $16 = intro/Shadow Man stage
+        sta     $B8                     ; clear text stream state
+        lda     #$16                    ; stage $16 = cutscene backdrop
+        sta     stage_id                ; stage $16 → bank $0E stage data
         lda     #$02                    ; nametable bank = $02
         jsr     metatile_screen_ptr_by_id ; init metatile column pointers
 ; --- fill nametable progressively until complete ---
-fill_nametable_loop:  lda     #$00                ; A = 0
+fill_nametable_loop:  lda     #$00      ; A = 0
         sta     $10                     ; column direction = rightward
         jsr     fill_nametable_progressive ; draw one nametable column
         jsr     task_yield              ; wait for NMI
         lda     $70                     ; check column progress
-        bne     fill_nametable_loop               ; loop until nametable fully drawn
+        bne     fill_nametable_loop     ; loop until nametable fully drawn
 ; --- load palette and CHR bank settings ---
         ldy     #$1F                    ; 32 palette bytes (0-$1F)
-load_phase1_palette_loop:  lda     intro_phase1_palette_table,y ; phase 1 palette (mountain top)
+load_phase1_palette_loop:  lda     cutscene_phase1_palette_table,y ; phase 1 palette (cliff sunset)
         sta     $0620,y                 ; write to palette buffer
         dey                             ; next palette byte
-        bpl     load_phase1_palette_loop               ; loop until all 32 copied
+        bpl     load_phase1_palette_loop ; loop until all 32 copied
         ldy     #$05                    ; 6 CHR bank slots (0-5)
-load_phase1_chr_loop:  lda     intro_phase1_chr_bank_table,y ; phase 1 CHR bank assignments
+load_phase1_chr_loop:  lda     cutscene_phase1_chr_bank_table,y ; phase 1 CHR bank assignments
         sta     $E8,y                   ; write to CHR bank shadow
         dey                             ; next CHR bank
-        bpl     load_phase1_chr_loop               ; loop until all 6 set
+        bpl     load_phase1_chr_loop    ; loop until all 6 set
         jsr     update_CHR_banks        ; update CHR banks via MMC3
-; --- set up entities 0 (Mega Man) and 1 (Rush) ---
-        ldy     #$01                    ; Y = entity 1 (Rush), then 0 (MM)
-init_phase1_entity_loop:  lda     #$80                ; status = active
+; --- set up entities 0 (Mega Man) and 1 (Dr. Light) ---
+        ldy     #$01                    ; Y = entity 1 (Dr. Light), then 0 (MM)
+init_phase1_entity_loop:  lda     #$80  ; status = active
         sta     ent_status,y            ; entity active
         lda     #$90                    ; flags = facing left
         sta     ent_flags,y             ; facing left, palette 0
-        lda     intro_phase1_entity_anim_table,y ; load animation ID from table
-        sta     ent_anim_id,y           ; anim: $13=Mega Man fall, $60=Rush
-        lda     intro_phase1_entity_x_table,y ; load X position from table
-        sta     ent_x_px,y              ; x: $D8=MM, $58=Rush
-        lda     intro_phase1_entity_y_table,y ; load Y position from table
-        sta     ent_y_px,y              ; y: $00=MM (top), $A4=Rush (ground)
+        lda     cutscene_phase1_entity_anim_table,y ; load animation ID from table
+        sta     ent_anim_id,y           ; anim: $13=MM teleport, $60=Dr. Light
+        lda     cutscene_phase1_entity_x_table,y ; load X position from table
+        sta     ent_x_px,y              ; x: $D8=MM, $58=Dr. Light
+        lda     cutscene_phase1_entity_y_table,y ; load Y position from table
+        sta     ent_y_px,y              ; y: $00=MM (top), $A4=Dr. Light
         lda     #$00                    ; A = 0 for clearing fields
         sta     ent_x_scr,y             ; clear X screen
         sta     ent_anim_frame,y        ; clear anim frame
@@ -132,58 +139,58 @@ init_phase1_entity_loop:  lda     #$80                ; status = active
         lda     #$FF                    ; Y velocity = -1 (upward)
         sta     ent_yvel,y              ; initial upward velocity = -1 (rises first frame)
         dey                             ; next entity
-        bpl     init_phase1_entity_loop               ; loop for entity 0
-; --- load initial OAM sprite data (mountain scenery) ---
+        bpl     init_phase1_entity_loop ; loop for entity 0
+; --- load initial OAM sprite data (2 scene decoration sprites) ---
         ldy     #$07                    ; 8 OAM bytes (2 sprites)
-load_mountain_oam_loop:  lda     intro_phase1_mountain_oam_table,y ; load mountain sprite data
+load_deco_oam_loop:  lda     cutscene_phase1_deco_oam_table,y ; load scene decoration OAM data
         sta     $0200,y                 ; OAM buffer: mountain decoration sprites
         dey                             ; next OAM byte
-        bpl     load_mountain_oam_loop               ; loop until all 8 copied
-        lda     #$11                    ; game mode = intro cinematic
-        sta     game_mode               ; set game mode = intro cinematic
+        bpl     load_deco_oam_loop      ; loop until all 8 copied
+        lda     #$11                    ; game mode = cutscene
+        sta     game_mode               ; set game mode $11 = cutscene
         lda     #$C0                    ; scroll limit = $C0
         sta     $5E                     ; scroll limit
         jsr     task_yield              ; wait for NMI
         jsr     fade_palette_in         ; fade in (reveal scene)
 ; --- init phase 1 state variables ---
-        lda     #$08                    ; start at track $08 (Shadow Man)
-        sta     ent_timer               ; music track index
+        lda     #$08                    ; first dialogue string = $08
+        sta     ent_timer               ; dialogue string index (bank $0E)
         lda     #$00                    ; A = 0 for clearing
         sta     $0104                   ; palette cycle index
         sta     $95                     ; frame counter
         sta     camera_screen           ; camera screen position
 ; ===========================================================================
-; Phase 1 Main Loop: Mega Man falling + Rush sliding in
+; Phase 1 Main Loop: Mega Man teleports in, walks to Dr. Light, dialogue
 ; ===========================================================================
-; Mega Man (entity 0) falls with gravity until Y >= $A4 (ground level),
+; Mega Man (entity 0) descends (teleport beam) until Y >= $A4 (ground),
 ; then plays landing anim ($04) and walks left until X < $98, where he
-; switches to standing ($01). Meanwhile, palette cycles through sunset
-; colors and title music plays track-by-track.
+; switches to standing ($01). Once standing, dialogue strings $08/$09
+; stream letter-by-letter while the sunset palette cycles.
 ; ===========================================================================
-phase1_main_loop:  ldx     #$00                ; X = entity 0 (Mega Man)
+phase1_main_loop:  ldx     #$00         ; X = entity 0 (Mega Man)
         lda     ent_anim_id             ; check Mega Man's current animation
         cmp     #$04                    ; anim $04 = landed?
-        beq     megaman_walk_left               ; landed → walk-left phase
+        beq     megaman_walk_left       ; landed → walk-left phase
         cmp     #$01                    ; anim $01 = standing?
-        beq     phase1_palette_music               ; branch if standing idle (== $01)
+        beq     phase1_palette_text     ; branch if standing idle (== $01)
 ; --- Mega Man is still falling ---
         jsr     apply_y_speed           ; apply Y speed (gravity)
         lda     #$A4                    ; ground level Y = $A4
         cmp     ent_y_px                ; has MM reached ground (Y=$A4)?
-        bcs     megaman_reset_anim_frame               ; not yet, skip
+        bcs     megaman_reset_anim_frame ; not yet, skip
         sta     ent_y_px                ; clamp Y to ground level
         lda     #$04                    ; anim state $04 = landed
         cmp     ent_anim_state          ; check if landing anim complete
-        bne     phase1_palette_music               ; not ready for landing anim
+        bne     phase1_palette_text     ; not ready for landing anim
         lda     #$04                    ; set anim $04 (landed/standing)
         jsr     reset_sprite_anim       ; reset sprite animation
-megaman_reset_anim_frame:  lda     #$00                ; A = 0
+megaman_reset_anim_frame:  lda     #$00 ; A = 0
         sta     ent_anim_frame          ; reset animation frame
-        jmp     phase1_palette_music               ; skip to palette/music update
+        jmp     phase1_palette_text     ; skip to palette/music update
 ; --- Mega Man (slot 0) walks leftward after landing ---
-megaman_walk_left:  lda     ent_anim_id         ; check Mega Man animation ID
+megaman_walk_left:  lda     ent_anim_id ; check Mega Man animation ID
         cmp     #$01                    ; anim $01 = standing?
-        beq     phase1_palette_music               ; already standing, skip
+        beq     phase1_palette_text     ; already standing, skip
         lda     ent_x_sub               ; Mega Man X -= 1.5 px/frame
         sec                             ; set carry for subtraction
         sbc     #$80                    ; subtract sub-pixel part
@@ -192,78 +199,78 @@ megaman_walk_left:  lda     ent_anim_id         ; check Mega Man animation ID
         sbc     #$01                    ; subtract 1 px (whole)
         sta     ent_x_px                ; store updated X pixel
         cmp     #$98                    ; reached target X ($98)?
-        bcs     phase1_palette_music               ; not at target yet
+        bcs     phase1_palette_text     ; not at target yet
         lda     #$01                    ; set anim $01 (standing)
         jsr     reset_sprite_anim       ; reset sprite animation
 ; --- palette cycling for sunset sky effect ---
-phase1_palette_music:  lda     $B8                 ; music continuation flag
-        bne     check_palette_cycle               ; skip if music playing
-        sta     $05E1                   ; clear entity 1 anim frame if music idle
-check_palette_cycle:  lda     $95                 ; load frame counter
+phase1_palette_text:  lda     $B8       ; text stream state
+        bne     check_palette_cycle     ; text active — let speaker animate
+        sta     $05E1                   ; hold Dr. Light anim frame while idle
+check_palette_cycle:  lda     $95       ; load frame counter
         and     #$03                    ; every 4 frames...
-        bne     phase1_process_frame               ; skip palette update
+        bne     phase1_process_frame    ; skip palette update
         lda     $0104                   ; palette cycle index
         asl     a                       ; index * 2
         adc     $0104                   ; index * 3 = offset into palette table
         tay                             ; Y = palette table offset
         ldx     #$05                    ; start at palette byte 5
-copy_palette_cycle_loop:  lda     intro_phase1_palette_cycle_table,y ; load 3 bytes of cycling palette
+copy_palette_cycle_loop:  lda     cutscene_phase1_palette_cycle_table,y ; load 3 bytes of cycling palette
         sta     $0600,x                 ; write to palette BG color slots 5-7
         iny                             ; next source byte
         inx                             ; next dest byte
         cpx     #$08                    ; copied 3 bytes?
-        bne     copy_palette_cycle_loop               ; loop until 3 bytes copied
+        bne     copy_palette_cycle_loop ; loop until 3 bytes copied
         stx     palette_dirty           ; mark palette for update
         inc     $0104                   ; advance palette cycle step
         lda     $0104                   ; load new cycle index
         cmp     #$06                    ; 6 palette steps in cycle
-        bne     phase1_process_frame               ; skip if not wrapped
+        bne     phase1_process_frame    ; skip if not wrapped
         lda     #$00                    ; reset to step 0
         sta     $0104                   ; reset cycle to beginning
-; --- process frame and run music driver ---
-phase1_process_frame:  lda     #$08                ; OAM past mountain sprites
+; --- process frame, then run the dialogue streamer ---
+phase1_process_frame:  lda     #$08     ; OAM past mountain sprites
         sta     oam_ptr                 ; OAM write position past scenery
         jsr     process_frame_yield     ; process frame + yield (sprites + NMI)
         lda     ent_anim_id             ; check Mega Man anim
         cmp     #$01                    ; Mega Man standing?
-        bne     phase1_loop_back               ; no — loop back
-; --- title music playback state machine ---
-        lda     ent_var1                ; inter-track delay timer
-        bne     inter_track_delay               ; counting down between tracks
+        bne     phase1_loop_back        ; no — loop back
+; --- dialogue text streaming state machine (typewriter effect) ---
+        lda     ent_var1                ; inter-string delay timer
+        bne     inter_string_delay      ; counting down between strings
         lda     $95                     ; load frame counter
         and     #$03                    ; check every 4th frame
-        bne     phase1_loop_back               ; only update music every 4 frames
-        lda     #$0E                    ; bank $0E = music driver
-        sta     prg_bank                ; bank $0E = music/sound driver
+        bne     phase1_loop_back        ; stream 1 character per 4 frames
+        lda     #$0E                    ; bank $0E = text streamer
+        sta     prg_bank                ; page text streamer into $A000
         jsr     select_PRG_banks        ; select PRG banks
-        lda     $B8                     ; music continuation flag
-        bne     continue_music_track               ; track playing — continue it
-        ldx     ent_timer               ; track index (starts at $08)
-        jsr     music_start_track       ; start new music track X
-        jmp     phase1_loop_back               ; skip delay/continue logic
-; --- continue current music track ---
-continue_music_track:  jsr     music_driver_tick ; continue music playback
-        lda     $B8                     ; check music status
-        cmp     #$FF                    ; track finished?
-        bne     phase1_loop_back               ; no — keep playing
-        inc     ent_timer               ; advance to next track
+        lda     $B8                     ; text stream state
+        bne     continue_text_stream    ; mid-string — write next character
+        ldx     ent_timer               ; dialogue string index ($08, then $09)
+        jsr     text_stream_start       ; begin streaming string X
+        jmp     phase1_loop_back        ; skip delay/continue logic
+; --- write the next character of the current string ---
+continue_text_stream:  jsr     text_stream_tick ; emit next character (typewriter)
+        lda     $B8                     ; check stream state
+        cmp     #$FF                    ; string complete?
+        bne     phase1_loop_back        ; no — keep streaming
+        inc     ent_timer               ; advance to next dialogue string
         lda     #$00                    ; A = 0
-        sta     $B8                     ; clear music flag
+        sta     $B8                     ; reset text stream state
         lda     #$B5                    ; delay = $B5 frames
-        sta     ent_var1                ; set inter-track delay ($B5 frames)
-inter_track_delay:  dec     ent_var1            ; count down delay
-        bne     phase1_loop_back               ; still counting down
-        lda     ent_timer               ; load current track index
-        cmp     #$0A                    ; played all tracks (up to $0A)?
-        beq     intro_phase2_init               ; yes — transition to phase 2
-        lda     #$0E                    ; bank $0E = music driver
-        sta     prg_bank                ; set PRG bank for music
-        jsr     select_PRG_banks        ; select music bank
+        sta     ent_var1                ; pause $B5 frames between strings
+inter_string_delay:  dec     ent_var1   ; count down delay
+        bne     phase1_loop_back        ; still counting down
+        lda     ent_timer               ; load next string index
+        cmp     #$0A                    ; both strings done ($08, $09)?
+        beq     cutscene_phase2_init    ; yes — transition to phase 2
+        lda     #$0E                    ; bank $0E = text streamer
+        sta     prg_bank                ; page text streamer into $A000
+        jsr     select_PRG_banks        ; select PRG banks
         lda     #$00                    ; A = 0
         sta     nmi_skip                ; enable NMI processing
-        jsr     music_driver_init       ; init music driver for next track
+        jsr     text_clear_rows         ; erase text rows before next string
         jsr     task_yield              ; wait for NMI
-phase1_loop_back:  jmp     phase1_main_loop           ; loop phase 1
+phase1_loop_back:  jmp     phase1_main_loop ; loop phase 1
 
 ; ===========================================================================
 ; Phase 2 Init: "Flying on Rush" — Mega Man rides Rush upward
@@ -272,7 +279,7 @@ phase1_loop_back:  jmp     phase1_main_loop           ; loop phase 1
 ; set up Mega Man riding Rush (anim $5F) moving right and upward.
 ; Star field scrolls vertically to simulate flight.
 ; ===========================================================================
-intro_phase2_init:  lda     #$00                ; A = 0
+cutscene_phase2_init:  lda     #$00     ; A = 0
         sta     nmi_skip                ; disable NMI
         jsr     fade_palette_out        ; fade palette to black
         lda     #$04                    ; OAM starts at byte 4
@@ -289,23 +296,23 @@ intro_phase2_init:  lda     #$00                ; A = 0
         lda     #$08                    ; stage $08 nametable layout
         jsr     metatile_screen_ptr_by_id ; init metatile columns for stage $08
 ; --- fill nametable progressively ---
-phase2_fill_nametable_loop:  lda     #$00                ; A = 0
+phase2_fill_nametable_loop:  lda     #$00 ; A = 0
         sta     $10                     ; column direction = rightward
         jsr     fill_nametable_progressive ; draw one nametable column
         jsr     task_yield              ; wait for NMI
         lda     $70                     ; check column progress
-        bne     phase2_fill_nametable_loop               ; loop until complete
+        bne     phase2_fill_nametable_loop ; loop until complete
 ; --- load phase 2 palette and CHR banks ---
         ldy     #$1F                    ; 32 palette bytes
-load_phase2_palette_loop:  lda     intro_phase2_palette_table,y ; phase 2 palette (night sky)
+load_phase2_palette_loop:  lda     cutscene_phase2_palette_table,y ; phase 2 palette (night sky)
         sta     $0620,y                 ; write to palette buffer
         dey                             ; next palette byte
-        bpl     load_phase2_palette_loop               ; loop until all 32 copied
+        bpl     load_phase2_palette_loop ; loop until all 32 copied
         ldy     #$05                    ; 6 CHR bank slots
-load_phase2_chr_loop:  lda     intro_phase2_chr_bank_table,y ; phase 2 CHR bank assignments
+load_phase2_chr_loop:  lda     cutscene_phase2_chr_bank_table,y ; phase 2 CHR bank assignments
         sta     $E8,y                   ; write to CHR bank shadow
         dey                             ; next CHR bank
-        bpl     load_phase2_chr_loop               ; loop until all 6 set
+        bpl     load_phase2_chr_loop    ; loop until all 6 set
         jsr     update_CHR_banks        ; update CHR banks via MMC3
 ; --- set up Mega Man on Rush (entity 0) ---
         lda     #$80                    ; status = active
@@ -340,46 +347,46 @@ load_phase2_chr_loop:  lda     intro_phase2_chr_bank_table,y ; phase 2 CHR bank 
 ; Palette flashes between two night-sky color sets. Wind SFX ($28)
 ; plays every 16 frames. Loop exits when ent_y_scr != 0 (scrolled off).
 ; ===========================================================================
-phase2_main_loop:  lda     ent_y_scr           ; check if scrolled off screen
-        bne     intro_phase3_init               ; scrolled past screen — phase 2 done
-        jsr     move_entity_upward               ; move Rush upward + apply X velocity
+phase2_main_loop:  lda     ent_y_scr    ; check if scrolled off screen
+        bne     cutscene_phase3_init    ; scrolled past screen — phase 2 done
+        jsr     move_entity_upward      ; move Rush upward + apply X velocity
 ; --- palette flash effect (every 16 frames) ---
         lda     $95                     ; load frame counter
         and     #$0F                    ; check every 16th frame
-        bne     star_twinkle_update               ; not time to flash
+        bne     star_twinkle_update     ; not time to flash
         lda     $0104                   ; flash toggle (0 or 1)
         asl     a                       ; toggle * 2
         adc     $0104                   ; * 3 for table offset
         tay                             ; Y = flash palette offset
         ldx     #$05                    ; start at palette byte 5
-copy_flash_palette_loop:  lda     intro_phase2_flash_palette_table,y ; night sky flash palette
+copy_flash_palette_loop:  lda     cutscene_phase2_flash_palette_table,y ; night sky flash palette
         sta     $0600,x                 ; BG palette bytes 5-7
         iny                             ; next source byte
         inx                             ; next dest byte
         cpx     #$08                    ; copied 3 bytes?
-        bne     copy_flash_palette_loop               ; loop until 3 bytes copied
+        bne     copy_flash_palette_loop ; loop until 3 bytes copied
         lda     $0104                   ; load flash toggle
         eor     #$01                    ; toggle between two palette states
         sta     $0104                   ; store toggled state
 ; --- star twinkle effect (every 8 frames) ---
-star_twinkle_update:  lda     $95                 ; load frame counter
+star_twinkle_update:  lda     $95       ; load frame counter
         and     #$07                    ; check every 8th frame
-        bne     phase2_wind_sfx_check               ; skip star update
+        bne     phase2_wind_sfx_check   ; skip star update
         lda     $0105                   ; star animation counter
         inc     $0105                   ; advance star counter
         and     #$03                    ; cycle through 4 star brightness levels
         tay                             ; Y = color table index
-        lda     intro_star_twinkle_color_table,y ; star color: $04, $14, $0F, $0F
+        lda     cutscene_star_twinkle_color_table,y ; star color: $04, $14, $0F, $0F
         sta     $060D                   ; sprite palette slot for stars
 ; --- wind sound effect (every 16 frames) ---
-phase2_wind_sfx_check:  lda     $95                 ; load frame counter
+phase2_wind_sfx_check:  lda     $95     ; load frame counter
         and     #$0F                    ; check every 16th frame
-        bne     phase2_process_frame               ; skip wind SFX
+        bne     phase2_process_frame    ; skip wind SFX
         lda     #SFX_WIND               ; load wind sound effect ID
         jsr     submit_sound_ID         ; submit wind SFX $28
-phase2_process_frame:  inc     palette_dirty       ; mark palette for NMI upload
+phase2_process_frame:  inc     palette_dirty ; mark palette for NMI upload
         jsr     process_frame_yield_full ; process frame + yield (full)
-        jmp     phase2_main_loop               ; loop phase 2
+        jmp     phase2_main_loop        ; loop phase 2
 
 ; ===========================================================================
 ; Phase 3 Init: "Proto Man Confrontation"
@@ -388,7 +395,7 @@ phase2_process_frame:  inc     palette_dirty       ; mark palette for NMI upload
 ; Copy sprite palette to BG palette, set BG palette to all black.
 ; Re-use same nametable from phase 2.
 ; ===========================================================================
-intro_phase3_init:  lda     #$00                ; A = 0 for clearing
+cutscene_phase3_init:  lda     #$00     ; A = 0 for clearing
         sta     nmi_skip                ; disable NMI
         jsr     fade_palette_out        ; fade palette to black
         lda     #$00                    ; A = 0 for clearing
@@ -419,7 +426,7 @@ clear_bg_palette_loop:  lda     #$0F
         lda     $0630,y                 ; sprite palette
         sta     $0610,y                 ; copy to BG sub-palette area
         dey                             ; next palette entry
-        bpl     clear_bg_palette_loop               ; loop until all 16 done
+        bpl     clear_bg_palette_loop   ; loop until all 16 done
         sty     palette_dirty           ; mark palette dirty (Y=$FF)
 ; ===========================================================================
 ; Phase 3 Main Loop: Proto Man confrontation sequence
@@ -429,24 +436,24 @@ clear_bg_palette_loop:  lda     #$0F
 ;   status & $0F == 0 → Mega Man rising from bottom to Y=$60
 ;   status & $0F != 0 → Proto Man sequence (appear, whistle, depart)
 ; ===========================================================================
-phase3_main_loop:  lda     ent_x_scr           ; check if phase 3 complete
-        beq     phase3_check_substate               ; still in phase 3
-        jmp     wily_map_init               ; phase 3 complete → Wily map screen
+phase3_main_loop:  lda     ent_x_scr    ; check if phase 3 complete
+        beq     phase3_check_substate   ; still in phase 3
+        jmp     wily_map_init           ; phase 3 complete → Wily map screen
 
-phase3_check_substate:  lda     ent_status          ; get entity status
+phase3_check_substate:  lda     ent_status ; get entity status
         and     #$0F                    ; check sub-state
-        beq     megaman_rise               ; 0 = still rising into view
-        jmp     flight_accelerate_upward               ; nonzero = Proto Man sequence
+        beq     megaman_rise            ; 0 = still rising into view
+        jmp     flight_accelerate_upward ; nonzero = Proto Man sequence
 ; --- Mega Man rising (from Y=$E8 at bottom) to Y=$60 ---
-megaman_rise:  lda     ent_y_px            ; get current Y position
+megaman_rise:  lda     ent_y_px         ; get current Y position
         cmp     #$60                    ; reached target Y?
-        beq     check_spawn_proto_man               ; yes — transition
+        beq     check_spawn_proto_man   ; yes — transition
         dec     ent_y_px                ; move up 1 pixel per frame
-        jmp     apply_sine_movement               ; continue with movement
+        jmp     apply_sine_movement     ; continue with movement
 ; --- at Y=$60: change animation and spawn Proto Man ---
-check_spawn_proto_man:  lda     #$5E                ; check if anim already set
+check_spawn_proto_man:  lda     #$5E    ; check if anim already set
         cmp     ent_anim_id             ; already changed anim?
-        bcs     proto_man_timer_update               ; yes — skip spawn
+        bcs     proto_man_timer_update  ; yes — skip spawn
 ; --- change MM to standing anim, spawn Proto Man (entity 1) ---
         lda     #$5D                    ; anim $5D = standing on Rush
         ldx     #$00                    ; entity 0 = Mega Man
@@ -474,33 +481,33 @@ check_spawn_proto_man:  lda     #$5E                ; check if anim already set
 ; ent_timer[1] ($0501) counts down: $5C..$22 = walking toward MM,
 ; $21..$11 = standing (also moving Y), $10..$01 = whistle pause,
 ; $00 = whistle done, Proto Man rises, then departs.
-proto_man_timer_update:  lda     $0501               ; Proto Man timer
+proto_man_timer_update:  lda     $0501  ; Proto Man timer
         cmp     #$21                    ; approach phase threshold
-        bcs     proto_man_approach_tick               ; >= $21: still approaching
+        bcs     proto_man_approach_tick ; >= $21: still approaching
         cmp     #$11                    ; whistle phase threshold
-        bcc     proto_man_whistle_phase               ; < $11: whistle / departure phase
+        bcc     proto_man_whistle_phase ; < $11: whistle / departure phase
         dec     $03C1                   ; $11-$20: Proto Man rises (dec Y)
-proto_man_approach_tick:  lda     #$00                ; A = 0
+proto_man_approach_tick:  lda     #$00  ; A = 0
         sta     $95                     ; reset frame counter
         dec     $0501                   ; decrement timer
         jmp     star_field_update       ; continue to star scrolling
 ; --- whistle / departure phase ---
-proto_man_whistle_phase:  lda     $0521               ; ent_var1[1] = whistle delay
-        beq     proto_man_depart_init               ; delay expired
+proto_man_whistle_phase:  lda     $0521 ; ent_var1[1] = whistle delay
+        beq     proto_man_depart_init   ; delay expired
         dec     $0521                   ; decrement whistle delay
         lda     $0521                   ; check current delay value
         cmp     #$78                    ; at $78: change to whistle anim
-        bne     proto_man_whistle_skip               ; not at whistle trigger yet
+        bne     proto_man_whistle_skip  ; not at whistle trigger yet
         ldx     #$00                    ; entity 0 = Mega Man
         lda     #$5E                    ; anim $5E = MM whistle-scene pose
         jsr     reset_sprite_anim       ; (plays while Proto Man whistles)
 proto_man_whistle_skip:  jmp     star_field_update
 ; --- Proto Man departure: prepare MM for flight ---
-proto_man_depart_init:  lda     #$00                ; A = 0
+proto_man_depart_init:  lda     #$00    ; A = 0
         sta     $95                     ; reset frame counter
         inc     $03C1                   ; move Proto Man down 1 px
         dec     $0501                   ; continue counting
-        bne     star_field_update               ; not zero yet, continue
+        bne     star_field_update       ; not zero yet, continue
         ldx     #$00                    ; entity 0 = Mega Man
         stx     $0301                   ; deactivate Proto Man (entity 1)
         lda     #$5F                    ; anim $5F = Rush Jet ride
@@ -515,11 +522,11 @@ proto_man_depart_init:  lda     #$00                ; A = 0
         sta     ent_var1                ; reset movement phase
         lda     #$04                    ; X speed = 4 px/frame
         sta     ent_xvel                ; horizontal speed = 4
-        jmp     star_field_update               ; continue to star field update
+        jmp     star_field_update       ; continue to star field update
 
 ; --- flight departure: accelerate upward then fly off-screen ---
-flight_accelerate_upward:  lda     $0521               ; flight countdown
-        beq     flight_move_left               ; countdown done
+flight_accelerate_upward:  lda     $0521 ; flight countdown
+        beq     flight_move_left        ; countdown done
         dec     $0521                   ; decrement flight countdown
         lda     ent_yvel_sub            ; accelerate upward
         clc                             ; add $10 to Y velocity sub
@@ -529,14 +536,14 @@ flight_accelerate_upward:  lda     $0521               ; flight countdown
         adc     #$00                    ; carry from sub-pixel addition
         sta     ent_yvel                ; store updated Y velocity
         cmp     #$04                    ; cap vertical speed at 4
-        bne     star_field_update               ; not capped, continue
+        bne     star_field_update       ; not capped, continue
         lda     #$00                    ; clamp sub-pixel to 0
         sta     ent_yvel_sub            ; clamp sub-pixel
-        beq     star_field_update               ; always branches (A=0)
+        beq     star_field_update       ; always branches (A=0)
 ; --- after countdown: fly left off screen ---
-flight_move_left:  lda     ent_var1            ; check movement phase
+flight_move_left:  lda     ent_var1     ; check movement phase
         cmp     #$01                    ; phase 1 = fly left
-        bne     apply_sine_movement               ; phase 0: apply sine movement
+        bne     apply_sine_movement     ; phase 0: apply sine movement
         lda     ent_x_px                ; get current X pixel
         sec                             ; prepare for subtraction
         sbc     #$04                    ; move left 4 px/frame
@@ -544,24 +551,24 @@ flight_move_left:  lda     ent_var1            ; check movement phase
         lda     ent_x_scr               ; subtract borrow from screen
         sbc     #$00                    ; borrow into screen position
         sta     ent_x_scr               ; when this wraps, phase 3 ends
-        jmp     star_field_update               ; continue to star field
+        jmp     star_field_update       ; continue to star field
 
-apply_sine_movement:  jsr     apply_sinusoidal_xvel           ; apply sinusoidal X movement
+apply_sine_movement:  jsr     apply_sinusoidal_xvel ; apply sinusoidal X movement
 ; --- star field rendering and frame processing ---
 ; Scrolls 10 star sprites vertically based on ent_yvel (vertical speed).
 ; Stars flicker by alternating OAM start position each frame.
-star_field_update:  lda     ent_var2            ; star scroll accumulator
+star_field_update:  lda     ent_var2    ; star scroll accumulator
         clc                             ; add Y speed to accumulator
         adc     ent_yvel                ; add vertical speed
         sta     ent_var2                ; update scroll accumulator
         ldx     #$00                    ; start at sprite 0
-star_field_sprite_loop:  lda     intro_star_field_y_table,x ; star Y position (base)
+star_field_sprite_loop:  lda     cutscene_star_field_y_table,x ; star Y position (base)
         sta     $0200,x                 ; write to OAM Y position
-        lda     intro_star_field_tile_table,x ; star tile
+        lda     cutscene_star_field_tile_table,x ; star tile
         sta     $0201,x                 ; write to OAM tile
-        lda     intro_star_field_attr_table,x ; star attribute
+        lda     cutscene_star_field_attr_table,x ; star attribute
         sta     $0202,x                 ; write to OAM attribute
-        lda     intro_star_field_x_table,x ; star X position (base)
+        lda     cutscene_star_field_x_table,x ; star X position (base)
         clc                             ; offset X by scroll amount
         adc     ent_var2                ; add scroll offset
         sta     $0203,x                 ; write to OAM X position
@@ -570,32 +577,32 @@ star_field_sprite_loop:  lda     intro_star_field_y_table,x ; star Y position (b
         inx                             ; +3
         inx                             ; +4 (next OAM entry)
         cpx     #$28                    ; 10 star sprites * 4 bytes
-        bne     star_field_sprite_loop               ; loop for all 10 stars
+        bne     star_field_sprite_loop  ; loop for all 10 stars
         lda     $95                     ; get frame counter
         and     #$01                    ; alternate OAM start for flicker
-        beq     set_oam_flicker               ; even frame: X=0
+        beq     set_oam_flicker         ; even frame: X=0
         ldx     #$04                    ; offset by one sprite
 set_oam_flicker:  stx     oam_ptr
         lda     ent_var3                ; get wind SFX timer
         and     #$0F                    ; every 16 frames
-        bne     phase3_process_frame               ; not time for wind SFX
+        bne     phase3_process_frame    ; not time for wind SFX
         lda     #SFX_WIND               ; load wind sound effect ID
         jsr     submit_sound_ID         ; wind SFX $28
 phase3_process_frame:  jsr     process_frame_yield ; process frame + yield
         inc     ent_var3                ; increment wind timer
-        jmp     phase3_main_loop               ; loop phase 3
+        jmp     phase3_main_loop        ; loop phase 3
 
 ; ===========================================================================
 ; WILY CASTLE MAP SCREEN (previously mislabeled "Doc Robot stage entry")
 ; ===========================================================================
-; Called after the intro completes, or directly via the $8003 entry (between
+; Called after the cutscene completes, or directly via the $8003 entry (between
 ; Wily fortress stages). Fades to black, plays music $36, loads the stage
 ; $16 layout (bank $0E data) as the map background, shows the 6 fortress
 ; stage markers (skipping the current one, then revealing it sprite-by-
 ; sprite with SFX), and finally jumps to stage $0C + $75 — i.e. the next
 ; WILY stage selected by the fortress progression counter.
 ; ===========================================================================
-wily_map_init:  lda     #$00                ; A = 0
+wily_map_init:  lda     #$00            ; A = 0
         sta     nmi_skip                ; disable NMI
         jsr     fade_palette_out        ; fade palette to black
         lda     #MUSIC_DOC_ROBOT        ; music ID $36
@@ -606,7 +613,7 @@ wily_map_init:  lda     #$00                ; A = 0
         jsr     clear_entity_table      ; clear entity table
         jsr     task_yield              ; wait for NMI
         lda     #$16                    ; stage ID = $16
-        sta     stage_id                ; $16 = Doc intro cutscene bg (bank $0E)
+        sta     stage_id                ; $16 = cutscene backdrop stage (bank $0E)
         lda     #$00                    ; reset column counter
         sta     $70                     ; nametable column counter
         lda     #$0E                    ; bank $0E = tile data
@@ -615,30 +622,30 @@ wily_map_init:  lda     #$00                ; A = 0
         lda     #$00                    ; metatile init param = 0
         jsr     metatile_screen_ptr_by_id ; init metatile columns
 ; --- fill nametable progressively ---
-doc_robot_fill_nt_loop:  lda     #$00                ; clear temp
+doc_robot_fill_nt_loop:  lda     #$00   ; clear temp
         sta     $10                     ; nametable fill parameter
         jsr     fill_nametable_progressive ; draw one nametable column
         jsr     task_yield              ; wait for NMI
         lda     $70                     ; check column counter
-        bne     doc_robot_fill_nt_loop               ; loop until complete
+        bne     doc_robot_fill_nt_loop  ; loop until complete
 ; --- load palette, CHR banks, and OAM scenery ---
         ldy     #$1F                    ; copy 32 palette bytes
 load_doc_palette_loop:  lda     wily_map_palette_table,y ; Doc Robot stage palette
         sta     $0620,y                 ; write to palette buffer
         dey                             ; next palette byte
-        bpl     load_doc_palette_loop               ; loop until all 32 done
+        bpl     load_doc_palette_loop   ; loop until all 32 done
         ldy     #$05                    ; copy 6 CHR bank values
 load_doc_chr_loop:  lda     wily_map_chr_bank_table,y ; Doc Robot CHR bank assignments
         sta     $E8,y                   ; write to CHR bank shadow
         dey                             ; next CHR bank
-        bpl     load_doc_chr_loop               ; loop until all 6 done
+        bpl     load_doc_chr_loop       ; loop until all 6 done
         jsr     update_CHR_banks        ; update CHR banks via MMC3
 ; --- load background sprite decoration ---
         ldy     #$27                    ; copy 40 OAM bytes
 load_doc_scenery_oam_loop:  lda     wily_map_scenery_oam_table,y ; 40 bytes of OAM sprites (scenery)
         sta     $0200,y                 ; write to OAM buffer
         dey                             ; next OAM byte
-        bpl     load_doc_scenery_oam_loop               ; loop until all 40 done
+        bpl     load_doc_scenery_oam_loop ; loop until all 40 done
         jsr     clear_entity_table      ; clear entity table
         jsr     task_yield              ; wait for NMI
         jsr     fade_palette_in         ; fade in (reveal scene)
@@ -647,7 +654,7 @@ load_doc_scenery_oam_loop:  lda     wily_map_scenery_oam_table,y ; 40 bytes of O
 load_doc_icon_pos_loop:  lda     wily_map_marker_pos_table,y ; 5 robot master icon positions
         sta     $0228,y                 ; OAM: Y, tile, attr, X per icon
         dey                             ; next icon byte
-        bpl     load_doc_icon_pos_loop               ; loop until all 5 done
+        bpl     load_doc_icon_pos_loop  ; loop until all 5 done
 ; --- set up Doc Robot entity (entity 0) ---
         lda     #$80                    ; bit 7 = active
         sta     ent_status              ; active
@@ -668,42 +675,42 @@ load_doc_icon_pos_loop:  lda     wily_map_marker_pos_table,y ; 5 robot master ic
         lda     #$20                    ; initial flash color = $20
         sta     $10                     ; palette flash value
 ; --- Doc Robot palette flash intro (48 frames) ---
-doc_palette_flash_loop:  lda     $95                 ; get frame counter
+doc_palette_flash_loop:  lda     $95    ; get frame counter
         and     #$07                    ; every 8 frames
-        bne     doc_flash_frame_tick               ; skip if not 8th frame
+        bne     doc_flash_frame_tick    ; skip if not 8th frame
         lda     $10                     ; get current flash color
         sta     $0610                   ; sprite palette 0 color 0 (Doc flash)
         inc     palette_dirty           ; request palette upload
         lda     $10                     ; reload flash color
         eor     #$2F                    ; toggle between $20 and $0F (flash)
         sta     $10                     ; store toggled color
-doc_flash_frame_tick:  jsr     task_yield          ; wait for NMI
+doc_flash_frame_tick:  jsr     task_yield ; wait for NMI
         inc     $95                     ; advance frame counter
         lda     $95                     ; check frame count
         cmp     #$30                    ; 48 frames of flashing
-        bcc     doc_palette_flash_loop               ; loop until 48 frames done
+        bcc     doc_palette_flash_loop  ; loop until 48 frames done
 ; --- draw all robot master icons except the selected one ---
-        jsr     wm_draw_markers               ; place robot master icon sprites
+        jsr     wm_draw_markers         ; place robot master icon sprites
         lda     #$00                    ; A = 0
         sta     nmi_skip                ; re-enable NMI processing
 ; --- wait 60 frames (showing all icons) ---
         lda     #$3C                    ; 60 frame delay
-doc_show_icons_delay_loop:  pha                         ; save loop counter
-        jsr     wily_map_frame               ; animate Doc Robot + process frame
+doc_show_icons_delay_loop:  pha         ; save loop counter
+        jsr     wily_map_frame          ; animate Doc Robot + process frame
         pla                             ; restore loop counter
         sec                             ; prepare for decrement
         sbc     #$01                    ; decrement delay counter
-        bne     doc_show_icons_delay_loop               ; loop for 60 frames
+        bne     doc_show_icons_delay_loop ; loop for 60 frames
 ; --- reveal selected robot master icon one sprite at a time ---
-        jsr     wm_reveal_marker               ; animate reveal of selected boss
+        jsr     wm_reveal_marker        ; animate reveal of selected boss
 ; --- wait another 60 frames ---
         lda     #$3C                    ; 60 frame delay
-doc_reveal_delay_loop:  pha                         ; save loop counter
-        jsr     wily_map_frame               ; animate Doc Robot + process frame
+doc_reveal_delay_loop:  pha             ; save loop counter
+        jsr     wily_map_frame          ; animate Doc Robot + process frame
         pla                             ; restore loop counter
         sec                             ; prepare for subtract
         sbc     #$01                    ; decrement frame counter
-        bne     doc_reveal_delay_loop               ; loop for 60 frames
+        bne     doc_reveal_delay_loop   ; loop for 60 frames
 ; --- transition to selected stage ---
         lda     $75                     ; Wily fortress progression (0-5)
         clc                             ; prepare for add
@@ -719,7 +726,7 @@ doc_reveal_delay_loop:  pha                         ; save loop counter
 ; icon blinking (tile alternates between $02 and $03 every 8 frames),
 ; then processes frame and yields. Skips blink if boss >= 4.
 ; ===========================================================================
-wily_map_frame:  txa                         ; save X
+wily_map_frame:  txa                    ; save X
         pha                             ; push X to stack
         tya                             ; save Y
         pha                             ; push Y to stack
@@ -727,7 +734,7 @@ wily_map_frame:  txa                         ; save X
         sta     oam_ptr                 ; OAM start position
         ldy     $75                     ; boss selection index
         cpy     #$04                    ; bosses 4-5 have no blink
-        bcs     doc_animate_done               ; skip blink for bosses 4-5
+        bcs     doc_animate_done        ; skip blink for bosses 4-5
         ldx     wily_map_marker_oam_off_table,y ; OAM offset for this boss's icon
         lda     $95                     ; load frame counter for blink
         lsr     a                       ; divide by 2
@@ -758,7 +765,7 @@ wm_draw_markers:  lda     #$40
         sta     ent_timer               ; boss loop counter
 wm_draw_markers_loop:  ldy     ent_timer
         cpy     $75                     ; is this the selected boss?
-        beq     wm_draw_markers_done               ; yes — skip it (will be revealed later)
+        beq     wm_draw_markers_done    ; yes — skip it (will be revealed later)
         ldx     wily_map_marker_data_off_table,y ; sprite data offset for this boss
         lda     wily_map_marker_count_table,y ; sprite count for this boss
         sta     $00                     ; save sprite countdown
@@ -769,7 +776,7 @@ copy_boss_sprite_loop:  lda     wily_map_marker_sprite_data,x ; sprite Y
         sta     $0201,y                 ; write tile to OAM
         lda     wily_map_marker_attrs,x ; sprite attribute
         sta     $0202,y                 ; write attribute to OAM
-        lda     wily_map_marker_xpos,x ; sprite X
+        lda     wily_map_marker_xpos,x  ; sprite X
         sta     $0203,y                 ; write X pos to OAM
         inx                             ; advance source index +1
         inx                             ; +2
@@ -783,8 +790,8 @@ copy_boss_sprite_loop:  lda     wily_map_marker_sprite_data,x ; sprite Y
         dec     $00                     ; more sprites for this boss?
         bpl     copy_boss_sprite_loop   ; loop if sprites remain
         inc     ent_timer               ; next boss
-        bne     wm_draw_markers_loop               ; loop to next boss
-wm_draw_markers_done:  rts                         ; return
+        bne     wm_draw_markers_loop    ; loop to next boss
+wm_draw_markers_done:  rts              ; return
 
 ; ===========================================================================
 ; Subroutine: Reveal selected robot master icon (animated)
@@ -794,7 +801,7 @@ wm_draw_markers_done:  rts                         ; return
 ; sequential reveal animation. If boss 5 is selected, spawns a second
 ; Doc Robot entity.
 ; ===========================================================================
-wm_reveal_marker:  ldy     ent_timer           ; selected boss index
+wm_reveal_marker:  ldy     ent_timer    ; selected boss index
         ldx     wily_map_marker_data_off_table,y ; sprite data offset
         lda     wily_map_marker_count_table,y ; sprite count
         sta     $0F                     ; save sprite count
@@ -806,7 +813,7 @@ reveal_sprite_loop:  lda     wily_map_marker_sprite_data,x ; copy one sprite to 
         sta     $0241,y                 ; tile
         lda     wily_map_marker_attrs,x ; sprite palette/flip
         sta     $0242,y                 ; attribute
-        lda     wily_map_marker_xpos,x ; sprite X position
+        lda     wily_map_marker_xpos,x  ; sprite X position
         sta     $0243,y                 ; X pos
         inx                             ; advance source index +1
         inx                             ; +2
@@ -819,16 +826,16 @@ reveal_sprite_loop:  lda     wily_map_marker_sprite_data,x ; copy one sprite to 
         sty     $10                     ; save OAM cursor
         lda     #SFX_HP_FILL            ; HP fill sound for reveal
         jsr     submit_sound_ID         ; reveal SFX $1C
-        jsr     wily_map_frame               ; wait 4 frames (with Doc Robot anim)
-        jsr     wily_map_frame               ; frame 2 of 4
-        jsr     wily_map_frame               ; frame 3 of 4
-        jsr     wily_map_frame               ; frame 4 of 4
+        jsr     wily_map_frame          ; wait 4 frames (with Doc Robot anim)
+        jsr     wily_map_frame          ; frame 2 of 4
+        jsr     wily_map_frame          ; frame 3 of 4
+        jsr     wily_map_frame          ; frame 4 of 4
         dec     $0F                     ; more sprites to reveal?
         bpl     reveal_sprite_loop      ; loop if sprites remain
 ; --- special case: boss 5 spawns second Doc Robot entity ---
         lda     $75                     ; load selected boss index
         cmp     #$05                    ; is it boss 5?
-        bne     reveal_boss_done               ; not boss 5, skip
+        bne     reveal_boss_done        ; not boss 5, skip
         lda     #$80                    ; bit 7 = entity active
         sta     $0301                   ; ent_status[1] = active
         sta     $0581                   ; ent_flags[1] = active
@@ -843,7 +850,7 @@ reveal_sprite_loop:  lda     wily_map_marker_sprite_data,x ; copy one sprite to 
         sta     $0361                   ; ent_x_px[1] = $60
         lda     #$4C                    ; Y = 76 pixels
         sta     $03C1                   ; ent_y_px[1] = $4C
-reveal_boss_done:  rts                         ; return
+reveal_boss_done:  rts                  ; return
 
 ; ===========================================================================
 ; Subroutine: Move entity 0 upward and apply sinusoidal X velocity
@@ -851,11 +858,11 @@ reveal_boss_done:  rts                         ; return
 ; move_entity_upward: Decrements Y by 1 per frame. Falls through to apply_sinusoidal_xvel
 ;            when Y >= $60 (still on screen).
 ; apply_sinusoidal_xvel: Applies X velocity with sub-pixel precision, then adjusts
-;            X velocity using a 4-phase acceleration table (intro_sinusoidal_accel_sub_table/intro_sinusoidal_accel_whole_table)
+;            X velocity using a 4-phase acceleration table (cutscene_sinusoidal_accel_sub_table/cutscene_sinusoidal_accel_whole_table)
 ;            to create a sinusoidal left-right weaving motion.
 ;            Each phase lasts $10 frames, cycling through 4 directions.
 ; ===========================================================================
-move_entity_upward:  lda     ent_y_px            ; get entity Y pixel position
+move_entity_upward:  lda     ent_y_px   ; get entity Y pixel position
         sec                             ; prepare for subtract
         sbc     #$01                    ; move up 1 pixel
         sta     ent_y_px                ; store decremented Y pixel
@@ -864,7 +871,7 @@ move_entity_upward:  lda     ent_y_px            ; get entity Y pixel position
         sta     ent_y_scr               ; propagate borrow to screen
         lda     ent_y_px                ; re-read Y pixel position
         cmp     #$60                    ; still below Y=$60?
-        bcs     sine_movement_done               ; yes — skip X movement
+        bcs     sine_movement_done      ; yes — skip X movement
 ; --- apply X velocity with sub-pixel precision ---
 apply_sinusoidal_xvel:  lda     ent_x_sub
         clc                             ; prepare for add
@@ -879,13 +886,13 @@ apply_sinusoidal_xvel:  lda     ent_x_sub
         tay                             ; use as table index
         lda     ent_xvel_sub            ; get current X vel sub-pixel
         clc                             ; prepare for add
-        adc     intro_sinusoidal_accel_sub_table,y ; acceleration sub-pixel
+        adc     cutscene_sinusoidal_accel_sub_table,y ; acceleration sub-pixel
         sta     ent_xvel_sub            ; store accelerated vel sub
         lda     ent_xvel                ; get current X vel whole
-        adc     intro_sinusoidal_accel_whole_table,y ; acceleration whole: FF,FF,00,00
+        adc     cutscene_sinusoidal_accel_whole_table,y ; acceleration whole: FF,FF,00,00
         sta     ent_xvel                ; store accelerated vel whole
         dec     ent_timer               ; phase duration countdown
-        bne     sine_movement_done               ; phase not expired, skip
+        bne     sine_movement_done      ; phase not expired, skip
         inc     ent_var1                ; next phase
         lda     #$10                    ; 16 frames per phase
         sta     ent_timer               ; reset phase timer ($10 frames)
@@ -895,12 +902,12 @@ sine_movement_done:  rts
 ; ===========================================================================
 
 ; --- Phase 1 palette: mountain top / sunset sky (32 bytes) ---
-intro_phase1_palette_table:  .byte   $0F,$20,$2C,$1C,$0F,$1C,$27,$16
+cutscene_phase1_palette_table:  .byte   $0F,$20,$2C,$1C,$0F,$1C,$27,$16
         .byte   $0F,$3B,$2B,$1B,$0F,$32,$22,$12
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
         .byte   $0F,$35,$25,$15,$0F,$0F,$30,$11
 ; --- Phase 2 palette: night sky / flying on Rush (32 bytes) ---
-intro_phase2_palette_table:  .byte   $0F,$20,$1B,$0B,$0F,$1C,$11,$01
+cutscene_phase2_palette_table:  .byte   $0F,$20,$1B,$0B,$0F,$1C,$11,$01
         .byte   $0F,$28,$18,$08,$0F,$04,$13,$03
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$37
         .byte   $0F,$0F,$2C,$11,$0F,$0F,$30,$27
@@ -911,25 +918,25 @@ wily_map_palette_table:  .byte   $0F,$20,$27,$17,$0F,$3B,$2A,$1A
         .byte   $0F,$0F,$30,$37,$0F,$0F,$30,$27
 ; --- CHR bank assignments (6 bytes each: banks for $0000-$17FF) ---
 ; Phase 1 CHR banks
-intro_phase1_chr_bank_table:  .byte   $78,$7A,$00,$01,$1B,$3B
+cutscene_phase1_chr_bank_table:  .byte   $78,$7A,$00,$01,$1B,$3B
 ; Phase 2 CHR banks
-intro_phase2_chr_bank_table:  .byte   $50,$52,$39,$25,$36,$17
+cutscene_phase2_chr_bank_table:  .byte   $50,$52,$39,$25,$36,$17
 ; Doc Robot stage CHR banks
 wily_map_chr_bank_table:  .byte   $70,$72,$09,$39,$36,$35
 ; --- Phase 1 sunset palette cycle (6 steps x 3 bytes) ---
-intro_phase1_palette_cycle_table:  .byte   $1C,$27,$16,$0F,$1C,$1A,$16,$0F
+cutscene_phase1_palette_cycle_table:  .byte   $1C,$27,$16,$0F,$1C,$1A,$16,$0F
         .byte   $0F,$0F,$1A,$16,$17,$0F,$0F,$1A
         .byte   $16,$0F
 ; --- Phase 2 night sky palette flash (2 steps x 3 bytes) ---
-intro_phase2_flash_palette_table:  .byte   $1C,$11,$01,$11,$1C,$01
+cutscene_phase2_flash_palette_table:  .byte   $1C,$11,$01,$11,$1C,$01
 ; --- Star twinkle colors (4 brightness levels) ---
-intro_star_twinkle_color_table:  .byte   $04,$14,$0F,$0F
+cutscene_star_twinkle_color_table:  .byte   $04,$14,$0F,$0F
 ; --- Phase 1 entity init: anim ID, X, Y for entities 0-1 ---
-intro_phase1_entity_anim_table:  .byte   $13,$60 ; anim: $13=MM falling, $60=Rush run
-intro_phase1_entity_x_table:  .byte   $D8,$58 ; x: $D8=Mega Man, $58=Rush
-intro_phase1_entity_y_table:  .byte   $00,$A4 ; y: $00=top (MM), $A4=ground (Rush)
+cutscene_phase1_entity_anim_table:  .byte   $13,$60 ; anim: $13=MM falling, $60=Rush run
+cutscene_phase1_entity_x_table:  .byte   $D8,$58 ; x: $D8=Mega Man, $58=Rush
+cutscene_phase1_entity_y_table:  .byte   $00,$A4 ; y: $00=top (MM), $A4=ground (Rush)
 ; --- Phase 1 mountain decoration OAM sprites (2 sprites x 4 bytes) ---
-intro_phase1_mountain_oam_table:  .byte   $68,$BE,$02,$18,$68,$BF,$02,$20
+cutscene_phase1_deco_oam_table:  .byte   $68,$BE,$02,$18,$68,$BF,$02,$20
 ; --- Doc Robot stage scenery OAM sprites (10 sprites x 4 bytes) ---
 wily_map_scenery_oam_table:  .byte   $40,$9D,$01,$70,$B8,$9B,$00,$C0
         .byte   $88,$97,$00,$78,$88,$98,$00,$80
@@ -944,14 +951,14 @@ wily_map_marker_pos_table:  .byte   $C8,$0F,$03,$D8,$A0,$0F,$03,$C8
 ; --- Sinusoidal X acceleration table (4 phases) ---
 ; Phase 0,1: decelerate (sub=$C0, whole=$FF = -$40)
 ; Phase 2,3: accelerate (sub=$40, whole=$00 = +$40)
-intro_sinusoidal_accel_sub_table:  .byte   $C0,$C0,$40,$40 ; sub-pixel acceleration per phase
-intro_sinusoidal_accel_whole_table:  .byte   $FF,$FF,$00,$00 ; whole-pixel acceleration per phase
+cutscene_sinusoidal_accel_sub_table:  .byte   $C0,$C0,$40,$40 ; sub-pixel acceleration per phase
+cutscene_sinusoidal_accel_whole_table:  .byte   $FF,$FF,$00,$00 ; whole-pixel acceleration per phase
 ; --- Star field sprite data (10 stars x 4 bytes: Y, tile, attr, X) ---
 ; Each star is tile $F1, attribute $00. X values are offset by scroll.
-intro_star_field_y_table:  .byte   $78  ; star 0 Y
-intro_star_field_tile_table:  .byte   $F1 ; star 0 tile
-intro_star_field_attr_table:  .byte   $00 ; star 0 attr
-intro_star_field_x_table:  .byte   $10,$18,$F1,$00,$20,$D0,$F1,$00
+cutscene_star_field_y_table:  .byte   $78 ; star 0 Y
+cutscene_star_field_tile_table:  .byte   $F1 ; star 0 tile
+cutscene_star_field_attr_table:  .byte   $00 ; star 0 attr
+cutscene_star_field_x_table:  .byte   $10,$18,$F1,$00,$20,$D0,$F1,$00
         .byte   $30,$38,$F1,$00,$48,$A0,$F1,$00
         .byte   $68,$18,$F1,$00,$98,$60,$F1,$00
         .byte   $B8,$B8,$F1,$00,$D0,$28,$F1,$00

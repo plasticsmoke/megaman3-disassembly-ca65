@@ -5,8 +5,8 @@
 ;   boss_frame_yield          — boss AI frame yield ($5A=active, skip player)
 ;   process_frame_yield_full  — saves both banks, $97=$04 (includes player)
 ;   process_frame_yield       — saves both banks, uses caller's $97
-;   call_bank0E_A006          — bank $0E trampoline, calls $A006 with X=$B8
-;   call_bank0E_A003          — bank $0E trampoline, calls $A003
+;   call_text_stream_start          — bank $0E trampoline, calls $A006 with X=$B8
+;   call_text_stream_tick          — bank $0E trampoline, calls $A003
 ;   RESET                     — power-on initialization
 ;   task_scheduler            — cooperative multitasking (4 task slots)
 ;   task_register/kill/yield  — coroutine primitives
@@ -33,8 +33,8 @@
 ;   boss_frame_yield      — sets $5A (boss active), $97=$0C, saves $F5
 ;   process_frame_yield_full — saves both banks, $97=$04 (includes player)
 ;   process_frame_yield   — saves both banks, uses caller's $97
-;   call_bank0E_A006      — bank $0E trampoline, calls $A006 with X=$B8
-;   call_bank0E_A003      — bank $0E trampoline, calls $A003
+;   call_text_stream_start      — bank $0E trampoline, calls $A006 with X=$B8
+;   call_text_stream_tick      — bank $0E trampoline, calls $A003
 ; ---------------------------------------------------------------------------
 
 ; --- boss_frame_yield ---
@@ -85,10 +85,11 @@ process_frame_yield:
         jsr     process_frame_and_yield ; process + yield (caller's $97)
         jmp     restore_banks           ; restore banks and return
 
-; --- call_bank0E_A006 ---
-; Switches $A000-$BFFF to bank $0E, calls entry point $A006 with X=$B8.
-; Called from bank12 (entity AI).
-call_bank0E_A006:
+; --- call_text_stream_start ---
+; Switches $A000-$BFFF to bank $0E and calls text_stream_start ($A006)
+; with X = $B8 (the dialogue string index the caller stored there).
+; Called from bank12 (post-Gamma dialogue, string $0A).
+call_text_stream_start:
 
         stx     $0F                     ; save X
         lda     prg_bank                ; save $A000 bank
@@ -105,10 +106,11 @@ restore_A000:
         ldx     $0F                     ; restore X
         rts                             ; return to caller
 
-; --- call_bank0E_A003 ---
-; Switches $A000-$BFFF to bank $0E, calls entry point $A003.
-; Called from bank12 (entity AI).
-call_bank0E_A003:
+; --- call_text_stream_tick ---
+; Switches $A000-$BFFF to bank $0E and calls text_stream_tick ($A003) —
+; writes the next dialogue character (typewriter effect).
+; Called from bank12 (post-Gamma dialogue).
+call_text_stream_tick:
 
         stx     $0F                     ; save X
         lda     prg_bank                ; save $A000 bank

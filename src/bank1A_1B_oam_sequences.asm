@@ -33,15 +33,15 @@
 ;             A sprite_def_ID of $00 = no sprites (entity invisible).
 ;
 ; --- OAM Sprite Definition Format ---
-;   byte 0:   sprite_count (N = number of hardware OAM sprites, high bits
-;                            encode Y-offset mode and palette info)
-;   byte 1:   meta flags   (position layout index into banks $14/$19)
+;   byte 0:   sprite_count (N = number of hardware OAM sprites; bit 7:
+;                            position offsets read from bank $14 not $19)
+;   byte 1:   position layout index (into bank $14/$19 offset tables)
 ;   bytes 2+: pairs of (tile_id, attribute) for each hardware sprite
 ;             attribute byte: bits 0-1 = palette, bit 5 = priority,
 ;                             bit 6 = H-flip, bit 7 = V-flip
 ;
-; Bank $15 is a weapon-specific variant bank loaded when ZP $5A override
-; is set, sharing the same table layout.
+; Bank $15 is the BOSS-NAMESPACE variant bank (same table layout),
+; swapped in for entity slots $10-$1F while boss_active is set.
 ;
 ; =============================================================================
 

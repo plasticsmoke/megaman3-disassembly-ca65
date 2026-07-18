@@ -1,8 +1,8 @@
 ; =============================================================================
-; MEGA MAN 3 (U) — BANK $11 — WILY CASTLE 6 / ENDING STAGE DATA
+; MEGA MAN 3 (U) — BANK $11 — WILY 6 STAGE DATA
 ; =============================================================================
-; Mapped to $A000-$BFFF. Stage data bank for STAGE_WILY6 ($11).
-; Referenced by ensure_stage_bank_table[$11] = $11.
+; Mapped to $A000-$BFFF. Stage data bank for STAGE_WILY6 ($11) — the
+; final stage (Gamma). Referenced by ensure_stage_bank_table[$11] = $11.
 ;
 ; Standard MM3 stage data layout:
 ;   $A000-$A9FF: boss AI local data / compressed nametable graphics
@@ -33,8 +33,8 @@
 ; BOSS AI LOCAL DATA / COMPRESSED NAMETABLE DATA ($A000-$A9FF)
 ; =============================================================================
 ; First $A00 bytes. For standard Robot Master stages this contains boss AI
-; parameters read by the boss's bank. For ending/special stages this region
-; typically holds compressed nametable graphics or cutscene tile data.
+; parameters read by the boss's bank; here it holds compressed nametable
+; graphics / stage-specific data.
 ; =============================================================================
 
         .byte   $FE,$FF,$FF,$FF,$7A,$FF,$FE,$FF

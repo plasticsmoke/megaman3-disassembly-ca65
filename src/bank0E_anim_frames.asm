@@ -1,62 +1,67 @@
 ; =============================================================================
-; MEGA MAN 3 (U) — BANK $0E — NAMETABLE STREAMING + WILY 6 STAGE DATA
+; MEGA MAN 3 (U) — BANK $0E — CUTSCENE TEXT STREAMING + CUTSCENE STAGE DATA
 ; =============================================================================
 ; Mapped to $A000-$BFFF via MMC3 bank swap.
 ;
-; This bank serves dual purposes: it contains nametable streaming code used
-; by the stage select and password screens, AND it doubles as the stage data
-; bank for Wily 6 (stage $16) via the ensure_stage_bank_table mapping table.
+; This bank serves dual purposes: it contains the letter-by-letter dialogue
+; text streamer used by the cutscenes (Gamma-theft cutscene in bank $0B,
+; ending in bank $0C, post-Gamma dialogue via bank $12), AND it is the
+; stage data bank for stage $16 — the cutscene background pseudo-stage
+; (cliff-top scene, Wily map screen) — via ensure_stage_bank_table.
 ;
-; ---- Nametable Streaming Code ($A000-$A09C) ----
+; ---- Text Streaming Code ($A000-$A09C) ----
 ;
-;   $A000:  JMP nametable_init_columns — clear 4 column pairs on nametable
-;   $A003:  JMP nametable_advance_row  — increment PPU low address by 1
-;   $A006:  nametable_stream_by_index  — stream text string X to PPU buffer
+;   $A000:  JMP text_clear_rows  — blank the 4 dialogue text rows
+;   $A003:  JMP text_stream_tick — write next character (typewriter effect)
+;   $A006:  text_stream_start    — begin streaming text string X
 ;
-;   Streams data into the $0780 PPU update buffer, which the NMI handler
+;   Callers page this bank into $A000 and call the vectors directly
+;   (bank $0B/$0C equates; bank $12 goes through the fixed-bank helpers
+;   call_text_stream_start/call_text_stream_tick). $B8 holds the stream
+;   offset; $B8 = $FF signals string complete. Callers invoke $A003 every
+;   4th frame, producing the letter-by-letter dialogue crawl.
+;
+;   Characters go into the $0780 PPU update buffer, which the NMI handler
 ;   (drain_ppu_buffer) writes to VRAM each frame.
-;   Called via trampoline at fixed bank $FF21 (task_yield for NMI sync).
 ;
-; ---- Nametable Address Tables ($A09D-$A0C0) ----
+; ---- Text Row Address Tables ($A09D-$A0C0) ----
 ;
-;   $A09D:  PPU address low/high bytes for column init (4 bytes each)
+;   $A09D:  PPU addresses for the text row clear (rows $2320-$2380)
 ;   $A0A5:  String pointer table — low bytes  (14 entries)
 ;   $A0B3:  String pointer table — high bytes (14 entries)
 ;
-; ---- Nametable Text Data ($A0C1-$A32C) ----
+; ---- Text String Data ($A0C1-$A32C) ----
 ;
-;   Strings 0-7:   Robot master name + designer credit (stage select screen)
-;   Strings 8-13:  Password screen text
+;   Strings 0-7:   Robot master roll call ("NO.17 NEEDLE MAN" + designer
+;                  credit), streamed by the ending weapon showcase (bank $0C)
+;   Strings 8-13:  Cutscene dialogue (see per-string decode at the table)
 ;   Format: $FE xx yy = set PPU address, $FF = end-of-string
 ;
-; ---- Wily 6 Stage Data ($A32D-$BFFF) ----
+; ---- Stage $16 Cutscene Background Stage Data ($A32D-$BFFF) ----
 ;
+;   Stage $16 is the cutscene backdrop pseudo-stage (cliff-top scene,
+;   Wily map screen), loaded with stage_id = $16 → this bank
+;   (ensure_stage_bank_table) by banks $0B and $0C. Standard
+;   MM3 stage bank format (see ENGINE.md "Stage Data Format"):
 ;   $A32D-$A9FC:  2-bit encoded screen nametable column data
-;   $AA00-$AA5C:  Screen layout table (20 bytes/screen: 16 column IDs + 4 conn)
-;   $AA5D-$AA7F:  Room config / screen pointer table
-;   $AA80-$AA9F:  BG palette data (4 palettes x 4 NES colors)
-;   $AB00-$AB2C:  Enemy placement — screen numbers ($FF-terminated)
-;   $AB2D-$ABFF:  Enemy placement — continued / padding
-;   $AC00-$AC31:  Enemy placement — X pixel positions ($FF-terminated)
-;   $AD00-$AD24:  Enemy placement — Y pixel positions ($FF-terminated)
-;   $AE00-$AE22:  Enemy placement — global enemy type IDs ($FF-terminated)
-;   $AF05-$B6FF:  Metatile column definitions (64-byte blocks: 8 columns × 8 rows)
-;   $B700-$B7B4:  Metatile CHR tile definitions (4 bytes/metatile: TL,TR,BL,BR)
-;   $B7B5-$B839:  Metatile attribute table (palette per metatile)
-;   $B83A-$B8C4:  Metatile collision/type table
-;   $B8C5-$BAFF:  Padding ($00)
-;   $BB00-$BBFF:  Screen data block A (room layout + palette + enemy config)
-;   $BC00-$BCFF:  Screen data block B
-;   $BD00-$BDFF:  Screen data block C
-;   $BE00-$BEFF:  Screen data block D
-;   $BF00-$BFFF:  Stage attribute assignment table + padding
+;   $AA00-$AA3F:  screen column ID table
+;   $AA40-$AA5F:  room config table
+;   $AA60-$AA7F:  room pointer table (2 bytes per room)
+;   $AA80-$AA81:  BG CHR bank indices
+;   $AA82-$AAFF:  screen layout data (20 bytes per entry)
+;   $AB00-$ADFF:  enemy spawn tables (screen / X / Y, $FF-terminated)
+;   $AE00-$AEFF:  enemy spawn global enemy IDs
+;   $AF00-$B6FF:  metatile column definitions (64 bytes per column ID)
+;   $B700-$BAFF:  metatile sub-tile indices (4 bytes per metatile)
+;   $BB00-$BEFF:  CHR tile lookup planes (4 x 256-byte tables)
+;   $BF00-$BFFF:  collision/attribute table
 ;
 ; PPU buffer format ($0780):
 ;   $0780 = PPU address high byte
 ;   $0781 = PPU address low byte
 ;   $0782 = byte count
 ;   $0783+ = tile data bytes
-;   $07A3-$07C6 = second buffer for paired column/attribute writes
+;   $07A3-$07C6 = second buffer for paired row writes
 ; =============================================================================
 
         .setcpu "6502"
@@ -72,32 +77,34 @@ task_yield           := $FF21
 ; ===========================================================================
 ; Entry point table — three JMP vectors at the start of the bank
 ; ===========================================================================
-; $A000: JMP to nametable_init_columns — full-screen column initialization
-; $A003: JMP to nametable_advance_row — increment PPU low address by 1 row
-; $A006: fall-through to nametable_stream_by_index
+; $A000: JMP to text_clear_rows — blank the 4 dialogue text rows
+; $A003: JMP to text_stream_tick — write next character (typewriter tick)
+; $A006: fall-through to text_stream_start — begin streaming string X
 ; ===========================================================================
 
-        jmp     nametable_init_columns               ; $A000: init nametable columns
+        jmp     text_clear_rows         ; $A000: blank the dialogue text rows
 
-        jmp     nametable_advance_row               ; $A003: advance PPU addr (next row)
+        jmp     text_stream_tick        ; $A003: write next character of stream
 
 ; ===========================================================================
-; nametable_stream_by_index — stream nametable data for string index X
+; text_stream_start — begin streaming text string X (writes 1st character)
 ; ===========================================================================
 ; Input:  X = string index (0-13), selects pointer from string_pointer_table_low/string_pointer_table_high table
-; Output: one tile written to PPU buffer, or PPU address changed, or stream ended
+; Output: one character written to PPU buffer per call ($A003 continues)
 ;
 ; Uses $B6/$B7 as pointer to the string data, $B8 as stream byte offset.
-; On first call ($B8=0), loads PPU address from first 2 bytes of string.
-; Subsequent calls read tile data byte-by-byte into the PPU buffer.
+; Resets $B8 to 0, loads PPU address from first 2 bytes of string, then
+; falls into the tick path to emit the first character. Callers then call
+; text_stream_tick ($A003) every 4th frame for the typewriter crawl,
+; until $B8 = $FF (string complete).
 ;
 ; String data format:
-;   Byte $FE = set new PPU address (next 2 bytes = high, low)
-;   Byte $FF = end of string (marks stream complete)
-;   Other    = tile ID to write to nametable
+;   Byte $FE = set new PPU address (next 2 bytes = high, low) — line break
+;   Byte $FF = end of string (marks stream complete, $B8 = $FF)
+;   Other    = character tile ID to write to nametable
 ; ===========================================================================
 
-nametable_stream_by_index:
+text_stream_start:
         lda     string_pointer_table_low,x ; load string pointer low byte
         sta     $B6                     ; store string ptr low byte
         lda     string_pointer_table_high,x ; load string pointer high byte
@@ -112,18 +119,18 @@ nametable_stream_by_index:
         sta     $0781                   ; set PPU addr low in buffer
         iny                             ; advance past header bytes
         sty     $B8                     ; offset now at 2 (first tile data)
-        bne     stream_resume               ; always taken (Y=2)
-; --- advance row: increment PPU address low byte by 1 ---
-nametable_advance_row:  inc     $0781               ; next nametable row
+        bne     stream_resume           ; always taken (Y=2)
+; --- typewriter tick: advance PPU address 1 tile right, emit next char ---
+text_stream_tick:  inc     $0781        ; next character cell (1 tile right)
 ; --- resume streaming from current offset ---
-stream_resume:  ldy     $B8                 ; load current stream offset
+stream_resume:  ldy     $B8             ; load current stream offset
         cpy     #$FF                    ; stream already finished?
-        beq     stream_rts               ; yes — return immediately
+        beq     stream_rts              ; yes — return immediately
         lda     ($B6),y                 ; read next byte from string data
         cmp     #$FF                    ; $FF = end-of-string marker
-        beq     mark_stream_finished               ; yes: mark stream finished
+        beq     mark_stream_finished    ; yes: mark stream finished
         cmp     #$FE                    ; $FE = set-new-PPU-address command
-        bne     write_tile_to_buffer               ; not $FE: normal tile byte
+        bne     write_tile_to_buffer    ; not $FE: normal tile byte
         iny                             ; skip past $FE command byte
         lda     ($B6),y                 ; new PPU address high byte
         sta     $0780                   ; update PPU addr high
@@ -132,7 +139,7 @@ stream_resume:  ldy     $B8                 ; load current stream offset
         sta     $0781                   ; update PPU addr low
         iny                             ; advance to tile data
 ; --- write one tile to the PPU buffer ---
-write_tile_to_buffer:  lda     ($B6),y             ; tile ID byte
+write_tile_to_buffer:  lda     ($B6),y  ; tile ID byte
         sta     $0783                   ; store in PPU buffer data area
         iny                             ; advance stream offset
         sty     $B8                     ; save updated offset
@@ -144,63 +151,63 @@ write_tile_to_buffer:  lda     ($B6),y             ; tile ID byte
         rts                             ; return to caller
 
 ; --- end of string: mark stream as finished ---
-mark_stream_finished:  lda     #$FF                ; end-of-string sentinel
+mark_stream_finished:  lda     #$FF     ; end-of-string sentinel
         sta     $B8                     ; $FF = "stream complete" sentinel
-stream_rts:  rts                         ; return (stream complete)
+stream_rts:  rts                        ; return (stream complete)
 
 ; ===========================================================================
-; nametable_init_columns — clear 4 pairs of nametable columns
+; text_clear_rows — blank the 4 dialogue text rows ($2320-$239F)
 ; ===========================================================================
-; Writes 4 pairs of 32-byte blank columns to the nametable via the PPU
-; buffer. Each pair uses both buffers ($0780 and $07A3) to write two
-; columns simultaneously. Calls task_yield ($FF21) between each pair so
-; the NMI handler can drain the PPU buffer.
-;
-; Uses ppu_nametable_addr_low_col0_buf1/ppu_nametable_addr_low_col0plus_buf2 for PPU address low bytes (column offsets $20/$40/$60/$80)
-; and ppu_nametable_addr_high_col0_buf1/ppu_nametable_addr_high_col0plus_buf2 for PPU address high bytes ($23 for all = nametable $2300).
+; Erases the on-screen dialogue by writing four 32-tile blank rows
+; (nametable rows at $2320/$2340/$2360/$2380 — the bottom text area).
+; Each iteration fills both PPU buffers ($0780 and $07A3) to clear two
+; rows at once, then calls task_yield ($FF21) so the NMI handler can
+; drain the buffers; X steps 0,2 so the second pass reads rows 3/4 from
+; the same index-overlapped address tables.
 ; ===========================================================================
-nametable_init_columns:  ldx     #$00                ; column pair index (0, 2)
-init_column_pair_loop:  lda     ppu_nametable_addr_high_col0_buf1,x ; PPU addr high for buffer 1
+text_clear_rows:  ldx     #$00          ; row pair index (0, then 2)
+clear_row_pair_loop:  lda     text_row_ppu_hi_a,x ; PPU addr high, 1st row of pair
         sta     $0780                   ; set buffer 1 PPU addr high
-        lda     ppu_nametable_addr_high_col0plus_buf2,x ; PPU addr high for buffer 2
+        lda     text_row_ppu_hi_b,x     ; PPU addr high, 2nd row of pair
         sta     $07A3                   ; set buffer 2 PPU addr high
-        lda     ppu_nametable_addr_low_col0_buf1,x ; PPU addr low for buffer 1
+        lda     text_row_ppu_lo_a,x     ; PPU addr low, 1st row of pair
         sta     $0781                   ; set buffer 1 PPU addr low
-        lda     ppu_nametable_addr_low_col0plus_buf2,x ; PPU addr low for buffer 2
+        lda     text_row_ppu_lo_b,x     ; PPU addr low, 2nd row of pair
         sta     $07A4                   ; set buffer 2 PPU addr low
-        ldy     #$1F                    ; 32 bytes per column
+        ldy     #$1F                    ; 32 tiles per row
         sty     $0782                   ; buffer 1 byte count
         sty     $07A5                   ; buffer 2 byte count
         lda     #$00                    ; fill with blank tiles ($00)
-clear_column_data_loop:  sta     $0783,y             ; clear buffer 1 tile data
+clear_row_fill_loop:  sta     $0783,y   ; clear buffer 1 tile data
         sta     $07A6,y                 ; clear buffer 2 tile data
         dey                             ; next byte index
-        bpl     clear_column_data_loop               ; loop until all 32 done
+        bpl     clear_row_fill_loop     ; loop until all 32 done
         lda     #$FF                    ; terminator value
         sta     $07C6                   ; terminator after buffer 2 data
         sta     nametable_dirty         ; signal NMI to flush PPU buffer
         jsr     task_yield              ; task_yield — wait for NMI drain
         inx                             ; X += 2 (next pair)
-        inx                             ; advance to next column pair
-        cpx     #$04                    ; done all 4 pairs? (2 pairs x 2 cols)
-        bne     init_column_pair_loop               ; loop if pairs remain
-        rts                             ; all columns cleared
+        inx                             ; X += 2 total (next row pair)
+        cpx     #$04                    ; done both pairs? (2 pairs = 4 rows)
+        bne     clear_row_pair_loop     ; loop for rows 3/4
+        rts                             ; all 4 text rows blanked
 
 ; ===========================================================================
-; Nametable address tables for column initialization
+; PPU addresses of the 4 dialogue text rows ($2320/$2340/$2360/$2380)
 ; ===========================================================================
-; PPU address low bytes for column pairs (nametable column offsets)
-ppu_nametable_addr_low_col0_buf1:  .byte   $20 ; col pair 0, buffer 1: $2320
-ppu_nametable_addr_low_col0plus_buf2:  .byte   $40,$60,$80 ; col pair 0 buf2, pair 1 buf1/buf2
-; PPU address high bytes for column pairs (all $23 = attribute area)
-ppu_nametable_addr_high_col0_buf1:  .byte   $23 ; buffer 1 high byte
-ppu_nametable_addr_high_col0plus_buf2:  .byte   $23,$23,$23 ; buffer 2 / pairs 1-2
+; Index-overlapped tables read with X = 0 and 2: _a,x gives rows 1/3
+; ($2320, $2360 — X=2 reads into _b's bytes), _b,x gives rows 2/4
+; ($2340, $2380).
+text_row_ppu_lo_a:  .byte   $20         ; row 1 low byte: $2320
+text_row_ppu_lo_b:  .byte   $40,$60,$80 ; rows 2-4 low bytes: $2340/$2360/$2380
+text_row_ppu_hi_a:  .byte   $23         ; row 1 high byte
+text_row_ppu_hi_b:  .byte   $23,$23,$23 ; rows 2-4 high bytes
 
 ; ===========================================================================
 ; String pointer table — low bytes and high bytes for 14 text strings
 ; ===========================================================================
-; Index X selects which string to stream. Used for robot master names
-; on the stage select screen and password screen text.
+; Index X selects which string to stream: 0-7 = ending credits robot
+; master roll call, 8-13 = cutscene dialogue (see decode below).
 ; Each string begins with a 2-byte PPU address, then tile IDs,
 ; with $FE for address changes and $FF for end-of-string.
 ; --- pointer low bytes (14 entries) ---
@@ -211,26 +218,35 @@ string_pointer_table_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $A2,$A2,$A2,$A2,$A2,$A3
 
 ; =============================================================================
-; NAMETABLE TEXT DATA — ROBOT MASTER NAMES + PASSWORD SCREEN STRINGS
+; TEXT STRING DATA — ENDING ROLL CALL + CUTSCENE DIALOGUE (ROM-decoded)
 ; =============================================================================
 ; Each entry is a variable-length string of PPU nametable tile IDs.
-;   $FE xx yy = change PPU write address to $xxyy
+;   $FE xx yy = change PPU write address to $xxyy (line break)
 ;   $FF       = end of string
 ;
-; String  0 ($A0C1): "NO. 107 NEEDLE MAN  NOBUEHIKO TAKATSUKA"
-; String  1 ($A0EC): "NO. 108 MAGNET MAN  NAGASHIKI KEE"
-; String  2 ($A111): "NO. 109 GEMINI MAN  YOSHIHIDE HATTORI"
-; String  3 ($A13C): "NO. 200 HARD MAN    KAWAHIKO OGURO"
-; String  4 ($A162): "NO. 201 TOP MAN     YASUSHIKI KONFEKI"  (Konkeki)
-; String  5 ($A188): "NO. 202 SNAKE MAN   YUHFERO ESHETANE"   (Yuhfero Eshetane)
-; String  6 ($A1B1): "NO. 203 SPARK MAN   MEKEHERO SUZUKI"    (Mekehero Suzuki)
-; String  7 ($A1D9): "NO. 204 SHADOW MAN  TAKUMENI YOSHEDA"   (Takumeni Yosheda)
-; String  8 ($A203): password screen decorative text / scores
-; String  9 ($A23C): password screen text 2
-; String 10 ($A25A): password screen text 3
-; String 11 ($A285): password screen text 4
-; String 12 ($A2DC): password screen text 5
-; String 13 ($A301): password screen text 6
+; Strings 0-7 (ending weapon showcase roll call; font: $00-$09 digits,
+; $0A-$23 = A-Z, $25 = space, $26 = period):
+; String  0 ($A0C1): "NO.17 NEEDLE MAN / NOBUHIKO AKATSUKA"
+; String  1 ($A0EC): "NO.18 MAGNET MAN / NAGASHI KII"
+; String  2 ($A111): "NO.19 GEMINI MAN / YOSHIHITO HATTORI"
+; String  3 ($A13C): "NO.20 HARD MAN / KAZUHIKO OGURO"
+; String  4 ($A162): "NO.21 TOP MAN / YASUSHI KONJIKI"
+; String  5 ($A188): "NO.22 SNAKE MAN / YUHJIRO ISHITANI"
+; String  6 ($A1B1): "NO.23 SPARK MAN / MIKIHIRO SUZUKI"
+; String  7 ($A1D9): "NO.24 SHADOW MAN / TAKUMINE YOSHIDA"
+;
+; Strings 8-13 (cutscene dialogue; font shifted +1: $0B-$24 = A-Z,
+; $00 = space, $26 = period, $27 = apostrophe, $28 = !, $29 = ?, $2B = comma):
+; String  8 ($A203): "OH NO! RIGHT AFTER WE RECEIVED THE LAST ELEMENT..."
+;                    (Gamma cutscene, bank $0B)
+; String  9 ($A23C): "WILEY RAN OFF WITH GAMMA!" (Gamma cutscene, bank $0B)
+; String 10 ($A25A): "WHERE'S DR. WILEY?... OH NO, TOO LATE."
+;                    (post-Gamma-defeat, streamed via bank $12 + $B8=$0A)
+; String 11 ($A285): "MEGAMAN, YOU'VE REGAINED CONSCIOUSNESS. I FOUND YOU
+;                    LYING HERE WHEN I ARRIVED." (ending cliff scene, bank $0C)
+; String 12 ($A2DC): "I WONDER WHO BROUGHT YOU HERE..." (ending, bank $0C)
+; String 13 ($A301): "THIS WHISTLE... IT MUST HAVE BEEN PROTO MAN!"
+;                    (ending, bank $0C)
 ; =============================================================================
         .byte   $21,$8F
         .byte   $17,$18,$26,$01,$07,$FE,$21,$AF

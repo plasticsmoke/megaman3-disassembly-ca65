@@ -72,32 +72,33 @@
 ; --- enemy ID index (confirmed via dispatch table + Mesen): ---
 ;   $00=Dada            $01=Potton          $02=New Shotman     $03=Hammer Joe
 ;   $04=Bubukan         $05=Jamacy          $06=Bomb Flier      $07=(projectile)
-;   $08=Yambow          $09=Metall DX       $0A=Cannon          $0B=Cloud Platform
+;   $08=Yambow          $09=Met             $0A=Cannon          $0B=Cloud Platform
 ;   $0C=Giant Metall Met $0D=Giant Metall Met $0E=Gyoraibo       $0F=Mag Fly
 ;   $10=Block Breaker   $11=Junk Golem      $12=Pickelman Bull  $13=Bikky
 ;   $14=Giant Metall    $15=Jamacy          $16=Mag Force       $17=Junk Block Thrown
-;   $18=Nitron          $19=Pole            $1A=Gyoraibo        $1B=Hari Harry
+;   $18=Nitron          $19=Block Debris    $1A=Gyoraibo        $1B=Hari Harry
 ;   $1C=Penpen Maker    $1D=Returning Monking $1E=Block Breaker $1F=Have 'Su' Bee
 ;   $20=Bolton & Nutton $21=Wanaan          $22=Needle Press    $23=Needle Press
-;   $24=Elec'n          $25=Magnet Pull     $26=Mechakkero      $27=Top Man Platform
-;   $28=(no-op)         $29=(no-op)         $2A=Chibee          $2B=Block Breaker
-;   $2C=Penpen          $2D=Electric Gabyoall $2E=(no-op)       $2F=Block Breaker
-;   $30=Block Breaker   $31=(no-op)         $32=Pole            $33=Holograph
-;   $34=Needle Press    $35=(no-op)         $36=Peterchy        $37=Walking Bomb
+;   $24=Elec'n          $25=(no AI)         $26=Mechakkero      $27=Top Man Platform
+;   $28=Part Spawner    $29=Part Spawner    $2A=Chibee          $2B=Block Breaker
+;   $2C=Bomb Flier(var) $2D=Spark Fall Plat $2E=(no-op)         $2F=Block Breaker
+;   $30=Block Breaker   $31=(no AI)         $32=Pole            $33=Holograph
+;   $34=Needle Press    $35=Part Spawner    $36=Peterchy        $37=Walking Bomb
 ;   $38=Parasyu         $39=Hologran        $3A=Hologran        $3B=Bomber Pepe
 ;   $3C=Metall DX (walk) $3D=Magnet Push    $3E=Proto Man       $3F=(no-op)
 ;   $40-$46=Doc Robot screen markers (no-op AI)
 ;   $47-$4E=Robot Masters (Needle/Magnet/Gemini/Hard/Top/Snake/Spark/Shadow)
-;   $50-$56=Robot Master intros             $57=Giant Met (Doc Needle)
-;   $58-$5B,$5D=Tama parts                  $5C=Giant Springer
+;   $50-$55=item pickups (routines $64-$69)   $56=Surprise Box
+;   $57=Giant Met (Doc Needle)              $58-$59=Spinning Wheel
+;   $5A=Trap Platform   $5B=(no AI)         $5C=Giant Springer  $5D=Breakable Wall
 ;   $5E-$5F=Kamegoro-room spawners (Wily 1)
-;   $60-$61=Petit Snakey                    $62=Komasaburo
-;   $63=Surprise Box                        $64-$65=item pickups
+;   $60-$61=Petit Snakey                    $62=Komasaburo      $63=Junk Block
+;   $64-$65=Electric Gabyoall               $66-$67=(no AI)
 ;   $68-$6F=Doc Robots (Flash/Bubble/Quick/Wood/Crash/Air/Metal/Heat)
-;   $70-$77=Boss projectiles / special entities
+;   $71=Big Snakey      $73=Tama A          $76=Tama B          $77=Tama (init)
 ;   $78=Proto Man (Gemini cutscene)         $7A=Gamma
 ;   $7E-$80=Gamma hazard entities           $81=Yellow Devil
-;   $82-$83=Wily Machine A/B                $84=Break Man
+;   $82-$83=Wily Machine A/B                $84=(stub — routine $ED nop/rts)
 ;   $8A-$8D=Boss rematch teleporters
 ; ===========================================================================
 enemy_flags_g:

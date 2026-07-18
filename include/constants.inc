@@ -121,8 +121,10 @@ TILE_LADDER      = $20   ; climbable ladder
 TILE_DAMAGE      = $30   ; damage tile (lava/fire)
 TILE_LADDER_TOP  = $40   ; ladder top (grab point from above)
 TILE_SPIKES      = $50   ; instant kill spikes
-TILE_BREAKABLE   = $70   ; breakable block (Gemini stage; destroyed by weapons, spawns debris)
-TILE_WATER       = $80   ; water (Rush Marine buoyancy; Doc Needle underwater areas)
+TILE_BEHIND_BG   = $60   ; passthrough; entities overlapping it render behind the background
+                         ;   (sets ent_flags bit 5 -> OAM priority; Spark/Gemini/Wily stages)
+TILE_BREAKABLE   = $70   ; breakable block (Gemini stages only; destroyed by weapons, spawns debris)
+TILE_WATER       = $80   ; water (Rush Marine physics; Gemini, Doc Gemini, Wily 1, Wily 4)
 
 ; =============================================================================
 ; Music IDs (via submit_sound_ID_D9 — checks $D9 to avoid restart)

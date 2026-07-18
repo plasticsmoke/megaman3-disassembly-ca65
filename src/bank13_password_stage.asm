@@ -1,11 +1,13 @@
 ; =============================================================================
-; MEGA MAN 3 (U) — BANK $13 — SPECIAL/ENDING STAGE DATA 2
+; MEGA MAN 3 (U) — BANK $13 — PASSWORD / GAME OVER SCREEN STAGE DATA
 ; =============================================================================
-; Mapped to $A000-$BFFF. Stage data bank for stage $13 (ending sequence).
-; Referenced by ensure_stage_bank_table[$13] = $13. Also loaded for game over screen
-; (bank18 sets prg_bank=$13). The ensure_stage_bank routine skips bank switch
-; when prg_bank is already $13, suggesting this bank remains mapped as a
-; default in some contexts.
+; Mapped to $A000-$BFFF. Stage data bank for stage $13 — the blue
+; password/continue screen backdrop. Used by the bank $18 game over /
+; password screens (game_loop pages prg_bank=$13 before calling them)
+; and reused by the bank $0C ending for the staff-credits screen.
+; Referenced by ensure_stage_bank_table[$13] = $13. The ensure_stage_bank
+; routine skips the bank switch when prg_bank is already $13, suggesting
+; this bank remains mapped as a default in some contexts.
 ;
 ; Standard MM3 stage data layout:
 ;   $A000-$A9FF: boss AI local data / compressed nametable graphics
@@ -35,8 +37,8 @@
 ; =============================================================================
 ; BOSS AI LOCAL DATA / COMPRESSED NAMETABLE DATA ($A000-$A9FF)
 ; =============================================================================
-; First $A00 bytes. For ending/special stages this region typically holds
-; compressed nametable graphics or cutscene tile data.
+; First $A00 bytes. For special-screen stages this region holds
+; compressed nametable graphics / screen tile data.
 ; =============================================================================
 
         .byte   $BE,$FF,$EB,$FF,$FF,$FF,$FE,$FF
