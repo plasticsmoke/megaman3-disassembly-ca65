@@ -524,8 +524,8 @@
 
 ; --- enemy spawn table: global enemy ID ($AE00) ---
 
-        .byte   $54,$52,$56,$55,$50,$52,$56,$7A ; RM intro, RM intro, RM intro, RM intro, RM intro, RM intro, RM intro, $7A
-        .byte   $7C,$7D,$7B,$79,$7E,$7F,$80,$FF ; $7C, $7D, $7B, $79, $7E, $7F, Yellow Devil
+        .byte   $54,$52,$56,$55,$50,$52,$56,$7A ; E-Tank, Wpn energy (L), Surprise Box, 1-Up, HP energy (L), Wpn energy (L), Surprise Box, Gamma
+        .byte   $7C,$7D,$7B,$79,$7E,$7F,$80,$FF ; Gamma part x4, Gamma hazard x3
         .byte   $00,$00,$01,$00,$00,$00,$40,$00
         .byte   $00,$00,$60,$00,$10,$00,$00,$00
         .byte   $08,$04,$11,$00,$00,$00,$28,$00

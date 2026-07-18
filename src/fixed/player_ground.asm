@@ -114,7 +114,7 @@ player_ground_shoot_walk:  lda     joy1_held ; D-pad matches facing direction?
 
 player_ground_turning_anim:  lda     #$0D ; OAM $0D = turning animation
         jsr     reset_sprite_anim       ; set turning animation
-        lda     walk_flag               ; check if shooting
+        lda     shoot_anim_timer               ; check if shooting
         beq     player_ground_move_facing ; not shooting, move facing
         jsr     shoot_oam_advance_variant ; update shoot animation variant
 player_ground_move_facing:  lda     player_facing ; move in facing direction
@@ -139,7 +139,7 @@ player_ground_walk_handler:  lda     joy1_held ; D-pad L/R held?
 player_ground_shoot_walk_anim:  lda     #$04 ; OAM $04 = shoot-walk
         jsr     reset_sprite_anim       ; set animation to shoot-walk
         lda     player_facing           ; A = facing direction
-        ldy     walk_flag               ; if not shooting: just move
+        ldy     shoot_anim_timer               ; if not shooting: just move
         beq     player_ground_move_horizontal ; not shooting, move player
         jsr     shoot_oam_advance_variant ; update shoot animation
         ldy     current_weapon          ; (vestigial: Y loaded but unused)
@@ -160,7 +160,7 @@ player_ground_move_left:  ldy     #$01  ; move left with collision
 
 ; --- idle: no D-pad input → check if need to reset animation ---
 
-player_ground_idle:  lda     walk_flag  ; if shooting: skip idle anim reset
+player_ground_idle:  lda     shoot_anim_timer  ; if shooting: skip idle anim reset
         bne     player_ground_slide_weapon ; shooting, skip idle check
         lda     #$01                    ; OAM $01 = idle standing
         cmp     ent_anim_id             ; compare with current anim
@@ -200,7 +200,7 @@ dead_code_rush_marine_walk:  lda     joy1_held ; D-pad L/R → walk
         jsr     player_ground_move_horizontal ; move L/R with collision
         lda     #$01                    ; OAM $01 = walk animation
         jsr     reset_sprite_anim       ; set walk animation
-        lda     walk_flag               ; check if shooting
+        lda     shoot_anim_timer               ; check if shooting
         beq     dead_code_rush_marine_climb ; not shooting, skip variant
         jsr     shoot_oam_advance_variant ; update shoot animation variant
 dead_code_rush_marine_climb:  lda     joy1_held ; D-pad U/D → climb vertically
@@ -333,7 +333,7 @@ player_airborne_landing_check:  plp     ; restore carry (landing status)
         lda     #$0D                    ; OAM $0D = landing animation
         jsr     reset_sprite_anim       ; set landing animation
         inc     ent_anim_state          ; force anim state to 1 (playing)
-        lda     walk_flag               ; if shooting: set shoot OAM variant
+        lda     shoot_anim_timer               ; if shooting: set shoot OAM variant
         beq     player_airborne_landing_anim ; not shooting → return
         jsr     shoot_oam_advance_variant ; update shoot animation variant
 player_airborne_landing_anim:  rts      ; return to caller
@@ -351,7 +351,7 @@ player_airborne_state_dispatch:  lda     player_state ; check current player sta
         jsr     reset_sprite_anim       ; set jump/fall animation
         lda     #PSTATE_AIRBORNE        ; set state to airborne ($01)
         sta     player_state            ; store player state
-        lda     walk_flag               ; check if shooting
+        lda     shoot_anim_timer               ; check if shooting
         beq     player_airborne_walk_shoot ; not shooting → walk+shoot handler
         jsr     shoot_oam_advance_variant ; update shoot animation variant
 
@@ -394,7 +394,7 @@ weapon_fire_decrease_ammo:  ldy     current_weapon ; reload weapon index
 
 ; common weapon init routine: spawns the shot
 
-init_weapon:  lda     walk_flag         ; check if already in shoot animation
+init_weapon:  lda     shoot_anim_timer         ; check if already in shoot animation
         bne     init_weapon_anim_check  ; nonzero = already shooting, skip OAM change
         jsr     shoot_oam_advance_variant ; advance OAM to shooting variant
 init_weapon_anim_check:  lda     ent_anim_id ; check player animation ID
@@ -408,7 +408,7 @@ init_weapon_anim_check:  lda     ent_anim_id ; check player animation ID
         sta     ent_anim_state          ; reset animation state to 0
         sta     ent_anim_frame          ; reset animation frame to 0
 init_weapon_set_shooting:  lda     #$10 ; shoot timer = $10 (16 frames)
-        sta     walk_flag               ; set shoot animation timer
+        sta     shoot_anim_timer               ; set shoot animation timer
         ldy     current_weapon          ; Y = current weapon index
         lda     weapon_max_shots,y      ; max shot slots for this weapon
         tay                             ; Y = max slot to search

@@ -692,9 +692,9 @@ player_state_ptr_lo:  .byte   $36,$07,$FD,$EB,$BA,$13,$AB,$31
         .byte   $14,$AA,$52,$33,$8A,$8C ; $12 player_warp_anim
 player_state_ptr_hi:  .byte   $CE,$D0,$D3,$D4,$D5,$D6,$D6,$D8 ; $02
         .byte   $D8,$D9,$D9,$D9,$D9,$DB,$D7,$CD ; $0A
-        .byte   $DD,$DD,$DE,$DF,$DF,$E0,$66,$61 ; $12
-        .byte   $E0,$CF,$CE
-        .byte   $CF
+        .byte   $DD,$DD,$DE,$DF,$DF,$E0,$66,$61 ; $10-$15 + 2 trailing bytes
+        .byte   $E0,$CF,$CE             ; trailing bytes, never indexed
+        .byte   $CF                     ; (valid states are $00-$15 only)
 
 ; player state $0F: frozen by external force (slam/grab/cutscene) [confirmed]
 ; Player cannot move. Gravity still applies (falls if airborne).
@@ -710,7 +710,7 @@ player_stunned:
         beq     prelude_stunned_done    ; yes → done
         jsr     reset_sprite_anim       ; reset to idle animation
         lda     #$00                    ; clear shooting flag
-        sta     walk_flag               ; clear walk/shoot flag
+        sta     shoot_anim_timer               ; clear walk/shoot flag
 prelude_stunned_done:  rts              ; return to caller
 
 prelude_stunned_freeze_anim:  lda     #$00 ; freeze anim counter (boss cutscene)

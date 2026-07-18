@@ -68,7 +68,7 @@ The engine divides zero page into functional regions:
 | `$14-$17` | Controller input | `joy1_press`, `joy2_press`, `joy1_held`, `joy2_held` |
 | `$18-$1A` | PPU dirty flags | `palette_dirty`, `nametable_dirty`, `nt_column_dirty` |
 | `$22` | Stage | `stage_id` |
-| `$30-$44` | Player state | `player_state`, `player_facing`, `walk_flag`, `invincibility_timer`, `force_full_jump`, `hazard_pending`, `tile_at_feet_*` |
+| `$30-$44` | Player state | `player_state`, `player_facing`, `shoot_anim_timer`, `invincibility_timer`, `force_full_jump`, `hazard_pending`, `tile_at_feet_*` |
 | `$50-$7B` | Scroll / screen | `scroll_lock`, `boss_active`, `bosses_beaten`, `screen_mode`, `scroll_x_fine`, `nt_select`, `irq_scanline` |
 | `$80-$8F` | Scheduler / envelopes | 4 task slots (4 bytes each), also used as sound envelope timers |
 | `$90-$9B` | NMI / timing | `nmi_occurred`, `frame_counter`, `oam_ptr`, `gravity`, `irq_enable` |

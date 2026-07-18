@@ -673,11 +673,11 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
 ; $AE00,y = global enemy type ID for enemy slot y. Indexes into the
 ; enemy AI/shape/HP tables in bank $00 to determine behavior.
 ; Terminated by $FF.
-        .byte   $5A,$5A,$5A,$52,$5A,$5A,$52,$5A ; Tama seg, Tama seg, Tama seg, RM intro, Tama seg, Tama seg, RM intro, Tama seg
-        .byte   $55,$21,$21,$21,$21,$21,$21,$21 ; RM intro, Wanaan, Wanaan, Wanaan, Wanaan, Wanaan, Wanaan, Wanaan
-        .byte   $1F,$21,$21,$1F,$21,$21,$21,$21 ; Have Su Bee, Wanaan, Wanaan, Have Su Bee, Wanaan, Wanaan, Wanaan, Wanaan
-        .byte   $52,$1F,$51,$51,$51,$52,$54,$54 ; RM intro, Have Su Bee, RM intro, RM intro, RM intro, RM intro, RM intro, RM intro
-        .byte   $52,$52,$52,$81,$FF,$10,$48,$01 ; RM intro, RM intro, RM intro, Yellow Devil
+        .byte   $5A,$5A,$5A,$52,$5A,$5A,$52,$5A ; Trap Platform x3, Wpn energy (L), Trap Platform x2, Wpn energy (L), Trap Platform
+        .byte   $55,$21,$21,$21,$21,$21,$21,$21 ; 1-Up, Wanaan x7
+        .byte   $1F,$21,$21,$1F,$21,$21,$21,$21 ; Have Su Bee, Wanaan x2, Have Su Bee, Wanaan x4
+        .byte   $52,$1F,$51,$51,$51,$52,$54,$54 ; Wpn energy (L), Have Su Bee, HP energy (S) x3, Wpn energy (L), E-Tank x2
+        .byte   $52,$52,$52,$81,$FF,$10,$48,$01 ; Wpn energy (L) x3, Yellow Devil
         .byte   $00,$40,$21,$00,$94,$00,$20,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$20,$00,$00,$00,$00,$00

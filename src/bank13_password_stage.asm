@@ -421,7 +421,7 @@
 ;   $AE00,y = global enemy ID (indexes bank $00 property tables)
 ; =============================================================================
 
-; --- enemy spawn table: screen number ($AB00) ---
+; --- enemy spawn table region ($AB00) — unused (see $AE00 note) ---
 
         .byte   $00,$00,$00,$10,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$80,$04,$00,$00
@@ -456,7 +456,7 @@
         .byte   $00,$00,$00,$92,$00,$02,$00,$00
         .byte   $00,$00,$00,$40,$00,$00,$00,$00
 
-; --- enemy spawn table: X pixel position ($AC00) ---
+; --- enemy spawn table region ($AC00) — unused (see $AE00 note) ---
 
         .byte   $00,$00,$80,$00,$80,$00,$00,$00
         .byte   $00,$00,$00,$00,$20,$00,$10,$00
@@ -468,7 +468,7 @@
         .byte   $00,$11,$10,$00,$00,$00,$00,$00
         .byte   $80,$04,$00,$00,$00,$00,$20,$00
 
-; --- enemy spawn table: Y pixel position ($AD00) ---
+; --- enemy spawn table region ($AD00) — unused (see $AE00 note) ---
 
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$00,$08,$40,$00,$00,$10,$04
@@ -532,40 +532,44 @@
         .byte   $21,$00,$A0,$00,$21,$00,$00,$00
         .byte   $08,$01,$00,$00,$28,$00,$40,$00
 
-; --- enemy spawn table: global enemy ID ($AE00) ---
+; --- enemy spawn table region ($AE00) — NOT real spawn data ---
+; Stage $13 (password/game over backdrop) never hosts gameplay, so the
+; enemy spawner never reads this bank. No $FF terminator and many
+; out-of-range IDs confirm these bytes are unrelated/unused data, not
+; spawn entries.
 
-        .byte   $01,$00,$00,$00,$00,$00,$00,$00 ; Potton, -, -, -, -, -, -, -
-        .byte   $40,$40,$00,$00,$00,$00,$00,$00 ; Doc scr, Doc scr, -, -, -, -, -, -
-        .byte   $00,$00,$00,$14,$00,$00,$40,$00 ; -, -, -, Petit Snakey, -, -, Doc scr, -
-        .byte   $00,$00,$04,$00,$00,$00,$00,$00 ; -, -, Hammer Joe, -, -, -, -, -
-        .byte   $04,$00,$20,$00,$00,$00,$42,$00 ; Hammer Joe, -, Penpen Maker, -, -, -, Doc scr, -
-        .byte   $00,$10,$00,$00,$00,$00,$00,$00 ; -, Mag Fly(B), -, -, -, -, -, -
-        .byte   $00,$04,$80,$40,$00,$00,$24,$00 ; -, Hammer Joe, Yellow Devil, Doc scr, -, -, Junk Block(B), -
-        .byte   $08,$00,$04,$00,$10,$00,$00,$00 ; Bomb Flier, -, Hammer Joe, -, Mag Fly(B), -, -, -
-        .byte   $84,$00,$00,$00,$80,$00,$01,$00 ; Break Man, -, -, -, Yellow Devil, -, Potton, -
-        .byte   $00,$44,$80,$00,$40,$10,$00,$00 ; -, Doc scr, Yellow Devil, -, Doc scr, Mag Fly(B), -, -
+        .byte   $01,$00,$00,$00,$00,$00,$00,$00
+        .byte   $40,$40,$00,$00,$00,$00,$00,$00
+        .byte   $00,$00,$00,$14,$00,$00,$40,$00
+        .byte   $00,$00,$04,$00,$00,$00,$00,$00
+        .byte   $04,$00,$20,$00,$00,$00,$42,$00
+        .byte   $00,$10,$00,$00,$00,$00,$00,$00
+        .byte   $00,$04,$80,$40,$00,$00,$24,$00
+        .byte   $08,$00,$04,$00,$10,$00,$00,$00
+        .byte   $84,$00,$00,$00,$80,$00,$01,$00
+        .byte   $00,$44,$80,$00,$40,$10,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-        .byte   $00,$00,$04,$00,$00,$00,$40,$00 ; -, -, Hammer Joe, -, -, -, Doc scr, -
-        .byte   $A6,$11,$40,$40,$10,$00,$00,$10 ; $A6, Junk Golem, Doc scr, Doc scr, Mag Fly(B), -, -, Mag Fly(B)
-        .byte   $98,$05,$60,$00,$00,$00,$00,$00 ; $98, New Shotman, Surprise Box, -, -, -, -, -
-        .byte   $10,$00,$00,$00,$08,$00,$18,$00 ; Mag Fly(B), -, -, -, Bomb Flier, -, Pickelman, -
-        .byte   $04,$00,$00,$00,$28,$00,$00,$04 ; Hammer Joe, -, -, -, Hard Knuckle, -, -, Hammer Joe
-        .byte   $80,$00,$00,$00,$00,$00,$C0,$00 ; Yellow Devil, -, -, -, -, -, $C0, -
-        .byte   $00,$00,$00,$00,$00,$01,$08,$00 ; -, -, -, -, -, Potton, Bomb Flier, -
-        .byte   $00,$00,$01,$10,$00,$00,$00,$00 ; -, -, Potton, Mag Fly(B), -, -, -, -
+        .byte   $00,$00,$04,$00,$00,$00,$40,$00
+        .byte   $A6,$11,$40,$40,$10,$00,$00,$10
+        .byte   $98,$05,$60,$00,$00,$00,$00,$00
+        .byte   $10,$00,$00,$00,$08,$00,$18,$00
+        .byte   $04,$00,$00,$00,$28,$00,$00,$04
+        .byte   $80,$00,$00,$00,$00,$00,$C0,$00
+        .byte   $00,$00,$00,$00,$00,$01,$08,$00
+        .byte   $00,$00,$01,$10,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-        .byte   $04,$10,$00,$00,$26,$00,$40,$40 ; Hammer Joe, Mag Fly(B), -, -, Magnet Missile, -, Doc scr, Doc scr
-        .byte   $81,$40,$0A,$00,$04,$00,$80,$44 ; Wily Machine, Doc scr, Yambow, -, Hammer Joe, -, Yellow Devil, Doc scr
-        .byte   $10,$00,$10,$00,$01,$00,$00,$40 ; Mag Fly(B), -, Mag Fly(B), -, Potton, -, -, Doc scr
-        .byte   $02,$00,$00,$00,$02,$00,$00,$00 ; New Shotman, -, -, -, New Shotman, -, -, -
-        .byte   $60,$00,$40,$00,$40,$00,$43,$04 ; Surprise Box, -, Doc scr, -, Doc scr, -, Doc scr, Hammer Joe
-        .byte   $20,$00,$00,$00,$20,$01,$00,$00 ; Penpen Maker, -, -, -, Penpen Maker, Potton, -, -
-        .byte   $20,$00,$08,$01,$20,$41,$08,$00 ; Penpen Maker, -, Bomb Flier, Potton, Penpen Maker, Doc scr, Bomb Flier, -
-        .byte   $00,$00,$08,$00,$00,$00,$00,$00 ; -, -, Bomb Flier, -, -, -, -, -
-        .byte   $00,$00,$10,$01,$00,$11,$85,$10 ; -, -, Mag Fly(B), Potton, -, Junk Golem, $85, Mag Fly(B)
-        .byte   $00,$01,$00,$00,$20,$05,$80,$00 ; -, Potton, -, -, Penpen Maker, New Shotman, Yellow Devil, -
-        .byte   $00,$10,$00,$00,$00,$00,$80,$00 ; -, Mag Fly(B), -, -, -, -, Yellow Devil, -
-        .byte   $60,$00,$00,$00,$40,$05,$21,$00 ; Surprise Box, -, -, -, Doc scr, New Shotman, Proto Man, -
+        .byte   $04,$10,$00,$00,$26,$00,$40,$40
+        .byte   $81,$40,$0A,$00,$04,$00,$80,$44
+        .byte   $10,$00,$10,$00,$01,$00,$00,$40
+        .byte   $02,$00,$00,$00,$02,$00,$00,$00
+        .byte   $60,$00,$40,$00,$40,$00,$43,$04
+        .byte   $20,$00,$00,$00,$20,$01,$00,$00
+        .byte   $20,$00,$08,$01,$20,$41,$08,$00
+        .byte   $00,$00,$08,$00,$00,$00,$00,$00
+        .byte   $00,$00,$10,$01,$00,$11,$85,$10
+        .byte   $00,$01,$00,$00,$20,$05,$80,$00
+        .byte   $00,$10,$00,$00,$00,$00,$80,$00
+        .byte   $60,$00,$00,$00,$40,$05,$21,$00
 
 ; =============================================================================
 ; METATILE COLUMN DEFINITIONS ($AF00-$B6FF)

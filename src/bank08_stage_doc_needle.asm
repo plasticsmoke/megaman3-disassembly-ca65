@@ -514,14 +514,14 @@
 ; Global enemy ID per spawn slot. Indexes property tables in bank $00
 ; ($A000-$A5FF) to determine AI routine, hitbox, HP, speed, etc.
 ; ===========================================================================
-        .byte   $1B,$1B,$1B,$23,$23,$23,$22,$23 ; Bolton/Nutton, Bolton/Nutton, Bolton/Nutton, Junk Block, Junk Block, Junk Block, Metall DX, Junk Block
-        .byte   $23,$22,$23,$23,$50,$23,$22,$23 ; Junk Block, Metall DX, Junk Block, Junk Block, RM intro, Junk Block, Metall DX, Junk Block
-        .byte   $5C,$55,$54,$1B,$6D,$52,$08,$38 ; Tama seg, RM intro, RM intro, Bolton/Nutton, Snake Man, RM intro, Bomb Flier, Bomb Flier(B)
-        .byte   $38,$08,$38,$38,$38,$52,$08,$38 ; Bomb Flier(B), Bomb Flier, Bomb Flier(B), Bomb Flier(B), Bomb Flier(B), RM intro, Bomb Flier, Bomb Flier(B)
-        .byte   $08,$08,$52,$38,$52,$08,$38,$38 ; Bomb Flier, Bomb Flier, RM intro, Bomb Flier(B), RM intro, Bomb Flier, Bomb Flier(B), Bomb Flier(B)
-        .byte   $08,$38,$38,$52,$38,$08,$38,$38 ; Bomb Flier, Bomb Flier(B), Bomb Flier(B), RM intro, Bomb Flier(B), Bomb Flier, Bomb Flier(B), Bomb Flier(B)
-        .byte   $52,$52,$04,$57,$3C,$3C,$3C,$3C ; RM intro, RM intro, Hammer Joe, Komasaburo, Penpen(E), Penpen(E), Penpen(E), Penpen(E)
-        .byte   $3C,$0A,$0A,$57,$1B,$50,$6C,$FF ; Penpen(E), Yambow, Yambow, Komasaburo, Bolton/Nutton, RM intro, Top Man
+        .byte   $1B,$1B,$1B,$23,$23,$23,$22,$23 ; Hari Harry x3, Needle Press(B) x3, Needle Press, Needle Press(B)
+        .byte   $23,$22,$23,$23,$50,$23,$22,$23 ; Needle Press(B), Needle Press, Needle Press(B) x2, HP energy (L), Needle Press(B), Needle Press, Needle Press(B)
+        .byte   $5C,$55,$54,$1B,$6D,$52,$08,$38 ; Giant Springer, 1-Up, E-Tank, Hari Harry, Doc Robot (Air), Wpn energy (L), Yambow, Parasyu
+        .byte   $38,$08,$38,$38,$38,$52,$08,$38 ; Parasyu, Yambow, Parasyu x3, Wpn energy (L), Yambow, Parasyu
+        .byte   $08,$08,$52,$38,$52,$08,$38,$38 ; Yambow x2, Wpn energy (L), Parasyu, Wpn energy (L), Yambow, Parasyu x2
+        .byte   $08,$38,$38,$52,$38,$08,$38,$38 ; Yambow, Parasyu x2, Wpn energy (L), Parasyu, Yambow, Parasyu x2
+        .byte   $52,$52,$04,$57,$3C,$3C,$3C,$3C ; Wpn energy (L) x2, Bubukan, Giant Met, Metall DX x4
+        .byte   $3C,$0A,$0A,$57,$1B,$50,$6C,$FF ; Metall DX, Cannon x2, Giant Met, Hari Harry, HP energy (L), Doc Robot (Crash)
         .byte   $08,$00,$00,$00,$00,$00,$08,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $00,$01,$00,$00,$05,$00,$00,$00

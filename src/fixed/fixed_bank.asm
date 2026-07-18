@@ -58,7 +58,7 @@
 ;   stage_id ($22)         = current stage index (see STAGE MAPPING below)
 ;   player_state ($30)     = player state (index into player_state_ptr, 22 states)
 ;   player_facing ($31)    = facing direction (FACING_RIGHT, FACING_LEFT)
-;   walk_flag ($32)        = walking / sub-state (nonzero = active)
+;   shoot_anim_timer ($32) = shoot-pose anim timer (nonzero = shoot variant)
 ;   entity_ride_slot ($34) = entity slot being ridden (state $05)
 ;   facing_sub ($35)       = facing sub-state / Mag Fly direction inherit
 ;   invincibility_timer ($39) = i-frames timer (nonzero = immune)

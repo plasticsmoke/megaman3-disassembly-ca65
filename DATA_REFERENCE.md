@@ -251,11 +251,11 @@ $47-$4E are the eight Robot Master bosses, each spawned in its own stage
 and then morphs the entity to its fight AI ($C0-$D6, banks $06/$07). Damage
 values are from the fight AI combat routines.
 
-**Robot Master Intros, Tama, Items ($50-$67):**
+**Items, Platforms, Misc ($50-$67):**
 
 | ID | Entity | HP | Dmg |
 |----|--------|-----|-----|
-| $50-$55 | Item pickups (routines $64-$69; small/large hitbox variants) | $FF/$1C | — |
+| $50-$55 | Item pickups: $50/$51 HP energy L/S, $52/$53 weapon energy L/S, $54 E-Tank, $55 1-Up (routines $64-$69) | $FF/$1C | — |
 | $56 | Surprise Box (routine $6A) | $FF | — |
 | $57 | Giant Met (Doc Needle mid-boss, bank $12 AI) | 10 | 8 |
 | $58-$59 | Spinning Wheel (routine $6E) | $FF/0 | — |

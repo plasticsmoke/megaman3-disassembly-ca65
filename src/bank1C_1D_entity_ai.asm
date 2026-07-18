@@ -509,7 +509,7 @@ boss_death_weapon_despawn:  lda     #$00 ; despawn all weapon slots
         lda     #PSTATE_VICTORY         ; state → $0C (victory)
         sta     player_state            ; begin boss defeated cutscene
         lda     #$00                    ; clear victory init fields
-        sta     walk_flag               ; clear sub-state
+        sta     shoot_anim_timer               ; clear sub-state
         sta     ent_timer               ; clear player timer
         sta     $0301                   ; despawn weapon slot 1
         sta     $0302                   ; despawn weapon slot 2
@@ -3445,7 +3445,7 @@ mag_fly_check_distance:  jsr     entity_y_dist_to_player ; check player proximit
         lda     #$00                    ; A = 0 for clearing fields
         sta     ent_anim_frame          ; reset animation counter
         sta     ent_anim_state          ; reset animation frame
-        sta     walk_flag               ; clear sub-state
+        sta     shoot_anim_timer               ; clear sub-state
         lda     ent_y_px                ; save player Y as reference
         sta     ent_timer,x             ; save player Y as mount reference
         lda     ent_yvel                ; player Y velocity (high byte)

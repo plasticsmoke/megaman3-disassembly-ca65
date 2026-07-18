@@ -226,9 +226,9 @@ weapon_fire_sound:
 ; --- shoot_timer_tick: decrement shoot timer, end shoot animation when done ---
 ; $32 = shoot animation timer. When it reaches 0, revert OAM to non-shoot variant.
 ; OAM IDs for shooting are base+1 (or +2 for Shadow Blade $0A).
-shoot_timer_tick_dec:  lda     walk_flag ; read shoot timer
+shoot_timer_tick_dec:  lda     shoot_anim_timer ; read shoot timer
         beq     shoot_timer_tick_return ; zero = not shooting, return
-        dec     walk_flag               ; decrement timer
+        dec     shoot_anim_timer               ; decrement timer
         bne     shoot_timer_tick_return ; not done → return
         jsr     shoot_oam_revert_variant ; revert OAM from shoot variant
         ldy     ent_anim_id             ; if OAM == $04 (shoot-walk):
@@ -427,7 +427,7 @@ ladder_enter_common:  jsr     reset_sprite_anim ; set OAM animation (A = OAM ID)
         lda     #$01                    ; Y velocity whole = 1
         sta     ent_yvel                ; set Y velocity whole
         lda     #$00                    ; $32 = 0 (clear walk/shoot sub-state)
-        sta     walk_flag               ; clear walk/shoot flag
+        sta     shoot_anim_timer               ; clear walk/shoot flag
         clc                             ; carry clear = entered ladder
         rts                             ; return to caller
 
@@ -476,7 +476,7 @@ player_ladder:
 ladder_fire_weapon:  jsr     weapon_fire ; fire weapon
 
 ; --- check climbing input ---
-ladder_check_climb_input:  lda     walk_flag ; if shooting: return to shoot-on-ladder
+ladder_check_climb_input:  lda     shoot_anim_timer ; if shooting: return to shoot-on-ladder
         bne     ladder_check_return     ; (OAM animation handler above)
         lda     joy1_held               ; D-pad U/D held?
         and     #$0C                    ; mask Up/Down bits
@@ -629,7 +629,7 @@ shadow_man_reappear_check:  lda     ent_anim_state ; anim frame == 4 → reappea
         bne     shadow_man_reappear_return ; not done yet
         lda     #$00                    ; transition to state $00 (on_ground)
         sta     player_state            ; set state to on_ground
-        sta     walk_flag               ; clear shooting flag
+        sta     shoot_anim_timer               ; clear shooting flag
         sta     invincibility_timer     ; clear invincibility timer
 shadow_man_reappear_return:  rts        ; return to caller
 
@@ -749,7 +749,7 @@ player_damage:                          ; save player sprite flags
 player_damage_rush_marine:  lda     #$B1 ; Rush Marine damage OAM = $B1
 player_damage_anim_set:  jsr     reset_sprite_anim ; set player damage animation
         lda     #$00                    ; clear walk/shoot flag
-        sta     walk_flag               ; clear walk/shoot flag
+        sta     shoot_anim_timer               ; clear walk/shoot flag
         jsr     reset_gravity           ; reset vertical velocity
 
 ; --- spawn hit flash effect in slot 4 ---
@@ -1057,7 +1057,7 @@ rush_marine_weapon_fire:  lda     ent_anim_id ; save current OAM (Rush Marine sp
         beq     rush_marine_clear_shoot ; no → skip
         jsr     weapon_fire             ; fire weapon (changes OAM to shoot pose)
 rush_marine_clear_shoot:  lda     #$00  ; clear shoot timer
-        sta     walk_flag               ; clear walk/shoot flag
+        sta     shoot_anim_timer               ; clear walk/shoot flag
         pla                             ; restore Rush Marine OAM (undo shoot pose change)
         sta     ent_anim_id             ; restore Rush Marine OAM
         rts                             ; horizontal movement
@@ -1179,7 +1179,7 @@ player_weapon_recoil:
         lda     init_hard_knuckle_offset_table,y ; look up OAM ID for that state
         jsr     reset_sprite_anim       ; set player animation
         lda     #$00                    ; clear shoot timer
-        sta     walk_flag               ; clear walk/shoot flag
+        sta     shoot_anim_timer               ; clear walk/shoot flag
 gemini_dup_return:  rts                 ; return to caller
 
 ; ===========================================================================

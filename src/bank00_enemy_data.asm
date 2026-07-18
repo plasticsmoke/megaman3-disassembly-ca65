@@ -63,7 +63,7 @@
 ; Written to ent_flags on spawn. Bit meanings (from rendering engine):
 ;   bit 7 ($80): entity active / drawn
 ;   bit 6 (ENT_FLAG_HFLIP): horizontal flip
-;   bit 5 ($20): on-ladder (behind-background OAM priority)
+;   bit 5 ($20): behind-background (copied to OAM attr priority bit)
 ;   bit 4 ($10): uses world coordinates (subtract camera for screen pos)
 ;   bit 3 ($08): wide offscreen margin (keep alive within 72px of edge)
 ;   bit 2 ($04): invisible (skip OAM rendering)
@@ -80,16 +80,17 @@
 ;   $18=Nitron          $19=Block Debris    $1A=Gyoraibo        $1B=Hari Harry
 ;   $1C=Penpen Maker    $1D=Returning Monking $1E=Block Breaker $1F=Have 'Su' Bee
 ;   $20=Bolton & Nutton $21=Wanaan          $22=Needle Press    $23=Needle Press
-;   $24=Elec'n          $25=(no AI)         $26=Mechakkero      $27=Top Man Platform
+;   $24=Elec'n          $25=Magnet Pull (no AI) $26=Mechakkero  $27=Top Man Platform
 ;   $28=Part Spawner    $29=Part Spawner    $2A=Chibee          $2B=Block Breaker
 ;   $2C=Bomb Flier(var) $2D=Spark Fall Plat $2E=(no-op)         $2F=Block Breaker
-;   $30=Block Breaker   $31=(no AI)         $32=Pole            $33=Holograph
+;   $30=Block Breaker   $31=Magnet Pull (no AI) $32=Pole        $33=Holograph
 ;   $34=Needle Press    $35=Part Spawner    $36=Peterchy        $37=Walking Bomb
 ;   $38=Parasyu         $39=Hologran        $3A=Hologran        $3B=Bomber Pepe
 ;   $3C=Metall DX (walk) $3D=Magnet Push    $3E=Proto Man       $3F=(no-op)
 ;   $40-$46=Doc Robot screen markers (no-op AI)
 ;   $47-$4E=Robot Masters (Needle/Magnet/Gemini/Hard/Top/Snake/Spark/Shadow)
-;   $50-$55=item pickups (routines $64-$69)   $56=Surprise Box
+;   $50/$51=HP energy L/S  $52/$53=weapon energy L/S  $54=E-Tank  $55=1-Up
+;   ($50-$55 = routines $64-$69)             $56=Surprise Box
 ;   $57=Giant Met (Doc Needle)              $58-$59=Spinning Wheel
 ;   $5A=Trap Platform   $5B=(no AI)         $5C=Giant Springer  $5D=Breakable Wall
 ;   $5E-$5F=Kamegoro-room spawners (Wily 1)
@@ -111,15 +112,15 @@ enemy_flags_g:
         .byte   $98,$98,$98,$98,$90,$91,$98,$98 ; $28-$2F
         .byte   $98,$D0,$90,$94,$B4,$90,$98,$90 ; $30-$37
         .byte   $94,$90,$98,$90,$90,$D0,$94,$98 ; $38-$3F
-        .byte   $98,$98,$98,$98,$98,$98,$98,$90 ; $40-$47: Doc Robot / Needle Press(B)
+        .byte   $98,$98,$98,$98,$98,$98,$98,$90 ; $40-$46: Doc markers / $47: Needle Man
         .byte   $90,$90,$90,$90,$90,$90,$90,$90 ; $48-$4F
-        .byte   $90,$90,$90,$90,$90,$90,$92,$90 ; $50-$57: Robot Master intros / Komasaburo
-        .byte   $91,$91,$91,$90,$90,$92,$90,$94 ; $58-$5F: Tama segments
-        .byte   $90,$90,$90,$B6,$90,$90,$92,$92 ; $60-$67: item pickups / surprise box
-        .byte   $90,$90,$90,$90,$90,$90,$90,$90 ; $68-$6F: Robot Masters
-        .byte   $90,$90,$94,$94,$90,$94,$94,$92 ; $70-$77: boss projectiles
-        .byte   $94,$90,$90,$96,$94,$94,$96,$96 ; $78-$7F: Proto Man (Gemini) / fortress
-        .byte   $94,$94,$94,$94,$B4,$94,$D4,$94 ; $80-$87: Wily bosses
+        .byte   $90,$90,$90,$90,$90,$90,$92,$90 ; $50-$57: item pickups / Surprise Box / Giant Met
+        .byte   $91,$91,$91,$90,$90,$92,$90,$94 ; $58-$5F: wheels / platform / Springer / spawners
+        .byte   $90,$90,$90,$B6,$90,$90,$92,$92 ; $60-$67: snakeys / Komasaburo / junk / gabyoall
+        .byte   $90,$90,$90,$90,$90,$90,$90,$90 ; $68-$6F: Doc Robots
+        .byte   $90,$90,$94,$94,$90,$94,$94,$92 ; $70-$77: Big Snakey / Tama
+        .byte   $94,$90,$90,$96,$94,$94,$96,$96 ; $78-$7F: Proto Man (Gemini) / Gamma + parts
+        .byte   $94,$94,$94,$94,$B4,$94,$D4,$94 ; $80-$87: hazards / Yellow Devil / Wily Machines
         .byte   $94,$D4,$90,$92,$92,$92,$90,$90 ; $88-$8F
         .byte   $AA,$FE,$2A,$FF,$A9,$FF,$EE,$FF ; $90-$FF: unused (overlaps stage data)
         .byte   $FE,$FF,$EA,$FF,$9A,$FF,$AC,$FD
@@ -200,7 +201,7 @@ enemy_shape_g:
         .byte   $00,$00,$00,$00,$00,$00,$00,$98 ; $50-$57
         .byte   $00,$00,$00,$C0,$CA,$21,$AA,$00 ; $58-$5F
         .byte   $C1,$C1,$CA,$CA,$00,$00,$15,$14 ; $60-$67
-        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; $68-$6F: Robot Masters (shape set by AI)
+        .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; $68-$6F: Doc Robots (shape set by AI)
         .byte   $00,$8A,$00,$C3,$00,$00,$00,$98 ; $70-$77
         .byte   $00,$00,$CA,$0F,$00,$00,$19,$18 ; $78-$7F
         .byte   $18,$00,$00,$80,$94,$00,$00,$00 ; $80-$87
@@ -238,10 +239,10 @@ enemy_OAM_ID_g:
         .byte   $4C,$B2,$B2,$3B,$1E,$36,$99,$00 ; $38-$3F
         .byte   $00,$00,$00,$00,$00,$00,$00,$26 ; $40-$47
         .byte   $1F,$32,$2B,$45,$22,$36,$3F,$01 ; $48-$4F
-        .byte   $F9,$FA,$FB,$FC,$FD,$FE,$FF,$C7 ; $50-$57: Robot Master intros use $F9-$FF
+        .byte   $F9,$FA,$FB,$FC,$FD,$FE,$FF,$C7 ; $50-$57: pickup icons $F9-$FE / Giant Met $C7
         .byte   $B3,$B4,$A4,$00,$BB,$4B,$31,$55 ; $58-$5F
         .byte   $D1,$D4,$C6,$94,$C3,$DF,$00,$00 ; $60-$67
-        .byte   $01,$01,$01,$01,$01,$01,$01,$01 ; $68-$6F: Robot Masters (OAM set by AI)
+        .byte   $01,$01,$01,$01,$01,$01,$01,$01 ; $68-$6F: Doc Robots (OAM set by AI)
         .byte   $B9,$B8,$CA,$CB,$A8,$CD,$CE,$B0 ; $70-$77
         .byte   $99,$73,$72,$00,$74,$75,$00,$00 ; $78-$7F
         .byte   $00,$70,$6B,$5F,$6A,$63,$63,$68 ; $80-$87
@@ -278,12 +279,12 @@ enemy_health_g:
         .byte   $01,$01,$01,$01,$01,$FF,$01,$06 ; $28-$2F: buster=1, ProtoShield=$FF
         .byte   $01,$FF,$FF,$1C,$FF,$FF,$03,$01 ; $30-$37: Chibee=$FF, HaveSuBee=$1C(28)
         .byte   $03,$03,$03,$06,$01,$FF,$1C,$FF ; $38-$3F: MagnetPush=$FF, ProtoMan=$1C(28)
-        .byte   $03,$03,$03,$03,$03,$03,$03,$1C ; $40-$47: Doc Robot screens, NeedlePress(B)=$1C
-        .byte   $1C,$1C,$1C,$1C,$1C,$1C,$1C,$FF ; $48-$4F: Doc Robot=$1C(28)
-        .byte   $FF,$FF,$1C,$1C,$FF,$FF,$FF,$0A ; $50-$57: Komasaburo=10
-        .byte   $FF,$FF,$FF,$00,$08,$08,$01,$00 ; $58-$5F: Tama parts
-        .byte   $02,$02,$06,$08,$01,$01,$00,$00 ; $60-$67: item pickups
-        .byte   $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF ; $68-$6F: Robot Masters=$FF (HP set by AI)
+        .byte   $03,$03,$03,$03,$03,$03,$03,$1C ; $40-$46: Doc markers / $47: Needle Man=$1C
+        .byte   $1C,$1C,$1C,$1C,$1C,$1C,$1C,$FF ; $48-$4E: Robot Masters=$1C (28)
+        .byte   $FF,$FF,$1C,$1C,$FF,$FF,$FF,$0A ; $50-$57: pickups / Giant Met=$0A
+        .byte   $FF,$FF,$FF,$00,$08,$08,$01,$00 ; $58-$5F: wheels / platform / Springer / spawners
+        .byte   $02,$02,$06,$08,$01,$01,$00,$00 ; $60-$67: snakeys / Komasaburo / junk / gabyoall
+        .byte   $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF ; $68-$6F: Doc Robots=$FF (HP set by AI)
         .byte   $00,$0A,$00,$0A,$00,$00,$00,$00 ; $70-$77
         .byte   $00,$00,$00,$00,$00,$00,$00,$00 ; $78-$7F
         .byte   $00,$1C,$1C,$1C,$00,$00,$00,$00 ; $80-$87: Wily bosses=$1C(28)

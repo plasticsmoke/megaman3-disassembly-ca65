@@ -40,7 +40,7 @@ stage_id         = $22   ; current stage index (see STAGE IDs in constants.inc)
 ; --- Player State ---
 player_state     = $30   ; player state machine index (22 states)
 player_facing    = $31   ; player facing direction (1=right, 2=left)
-walk_flag        = $32   ; walking flag / sub-state
+shoot_anim_timer = $32   ; shoot-pose animation timer (nonzero = show shoot variant, counts down)
 entity_ride_slot = $34   ; entity slot index being ridden (state $05)
 facing_sub       = $35   ; facing sub-state / Mag Fly direction inherit
 invincibility_timer = $39 ; i-frames timer (nonzero = immune to damage)

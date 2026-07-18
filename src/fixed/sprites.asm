@@ -454,9 +454,10 @@ bar_attributes:  .byte   $00,$01,$02
 ; energy bar X positions: bar 0=$10, 1=$18, 2=$28
 bar_x_positions:  .byte   $10,$18,$28
 
-; --- unidentified data block ($F31E-$F57F) ---
-; Not referenced by any fixed-bank code. Possibly password-related tables
-; (see "password table" note near the end) or leftover data.
+; --- unreferenced data block ($F31E-$F57F) ---
+; No code anywhere in the ROM references this range (repo-wide operand
+; sweep, 2026-07 audit). High entropy, no table structure — most likely
+; leftover garbage/filler from the original build.
 fixed_f31e_data:  .byte   $A0,$FB,$2A,$EC,$88
         .byte   $DF,$B8,$FE,$08,$50,$0A,$EB,$0A
         .byte   $6D,$8A,$6F,$2A,$D0,$A0,$B7,$8E
