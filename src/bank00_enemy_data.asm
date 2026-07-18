@@ -24,10 +24,11 @@
 ;    Stage layout data for Needle Man (stage_id $22 = bank $00).
 ;    Standard MM3 stage bank format:
 ;    $A800-$A9FF: boss AI local data (read by bank $06 Needle Man routines)
-;    $AA00-$AA12: screen metatile column grid (column IDs per screen page)
-;    $AA13-$AA5F: room pointer table entries (CHR/palette param + layout index)
-;    $AA60-$AA81: room table (2 bytes/room) + palette indices at $AA80-$AA81
-;    $AA82-$AAFF: screen layout data (20 bytes/entry: 16 column IDs + 4 connections)
+;    $AA00-$AA12: screen layout ID table (1 byte per screen page)
+;    $AA13-$AA5F: room config data
+;    $AA60-$AA7F: room pointer table (2 bytes/room: CHR/pal param + data idx)
+;    $AA80-$AA81: BG CHR bank indices
+;    $AA82-$AAFF: room data (20 bytes/entry: 16 BG palette bytes + 4 connections)
 ;    $AB00-$ABFF: enemy spawn table: screen number (terminated by $FF)
 ;    $AC00-$ACFF: enemy spawn table: X pixel position
 ;    $AD00-$ADFF: enemy spawn table: Y pixel position
@@ -513,14 +514,14 @@ enemy_x_velocity_g:
 ; ===========================================================================
 ; Screen metatile grid + room table ($AA00-$AAFF)
 ; ===========================================================================
-; $AA00-$AA12: screen column IDs per page (19 entries for Needle Man)
-; $AA13-$AA5F: room/screen pointer data
+; $AA00-$AA12: screen layout IDs per page (19 entries for Needle Man)
+; $AA13-$AA5F: room config data
 ; $AA60,y*2:   room pointer table (2 bytes/room):
 ;                byte 0 = CHR/palette param (indexes bank $01 $A200/$A030)
-;                byte 1 = layout index (into $AA82, *20 for offset)
+;                byte 1 = room data index (into $AA82, *20 for offset)
 ; $AA80-$AA81: BG CHR bank indices for stage
-; $AA82+:      screen layout data (20 bytes/entry):
-;                bytes 0-15: 16 metatile column IDs (one per 16px column)
+; $AA82+:      room data entries (20 bytes/entry):
+;                bytes 0-15: room BG palette (copied to $0600/$0620)
 ;                bytes 16-19: screen connection data (bit 7=scroll, bits 0-6=target)
 ; ===========================================================================
         .byte   $00,$01,$02,$03,$04,$05,$06,$07
@@ -641,11 +642,11 @@ enemy_x_velocity_g:
         .byte   $84,$00,$80,$40,$10,$04,$10,$00
 
 ; ===========================================================================
-; Metatile column definitions ($AF00-$B6FF)
+; Screen layout definitions ($AF00-$B6FF)
 ; ===========================================================================
-; Each column ID has 64 bytes of metatile indices (8 rows x 8 entries).
-; The engine reads these via metatile_screen_ptr at $AF00 + (column_ID * 64).
-; 32 column IDs = 2048 bytes total.
+; Each layout ID has 64 bytes of metatile indices (8 rows x 8 entries —
+; one full screen). The engine reads these via metatile_screen_ptr at
+; $AF00 + (layout_ID * 64). 32 layout IDs = 2048 bytes total.
 ; ===========================================================================
         .byte   $B4,$84,$84,$64,$A4,$A8,$74,$74
         .byte   $54,$74,$18,$74,$18,$74,$64,$20
@@ -715,10 +716,10 @@ enemy_x_velocity_g:
         .byte   $00,$00,$00,$00,$00,$00,$09,$00
 
 ; ===========================================================================
-; Screen layout data ($AF00+ continued)
+; Screen layout definitions ($AF00+ continued)
 ; ===========================================================================
-; Metatile column definitions continue here. Each screen is built from
-; 16 column references; each column is 64 bytes defining 8 rows of metatiles.
+; Each 64-byte block is one screen layout ID: an 8x8 grid of 32x32-px
+; metatile indices (selected per screen page by the $AA00 table).
 ; ===========================================================================
         .byte   $00,$01,$02,$02,$03,$04,$05,$06
         .byte   $07,$08,$09,$0A,$04,$04,$0B,$0C

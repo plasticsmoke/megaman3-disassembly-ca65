@@ -141,11 +141,11 @@
 ; LEVEL DATA FORMAT (per-stage PRG bank, mapped to $A000-$BFFF):
 ;   Stage bank = ensure_stage_bank_table[$22] at $C8B9 (usually bank = stage index)
 ;   $A000-$A4FF: enemy data tables (flags, main routine IDs, spawn data)
-;   $AA00+:      screen metatile grid (column IDs, read during tile collision)
-;   $AA60:       screen pointer table (2 bytes/screen: init param, layout index)
-;   $AA80-$AA81: palette indices for stage
-;   $AA82+:      screen layout data, 20 bytes per screen:
-;                  bytes 0-15: 16 metatile column IDs (one per 16px column)
+;   $AA00+:      screen layout ID table (read during tile collision)
+;   $AA60:       room pointer table (2 bytes/room: CHR/pal param, room data idx)
+;   $AA80-$AA81: BG CHR bank indices for stage
+;   $AA82+:      room data entries, 20 bytes per room data index:
+;                  bytes 0-15: room BG palette (copied to $0600/$0620)
 ;                  bytes 16-19: screen connection data (bit 7=flag, bits 0-6=target)
 ;   $AB00+:      enemy placement tables (4 tables, indexed by stage enemy ID):
 ;                  $AB00,y = screen number, $AC00,y = X pixel, $AD00,y = Y pixel,
@@ -158,8 +158,8 @@
 ;                  indexed by 16x16 block index)
 ;   $BF00-$BFFF: attribute table, 1 byte per 16x16 block index (256 entries)
 ;                  upper nibble = collision type, low 2 bits = palette
-;   Screen = 16 columns x N rows of 16x16 metatiles = 256px wide
-;   load_stage routine at $1EC816 copies screen data to RAM ($0600+)
+;   Screen = 8x8 grid of 32x32 metatiles = 256x256 px (one layout ID)
+;   load_room copies the room's BG palette to RAM ($0600/$0620)
 ;
 ; Entity Arrays (indexed by X, stride $20, 32 slots $00-$1F):
 ;   ent_status,x = entity active flag (bit 7 = active)

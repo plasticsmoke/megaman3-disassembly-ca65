@@ -186,7 +186,7 @@ SFX_ATTACK          = $24   ; Enemy attack trigger
 SFX_TURRET_FIRE     = $25   ; Turret projectile fire (Wily Machine)
 SFX_APPROACH        = $26   ; Entity approach trigger
 SFX_PLATFORM        = $27   ; Platform detach / item spawn
-SFX_WIND            = $28   ; Wind effect (intro)
+SFX_WIND            = $28   ; Wind effect (Rush flight cutscene)
                             ; $29 unused (no SFX references in code)
 SFX_MAGNET_FIRE     = $2A   ; Magnet Missile fire
 SFX_GEMINI_FIRE     = $2B   ; Gemini Laser fire

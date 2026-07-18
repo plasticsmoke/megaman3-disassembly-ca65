@@ -241,8 +241,8 @@ gravity_airborne_exit:  clc             ; C=0: airborne
 update_collision_flags:  lda     $10    ; bit 4 = solid tile hit?
         and     #$10                    ; isolate solid tile bit
         bne     collision_flags_done    ; solid tile? keep flags unchanged
-        lda     ent_flags,x             ; clear on-ladder flag (bit 5)
-        and     #$DF                    ; mask off bit 5 (on-ladder)
+        lda     ent_flags,x             ; clear behind-BG flag (bit 5)
+        and     #$DF                    ; mask off bit 5 (behind-BG)
         sta     ent_flags,x             ; store updated flags
         lda     tile_at_feet_max        ; check tile type at feet
         cmp     #TILE_BEHIND_BG         ; $60 = behind-background tile

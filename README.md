@@ -47,10 +47,12 @@ Mapper 4 (MMC3). 256 KB PRG + 128 KB CHR. Fixed bank always mapped at $C000-$FFF
 | $01-$08 | $A000 | Stage data + per-stage code |
 | $09 | $8000 | Per-frame entity subsystems |
 | $0A | $A000 | Weapon damage tables |
-| $0B-$0D | $A000 | Intro, game over, OAM sprites |
-| $0E-$0F | $A000 | Animation frames, entity spawning |
-| $10 | $8000 | Stage setup / boss post-defeat |
-| $11-$15 | $A000 | Ending data, sprite offsets, weapon anim |
+| $0B-$0C | $8000 | Wily reveal cutscene / ending sequence |
+| $0D | $A000 | Ending portraits + Wily 2/3/5 stages |
+| $0E-$0F | $A000 | Cutscene text streamer, entity spawning |
+| $10 | $8000 | Boss door animations + results-screen stage |
+| $11-$14 | $A000 | Wily 6 / special stages, sprite offsets |
+| $15 | $8000 | Boss-namespace animations |
 | $16 | $8000 | Sound driver code |
 | $17 | $A000 | Music/SFX data |
 | $18 | $A000 | Stage select + Proto Man scenes |
@@ -77,15 +79,15 @@ src/
   bank0A_damage_tables.asm      Weapon damage tables + Doc Robot Spark stage
   bank0B_cutscenes.asm          Wily reveal cutscene + Wily map + Doc Robot Shadow stage
   bank0C_ending.asm             Ending sequence (epilogue, robot list, credits) + Wily 1 stage
-  bank0D_oam_sprites.asm        OAM sprite animation + Wily 2/3/5 stages
-  bank0E_anim_frames.asm        Animation frame management + Wily 6 stage
+  bank0D_ending_portraits.asm   Ending robot-list portraits/text + Wily 2/3/5 stages
+  bank0E_cutscene_text.asm      Cutscene text streamer + cutscene backdrop stage
   bank0F_entity_spawn.asm       Entity spawning / projectile dispatch + Wily 4 stage
-  bank10_stage_setup.asm        Stage setup / boss post-defeat
+  bank10_boss_doors.asm         Boss door animations + results-screen stage data
   bank11_wily6_stage.asm        Wily 6 stage data
   bank12_fortress_bosses.asm    Fortress boss AI + special entities
   bank13_password_stage.asm     Password / game over screen stage data
   bank14_sprite_offsets_alt.asm Sprite offset data (alternate)
-  bank15_weapon_anim.asm        Weapon sprite animation sequences
+  bank15_boss_anim.asm          Boss-namespace animation sequences
   bank16_sound_driver.asm       NES APU sound driver
   bank17_sound_data.asm         Music / SFX data
   bank18_stage_select.asm       Stage select + Proto Man scenes
@@ -135,7 +137,7 @@ Inline comments align to column 40. Automated health checks were run during this
 - **Fortress bosses ($12)**: ~408 labels — Yellow Devil, Kamegoro Maker, Holograph, Wily Machine A/B/C, Gamma
 - **Robot Masters ($04-$07)**: ~566 labels across 4 banks — AI state machines for all 8 Robot Masters and 8 Doc Robot variants
 - **Stage banks ($00-$08)**: enemy names, stage event handlers, palette/CHR init routines
-- **Cross-bank imports**: 46 symbols resolved — `banked_XXXX` for multi-bank trampolines, `stage_select_*` for bank $18 entry points, `music_driver_*` for bank $0E, `entity_ai_*` for bank $1C, `MMC3_MIRRORING` for hardware register writes
+- **Cross-bank imports**: 46 symbols resolved — `banked_XXXX` for multi-bank trampolines, `stage_select_*` for bank $18 entry points, `text_stream_*` for the bank $0E cutscene text streamer, `entity_ai_*` for bank $1C, `MMC3_MIRRORING` for hardware register writes
 
 ## Engine Notes
 

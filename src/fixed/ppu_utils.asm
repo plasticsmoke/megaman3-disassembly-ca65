@@ -604,9 +604,9 @@ shift_register_rotate_loop:  ror     $E4,x ; rotate carry into high bit
 ;                  bits 4-0 = screen count for this room
 ;   $AA60,y*2:   room pointer table (2 bytes/room):
 ;                  byte 0 = CHR/palette param (indexes bank $01 $A200/$A030)
-;                  byte 1 = layout index (into $AA82, *20 for offset)
+;                  byte 1 = room data index (into $AA82, *20 for offset)
 ;   $AA80-$AA81: BG CHR bank indices ($E8/$E9)
-;   $AA82+:      screen layout data (20 bytes/entry: 16 column IDs + 4 connection)
+;   $AA82+:      room data (20 bytes/entry: 16 BG palette bytes + 4 connection)
 ;   $AB00,y:     enemy screen number table
 ;   $AC00,y:     enemy X pixel position
 ;   $AD00,y:     enemy Y pixel position
@@ -651,22 +651,22 @@ load_room:  lda     $2B                 ; X = room index * 2
         tax                             ; X = room index * 2
         lda     $AA60,x                 ; CHR/palette param from room table
         pha                             ; (saved for bank $01 $A000 call below)
-        lda     $AA61,x                 ; layout index → offset into $AA82
+        lda     $AA61,x                 ; room data index → offset into $AA82
         asl     a                       ; multiply by 20:
         asl     a                       ; *4 → $00
         sta     temp_00                 ; *16
         asl     a                       ; *16 + *4 = *20
-        asl     a                       ; (20 bytes per layout entry:
-        adc     temp_00                 ; 16 column IDs + 4 connection)
+        asl     a                       ; (20 bytes per room data entry:
+        adc     temp_00                 ; 16 palette bytes + 4 connection)
         tay                             ; Y = layout data offset
         ldx     #$00                    ; X = 0 (column copy index)
-load_room_copy_column_ids:  lda     $AA82,y ; copy 16 metatile column IDs
-        sta     $0600,x                 ; to $0600-$060F (current screen)
-        sta     $0620,x                 ; and $0620-$062F (mirror)
-        iny                             ; next byte in layout data
-        inx                             ; next column ID
-        cpx     #$10                    ; 16 column IDs per screen
-        bne     load_room_copy_column_ids ; loop until all 16 copied
+load_room_copy_palette:  lda     $AA82,y ; copy room BG palette (16 bytes)
+        sta     $0600,x                 ; to BG palette buffer $0600-$060F
+        sta     $0620,x                 ; and working copy $0620-$062F
+        iny                             ; next byte in room data
+        inx                             ; next palette byte
+        cpx     #$10                    ; 16 palette bytes per room
+        bne     load_room_copy_palette ; loop until all 16 copied
         ldx     #$00                    ; reset X for connection parsing
 load_room_parse_connections:  lda     $AA82,y ; parse 4 screen connection bytes
         pha                             ; (up/down/left/right exits):
@@ -682,9 +682,9 @@ load_room_parse_connections:  lda     $AA82,y ; parse 4 screen connection bytes
         inx                             ; next connection entry
         cpx     #$04                    ; 4 connections (U/D/L/R)
         bne     load_room_parse_connections ; loop all 4 connections
-        lda     $0600                   ; first column ID from room layout
-        sta     $0610                   ; placeholder for sprite palette slot
-        sta     $0630                   ; placeholder for sprite palette mirror
+        lda     $0600                   ; backdrop color (palette entry 0)
+        sta     $0610                   ; mirror into SP0 entry 0 ($3F10)
+        sta     $0630                   ; and its working copy
         lda     #$01                    ; switch to bank $01 (CHR/palette tables)
         sta     prg_bank                ; bank $01 has CHR/palette lookup tables
         jsr     select_PRG_banks        ; switch to bank $01

@@ -14,7 +14,7 @@
 ;   $AA00-$AA5F: screen metatile column grid + room/screen parameters
 ;   $AA60-$AA7F: room pointer table (2 bytes/room)
 ;   $AA80-$AA81: BG CHR bank indices
-;   $AA82-$AAFF: screen layout data (20 bytes/entry: 16 columns + 4 connections)
+;   $AA82-$AAFF: room data (20 bytes/entry: 16 BG palette bytes + 4 connections)
 ;   $AB00-$ABFF: enemy spawn table — screen number (terminated by $FF)
 ;   $AC00-$ACFF: enemy spawn table — X pixel position
 ;   $AD00-$ADFF: enemy spawn table — Y pixel position
@@ -390,9 +390,9 @@
         .byte   $00,$00,$00,$80,$00,$00,$00,$31
         .byte   $00,$00,$00,$14,$00,$00,$00,$00
 
-; --- BG CHR bank indices + screen layout data ($AA80): ---
-; First 2 bytes = CHR bank pair, then screen layout entries
-; (20 bytes each: 16 metatile column IDs + 4 connection bytes)
+; --- BG CHR bank indices + room data ($AA80): ---
+; First 2 bytes = CHR bank pair, then room data entries
+; (20 bytes each: 16 BG palette bytes + 4 connection bytes)
 
         .byte   $00,$00,$00,$00,$00,$80,$00,$80
         .byte   $00,$00,$00,$40,$00,$00,$00,$00

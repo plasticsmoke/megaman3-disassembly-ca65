@@ -299,7 +299,7 @@ write_oam_position_offsets:  ldy     #$01 ; byte 1 = position offset table index
         clc                             ; to select normal/flipped offsets
         adc     $11                     ; add flip offset for mirrored positions
         pha                             ; save offset table index
-        lda     ent_flags,x             ; bit 5 = on-ladder flag
+        lda     ent_flags,x             ; bit 5 = behind-BG flag
         and     #$20                    ; stored to $11 for OAM attr overlay
         sta     $11                     ; (behind-background priority)
         pla                             ; offset table index → X

@@ -307,7 +307,7 @@ The airborne state checks whether the A button is still held. If the player rele
 | `ent_var1` | `$0520` | General-purpose variable 1 |
 | `ent_var2` | `$0540` | General-purpose variable 2 |
 | `ent_var3` | `$0560` | General-purpose variable 3 |
-| `ent_flags` | `$0580` | Bit 7=active, 6=H-flip, 5=on-ladder, 4=world coords, 3=wide margin, 2=invisible |
+| `ent_flags` | `$0580` | Bit 7=active, 6=H-flip, 5=behind-BG (OAM priority), 4=world coords, 3=wide margin, 2=invisible |
 | `ent_anim_state` | `$05A0` | Animation state |
 | `ent_anim_id` | `$05C0` | Animation/OAM ID (bit 7 = alternate bank) |
 | `ent_anim_frame` | `$05E0` | Frame counter (bit 7 = damage flash) |
@@ -388,10 +388,12 @@ The upper nibble of each entry in the `$BF00` collision table determines the til
 | `$00` | `TILE_AIR` | Passthrough |
 | `$10` | `TILE_SOLID` | Solid ground/wall |
 | `$20` | `TILE_LADDER` | Climbable |
-| `$30` | `TILE_DAMAGE` | Damage on contact (lava, fire) |
+| `$30` | `TILE_DAMAGE` | Damage on contact (only used in stage `$12`) |
 | `$40` | `TILE_LADDER_TOP` | Ladder grab point (stand on top, press Down to climb) |
 | `$50` | `TILE_SPIKES` | Instant kill |
-| `$70` | `TILE_BREAKABLE` | Breakable block (Gemini stage) |
+| `$60` | `TILE_BEHIND_BG` | Passthrough; entity renders behind background (sets `ent_flags` bit 5 → OAM priority) |
+| `$70` | `TILE_BREAKABLE` | Breakable block (Gemini stages) |
+| `$80` | `TILE_WATER` | Water physics (Gemini, Doc Gemini, Wily 1, Wily 4) |
 
 ### Special Overrides
 
@@ -514,7 +516,7 @@ A **working copy** at `$0620-$063F` holds the target palette that fade routines 
 
 ### Palette Sources
 
-**BG palettes** (`$0600-$060F`): Stored per-stage at offset `$AA82` within each stage's PRG bank (after the 2-byte CHR indices at `$AA80-$AA81`). Loaded during `load_room`. Also stored in bank `$18` for menus, bank `$0B` for intro, bank `$0C` for game over.
+**BG palettes** (`$0600-$060F`): Stored per-room in the 20-byte room data entries at `$AA82` within each stage's PRG bank (bytes 0-15 of each entry; the entry is selected by the room pointer table). Loaded during `load_room`. Also stored in bank `$18` for menus, bank `$0B` for the Wily reveal cutscene, bank `$0C` for the ending.
 
 **Sprite palettes SP0/SP1** (`$0610-$0617`): Player default loaded from `load_stage_default_palette_table` (ppu_utils.asm line 693), a hardcoded 8-byte table in the fixed bank. SP1 changes when the player selects a weapon — the weapon palette table in bank `$02` (line 942) has 3 color bytes per weapon, copied to `$0611-$0613`.
 
@@ -860,11 +862,11 @@ Each stage occupies one 8 KB bank at `$A000-$BFFF`. The stage bank index equals 
 | `$A000-$A5FF` | Global enemy property tables (bank `$00` only, shared across all stages) |
 | `$A600-$A7FF` | Enemy velocity lookup tables (bank `$00` only) |
 | `$A800-$A9FF` | Boss AI local data / stage-specific code |
-| `$AA00-$AA3F` | Screen column ID table (1 byte per screen page) |
+| `$AA00-$AA3F` | Screen layout ID table (1 byte per screen page) |
 | `$AA40-$AA5F` | Room config table (1 byte per room) |
-| `$AA60-$AA7F` | Room pointer table (2 bytes per room: CHR/palette param + layout index) |
+| `$AA60-$AA7F` | Room pointer table (2 bytes per room: CHR/palette param + room data index) |
 | `$AA80-$AA81` | BG CHR bank indices for `$E8`/`$E9` |
-| `$AA82-$AAFF` | Screen layout data (20 bytes per entry) |
+| `$AA82-$AAFF` | Room data entries (20 bytes: 16 BG palette bytes + 4 connection bytes) |
 | `$AB00-$ABFF` | Enemy spawn: screen numbers (`$FF` terminated) |
 | `$AC00-$ACFF` | Enemy spawn: X positions |
 | `$AD00-$ADFF` | Enemy spawn: Y positions |
@@ -887,17 +889,17 @@ Bits 4-0:  Screen count (0 = single screen, N = N+1 screens)
 
 Each room also has 2 bytes at `$AA60 + room_index * 2`:
 - **Byte 0**: CHR/palette param — indexes bank `$01` tables at `$A200` (sprite CHR) and `$A030` (sprite palettes)
-- **Byte 1**: Layout index — multiplied by 20 to offset into screen layout data at `$AA82`
+- **Byte 1**: Room data index — multiplied by 20 to offset into the room data at `$AA82`
 
-Each layout entry is 20 bytes: 16 metatile column IDs (one per 32-pixel column of the screen) + 4 screen connection bytes (up/down/left/right, where bit 7 = scroll vs warp and bits 0-6 = target screen).
+Each room data entry is 20 bytes: the room's 16-byte BG palette (copied to `$0600`/`$0620` by `load_room` — this is why different rooms in a stage can recolor the background) + 4 screen connection bytes (up/down/left/right, where bit 7 = scroll vs warp and bits 0-6 = target screen).
 
 ### Metatile Rendering Pipeline
 
 The metatile system has **three levels of indirection** from screen to CHR tiles:
 
-**Level 1 — Screen to column IDs**: `$AA00,y` (where Y = screen page) stores a metatile column ID. Different screens can share the same column ID to create repeated patterns.
+**Level 1 — Screen to layout IDs**: `$AA00,y` (where Y = screen page) stores a screen layout ID. Different screens can share the same layout ID to create repeated patterns.
 
-**Level 2 — Column to metatile indices**: `$AF00 + (column_ID × 64)` gives a 64-byte block: an 8×8 grid of metatile indices (8 columns × 8 rows of 32×32 pixel metatiles). Grid position encoded as `$28 = (row × 8) + column`.
+**Level 2 — Layout to metatile indices**: `$AF00 + (layout_ID × 64)` gives a 64-byte block: an 8×8 grid of metatile indices (8 columns × 8 rows of 32×32 pixel metatiles — one full screen). Grid position encoded as `$28 = (row × 8) + column`.
 
 **Level 3 — Metatile to sub-tile indices**: `$B700 + (metatile_index × 4)` gives 4 sub-tile indices (top-left, top-right, bottom-left, bottom-right quadrants of the 32×32 metatile).
 
@@ -916,7 +918,7 @@ The result is a 4×4 grid of CHR tile IDs (16 total) stored in the `$06C0` buffe
 Screen page ($F9)
     │
     ▼
-$AA00,y ──→ column_ID ──→ $AF00 + (ID × 64) ──→ metatile_index
+$AA00,y ──→ layout_ID ──→ $AF00 + (ID × 64) ──→ metatile_index
     │
     ▼
 $B700 + (metatile × 4) ──→ 4 sub-tile indices
@@ -936,10 +938,12 @@ $BB00/$BC00/$BD00/$BE00 ──→ 16 CHR tile IDs ──→ $06C0 buffer ──�
 | `$00` | `TILE_AIR` | Passthrough |
 | `$10` | `TILE_SOLID` | Solid ground |
 | `$20` | `TILE_LADDER` | Climbable |
-| `$30` | `TILE_DAMAGE` | Damage (lava/fire) |
+| `$30` | `TILE_DAMAGE` | Damage on contact (stage `$12` only) |
 | `$40` | `TILE_LADDER_TOP` | Ladder grab point |
 | `$50` | `TILE_SPIKES` | Instant kill |
+| `$60` | `TILE_BEHIND_BG` | Passthrough, entity renders behind BG |
 | `$70` | `TILE_BREAKABLE` | Breakable block |
+| `$80` | `TILE_WATER` | Water physics |
 
 - **Lower 2 bits**: palette index for NES attribute table generation
 
@@ -957,7 +961,7 @@ When camera scrolling crosses an 8-pixel tile boundary, the engine renders a new
 
 ### Room Transitions
 
-**Horizontal**: Triggered when player X >= `$E5` on a scrolling room with the next room also scrolling-enabled. `fast_scroll_right` scrolls at 4 pixels/frame, rendering columns as they come into view, until `camera_x_lo` wraps. Then `load_room` initializes the new room's column IDs and CHR/palette.
+**Horizontal**: Triggered when player X >= `$E5` on a scrolling room with the next room also scrolling-enabled. `fast_scroll_right` scrolls at 4 pixels/frame, rendering columns as they come into view, until `camera_x_lo` wraps. Then `load_room` loads the new room's palette, connections, and CHR config.
 
 **Vertical**: Triggered when player falls off bottom (Y >= `$E8`) or climbs off top (Y < `$09` on ladder). The engine scans `$AA40` entries for matching vertical connection bits, toggles NES mirroring (V-mirror during vertical transitions, H-mirror during horizontal), and scrolls `$FA` (fine Y) by 3 pixels/frame while rendering PPU row updates (32 tiles + 8 attribute bytes per row).
 
@@ -966,8 +970,15 @@ When camera scrolling crosses an 8-pixel tile boundary, the engine renders a new
 | Stage | Bank | Notes |
 |-------|------|-------|
 | `$00-$07` | `$00-$07` | 1:1 mapping for Robot Master stages |
-| `$08-$0F` | varies | Doc Robot remixes and Wily stages |
-| Shared bank `$0D` | `$0D` | Doc Shadow (R), Doc Snake (R), and Wily 1 |
+| `$08-$0B` | `$08-$0B` | Doc Robot stages (Needle, Gemini, Spark, Shadow remixes) |
+| `$0C` | `$0C` | Wily 1 |
+| `$0D`/`$0E`/`$10` | `$0D` | Wily 2, 3, and 5 share one bank |
+| `$0F` | `$0F` | Wily 4 |
+| `$11` | `$11` | Wily 6 |
+| `$12`/`$13` | `$12`/`$13` | Special stage ($12, only user of damage tiles), password/game-over backdrop ($13) |
+| `$14` | `$10` | Ending results screen backdrop |
+| `$15` | `$1E` | Fixed-bank-resident special screen data |
+| `$16` | `$0E` | Cutscene backdrop (cliff scene, Wily map) |
 
 The mapping table `ensure_stage_bank_table` in the fixed bank handles all stage-to-bank translations.
 

@@ -18,7 +18,7 @@ ROM hacking reference for Mega Man 3 (U). Every address in this document is a CP
 | Stage music | Fixed bank `game_loop.asm:615` | `frame_loop_stage_music_table` (18 entries) |
 | Enemy spawn positions | Per-stage bank, $AB00-$AEFF | 4 parallel arrays: screen/X/Y/enemy ID |
 | Walk speed | Fixed bank `player_states.asm` | `$01.4C` (1.30 px/frame) |
-| Gravity | ZP $99 | `$55` gameplay, `$40` stage select |
+| Gravity | ZP $99 | `$40` player, `$55` entities (both written every frame) |
 | Sprite palettes | Bank $01, $A030 | 8 bytes/entry (SP2+SP3), indexed by room param |
 | BG CHR banks | Per-stage bank, $AA80 | 2 bytes → shadow registers $E8/$E9 |
 | Music track data | Bank $17, $A000+ | Channel sequences; pointers at bank $16 $8A44 |
@@ -362,7 +362,8 @@ All velocities use 8.8 fixed-point format (whole.sub):
 | Normal jump | $04.E5 | 4.90 upward | player_ground.asm |
 | Rush Coil bounce | $06.EE | 6.93 upward | player_ground.asm |
 | Super jump (debug) | $08.00 | 8.00 upward | player_ground.asm |
-| Gravity | $00.55 | 0.33/frame² | ZP $99 |
+| Gravity (player) | $00.40 | 0.25/frame² | ZP $99 |
+| Gravity (entities) | $00.55 | 0.33/frame² | ZP $99 |
 | Terminal velocity | $F9.00 | 7.00 downward | movement.asm |
 
 ### Weapon IDs
@@ -437,11 +438,11 @@ All velocities use 8.8 fixed-point format (whole.sub):
 | $0F | STAGE_WILY4 | Wily Castle 4 | $0F |
 | $10 | STAGE_WILY5 | Wily Castle 5 | **$0D** (shared) |
 | $11 | STAGE_WILY6 | Wily Castle 6 | $11 |
-| $12 | (ending 1) | Special/ending | $12 |
-| $13 | (ending 2) | Special/ending | $13 |
-| $14 | (internal) | | $10 |
-| $15 | (internal) | | $1E |
-| $16 | (internal) | | $0E |
+| $12 | (special) | Special stage (only user of $30 damage tiles) | $12 |
+| $13 | (special) | Password / game over screen backdrop | $13 |
+| $14 | (special) | Boss intro / ending results backdrop | $10 |
+| $15 | (special) | Fixed-bank-resident screen data | $1E |
+| $16 | (special) | Cutscene backdrop (cliff scene, Wily map) | $0E |
 
 Wily 2, 3, and 5 all share bank $0D.
 
@@ -451,16 +452,16 @@ Each stage bank occupies $A000-$BFFF (8 KB). Bank $00 is special: $A000-$A7FF ho
 
 | Offset | Size | Contents |
 |--------|------|----------|
-| $AA00 | variable | Screen metatile grid / room header data |
+| $AA00 | 1 byte/screen | **Screen layout ID table** |
 | $AA40,y | 1 byte/room | **Room config table** |
 | $AA60,y*2 | 2 bytes/room | **Room pointer table** |
 | $AA80 | 2 bytes | BG CHR bank indices → $E8/$E9 |
-| $AA82+ | 20 bytes/screen | **Screen layout data** |
+| $AA82+ | 20 bytes/entry | **Room data** (16 palette + 4 connection bytes) |
 | $AB00,y | 1 byte/enemy | Enemy screen number |
 | $AC00,y | 1 byte/enemy | Enemy X position |
 | $AD00,y | 1 byte/enemy | Enemy Y position |
 | $AE00,y | 1 byte/enemy | Enemy global ID |
-| $AF00+ | variable | **Metatile column definitions** |
+| $AF00+ | 64 bytes/layout | **Screen layout definitions** (8x8 grid of 32px metatile IDs) |
 | $B700+ | 4 bytes/metatile | **Metatile sub-tile indices** (4 quadrant indices per metatile) |
 | $BB00-$BEFF | 4 x 256 bytes | **Sub-tile CHR tables** ($BB=TL, $BC=TR, $BD=BL, $BE=BR) |
 | $BF00 | 256 bytes | **Collision/palette table** (per sub-tile: low 2 bits=palette, upper nibble=collision) |
@@ -479,11 +480,11 @@ One byte per room:
 
 Two bytes per room:
 - **Byte 0**: CHR/palette param (indexes sprite palette table at bank $01 $A030 and sprite CHR table at $A200)
-- **Byte 1**: Layout index (x20 offset into $AA82 screen layout data)
+- **Byte 1**: Room data index (x20 offset into $AA82 room data)
 
-### Screen Layout Data ($AA82+, 20 bytes each)
+### Room Data ($AA82+, 20 bytes each)
 
-- **Bytes 0-15**: 16 metatile column IDs (one per 16px column = 256px screen width)
+- **Bytes 0-15**: Room BG palette (16 bytes, copied to $0600/$0620 by load_room)
 - **Bytes 16-19**: Exit connections (up/down/left/right). Bit 7 = scroll type (0=warp, 1=scroll), bits 0-6 = target screen number.
 
 ### Collision Table ($BF00)
@@ -495,10 +496,12 @@ Two bytes per room:
 | $00 | TILE_AIR | Passthrough |
 | $10 | TILE_SOLID | Solid ground |
 | $20 | TILE_LADDER | Climbable ladder |
-| $30 | TILE_DAMAGE | Damage tile (lava/fire) |
+| $30 | TILE_DAMAGE | Damage tile (only used in stage $12) |
 | $40 | TILE_LADDER_TOP | Ladder top (grab point) |
 | $50 | TILE_SPIKES | Instant kill spikes |
-| $70 | TILE_BREAKABLE | Breakable block (Gemini stage; destroyed by weapons, spawns debris) |
+| $60 | TILE_BEHIND_BG | Passthrough; entity renders behind background |
+| $70 | TILE_BREAKABLE | Breakable block (Gemini stages; destroyed by weapons, spawns debris) |
+| $80 | TILE_WATER | Water physics (Gemini, Doc Gemini, Wily 1, Wily 4) |
 
 ---
 
@@ -815,7 +818,7 @@ All text in Mega Man 3 is rendered as CHR tile arrangements. There are no ASCII 
 
 ### Nametable String Data (Bank $0E)
 
-**Source**: `src/bank0E_anim_frames.asm`
+**Source**: `src/bank0E_cutscene_text.asm`
 **Range**: $A0C1-$A32C (14 variable-length strings)
 
 Format:
@@ -825,19 +828,33 @@ $FF        = end of string
 Other      = CHR tile ID (written sequentially to nametable)
 ```
 
-Strings 0-7 are Robot Master bio screens:
+Strings 0-7 are the ending roll call (name + designer credit, streamed
+letter-by-letter by the ending's weapon showcase); 8-13 are cutscene
+dialogue (all content ROM-decoded):
 
 | Index | Content |
 |-------|---------|
-| 0 | Needle Man bio |
-| 1 | Magnet Man bio |
-| 2 | Gemini Man bio |
-| 3 | Hard Man bio |
-| 4 | Top Man bio |
-| 5 | Snake Man bio |
-| 6 | Spark Man bio |
-| 7 | Shadow Man bio |
-| 8-13 | Password screen / score text |
+| 0 | "NO.17 NEEDLE MAN / NOBUHIKO AKATSUKA" |
+| 1 | "NO.18 MAGNET MAN / NAGASHI KII" |
+| 2 | "NO.19 GEMINI MAN / YOSHIHITO HATTORI" |
+| 3 | "NO.20 HARD MAN / KAZUHIKO OGURO" |
+| 4 | "NO.21 TOP MAN / YASUSHI KONJIKI" |
+| 5 | "NO.22 SNAKE MAN / YUHJIRO ISHITANI" |
+| 6 | "NO.23 SPARK MAN / MIKIHIRO SUZUKI" |
+| 7 | "NO.24 SHADOW MAN / TAKUMINE YOSHIDA" |
+| 8 | "OH NO! RIGHT AFTER WE RECEIVED THE LAST ELEMENT..." (Gamma cutscene) |
+| 9 | "WILEY RAN OFF WITH GAMMA!" (Gamma cutscene) |
+| 10 | "WHERE'S DR. WILEY?... OH NO, TOO LATE." (post-final-boss) |
+| 11 | "MEGAMAN, YOU'VE REGAINED CONSCIOUSNESS..." (ending) |
+| 12 | "I WONDER WHO BROUGHT YOU HERE..." (ending) |
+| 13 | "THIS WHISTLE... IT MUST HAVE BEEN PROTO MAN!" (ending) |
+
+The streamer lives at bank $0E $A000/$A003/$A006 (clear rows / next
+character / start string X) — the typewriter effect used by the Gamma
+cutscene (bank $0B), the ending (bank $0C), and the post-Gamma dialogue
+(bank $12 via fixed-bank helpers). More ending text ("EPILOGUE", the
+"NUMBER LIST OF ROBOTS MADE BY DR. RIGHT" entries) lives in bank $0D
+as PPU write blocks.
 
 ### "READY" Overlay
 
@@ -930,7 +947,9 @@ $20  TILE_LADDER        climbable ladder
 $30  TILE_DAMAGE        damage tile (lava/fire)
 $40  TILE_LADDER_TOP    ladder top (grab point)
 $50  TILE_SPIKES        instant kill spikes
+$60  TILE_BEHIND_BG     passthrough, entity renders behind background
 $70  TILE_BREAKABLE     breakable block
+$80  TILE_WATER         water physics
 ```
 
 ### Facing / Flags

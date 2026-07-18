@@ -21,12 +21,11 @@
 ;   2. WILY FORTRESS STAGE DATA ($A5AB-$BFFF)
 ;      Standard stage data layout (see fixed bank $C816 for loader):
 ;        $A5AB-$A9FF: RLE-compressed nametable tile maps
-;        $AA00-$AA5F: screen metatile grid (column IDs per screen)
-;        $AA60-$AA7F: screen pointer table (2 bytes/screen)
+;        $AA00-$AA5F: screen layout IDs (per screen) + room config
+;        $AA60-$AA7F: room pointer table (2 bytes/room)
 ;        $AA80-$AA81: CHR bank indices (BG pattern table pages)
-;        $AA82-$AA97: BG palette (4 sub-palettes, 16 bytes)
-;        $AA98-$AAFF: screen layout data (20 bytes/screen: 16 column
-;                     IDs + 4 bytes screen connection data)
+;        $AA82-$AAFF: room data entries (20 bytes/entry: 16 BG palette
+;                     bytes + 4 screen connection bytes)
 ;        $AB00-$ABFF: enemy screen number table (per enemy slot)
 ;        $AC00-$ACFF: enemy X position table
 ;        $AD00-$ADFF: enemy Y position table
@@ -349,12 +348,11 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
 ; Sub-section layout (addresses match the standard stage data format used
 ; by the fixed bank's load_stage routine at $C816):
 ;   $A5AB: RLE-compressed nametable tile maps (decoded during screen load)
-;   $AA00: screen metatile grid — column IDs read during tile collision
-;   $AA60: screen pointer table — 2 bytes per screen (init param + index)
+;   $AA00: screen layout ID table (1 byte per screen page)
+;   $AA60: room pointer table — 2 bytes per room (CHR/pal param + data idx)
 ;   $AA80: CHR bank indices ($AA80=BG page 0, $AA81=BG page 1)
-;   $AA82: BG palette — 4 sub-palettes of 4 NES colors (16 bytes)
-;   $AA98: screen layout data — 20 bytes per screen:
-;            bytes 0-15: metatile column IDs (one per 16px column)
+;   $AA82: room data entries — 20 bytes per room data index:
+;            bytes 0-15: room BG palette (copied to $0600/$0620)
 ;            bytes 16-19: screen connection data (bit 7=flag, 0-6=target)
 ;   $AB00: enemy screen number table ($AB00,y = screen assignment)
 ;   $AC00: enemy X pixel position table ($AC00,y)
@@ -532,22 +530,22 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
         .byte   $82,$07,$80,$01,$00,$02,$00,$00
         .byte   $00,$02,$00,$08,$00,$00,$00,$00
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
-; --- screen pointer table ($AA60, 32 bytes) ---
-; 2 bytes per screen: initialization parameter and layout index.
+; --- room pointer table ($AA60, 32 bytes) ---
+; 2 bytes per room: CHR/palette param and room data index.
         .byte   $08,$00,$08,$00,$08,$00,$2F,$00
         .byte   $35,$00,$FF,$2C,$0A,$6F,$00,$7C
         .byte   $8A,$92,$08,$06,$80,$96,$00,$A8
         .byte   $02,$84,$00,$01,$20,$00,$00,$04
-; --- CHR bank indices + BG palette ($AA80, 24 bytes) ---
+; --- CHR bank indices + room data ($AA80) ---
 ; $AA80 = $64 (BG CHR page 0), $AA81 = $68 (BG CHR page 1)
-; $AA82-$AA91: BG palette — 4 sub-palettes of 4 NES colors (16 bytes)
-; $AA92-$AA97: padding/unused (6 bytes of zero)
+; $AA82+: room data entries, 20 bytes each — 16 BG palette bytes
+; (entry 0 palette at $AA82-$AA91) + 4 screen connection bytes
         .byte   $64,$68,$0F,$30,$2B,$1B,$0F,$0C ; CHR banks + palette 0
         .byte   $01,$04,$0F,$37,$27,$17,$0F,$30 ; palette 1-2
         .byte   $10,$04,$00,$00,$00,$00,$00,$00 ; palette 3 + padding
-; --- screen layout data ($AA98, 104 bytes) ---
-; 20 bytes per screen: 16 column IDs + 4 screen connection bytes.
-; Bit 7 of connection byte = flag, bits 0-6 = target screen ID.
+; --- room data continued ($AA96+) ---
+; Further 20-byte room data entries (16 BG palette bytes + 4 screen
+; connection bytes; bit 7 of connection byte = scroll flag).
         .byte   $00,$00,$00,$00,$00,$00,$00,$00
         .byte   $0C,$79,$08,$F4,$86,$EF,$3A,$51
         .byte   $0A,$7A,$A8,$97,$28,$0B,$00,$83
@@ -710,11 +708,10 @@ robot_master_palette_data:  .byte   $0F,$37,$26,$10,$0F,$30,$27,$01 ; palette 0 
 ; ===========================================================================
 ; METATILE COLUMN DEFINITIONS ($AF00-$B6FF)
 ; ===========================================================================
-; 64 bytes per column ID, defining a vertical strip of metatile indices
-; for one 16px-wide column of a screen. Each byte is a metatile index
-; into the CHR definitions table at $B700. Referenced by screen layout
-; data at $AA98+ (16 column IDs per screen). Total: up to 32 columns
-; x 64 bytes = 2048 bytes. Read by fixed bank routine at $E425.
+; 64 bytes per screen layout ID: an 8x8 grid of 32x32-px metatile
+; indices (one full screen). Each byte is a metatile index into the
+; CHR definitions table at $B700. Layout IDs are selected per screen
+; page by the $AA00 table. Read by fixed bank routine at $E425.
 ; ---------------------------------------------------------------------------
         .byte   $00,$01,$02,$03,$04,$05,$06,$07 ; Column $00
         .byte   $07,$08,$09,$0A,$0B,$08,$09,$00

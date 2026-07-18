@@ -44,11 +44,11 @@
 ;   (ensure_stage_bank_table) by banks $0B and $0C. Standard
 ;   MM3 stage bank format (see ENGINE.md "Stage Data Format"):
 ;   $A32D-$A9FC:  2-bit encoded screen nametable column data
-;   $AA00-$AA3F:  screen column ID table
+;   $AA00-$AA3F:  screen layout ID table
 ;   $AA40-$AA5F:  room config table
 ;   $AA60-$AA7F:  room pointer table (2 bytes per room)
 ;   $AA80-$AA81:  BG CHR bank indices
-;   $AA82-$AAFF:  screen layout data (20 bytes per entry)
+;   $AA82-$AAFF:  room data (20 bytes: 16 palette + 4 connection bytes)
 ;   $AB00-$ADFF:  enemy spawn tables (screen / X / Y, $FF-terminated)
 ;   $AE00-$AEFF:  enemy spawn global enemy IDs
 ;   $AF00-$B6FF:  metatile column definitions (64 bytes per column ID)
@@ -580,11 +580,11 @@ string_pointer_table_high:  .byte   $A0,$A0,$A1,$A1,$A1,$A1,$A1,$A1
         .byte   $E7,$88,$F0,$AA,$8E,$38,$10,$2A
         .byte   $BE,$AA,$BF,$00,$20,$2A,$00,$20
 ; ===========================================================================
-; Screen layout table + room config ($AA00-$AA7F)
+; Screen layout IDs + room config ($AA00-$AA7F)
 ; ===========================================================================
-; $AA00: 20 bytes per screen (16 metatile column IDs + 4 connection bytes).
-; $AA5D: Room config / screen pointer table entries.
-; Terminated by $FF. Followed by BG palette data at $AA80.
+; $AA00: screen layout ID table (1 byte per screen page).
+; $AA40/$AA60: room config bytes + room pointer table (2 bytes/room).
+; Followed by BG CHR bank indices at $AA80 and room data at $AA82.
 ; ===========================================================================
         .byte   $20,$20,$04,$00,$00,$0B,$0C,$0D
         .byte   $0E,$0F,$10,$11,$12,$13,$14,$15
